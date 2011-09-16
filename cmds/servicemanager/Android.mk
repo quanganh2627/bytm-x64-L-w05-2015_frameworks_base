@@ -6,6 +6,9 @@ LOCAL_PATH:= $(call my-dir)
 #include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
+
+LOCAL_CFLAGS    += -DOLA_FACEDETECTION
+
 LOCAL_SHARED_LIBRARIES := liblog
 LOCAL_SRC_FILES := service_manager.c binder.c
 LOCAL_MODULE := servicemanager
