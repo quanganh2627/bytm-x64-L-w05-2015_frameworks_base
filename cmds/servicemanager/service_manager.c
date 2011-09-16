@@ -32,6 +32,9 @@ static struct {
     { AID_MEDIA, "media.camera" },
     { AID_MEDIA, "media.audio_policy" },
     { AID_DRM,   "drm.drmManager" },
+#ifdef OLA_FACEDETECTION
+    { AID_MEDIA, "com.olaworks.olabuffer" },
+#endif
     { AID_NFC,   "nfc" },
     { AID_BLUETOOTH, "bluetooth" },
     { AID_RADIO, "radio.phone" },
