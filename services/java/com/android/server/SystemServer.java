@@ -66,6 +66,7 @@ import com.android.server.power.PowerManagerService;
 import com.android.server.power.ShutdownThread;
 import com.android.server.usb.UsbService;
 import com.android.server.wm.WindowManagerService;
+import com.android.server.SmartcardSystemService;
 
 import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
@@ -723,6 +724,15 @@ class ServerThread extends Thread {
                 recognition = new RecognitionManagerService(context);
             } catch (Throwable e) {
                 reportWtf("starting Recognition Service", e);
+            }
+
+            if (!"0".equals(SystemProperties.get("startsmartcardservice"))) {
+                try {
+                    Slog.i(TAG, "Smartcard System Service");
+                    ServiceManager.addService("smartcardservice", new SmartcardSystemService(context));
+                } catch (Throwable e) {
+                    reportWtf("starting Smartcard System Service", e);
+                }
             }
 
             try {
