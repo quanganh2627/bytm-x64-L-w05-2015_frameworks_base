@@ -78,6 +78,8 @@ import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
 import com.android.server.am.BatteryStatsService;
 import com.android.internal.R;
+import com.android.internal.telephony.TelephonyIntents;
+import com.android.internal.telephony.IccCardConstants;
 
 /**
  * WifiService handles remote WiFi operation requests by implementing
@@ -1091,6 +1093,67 @@ public class WifiService extends IWifiManager.Stub {
             } else if (action.equals(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED)) {
                 mEmergencyCallbackMode = intent.getBooleanExtra("phoneinECMState", false);
                 updateWifiState();
+            } else if (action.equals(TelephonyIntents.ACTION_SIM_STATE_CHANGED)) {
+
+                String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
+                boolean eapSimOrAkaNetworkConfigurationFound = false;
+
+                if (IccCardConstants.INTENT_VALUE_ICC_READY.equals(stateExtra)) {
+                    /*
+                     * SIM card inserted
+                     */
+
+                    /* Loop through all the configured networks and enable the ones using EAP-SIM or EAP-AKA */
+                    List<WifiConfiguration> configs = getConfiguredNetworks();
+                    if (configs != null) {
+                        for (final WifiConfiguration w : configs) {
+                            if ( (w.allowedKeyManagement.get(KeyMgmt.WPA_EAP)
+                                  || w.allowedKeyManagement.get(KeyMgmt.IEEE8021X))
+                                      && (w.eap.value().contains("SIM") || w.eap.value().contains("AKA")) ) {
+
+                                eapSimOrAkaNetworkConfigurationFound = true;
+                                if ( enableNetwork(w.networkId, false) != true) {
+                                    Slog.e(TAG, "SIM ready event. Failed to enable network: " + w.SSID);
+                                }
+                            }
+                        }
+                    }
+                } else if (IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra)) {
+                    /*
+                     * SIM card removed
+                     */
+
+                    WifiInfo info = getConnectionInfo();
+                    /* Loop through all the configured networks and disable the ones using EAP-SIM or EAP-AKA */
+                    List<WifiConfiguration> configs = getConfiguredNetworks();
+                    if (configs != null) {
+                        for (final WifiConfiguration w : configs) {
+                            int activeNetworkId = info.getNetworkId();
+                            if ( (w.allowedKeyManagement.get(KeyMgmt.WPA_EAP)
+                                  || w.allowedKeyManagement.get(KeyMgmt.IEEE8021X))
+                                      && (w.eap.value().contains("SIM") || w.eap.value().contains("AKA")) ) {
+
+                                eapSimOrAkaNetworkConfigurationFound = true;
+                                /* If the active network uses EAP-SIM or EAP-AKA then disconnect before disabling */
+                                if ( (activeNetworkId != -1) && (w.networkId == activeNetworkId) ) {
+                                    disconnect();
+                                }
+                                if ( disableNetwork(w.networkId) != true) {
+                                    Slog.e(TAG, "SIM absent event. Failed to disable network: " + w.SSID);
+                                }
+                                /* Erase the identity (IMSI number) of the SIM card used for authenticating this network */
+                                w.identity.setValue("");
+                                if (addOrUpdateNetwork(w) == -1) {
+                                    Slog.e(TAG, "SIM absent event. Failed to update network: " + w.SSID);
+                                }
+                            }
+                        }
+                    }
+                }
+                if (eapSimOrAkaNetworkConfigurationFound == true) {
+                    /* Save the current list of configurations to make the enable/disable actions persistant */
+                    saveConfiguration();
+                }
             }
         }
 
@@ -1204,6 +1267,7 @@ public class WifiService extends IWifiManager.Stub {
         intentFilter.addAction(ACTION_DEVICE_IDLE);
         intentFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
+        intentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
         mContext.registerReceiver(mReceiver, intentFilter);
     }
 
