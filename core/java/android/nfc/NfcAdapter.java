@@ -1345,7 +1345,7 @@ public final class NfcAdapter {
         /* Get the list of the detected Secure Element */
         try {
             seList = sService.getSecureElementList();
-            if (seList.length != 0) {
+            if (seList != null && seList.length != 0) {
                 for (int i=0; i<seList.length; i++) {
                     if (seList[i] == seID) {
                         /* Select the Secure Element */
