@@ -131,6 +131,10 @@ public class WifiService extends IWifiManager.Stub {
     private int mDataActivity;
     private String mInterfaceName;
 
+    private String[] mUsbRegexs;
+    //true if USB tethering is enabled
+    private boolean mTetherUsbOn = false;
+
     /**
      * Interval in milliseconds between polling for traffic
      * statistics
@@ -435,6 +439,17 @@ public class WifiService extends IWifiManager.Stub {
                     }
                 }, filter);
 
+        mContext.registerReceiver(
+                new BroadcastReceiver() {
+                    @Override
+                    public void onReceive(Context context, Intent intent) {
+                      ArrayList<String> active = intent.getStringArrayListExtra(
+                              ConnectivityManager.EXTRA_ACTIVE_TETHER);
+                      updateTetherUsbState(active);
+
+                    }
+                },new IntentFilter(ConnectivityManager.ACTION_TETHER_STATE_CHANGED));
+
         HandlerThread wifiThread = new HandlerThread("WifiService");
         wifiThread.start();
         mAsyncServiceHandler = new AsyncServiceHandler(wifiThread.getLooper());
@@ -506,6 +521,33 @@ public class WifiService extends IWifiManager.Stub {
         mWifiWatchdogStateMachine = WifiWatchdogStateMachine.
                makeWifiWatchdogStateMachine(mContext);
 
+    }
+
+    private void updateTetherUsbState(ArrayList<String> tethered) {
+        /*  Set the mTetheUsbOn according with the USB tethering service status */
+        /* If USB tethering  is enabled, the Wifi sleep policy is disabled */
+
+        ConnectivityManager mCm = (ConnectivityManager)mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        mUsbRegexs = mCm.getTetherableUsbRegexs();
+
+        for (String intf : tethered) {
+            for (String regex : mUsbRegexs) {
+                if (intf.matches(regex)) {
+                    if (mTetherUsbOn == false) {
+                        Slog.i(TAG,"Usb tether is enabled, disable sleep policy");
+                        mAlarmManager.cancel(mIdleIntent);
+                        mTetherUsbOn = true;
+                        return;
+                    }
+                }
+            }
+        }
+
+        if (mTetherUsbOn == true){
+            Slog.i(TAG,"Usb tether is disabled, eneable sleep policy");
+            mTetherUsbOn = false;
+            return;
+        }
     }
 
     private boolean testAndClearWifiSavedState() {
@@ -1047,7 +1089,7 @@ public class WifiService extends IWifiManager.Stub {
                  */
                 if (!shouldWifiStayAwake(stayAwakeConditions, mPluggedType)) {
                     //Delayed shutdown if wifi is connected
-                    if (mNetworkInfo.getDetailedState() == DetailedState.CONNECTED) {
+                    if (mNetworkInfo.getDetailedState() == DetailedState.CONNECTED && !mTetherUsbOn) {
                         if (DBG) Slog.d(TAG, "setting ACTION_DEVICE_IDLE: " + idleMillis + " ms");
                         mAlarmManager.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis()
                                 + idleMillis, mIdleIntent);
