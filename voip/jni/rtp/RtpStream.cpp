@@ -22,6 +22,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <linux/ip.h>
 
 #define LOG_TAG "RtpStream"
 #include <utils/Log.h>
@@ -57,7 +58,10 @@ jint create(JNIEnv *env, jobject thiz, jstring jAddress)
     uint16_t *p = (ss.ss_family == AF_INET) ?
         &((sockaddr_in *)&ss)->sin_port : &((sockaddr_in6 *)&ss)->sin6_port;
     uint16_t port = ntohs(*p);
+    // Set DSCP class selector 7 (11100000) in order to put RTP packets on the AC_VO queue
+    int tos = IPTOS_PREC_NETCONTROL;
     if ((port & 1) == 0) {
+        setsockopt(socket, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
         env->SetIntField(thiz, gSocket, socket);
         return port;
     }
@@ -75,6 +79,7 @@ jint create(JNIEnv *env, jobject thiz, jstring jAddress)
             *p = htons(port);
 
             if (bind(socket, (sockaddr *)&ss, sizeof(ss)) == 0) {
+                setsockopt(socket, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
                 env->SetIntField(thiz, gSocket, socket);
                 return port;
             }
