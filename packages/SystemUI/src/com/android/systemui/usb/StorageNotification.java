@@ -31,6 +31,7 @@ import android.os.storage.StorageManager;
 import android.os.storage.StorageVolume;
 import android.provider.Settings;
 import android.util.Slog;
+import android.os.storage.StorageVolume;
 
 public class StorageNotification extends StorageEventListener {
     private static final String TAG = "StorageNotification";
@@ -82,6 +83,25 @@ public class StorageNotification extends StorageEventListener {
         onUsbMassStorageConnectionChanged(connected);
     }
 
+
+    private Intent intentForFormat(String formatpath) {
+        Intent intent = new Intent ();
+        intent.setClass(mContext, com.android.internal.app.ExternalMediaFormatActivity.class);
+
+        StorageVolume[] storageVolumes = mStorageManager.getVolumeList();
+        //If it's multiple storage, pass storagevolume to FormatActivity;
+        if ( storageVolumes != null && storageVolumes.length > 1 ) {
+            int length = storageVolumes.length;
+            for (int i = 0; i < length; i++) {
+                StorageVolume storageVolume = storageVolumes[i];
+                if ( formatpath.equals( storageVolume.getPath() ) ){
+                    intent.putExtra(StorageVolume.EXTRA_STORAGE_VOLUME, storageVolume);
+                    break;
+                }
+            }
+        }
+        return intent;
+    }
     /*
      * @override com.android.os.storage.StorageEventListener
      */
@@ -218,8 +238,7 @@ public class StorageNotification extends StorageEventListener {
              * Storage has no filesystem. Show blank media notification,
              * and enable UMS notification if connected.
              */
-            Intent intent = new Intent();
-            intent.setClass(mContext, com.android.internal.app.ExternalMediaFormatActivity.class);
+            Intent intent = intentForFormat(path);
             PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent, 0);
 
             setMediaStorageNotification(
@@ -232,8 +251,7 @@ public class StorageNotification extends StorageEventListener {
              * Storage is corrupt. Show corrupt media notification,
              * and enable UMS notification if connected.
              */
-            Intent intent = new Intent();
-            intent.setClass(mContext, com.android.internal.app.ExternalMediaFormatActivity.class);
+            Intent intent = intentForFormat(path);
             PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent, 0);
 
             setMediaStorageNotification(
