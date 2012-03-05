@@ -1070,10 +1070,17 @@ public class WifiService extends IWifiManager.Stub {
                 if (mScreenOff && shouldWifiStayAwake(stayAwakeConditions, mPluggedType) &&
                         !shouldWifiStayAwake(stayAwakeConditions, pluggedType)) {
                     long triggerTime = System.currentTimeMillis() + idleMillis;
-                    if (DBG) {
-                        Slog.d(TAG, "setting ACTION_DEVICE_IDLE timer for " + idleMillis + "ms");
+
+                    if (mNetworkInfo.getDetailedState() == DetailedState.CONNECTED && !mTetherUsbOn) {
+                        // Delayed sleep request if wifi is connected
+                        if (DBG) {
+                            Slog.d(TAG, "setting ACTION_DEVICE_IDLE timer for " + idleMillis + "ms");
+                        }
+                        mAlarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, mIdleIntent);
+                    } else {
+                        // Sleep now if wifi is not connected
+                        setDeviceIdleAndUpdateWifi(true);
                     }
-                    mAlarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, mIdleIntent);
                 }
 
                 mPluggedType = pluggedType;
