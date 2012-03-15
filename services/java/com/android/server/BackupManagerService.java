@@ -1404,6 +1404,9 @@ class BackupManagerService extends IBackupManager.Stub {
             if (DEBUG) Slog.v(TAG, "Connected to Google transport");
             mGoogleTransport = IBackupTransport.Stub.asInterface(service);
             registerTransport(name.flattenToShortString(), mGoogleTransport);
+            // When connection to GoogleBackupTransport service,
+            // Set the current transport to  GoogleBackupTransport
+            selectBackupTransport(name.flattenToShortString());
         }
 
         public void onServiceDisconnected(ComponentName name) {
