@@ -1088,13 +1088,16 @@ public class WifiService extends IWifiManager.Stub {
                  * or plugged in to AC).
                  */
                 if (!shouldWifiStayAwake(stayAwakeConditions, mPluggedType)) {
-                    //Delayed shutdown if wifi is connected
-                    if (mNetworkInfo.getDetailedState() == DetailedState.CONNECTED && !mTetherUsbOn) {
-                        if (DBG) Slog.d(TAG, "setting ACTION_DEVICE_IDLE: " + idleMillis + " ms");
-                        mAlarmManager.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis()
-                                + idleMillis, mIdleIntent);
-                    } else {
-                        setDeviceIdleAndUpdateWifi(true);
+                    // Apply sleep policy only if usb tethering is disabled
+                    if (!mTetherUsbOn) {
+                        //Delayed shutdown if wifi is connected
+                        if (mNetworkInfo.getDetailedState() == DetailedState.CONNECTED) {
+                            if (DBG) Slog.d(TAG, "setting ACTION_DEVICE_IDLE: " + idleMillis + " ms");
+                            mAlarmManager.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis()
+                                    + idleMillis, mIdleIntent);
+                        } else {
+                            setDeviceIdleAndUpdateWifi(true);
+                        }
                     }
                 }
             } else if (action.equals(ACTION_DEVICE_IDLE)) {
