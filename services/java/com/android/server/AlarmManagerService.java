@@ -99,7 +99,8 @@ class AlarmManagerService extends IAlarmManager.Stub {
     private final ResultReceiver mResultReceiver = new ResultReceiver();
     private final PendingIntent mTimeTickSender;
     private final PendingIntent mDateChangeSender;
-    
+    private boolean printIntent = false;
+
     private static final class FilterStats {
         int count;
     }
@@ -698,6 +699,11 @@ class AlarmManagerService extends IAlarmManager.Stub {
                         Alarm alarm = it.next();
                         try {
                             if (localLOGV) Slog.v(TAG, "sending alarm " + alarm);
+                             if (alarm.type == AlarmManager.ELAPSED_REALTIME_WAKEUP
+                                    || alarm.type == AlarmManager.RTC_WAKEUP) {
+                                    printIntent = true;
+
+                            }
                             alarm.operation.send(mContext, 0,
                                     mBackgroundIntent.putExtra(
                                             Intent.EXTRA_ALARM_COUNT, alarm.count),
@@ -932,6 +938,12 @@ class AlarmManagerService extends IAlarmManager.Stub {
                             bs.filterStats.put(fc, fs);
                         }
                         fs.count++;
+                       if (printIntent) {
+                               Slog.v(TAG, "triggered: " +
+                                      intent.toShortString(false, true, false, false) +
+                                      "\nPkg: " + pi.getTargetPackage() + "\n");
+                               printIntent = false;
+                       }
                     }
                 }
                 mInFlight.removeFirst();
