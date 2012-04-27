@@ -334,7 +334,7 @@ public class StorageManager {
         }
 
         synchronized (mListeners) {
-            if (mBinderListener == null ) {
+            if (mBinderListener == null && mMountService != null) {
                 try {
                     mBinderListener = new MountServiceBinderListener();
                     mMountService.registerListener(mBinderListener);
@@ -368,7 +368,7 @@ public class StorageManager {
                     break;
                 }
             }
-            if (mListeners.size() == 0 && mBinderListener != null) {
+            if (mListeners.size() == 0 && mBinderListener !=null && mMountService != null) {
                 try {
                     mMountService.unregisterListener(mBinderListener);
                 } catch (RemoteException rex) {
