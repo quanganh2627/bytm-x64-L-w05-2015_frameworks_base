@@ -42,6 +42,8 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Calendar;
 
+import java.text.SimpleDateFormat;
+import com.android.server.am.DebugAnr;
 /** This class calls its monitor every minute. Killing this process if they don't return **/
 public class Watchdog extends Thread {
     static final String TAG = "Watchdog";
@@ -111,7 +113,7 @@ public class Watchdog extends Thread {
     int mReqMinScreenOff = -1;    // >= 0 if a specific screen off time has been requested
     int mReqMinNextAlarm = -1;    // >= 0 if specific time to next alarm has been requested
     int mReqRecheckInterval= -1;  // >= 0 if a specific recheck interval has been requested
-
+    String stackname = null;
     /**
      * Used for scheduling monitor callbacks and checking memory usage.
      */
@@ -428,6 +430,16 @@ public class Watchdog extends Thread {
             // If we got here, that means that the system is most likely hung.
             // First collect stack traces from all threads of the system process.
             // Then kill this process so that the system will restart.
+            final String buildtype = SystemProperties.get("ro.build.type", null);
+            if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
+                final String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
+                final String subString = tracesPath.substring(0,10);
+                SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
+                String name1 = subString + sDateFormat.format(new java.util.Date()) + ".txt";
+                DebugAnr da = new DebugAnr();
+                da.logToFile(name1);
+                stackname = "Trace file:" + name1;
+            }
 
             final String name = (mCurrentMonitor != null) ?
                     mCurrentMonitor.getClass().getName() : "null";
@@ -466,12 +478,12 @@ public class Watchdog extends Thread {
             // itself may be deadlocked.  (which has happened, causing this statement to
             // deadlock and the watchdog as a whole to be ineffective)
             Thread dropboxThread = new Thread("watchdogWriteToDropbox") {
-                    public void run() {
-                        mActivity.addErrorToDropBox(
-                                "watchdog", null, "system_server", null, null,
-                                name, null, stack, null);
-                    }
-                };
+                public void run() {
+                    mActivity.addErrorToDropBox(
+                        "watchdog", null, "system_server", null, null,
+                        name, null, stack, null, stackname);
+                }
+            };
             dropboxThread.start();
             try {
                 dropboxThread.join(2000);  // wait up to 2 seconds for it to return.
