@@ -44,8 +44,11 @@ import android.util.Slog;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+
+import com.android.server.am.DebugAnr;
 
 /** This class calls its monitor every minute. Killing this process if they don't return **/
 public class Watchdog extends Thread {
@@ -80,6 +83,7 @@ public class Watchdog extends Thread {
     int mPhonePid;
     IActivityController mController;
     boolean mAllowRestart = true;
+    String stackname = null;
 
     /**
      * Used for checking status of handle threads and scheduling monitor callbacks.
@@ -348,6 +352,17 @@ public class Watchdog extends Thread {
             // If we got here, that means that the system is most likely hung.
             // First collect stack traces from all threads of the system process.
             // Then kill this process so that the system will restart.
+            final String buildtype = SystemProperties.get("ro.build.type", null);
+            if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
+                final String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
+                final String subString = tracesPath.substring(0,10);
+                SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
+                String name1 = subString + sDateFormat.format(new java.util.Date()) + ".txt";
+                DebugAnr da = new DebugAnr();
+                da.logToFile(name1);
+                stackname = "Trace file:" + name1;
+            }
+
             EventLog.writeEvent(EventLogTags.WATCHDOG, subject);
 
             ArrayList<Integer> pids = new ArrayList<Integer>();
@@ -384,7 +399,7 @@ public class Watchdog extends Thread {
                     public void run() {
                         mActivity.addErrorToDropBox(
                                 "watchdog", null, "system_server", null, null,
-                                subject, null, stack, null);
+                                subject, null, stack, null, stackname);
                     }
                 };
             dropboxThread.start();
