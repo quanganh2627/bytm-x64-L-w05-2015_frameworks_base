@@ -165,6 +165,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.text.SimpleDateFormat;
 
 public final class ActivityManagerService  extends ActivityManagerNative
         implements Watchdog.Monitor, BatteryStatsImpl.BatteryCallback {
@@ -1369,7 +1370,7 @@ public final class ActivityManagerService  extends ActivityManagerNative
                         }
                         dropBuilder.append(catSw.toString());
                         addErrorToDropBox("lowmem", null, "system_server", null,
-                                null, tag.toString(), dropBuilder.toString(), null, null);
+                                null, tag.toString(), dropBuilder.toString(), null, null, null);
                         Slog.i(TAG, logBuilder.toString());
                         synchronized (ActivityManagerService.this) {
                             long now = SystemClock.uptimeMillis();
@@ -3169,6 +3170,9 @@ public final class ActivityManagerService  extends ActivityManagerNative
             return null;
         }
 
+        // Try to add the error to the dropbox, but assuming that the ActivityManager
+        // itself may be deadlocked.  (which has happened, causing this statement to
+        // deadlock and the watchdog as a whole to be ineffective)
         dumpStackTraces(tracesPath, firstPids, processStats, lastPids, nativeProcs);
         return tracesFile;
     }
@@ -3388,7 +3392,18 @@ public final class ActivityManagerService  extends ActivityManagerNative
                 }
             }
         }
-
+        String buildtype = SystemProperties.get("ro.build.type", null);
+        String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
+        String subString = tracesPath.substring(0,10);
+        String name;
+        String stackname = "";
+        if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
+            SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
+            name = subString + sDateFormat.format(new java.util.Date()) + ".txt";
+            DebugAnr da = new DebugAnr();
+            da.logToFile(name);
+            stackname = "Trace file:" + name;
+        }
         // Log the ANR to the main log.
         StringBuilder info = new StringBuilder();
         info.setLength(0);
@@ -3425,9 +3440,13 @@ public final class ActivityManagerService  extends ActivityManagerNative
             // There is no trace file, so dump (only) the alleged culprit's threads to the log
             Process.sendSignal(app.pid, Process.SIGNAL_QUIT);
         }
-
-        addErrorToDropBox("anr", app, app.processName, activity, parent, annotation,
-                cpuInfo, tracesFile, null);
+        if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
+             addErrorToDropBox("anr", app, app.processName, activity, parent, annotation, cpuInfo, tracesFile, null, stackname);
+         }
+         else
+         {
+             addErrorToDropBox("anr", app, app.processName, activity, parent, annotation, cpuInfo, tracesFile, null, null);
+         }
 
         if (mController != null) {
             try {
@@ -8450,7 +8469,7 @@ public final class ActivityManagerService  extends ActivityManagerNative
                 crashInfo.throwFileName,
                 crashInfo.throwLineNumber);
 
-        addErrorToDropBox(eventType, r, processName, null, null, null, null, null, crashInfo);
+        addErrorToDropBox(eventType, r, processName, null, null, null, null, null, crashInfo, null);
 
         crashApplication(r, crashInfo);
     }
@@ -8647,7 +8666,7 @@ public final class ActivityManagerService  extends ActivityManagerNative
                 r == null ? -1 : r.info.flags,
                 tag, crashInfo.exceptionMessage);
 
-        addErrorToDropBox("wtf", r, processName, null, null, tag, null, null, crashInfo);
+        addErrorToDropBox("wtf", r, processName, null, null, tag, null, null, crashInfo, null);
 
         if (r != null && r.pid != Process.myPid() &&
                 Settings.Global.getInt(mContext.getContentResolver(),
@@ -8753,7 +8772,7 @@ public final class ActivityManagerService  extends ActivityManagerNative
             ProcessRecord process, String processName, ActivityRecord activity,
             ActivityRecord parent, String subject,
             final String report, final File logFile,
-            final ApplicationErrorReport.CrashInfo crashInfo) {
+            final ApplicationErrorReport.CrashInfo crashInfo, final String stackname) {
         // NOTE -- this must never acquire the ActivityManagerService lock,
         // otherwise the watchdog may be prevented from resetting the system.
 
@@ -8765,6 +8784,9 @@ public final class ActivityManagerService  extends ActivityManagerNative
         if (dbox == null || !dbox.isTagEnabled(dropboxTag)) return;
 
         final StringBuilder sb = new StringBuilder(1024);
+        if (stackname != null) {
+            sb.append(stackname).append("\n");
+        }
         appendDropBoxProcessHeaders(process, processName, sb);
         if (activity != null) {
             sb.append("Activity: ").append(activity.shortComponentName).append("\n");
