@@ -86,7 +86,11 @@ public class ExternalStorageFormatter extends Service
             Log.i(TAG, "Received storage state changed notification that " +
                     path + " changed state from " + oldState +
                     " to " + newState);
-            updateProgressState();
+            if (getExternalStoragePath().equals(path))
+                updateProgressState();
+            else
+                Log.i(TAG, "Ignore " + path + " since it is not external storage path "
+                           + getExternalStoragePath());
         }
     };
 
