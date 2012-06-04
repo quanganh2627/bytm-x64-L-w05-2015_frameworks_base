@@ -179,6 +179,8 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     // protects mRingerMode
     private final Object mSettingsLock = new Object();
 
+    private int mFmRxMode;
+
     private boolean mMediaServerOk;
 
     private SoundPool mSoundPool;
