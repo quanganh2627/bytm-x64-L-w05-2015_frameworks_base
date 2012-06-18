@@ -3235,6 +3235,18 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     /**
+     * @return Whether FM is being used right now.
+     */
+    int GetFmRxMode() {
+        final AudioManager am = (AudioManager)mContext.getSystemService(Context.AUDIO_SERVICE);
+        if (am == null) {
+            Log.w(TAG, "GetFmRxMode: couldn't get AudioManager reference");
+            return -1;
+        }
+        return am.getFmRxMode();
+    }
+
+    /**
      * Tell the audio service to adjust the volume appropriate to the event.
      * @param keycode
      */
@@ -3470,6 +3482,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         // application, handle the volume change here.
                         handleVolumeKey(AudioManager.STREAM_MUSIC, keyCode);
                         break;
+                    }
+                    if (GetFmRxMode() == AudioManager.MODE_FM_ON) {
+                        // If FM is ON, we pass the key to Audio Service,
+                        // handle the volume change here.
+                        Log.w(TAG, "Key input catched in FM Rx mode");
+                        handleVolumeKey(AudioManager.STREAM_MUSIC, keyCode);
                     }
                 }
                 break;
