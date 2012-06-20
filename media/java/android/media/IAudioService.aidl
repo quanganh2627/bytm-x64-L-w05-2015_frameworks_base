@@ -84,7 +84,7 @@ interface IAudioService {
 
     void setMode(int mode, IBinder cb);
 
-    void setFmRxMode(int mode);
+    int setFmRxMode(int mode);
 
     int getMode();
 

@@ -1440,12 +1440,13 @@ public class AudioManager {
      *              Informs the HAL about the current FM audio state so that
      *              it can route the audio appropriately.
      */
-    public void setFmRxMode(int mode) {
+    public int setFmRxMode(int mode) {
         IAudioService service = getService();
         try {
-            service.setFmRxMode(mode);
+            return service.setFmRxMode(mode);
         } catch (RemoteException e) {
             Log.e(TAG, "Dead object in setFmRxMode", e);
+            return AudioSystem.AUDIO_STATUS_ERROR;
         }
     }
 
