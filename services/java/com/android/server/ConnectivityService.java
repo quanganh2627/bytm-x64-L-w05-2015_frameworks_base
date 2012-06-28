@@ -1901,6 +1901,39 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     }
 
     /**
+     * Handle a {@code SUSPENDED} event. Send out the broadcast
+     * of connection state change.
+     * @param info the {@code NetworkInfo} for the network
+     */
+    private void handleSuspended(NetworkInfo info) {
+        if (info == null)
+            return;
+
+        int netType = info.getType();
+
+        Intent intent = new Intent(ConnectivityManager.CONNECTIVITY_ACTION);
+        if (intent != null) {
+            intent.putExtra(ConnectivityManager.EXTRA_NETWORK_INFO, info);
+
+            if (info.getReason() != null) {
+                intent.putExtra(ConnectivityManager.EXTRA_REASON, info.getReason());
+            }
+
+            if (info.getExtraInfo() != null) {
+                intent.putExtra(ConnectivityManager.EXTRA_EXTRA_INFO,
+                        info.getExtraInfo());
+            }
+            sendStickyBroadcastDelayed(intent, getConnectivityChangeDelay());
+
+            final Intent immediateIntent = new Intent(intent);
+            if (immediateIntent != null) {
+                immediateIntent.setAction(CONNECTIVITY_ACTION_IMMEDIATE);
+                sendStickyBroadcast(immediateIntent);
+            }
+        }
+    }
+
+    /**
      * Handle a {@code DISCONNECTED} event. If this pertains to the non-active
      * network, we ignore it. If it is for the active network, we send out a
      * broadcast. But first, we check whether it might be possible to connect
@@ -3007,14 +3040,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                     } else if (state == NetworkInfo.State.DISCONNECTED) {
                         handleDisconnect(info);
                     } else if (state == NetworkInfo.State.SUSPENDED) {
-                        // TODO: need to think this over.
-                        // the logic here is, handle SUSPENDED the same as
-                        // DISCONNECTED. The only difference being we are
-                        // broadcasting an intent with NetworkInfo that's
-                        // suspended. This allows the applications an
-                        // opportunity to handle DISCONNECTED and SUSPENDED
-                        // differently, or not.
-                        handleDisconnect(info);
+                        handleSuspended(info);
                     } else if (state == NetworkInfo.State.CONNECTED) {
                         handleConnect(info);
                     }
