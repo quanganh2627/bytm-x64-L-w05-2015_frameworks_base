@@ -28,14 +28,14 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.MediaController;
 import android.widget.MediaController.MediaPlayerControl;
-
+import android.view.KeyEvent;
 
 /**
  * @hide This is only used by the browser
  */
 public class HTML5VideoFullScreen extends HTML5VideoView
     implements MediaPlayerControl, MediaPlayer.OnPreparedListener,
-    View.OnTouchListener {
+    View.OnTouchListener, View.OnKeyListener {
 
     // Add this sub-class to handle the resizing when rotating screen.
     private class VideoSurfaceView extends SurfaceView {
@@ -198,6 +198,7 @@ public class HTML5VideoFullScreen extends HTML5VideoView
         super.onPrepared(mp);
 
         mVideoSurfaceView.setOnTouchListener(this);
+        mVideoSurfaceView.setOnKeyListener(this);
 
         mVideoSurfaceView.setOnSystemUiVisibilityChangeListener(
                 new View.OnSystemUiVisibilityChangeListener() {
@@ -396,6 +397,15 @@ public class HTML5VideoFullScreen extends HTML5VideoView
         if (mFullScreenMode >= FULLSCREEN_SURFACECREATED
                 && mMediaController != null) {
             toggleMediaControlsVisiblity();
+        }
+        return false;
+    }
+
+    @Override
+    public boolean onKey(View v, int keyCode, KeyEvent event) {
+        if (mFullScreenMode >= FULLSCREEN_SURFACECREATED
+                && mMediaController != null) {
+            return mMediaController.dispatchKeyEvent(event);
         }
         return false;
     }
