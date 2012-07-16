@@ -376,8 +376,15 @@ public class HTML5VideoFullScreen extends HTML5VideoView
 
     @Override
     public boolean onKey(View v, int keyCode, KeyEvent event) {
+        // Media control key should be dispatched to MediaController to handle.
         if (mFullScreenMode >= FULLSCREEN_SURFACECREATED
-                && mMediaController != null) {
+                && mMediaController != null
+                && (keyCode == KeyEvent.KEYCODE_HEADSETHOOK
+                || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
+                || keyCode == KeyEvent.KEYCODE_SPACE
+                || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY
+                || keyCode == KeyEvent.KEYCODE_MEDIA_STOP
+                || keyCode == KeyEvent.KEYCODE_MEDIA_PAUSE)) {
             return mMediaController.dispatchKeyEvent(event);
         }
         return false;
