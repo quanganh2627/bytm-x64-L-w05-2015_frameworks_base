@@ -34,6 +34,9 @@ int register_android_server_VibratorService(JNIEnv* env);
 int register_android_server_SystemServer(JNIEnv* env);
 int register_android_server_location_GpsLocationProvider(JNIEnv* env);
 int register_android_server_connectivity_Vpn(JNIEnv* env);
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+int register_android_server_DisplaySetting(JNIEnv *env);
+#endif
 };
 
 using namespace android;
@@ -63,6 +66,9 @@ extern "C" jint JNI_OnLoad(JavaVM* vm, void* reserved)
     register_android_server_SystemServer(env);
     register_android_server_location_GpsLocationProvider(env);
     register_android_server_connectivity_Vpn(env);
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    register_android_server_DisplaySetting(env);
+#endif
 
     return JNI_VERSION_1_4;
 }

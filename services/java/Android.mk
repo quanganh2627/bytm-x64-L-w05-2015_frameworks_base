@@ -13,6 +13,10 @@ LOCAL_MODULE:= services
 
 LOCAL_JAVA_LIBRARIES := android.policy telephony-common
 
+ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
+	LOCAL_STATIC_JAVA_LIBRARIES := displayobserver
+endif
+
 include $(BUILD_JAVA_LIBRARY)
 
 include $(BUILD_DROIDDOC)

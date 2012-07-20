@@ -44,6 +44,14 @@ LOCAL_SHARED_LIBRARIES := \
     libusbhost \
     libsuspend
 
+ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
+    LOCAL_SHARED_LIBRARIES += \
+		libmultidisplay \
+		libbinder
+    LOCAL_STATIC_LIBRARIES := libdisplayobserverjni
+    LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
+endif
+
 ifeq ($(WITH_MALLOC_LEAK_CHECK),true)
     LOCAL_CFLAGS += -DMALLOC_LEAK_CHECK
 endif
