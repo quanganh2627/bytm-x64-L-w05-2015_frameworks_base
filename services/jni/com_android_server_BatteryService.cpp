@@ -258,7 +258,7 @@ int register_android_server_BatteryService(JNIEnv* env)
                     if (access(path, R_OK) == 0)
                         gPaths.acOnlinePath = strdup(path);
                 }
-                else if (strcmp(buf, "USB") == 0) {
+                else if (strncmp(buf, "USB", strlen("USB")) == 0) {
                     snprintf(path, sizeof(path), "%s/%s/online", POWER_SUPPLY_PATH, name);
                     if (access(path, R_OK) == 0)
                         gPaths.usbOnlinePath = strdup(path);
