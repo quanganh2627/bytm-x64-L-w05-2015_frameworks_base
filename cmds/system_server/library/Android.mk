@@ -22,6 +22,12 @@ LOCAL_SHARED_LIBRARIES := \
 	libcutils \
 	liblog
 
+ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
+    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/display
+    LOCAL_SHARED_LIBRARIES += libmultidisplay
+    LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
+endif
+
 LOCAL_MODULE:= libsystem_server
 
 include $(BUILD_SHARED_LIBRARY)

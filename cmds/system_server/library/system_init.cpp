@@ -26,6 +26,10 @@
 #include <sys/time.h>
 #include <cutils/properties.h>
 
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+#include <MultiDisplayService.h>
+#endif
+
 using namespace android;
 
 namespace android {
@@ -71,6 +75,9 @@ extern "C" status_t system_init()
         // Start the sensor service
         SensorService::instantiate();
     }
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    MultiDisplayService::instantiate();
+#endif
 
     // And now start the Android runtime.  We have to do this bit
     // of nastiness because the Android runtime initialization requires
