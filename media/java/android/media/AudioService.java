@@ -513,6 +513,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                 new IntentFilter(BluetoothHeadset.ACTION_AUDIO_STATE_CHANGED);
         intentFilter.addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(Intent.ACTION_DOCK_EVENT);
+        intentFilter.addAction(Intent.ACTION_HDMI_AUDIO_PLUG);
         intentFilter.addAction(Intent.ACTION_USB_AUDIO_ACCESSORY_PLUG);
         intentFilter.addAction(Intent.ACTION_USB_AUDIO_DEVICE_PLUG);
         intentFilter.addAction(Intent.ACTION_BOOT_COMPLETED);
@@ -3875,6 +3876,9 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                         }
                     }
                 }
+            } else if (action.equals(Intent.ACTION_HDMI_AUDIO_PLUG)) {
+                state = intent.getIntExtra("state", 0);
+                handleDeviceConnection((state == 1), AudioSystem.DEVICE_OUT_AUX_DIGITAL, "");
             } else if (action.equals(Intent.ACTION_USB_AUDIO_ACCESSORY_PLUG) ||
                            action.equals(Intent.ACTION_USB_AUDIO_DEVICE_PLUG)) {
                 state = intent.getIntExtra("state", 0);
