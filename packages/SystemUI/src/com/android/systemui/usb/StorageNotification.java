@@ -28,6 +28,7 @@ import android.os.HandlerThread;
 import android.os.UserHandle;
 import android.os.storage.StorageEventListener;
 import android.os.storage.StorageManager;
+import android.os.storage.StorageVolume;
 import android.provider.Settings;
 import android.util.Slog;
 
@@ -127,8 +128,21 @@ public class StorageNotification extends StorageEventListener {
     }
 
     private void onStorageStateChangedAsync(String path, String oldState, String newState) {
+        boolean isRemovable = false;
+
         Slog.i(TAG, String.format(
                 "Media {%s} state changed from {%s} -> {%s}", path, oldState, newState));
+
+        StorageVolume[] storageVolumes = mStorageManager.getVolumeList();
+        if (storageVolumes != null) {
+            int length = storageVolumes.length;
+            for (int i = 0; i < length; i++) {
+                StorageVolume storageVolume = storageVolumes[i];
+                if (path.equals(storageVolume.getPath())) {
+                    isRemovable = storageVolume.isRemovable();
+                }
+            }
+        }
         if (newState.equals(Environment.MEDIA_SHARED)) {
             /*
              * Storage is now shared. Modify the UMS notification
@@ -177,7 +191,7 @@ public class StorageNotification extends StorageEventListener {
                      * Show safe to unmount media notification, and enable UMS
                      * notification if connected.
                      */
-                    if (Environment.isExternalStorageRemovable()) {
+                    if (isRemovable) {
                         setMediaStorageNotification(
                                 com.android.internal.R.string.ext_media_safe_unmount_notification_title,
                                 com.android.internal.R.string.ext_media_safe_unmount_notification_message,
