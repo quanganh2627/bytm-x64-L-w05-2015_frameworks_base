@@ -42,6 +42,7 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
+import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemClock;
@@ -123,6 +124,11 @@ class MountService extends IMountService.Stub
 
     /** Maximum number of ASEC containers allowed to be mounted. */
     private static final int MAX_CONTAINERS = 250;
+
+    /* power manager wake lock to wake up screen */
+    private final PowerManager mPowerManager;
+    private final PowerManager.WakeLock mWakeLock;
+    private final Handler mWakeLockHandler;
 
     /*
      * Internal vold volume state constants
@@ -837,6 +843,10 @@ class MountService extends IMountService.Stub
             int major = -1;
             int minor = -1;
 
+            mWakeLockHandler.removeCallbacks(DiskScreenCtrl);
+            mWakeLock.acquire();
+            mWakeLockHandler.postDelayed(DiskScreenCtrl, 10000);
+
             try {
                 String devComp = cooked[6].substring(1, cooked[6].length() -1);
                 String[] devTok = devComp.split(":");
@@ -1370,6 +1380,15 @@ class MountService extends IMountService.Stub
 
         // Add OBB Action Handler to MountService thread.
         mObbActionHandler = new ObbActionHandler(IoThread.get().getLooper());
+
+        /*
+         * get the msg from vold and handle it with wakelock
+         */
+        mPowerManager = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
+        mWakeLock = mPowerManager.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
+                    PowerManager.ACQUIRE_CAUSES_WAKEUP, "sd_screen_lock");
+        mWakeLock.setReferenceCounted(false);
+        mWakeLockHandler = new Handler();
 
         /*
          * Create the connection to vold with a maximum queue of twice the
@@ -2830,4 +2849,11 @@ class MountService extends IMountService.Stub
             mConnector.monitor();
         }
     }
+
+    private Runnable DiskScreenCtrl = new Runnable() {
+        public void run() {
+            if (mWakeLock.isHeld())
+                mWakeLock.release();
+        }
+    };
 }
