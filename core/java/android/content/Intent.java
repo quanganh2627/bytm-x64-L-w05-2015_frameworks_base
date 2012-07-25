@@ -2275,6 +2275,19 @@ public class Intent implements Parcelable, Cloneable {
             = "android.intent.action.ADVANCED_SETTINGS";
 
     /**
+     * Broadcast Action: Wireless display is turned ON or OFF.
+     *
+     * <p>The intent will have the following extra values:
+     * <ul>
+     *   <li><em>state</em> - 0 for OFF, 1 for ON. </li>
+     * </ul>
+     * @hide
+     */
+     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
+     public static final String ACTION_WIDI_TURNED =
+             "android.intent.action.WIDI_TURNED";
+
+    /**
      * Broadcast Action: An outgoing call is about to be placed.
      *
      * <p>The Intent will have the following extra value:</p>
