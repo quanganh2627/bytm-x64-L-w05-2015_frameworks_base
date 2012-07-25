@@ -168,6 +168,7 @@ public final class UsageStatsService extends IUsageStats.Stub {
         long mUsageTime;
         long mPausedTime;
         long mResumedTime;
+        final List<Long> mHist = new ArrayList<Long>();
         
         PkgUsageStatsExtended() {
             mLaunchCount = 0;
@@ -188,6 +189,11 @@ public final class UsageStatsService extends IUsageStats.Stub {
                 TimeStats times = new TimeStats(in);
                 mLaunchTimes.put(comp, times);
             }
+
+            final int numHist = in.readInt();
+            for (int i=0; i<numHist; i++) {
+                mHist.add(in.readLong());
+            }
         }
 
         void updateResume(String comp, boolean launched) {
@@ -195,11 +201,17 @@ public final class UsageStatsService extends IUsageStats.Stub {
                 mLaunchCount ++;
             }
             mResumedTime = SystemClock.elapsedRealtime();
+            if ((mHist.size() & 1) == 0) {
+                mHist.add(System.currentTimeMillis());
+            }
         }
         
         void updatePause() {
             mPausedTime =  SystemClock.elapsedRealtime();
             mUsageTime += (mPausedTime - mResumedTime);
+            if ((mHist.size() & 1) != 0) {
+                mHist.add(System.currentTimeMillis());
+            }
         }
         
         void addLaunchCount(String comp) {
@@ -232,12 +244,17 @@ public final class UsageStatsService extends IUsageStats.Stub {
                     times.writeToParcel(out);
                 }
             }
+            out.writeInt(mHist.size());
+            for (Long i:mHist) {
+                out.writeLong(i);
+            }
         }
         
         void clear() {
             mLaunchTimes.clear();
             mLaunchCount = 0;
             mUsageTime = 0;
+            mHist.clear();
         }
     }
     

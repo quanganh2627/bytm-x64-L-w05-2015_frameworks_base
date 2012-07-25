@@ -31,8 +31,10 @@ import android.os.WorkSource;
 import android.telephony.SignalStrength;
 import android.telephony.TelephonyManager;
 import android.util.Slog;
+import android.util.Log;
 
 import com.android.internal.app.IBatteryStats;
+import com.android.internal.app.IBatteryStatsResetCallback;
 import com.android.internal.os.BatteryStatsImpl;
 import com.android.internal.os.PowerProfile;
 
@@ -89,6 +91,30 @@ public final class BatteryStatsService extends IBatteryStats.Stub {
     public BatteryStatsImpl getActiveStatistics() {
         return mStats;
     }
+
+    private static final String TAG = "BatteryStatsService";
+    public void resetStatistic(boolean wait) {
+        synchronized(mStats) {
+            Log.i(TAG, "resetStatistic in Thread " + Thread.currentThread().getId());
+            mStats.resetAllStatsLocked(wait);
+        }
+    }
+
+    public void registerCallback(IBatteryStatsResetCallback callback) {
+        Log.i(TAG, "registerCallback get called");
+
+        synchronized(mStats) {
+            mStats.registerCallback(callback);
+        }
+    }
+
+    public void unregisterCallback(IBatteryStatsResetCallback callback) {
+        Log.i(TAG, "unregisterCallback get called");
+
+        synchronized(mStats) {
+            mStats.unregisterCallback(callback);
+        }
+    }
     
     public byte[] getStatistics() {
         mContext.enforceCallingPermission(
@@ -100,6 +126,12 @@ public final class BatteryStatsService extends IBatteryStats.Stub {
         byte[] data = out.marshall();
         out.recycle();
         return data;
+    }
+
+    public byte[] getStatisticsBeforeReset() {
+        mContext.enforceCallingPermission(
+                android.Manifest.permission.BATTERY_STATS, null);
+        return mStats.getduplicateData();
     }
     
     public void noteStartWakelock(int uid, int pid, String name, int type) {
@@ -481,7 +513,7 @@ public final class BatteryStatsService extends IBatteryStats.Stub {
                     isCheckin = true;
                 } else if ("--reset".equals(arg)) {
                     synchronized (mStats) {
-                        mStats.resetAllStatsLocked();
+                        mStats.resetAllStatsLocked(true);
                         pw.println("Battery stats reset.");
                         noOutput = true;
                     }
