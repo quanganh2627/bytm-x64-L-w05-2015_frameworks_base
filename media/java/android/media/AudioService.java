@@ -548,6 +548,7 @@ public class AudioService extends IAudioService.Stub {
         intentFilter.addAction(Intent.ACTION_HDMI_AUDIO_PLUG);
         intentFilter.addAction(Intent.ACTION_USB_AUDIO_ACCESSORY_PLUG);
         intentFilter.addAction(Intent.ACTION_USB_AUDIO_DEVICE_PLUG);
+        intentFilter.addAction(Intent.ACTION_WIDI_TURNED);
         intentFilter.addAction(Intent.ACTION_BOOT_COMPLETED);
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);
         intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
@@ -4179,6 +4180,24 @@ public class AudioService extends IAudioService.Stub {
                               "ACTION_USB_AUDIO_ACCESSORY_PLUG" : "ACTION_USB_AUDIO_DEVICE_PLUG")
                         + ", state = " + state + ", card: " + alsaCard + ", device: " + alsaDevice);
                 setWiredDeviceConnectionState(device, state, params);
+             } else if (action.equals(Intent.ACTION_WIDI_TURNED)) {
+                 state = intent.getIntExtra("state", 0);
+                 Log.d(TAG, "Intent = ACTION_WIDI_TURNED caught: state = "+state);
+
+                 boolean isConnected = mConnectedDevices.containsKey(AudioSystem.DEVICE_OUT_WIDI);
+                 if (state == 0 && isConnected) {
+                     Log.d(TAG, "connected: calling AudioSystem.setDeviceConnectionState()");
+                     AudioSystem.setDeviceConnectionState(AudioSystem.DEVICE_OUT_WIDI,
+                             AudioSystem.DEVICE_STATE_UNAVAILABLE,
+                             "");
+                     mConnectedDevices.remove(AudioSystem.DEVICE_OUT_WIDI);
+                 } else if (state == 1 && !isConnected) {
+                     Log.d(TAG, "not connected: calling AudioSystem.setDeviceConnectionState()");
+                     AudioSystem.setDeviceConnectionState(AudioSystem.DEVICE_OUT_WIDI,
+                             AudioSystem.DEVICE_STATE_AVAILABLE,
+                             "");
+                     mConnectedDevices.put( new Integer(AudioSystem.DEVICE_OUT_WIDI), "");
+                 }
             } else if (action.equals(BluetoothHeadset.ACTION_AUDIO_STATE_CHANGED)) {
                 boolean broadcast = false;
                 int scoAudioState = AudioManager.SCO_AUDIO_STATE_ERROR;
