@@ -2611,6 +2611,9 @@ public class AudioManager {
      *  docking station
      */
     public static final int DEVICE_OUT_DGTL_DOCK_HEADSET = AudioSystem.DEVICE_OUT_DGTL_DOCK_HEADSET;
+    /** {@hide} The audio output device code for a loopback driver for WIDI use case
+     */
+    public static final int DEVICE_OUT_WIDI = AudioSystem.DEVICE_OUT_WIDI;
     /** {@hide} The audio output device code for a USB audio accessory. The accessory is in USB host
      * mode and the Android device in USB device mode
      */
