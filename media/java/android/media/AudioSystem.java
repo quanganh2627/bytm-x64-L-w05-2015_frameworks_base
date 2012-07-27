@@ -86,6 +86,10 @@ public class AudioSystem
     public static final int MODE_IN_COMMUNICATION   = 3;
     public static final int NUM_MODES               = 4;
 
+    /* Mode for FM */
+    public static final int   MODE_FM_OFF           = 0;
+    public static final int   MODE_FM_ON            = 1;
+    public static final int   MODE_FM_NUM           = 2;
 
     /* Routing bits for the former setRouting/getRouting API */
     /** @deprecated */
@@ -379,6 +383,7 @@ public class AudioSystem
     public static native int setDeviceConnectionState(int device, int state, String device_address);
     public static native int getDeviceConnectionState(int device, String device_address);
     public static native int setPhoneState(int state);
+    public static native int setFmRxState(int state);
     public static native int setForceUse(int usage, int config);
     public static native int getForceUse(int usage);
     public static native int initStreamVolume(int stream, int indexMin, int indexMax);
