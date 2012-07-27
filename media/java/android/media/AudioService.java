@@ -1562,6 +1562,11 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         return newModeOwnerPid;
     }
 
+    /** Set FM mode */
+    public void setFmRxMode(int mode) {
+        int status = AudioSystem.setFmRxState(mode);
+    }
+
     /** @see AudioManager#getMode() */
     public int getMode() {
         return mMode;

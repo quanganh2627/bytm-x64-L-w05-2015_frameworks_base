@@ -84,6 +84,8 @@ interface IAudioService {
 
     void setMode(int mode, IBinder cb);
 
+    void setFmRxMode(int mode);
+
     int getMode();
 
     oneway void playSoundEffect(int effectType);

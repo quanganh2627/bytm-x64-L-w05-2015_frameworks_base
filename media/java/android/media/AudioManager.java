@@ -1430,6 +1430,23 @@ public class AudioManager {
     }
 
     /**
+     * Sets the audio FM mode.
+     * <p>
+     *
+     * @param mode  the requested FM mode ({@link #MODE_FM_ON}, {@link #MODE_FM_OFF},
+     *              Informs the HAL about the current FM audio state so that
+     *              it can route the audio appropriately.
+     */
+    public void setFmRxMode(int mode) {
+        IAudioService service = getService();
+        try {
+            service.setFmRxMode(mode);
+        } catch (RemoteException e) {
+            Log.e(TAG, "Dead object in setFmRxMode", e);
+        }
+    }
+
+    /**
      * Returns the current audio mode.
      *
      * @return      the current audio mode ({@link #MODE_NORMAL}, {@link #MODE_RINGTONE},
@@ -1474,6 +1491,11 @@ public class AudioManager {
      * In communication audio mode. An audio/video chat or VoIP call is established.
      */
     public static final int MODE_IN_COMMUNICATION   = AudioSystem.MODE_IN_COMMUNICATION;
+
+    /* Modes for FM */
+    public static final int   MODE_FM_OFF           = AudioSystem.MODE_FM_OFF;
+    public static final int   MODE_FM_ON            = AudioSystem.MODE_FM_ON;
+    public static final int   MODE_FM_NUM           = AudioSystem.MODE_FM_NUM;
 
     /* Routing bits for setRouting/getRouting API */
     /**
