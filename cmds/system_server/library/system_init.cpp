@@ -70,14 +70,15 @@ extern "C" status_t system_init()
         SurfaceFlinger::instantiate();
     }
 
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    MultiDisplayService::instantiate();
+#endif
+
     property_get("system_init.startsensorservice", propBuf, "1");
     if (strcmp(propBuf, "1") == 0) {
         // Start the sensor service
         SensorService::instantiate();
     }
-#ifdef TARGET_HAS_MULTIPLE_DISPLAY
-    MultiDisplayService::instantiate();
-#endif
 
     // And now start the Android runtime.  We have to do this bit
     // of nastiness because the Android runtime initialization requires
