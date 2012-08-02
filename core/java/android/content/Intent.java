@@ -3330,6 +3330,11 @@ public class Intent implements Parcelable, Cloneable {
      */
     public static final String EXTRA_SHUTDOWN_USERSPACE_ONLY
             = "android.intent.extra.SHUTDOWN_USERSPACE_ONLY";
+    /** Broadcast intent when set hdmi status disable/enable.
+     * @hide
+     *
+     */
+    public static final String HDMI_SET_STATUS= "android.intent.action.SET.HDMI_STATUS";
 
     // ---------------------------------------------------------------------
     // ---------------------------------------------------------------------
