@@ -3231,6 +3231,12 @@ public class Intent implements Parcelable, Cloneable {
     public static final String EXTRA_RESTRICTIONS_INTENT =
             "android.intent.extra.restrictions_intent";
 
+    /** Broadcast intent when set hdmi status disable/enable.
+     * @hide
+     *
+     */
+    public static final String HDMI_SET_STATUS= "android.intent.action.SET.HDMI_STATUS";
+
     // ---------------------------------------------------------------------
     // ---------------------------------------------------------------------
     // Intent flags (see mFlags variable).
