@@ -388,6 +388,10 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     // Deactivation request for all SCO connections (initiated by audio mode change)
     // waiting for headset service to connect
     private static final int SCO_STATE_DEACTIVATE_EXT_REQ = 4;
+    // state of HDMI Device Enable set from HDMI settings application
+    private static int mHdmiEnable = 1;
+    // state of HDMI Audio hot plug
+    private static int mState = 0;
 
     // Current connection state indicated by bluetooth headset
     private int mScoConnectionState;
@@ -521,6 +525,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);
         intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
         intentFilter.addAction(Intent.ACTION_USER_SWITCHED);
+        intentFilter.addAction(Intent.HDMI_SET_STATUS);
 
         intentFilter.addAction(Intent.ACTION_CONFIGURATION_CHANGED);
         // Register a configuration change listener only if requested by system properties
@@ -3658,13 +3663,13 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
             boolean isConnected = (mConnectedDevices.containsKey(device) &&
                     (params.isEmpty() || mConnectedDevices.get(device).equals(params)));
 
-            if (isConnected && !connected) {
+            if ((isConnected && !connected) || (mHdmiEnable == 0)) {
                 AudioSystem.setDeviceConnectionState(device,
                                               AudioSystem.DEVICE_STATE_UNAVAILABLE,
                                               mConnectedDevices.get(device));
                  mConnectedDevices.remove(device);
                  return true;
-            } else if (!isConnected && connected) {
+            } else if ((!isConnected && connected) && (mHdmiEnable == 1)) {
                  AudioSystem.setDeviceConnectionState(device,
                                                       AudioSystem.DEVICE_STATE_AVAILABLE,
                                                       params);
@@ -3881,8 +3886,24 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                     }
                 }
             } else if (action.equals(Intent.ACTION_HDMI_AUDIO_PLUG)) {
-                state = intent.getIntExtra("state", 0);
-                handleDeviceConnection((state == 1), AudioSystem.DEVICE_OUT_AUX_DIGITAL, "");
+                mState = intent.getIntExtra("state", 0);
+                Log.v(TAG, "Broadcast Receiver: Got ACTION_HDMI_AUDIO_PLUG, state = "+mState);
+                handleDeviceConnection((mState == 1), AudioSystem.DEVICE_OUT_AUX_DIGITAL, "");
+            } else if (action.equals(Intent.HDMI_SET_STATUS)) {
+                Bundle extras = intent.getExtras();
+                if (extras == null)
+                    return;
+                mHdmiEnable = extras.getInt("Status", 0);
+                Log.v(TAG, "Broadcast Receiver: Got ACTION_HDMI_SET_STATUS, HdmiEnable = "+mHdmiEnable);
+                if ((mState == 0 ) || (mHdmiEnable == 0)) {
+                    AudioSystem.setDeviceConnectionState(AudioSystem.DEVICE_OUT_AUX_DIGITAL,
+                                                         AudioSystem.DEVICE_STATE_UNAVAILABLE,
+                                                         "");
+                } else if ((mState == 1) && (mHdmiEnable == 1)) {
+                    AudioSystem.setDeviceConnectionState(AudioSystem.DEVICE_OUT_AUX_DIGITAL,
+                                                         AudioSystem.DEVICE_STATE_AVAILABLE,
+                                                         "");
+                }
             } else if (action.equals(Intent.ACTION_USB_AUDIO_ACCESSORY_PLUG) ||
                            action.equals(Intent.ACTION_USB_AUDIO_DEVICE_PLUG)) {
                 state = intent.getIntExtra("state", 0);
