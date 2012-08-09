@@ -2769,6 +2769,10 @@ public class WifiStateMachine extends StateMachine {
             mWifiNative.setPowerSave(true);
 
             if (mP2pSupported) mWifiP2pChannel.sendMessage(WifiStateMachine.CMD_ENABLE_P2P);
+            else {
+                /* Disable P2P feature in supplicant (remove P2P IE from management frames) */
+                mWifiNative.p2pSetDisabled(true);
+            }
         }
         @Override
         public boolean processMessage(Message message) {
