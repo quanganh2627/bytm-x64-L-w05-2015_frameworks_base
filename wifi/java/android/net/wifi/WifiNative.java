@@ -939,6 +939,11 @@ public class WifiNative {
         return null;
     }
 
+    public boolean p2pSetDisabled(boolean enabled) {
+        int value = (enabled == true) ? 1 : 0;
+        return doBooleanCommand("P2P_SET disabled " + value);
+    }
+
     public boolean p2pServiceAdd(WifiP2pServiceInfo servInfo) {
         /*
          * P2P_SERVICE_ADD bonjour <query hexdump> <RDATA hexdump>

@@ -3022,9 +3022,8 @@ public class WifiStateMachine extends StateMachine {
                 if (mOperationalMode == CONNECT_MODE) {
                     mWifiP2pChannel.sendMessage(WifiStateMachine.CMD_ENABLE_P2P);
                 } else {
-                    // P2P statemachine starts in disabled state, and is not enabled until
-                    // CMD_ENABLE_P2P is sent from here; so, nothing needs to be done to
-                    // keep it disabled.
+                    /* Disable P2P feature in supplicant (remove P2P IE from management frames) */
+                    mWifiNative.p2pSetDisabled(true);
                 }
             }
 
