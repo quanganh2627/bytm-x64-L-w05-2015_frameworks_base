@@ -990,10 +990,14 @@ public class NetworkManagementService extends INetworkManagementService.Stub
 
     private void modifyNat(String action, String internalInterface, String externalInterface)
             throws SocketException {
+        NetworkInterface internalNetworkInterface = null;
         final Command cmd = new Command("nat", action, internalInterface, externalInterface);
-
-        final NetworkInterface internalNetworkInterface = NetworkInterface.getByName(
-                internalInterface);
+        try {
+           internalNetworkInterface = NetworkInterface.getByName(internalInterface);
+        } catch (SocketException se) {
+                Log.w(TAG, "modifyNat , cmd: " + cmd + ",got Exception " + se.toString());
+                internalNetworkInterface = null;
+        }
         if (internalNetworkInterface == null) {
             cmd.appendArg("0");
         } else {
