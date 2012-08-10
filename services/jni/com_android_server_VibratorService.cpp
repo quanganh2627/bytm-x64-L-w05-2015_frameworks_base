@@ -22,40 +22,59 @@
 
 #include <utils/misc.h>
 #include <utils/Log.h>
-#include <hardware_legacy/vibrator.h>
+#include <hardware/vibrator.h>
 
 #include <stdio.h>
+#include <assert.h>
 
-namespace android
+namespace android {
+
+static struct vibrator_module *gVibraModule;
+
+static void vibratorControlInit()
 {
+    assert(!gVibraModule);
+    int err;
+
+    err = hw_get_module(VIBRATOR_HARDWARE_MODULE_ID, (hw_module_t const**)&gVibraModule);
+
+    if (err) {
+      ALOGE("Couldn't load %s module (%s)", VIBRATOR_HARDWARE_MODULE_ID, strerror(-err));
+    }
+}
 
 static jboolean vibratorExists(JNIEnv *env, jobject clazz)
 {
-    return vibrator_exists() > 0 ? JNI_TRUE : JNI_FALSE;
+    return (gVibraModule && gVibraModule->vibrator_exists() > 0) ? JNI_TRUE : JNI_FALSE;
 }
 
 static void vibratorOn(JNIEnv *env, jobject clazz, jlong timeout_ms)
 {
-    // ALOGI("vibratorOn\n");
-    vibrator_on(timeout_ms);
+    if (gVibraModule) {
+        gVibraModule->vibrator_on(timeout_ms);
+    }
 }
 
 static void vibratorOff(JNIEnv *env, jobject clazz)
 {
-    // ALOGI("vibratorOff\n");
-    vibrator_off();
+    if (gVibraModule) {
+        gVibraModule->vibrator_off();
+    }
 }
 
 static JNINativeMethod method_table[] = {
     { "vibratorExists", "()Z", (void*)vibratorExists },
     { "vibratorOn", "(J)V", (void*)vibratorOn },
-    { "vibratorOff", "()V", (void*)vibratorOff }
+    { "vibratorOff", "()V", (void*)vibratorOff },
 };
 
 int register_android_server_VibratorService(JNIEnv *env)
 {
+    // Load vibrator hardware module
+    vibratorControlInit();
+
     return jniRegisterNativeMethods(env, "com/android/server/VibratorService",
             method_table, NELEM(method_table));
 }
 
-};
+}; // namespace android
