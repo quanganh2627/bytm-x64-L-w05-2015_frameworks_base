@@ -74,6 +74,11 @@ public class WifiMonitor {
     private static final String AUTH_TIMEOUT_STR =
        "Authentication timed out";
 
+    /** All SME events coming from the supplicant start with this prefix */
+    private static final String SME_EVENT_PREFIX_STR = "SME:";
+    private static final String AUTH_REQ_FAILED_STR =
+       "Authentication request to the driver failed";
+
     /* WPS events */
     private static final String WPS_SUCCESS_STR = "WPS-SUCCESS";
 
@@ -578,6 +583,9 @@ public class WifiMonitor {
                         0 < eventStr.indexOf(PASSWORD_MAY_BE_INCORRECT_STR)) {
                     mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
                 } else if (eventStr.startsWith(AUTH_TIMEOUT_STR)) {
+                    mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
+                } else if (eventStr.startsWith(SME_EVENT_PREFIX_STR) &&
+                        0 < eventStr.indexOf(AUTH_REQ_FAILED_STR)) {
                     mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
                 } else if (eventStr.startsWith(WPS_SUCCESS_STR)) {
                     mStateMachine.sendMessage(WPS_SUCCESS_EVENT);
