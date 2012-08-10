@@ -57,6 +57,7 @@ public class WifiMonitor {
     private static final int DRIVER_STATE = 7;
     private static final int EAP_FAILURE  = 8;
     private static final int UNKNOWN      = 9;
+    private static final int BGSCAN_LEARN = 10;
 
     /** All events coming from the supplicant start with this prefix */
     private static final String EVENT_PREFIX_STR = "CTRL-EVENT-";
@@ -130,7 +131,12 @@ public class WifiMonitor {
      * </pre>
      */
     private static final String SCAN_RESULTS_STR =  "SCAN-RESULTS";
-
+    /**
+    * <pre>
+    * CTRL-EVENT-BGSCAN-LEARN (event raised by Intel wpa_supplicant)
+    * </pre>
+    */
+    private static final String BGSCAN_LEARN_STR =  "BGSCAN-LEARN";
     /**
      * <pre>
      * CTRL-EVENT-LINK-SPEED x Mb/s
@@ -339,6 +345,10 @@ public class WifiMonitor {
     /* hostap events */
     public static final int AP_STA_DISCONNECTED_EVENT            = BASE + 41;
     public static final int AP_STA_CONNECTED_EVENT               = BASE + 42;
+    /* Intel Background Scan event : raised by wpa_supplicant at every BG
+    * scan issued
+    */
+    public static final int BGSCAN_LEARN_EVENT                   = BASE + 50;
 
     /**
      * This indicates the supplicant connection for the monitor is closed
@@ -449,6 +459,8 @@ public class WifiMonitor {
                     event = DRIVER_STATE;
                 else if (eventName.equals(EAP_FAILURE_STR))
                     event = EAP_FAILURE;
+                else if (eventName.equals(BGSCAN_LEARN_STR))
+                    event = BGSCAN_LEARN;
                 else
                     event = UNKNOWN;
 
@@ -543,6 +555,10 @@ public class WifiMonitor {
 
                 case SCAN_RESULTS:
                     mStateMachine.sendMessage(SCAN_RESULTS_EVENT);
+                    break;
+
+                case BGSCAN_LEARN:
+                    mStateMachine.sendMessage(BGSCAN_LEARN_EVENT);
                     break;
 
                 case UNKNOWN:

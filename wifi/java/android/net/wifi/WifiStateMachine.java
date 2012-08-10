@@ -147,6 +147,7 @@ public class WifiStateMachine extends StateMachine {
     private AtomicBoolean mScreenBroadcastReceived = new AtomicBoolean(false);
 
     private boolean mBluetoothConnectionActive = false;
+    private boolean mBGscan_learn_ongoing = false;
 
     private PowerManager.WakeLock mSuspendWakeLock;
 
@@ -175,6 +176,16 @@ public class WifiStateMachine extends StateMachine {
      */
     private static final int TETHER_NOTIFICATION_TIME_OUT_MSECS = 5000;
 
+    /**
+     * Intel Background Scan notification time out
+     */
+    private static final int BGSCAN_LEARN_TIME_OUT_MSECS = 2500;
+
+    /**
+     * Intel Roaming notification time out
+     */
+    private static final int ROAMING_TIME_OUT_MSECS = 500;
+
     /* Tracks sequence number on a tether notification time out */
     private int mTetherToken = 0;
 
@@ -193,6 +204,9 @@ public class WifiStateMachine extends StateMachine {
 
     // Wakelock held during wifi start/stop and driver load/unload
     private PowerManager.WakeLock mWakeLock;
+
+    // Wakelock held during Intel Background Scan in Connected state
+    private PowerManager.WakeLock mBGscanWakeLock;
 
     private Context mContext;
 
@@ -683,6 +697,7 @@ public class WifiStateMachine extends StateMachine {
 
         PowerManager powerManager = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
         mWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
+        mBGscanWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
 
         mSuspendWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WifiSuspend");
         mSuspendWakeLock.setReferenceCounted(false);
@@ -1960,6 +1975,7 @@ public class WifiStateMachine extends StateMachine {
                 case WifiMonitor.NETWORK_CONNECTION_EVENT:
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
                 case WifiMonitor.SCAN_RESULTS_EVENT:
+                case WifiMonitor.BGSCAN_LEARN_EVENT:
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                 case WifiMonitor.WPS_OVERLAP_EVENT:
@@ -3338,6 +3354,43 @@ public class WifiStateMachine extends StateMachine {
                     fetchPktcntNative(info);
                     replyToMessage(message, WifiManager.RSSI_PKTCNT_FETCH_SUCCEEDED, info);
                     break;
+                case WifiMonitor.BGSCAN_LEARN_EVENT:
+                    /* When the network is connected, re-scanning can trigger
+                     * a reconnection only if ap_scan=1. ap_scan=1 is required to
+                     * roam in case a better AP candidate will be found thanks to
+                     * a BG scan.
+                     * Force ap_scan=1 before every scan_results issued by a BG scan
+                     */
+                    mWifiNative.setScanResultHandling(CONNECT_MODE);
+                    /*
+                     * A Background scan has been issued by wpa_supplicant. Keep Platform
+                     * waked up  while BGSCAN_LEARN_TIME_OUT_MSECS maximun =
+                     * maximal duration of a scan (2.5 seconds).
+                     */
+                    if (DBG) log("Background scan on going: Taking a wake lock");
+                    mBGscanWakeLock.acquire(BGSCAN_LEARN_TIME_OUT_MSECS);
+                    mBGscan_learn_ongoing = true;
+                    break;
+                case WifiMonitor.SCAN_RESULTS_EVENT:
+                    /* BG scan termniated : release the BG scan Wake Lock if it is held */
+                    if (mBGscanWakeLock.isHeld()) {
+                        if (DBG) log("Releasing BG scan wakelock");
+                        mBGscanWakeLock.release();
+                    }
+                    /*
+                     * Keep Platform waked up while ROAMING_TIME_OUT_MSECS maximun =
+                     * maximal duration needed for potential roaming
+                     */
+                    if (mBGscan_learn_ongoing) {
+                        mBGscan_learn_ongoing = false;
+                        if (DBG) log("Time for eventual roaming upon BG scan results: Taking a wake lock");
+                        mBGscanWakeLock.acquire(ROAMING_TIME_OUT_MSECS);
+                        break;
+                    }
+                    /*
+                    * Have the parent state handle WifiMonitor.SCAN_RESULTS_EVENT in case scan results
+                    * issued were not due to a intel wpa_supplicant BG scan
+                    */
                 default:
                     return NOT_HANDLED;
             }
