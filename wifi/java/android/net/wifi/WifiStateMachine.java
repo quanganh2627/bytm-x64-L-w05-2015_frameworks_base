@@ -4192,6 +4192,15 @@ public class WifiStateMachine extends StateMachine {
                         ret = NOT_HANDLED;
                     }
                     break;
+                 case CMD_STOP_DRIVER:
+                    /*  Disable alarm to prevent scaning when in delayed stop */
+                    /*  so reduce not necessary wake up due to RTC alarm */
+                    /*  Alarm is re-enable through enter method when driver */
+                    /*  will be re-started */
+                    setScanAlarm(false);
+                    /*  DriverStartedState does the rest of the handling */
+                    ret = NOT_HANDLED;
+                    break;
                 default:
                     ret = NOT_HANDLED;
             }
