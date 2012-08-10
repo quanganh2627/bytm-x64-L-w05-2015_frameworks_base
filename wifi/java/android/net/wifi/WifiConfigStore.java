@@ -32,6 +32,7 @@ import android.net.wifi.WifiConfiguration.ProxySettings;
 import android.net.wifi.WifiConfiguration.Status;
 import android.net.wifi.NetworkUpdateResult;
 import static android.net.wifi.WifiConfiguration.INVALID_NETWORK_ID;
+import static android.net.wifi.WifiConfiguration.DEFAULT_BACKGROUND_SCAN;
 import android.os.Environment;
 import android.os.Message;
 import android.os.Handler;
@@ -1022,6 +1023,15 @@ class WifiConfigStore {
                         WifiConfiguration.bssidVarName,
                         config.BSSID)) {
                 loge("failed to set BSSID: "+config.BSSID);
+                break setVariables;
+            }
+
+            if (config.bgscan != null &&
+                    !mWifiNative.setNetworkVariable(
+                        netId,
+                        WifiConfiguration.backgroundscanVarName,
+                        config.bgscan)) {
+                loge("failed to set Background Scan: "+config.bgscan);
                 break setVariables;
             }
 
