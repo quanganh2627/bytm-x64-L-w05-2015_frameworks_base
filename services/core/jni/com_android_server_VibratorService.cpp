@@ -22,32 +22,69 @@
 
 #include <utils/misc.h>
 #include <utils/Log.h>
-#include <hardware_legacy/vibrator.h>
+#include <hardware/vibrator.h>
 
 #include <stdio.h>
 
 namespace android
 {
 
-static jboolean vibratorExists(JNIEnv *env, jobject clazz)
+static hw_module_t *gVibraModule = NULL;
+static vibrator_device_t *gVibraDevice = NULL;
+
+static void vibratorInit(JNIEnv, jobject)
 {
-    return vibrator_exists() > 0 ? JNI_TRUE : JNI_FALSE;
+    if (gVibraModule != NULL) {
+        return;
+    }
+
+    int err = hw_get_module(VIBRATOR_HARDWARE_MODULE_ID, (hw_module_t const**)&gVibraModule);
+
+    if (err) {
+        ALOGE("Couldn't load %s module (%s)", VIBRATOR_HARDWARE_MODULE_ID, strerror(-err));
+    } else {
+        if (gVibraModule) {
+            vibrator_open(gVibraModule, &gVibraDevice);
+        }
+    }
 }
 
-static void vibratorOn(JNIEnv *env, jobject clazz, jlong timeout_ms)
+static jboolean vibratorExists(JNIEnv, jobject)
 {
-    // ALOGI("vibratorOn\n");
-    vibrator_on(timeout_ms);
+    if (gVibraModule && gVibraDevice) {
+        return JNI_TRUE;
+    } else {
+        return JNI_FALSE;
+    }
 }
 
-static void vibratorOff(JNIEnv *env, jobject clazz)
+static void vibratorOn(JNIEnv, jobject, jlong timeout_ms)
 {
-    // ALOGI("vibratorOff\n");
-    vibrator_off();
+    if (gVibraDevice) {
+        int err = gVibraDevice->vibrator_on(gVibraDevice, timeout_ms);
+        if (err != 0) {
+            ALOGE("The hw module failed in vibrator_on: %s", strerror(-err));
+        }
+    } else {
+        ALOGW("Tried to vibrate but there is no vibrator device.");
+    }
+}
+
+static void vibratorOff(JNIEnv, jobject)
+{
+    if (gVibraDevice) {
+        int err = gVibraDevice->vibrator_off(gVibraDevice);
+        if (err != 0) {
+            ALOGE("The hw module failed in vibrator_off(): %s", strerror(-err));
+        }
+    } else {
+        ALOGW("Tried to stop vibrating but there is no vibrator device.");
+    }
 }
 
 static JNINativeMethod method_table[] = {
     { "vibratorExists", "()Z", (void*)vibratorExists },
+    { "vibratorInit", "()V", (void*)vibratorInit },
     { "vibratorOn", "(J)V", (void*)vibratorOn },
     { "vibratorOff", "()V", (void*)vibratorOff }
 };
