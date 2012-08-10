@@ -2493,10 +2493,9 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 map.put(id, p);
 
                 // Valid system default IMEs and IMEs that have English subtypes are enabled
-                // by default, unless there's a hard keyboard and the system IME was explicitly
-                // disabled
+                // by default, unless the system IME was explicitly disabled
                 if ((isValidSystemDefaultIme(p, mContext) || isSystemImeThatHasEnglishSubtype(p))
-                        && (!haveHardKeyboard || disabledSysImes.indexOf(id) < 0)) {
+                        && (disabledSysImes.indexOf(id) < 0)) {
                     setInputMethodEnabledLocked(id, true);
                 }
 
