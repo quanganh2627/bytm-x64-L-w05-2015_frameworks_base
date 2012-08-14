@@ -20,6 +20,10 @@
 #include "VideoBrowserInternal.h"
 #include "LVOSA_FileReader_optim.h"
 
+#ifdef VIDEOEDITOR_INTEL_NV12_VERSION
+#include "VideoEditorToolsNV12.h"
+#endif
+
 //#define M4OSA_TRACE_LEVEL 1
 #if (M4OSA_TRACE_LEVEL >= 1)
 #undef M4OSA_TRACE1_0
@@ -327,12 +331,22 @@ M4OSA_ERR videoBrowserCreate(
 
 
     if (pContext->m_frameColorType == VideoBrowser_kGB565) {
+#ifdef VIDEOEDITOR_INTEL_NV12_VERSION
+        FilterOption.m_pFilterFunction =
+            (M4OSA_Void*)M4VIFI_ResizeBilinearNV12toBGR565;
+#else
         FilterOption.m_pFilterFunction =
             (M4OSA_Void*)M4VIFI_ResizeBilinearYUV420toBGR565;
+#endif
     }
     else if (pContext->m_frameColorType == VideoBrowser_kYUV420) {
+#ifdef VIDEOEDITOR_INTEL_NV12_VERSION
+        FilterOption.m_pFilterFunction =
+            (M4OSA_Void*)M4VIFI_ResizeBilinearNV12toYUV420;
+#else
         FilterOption.m_pFilterFunction =
             (M4OSA_Void*)M4VIFI_ResizeBilinearYUV420toYUV420;
+#endif
     }
     else {
         err = M4ERR_PARAMETER;
