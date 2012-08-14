@@ -568,6 +568,8 @@ class WifiConfigStore {
      * set IP configuration for a given network id
      */
     void setIpConfiguration(int netId, DhcpInfoInternal dhcpInfo) {
+        Log.e(TAG, "netId=" + netId + " / dhcpInfo=" + dhcpInfo);
+
         LinkProperties linkProperties = dhcpInfo.makeLinkProperties();
 
         WifiConfiguration config = mConfiguredNetworks.get(netId);
