@@ -576,6 +576,7 @@ public class WindowManagerService extends IWindowManager.Stub
 
     float mWindowAnimationScale = 1.0f;
     float mTransitionAnimationScale = 1.0f;
+    float mTransitionAnimationScaleOld = 1.0f;
     float mAnimatorDurationScale = 1.0f;
 
     final InputManagerService mInputManager;
@@ -9571,6 +9572,10 @@ public class WindowManagerService extends IWindowManager.Stub
         }
 
         if (mInnerFields.mUpdateRotation) {
+            //restore mTransitionAnimationScale here
+            mTransitionAnimationScale = mTransitionAnimationScaleOld;
+            Slog.v(TAG, "restore mTransitionAnimationScale=" + mTransitionAnimationScale);
+
             if (DEBUG_ORIENTATION) Slog.d(TAG, "Performing post-rotate rotation");
             if (updateRotationUncheckedLocked(false)) {
                 mH.sendEmptyMessage(H.SEND_NEW_CONFIGURATION);
@@ -10141,6 +10146,14 @@ public class WindowManagerService extends IWindowManager.Stub
                     display, mFxSession, inTransaction, displayInfo.logicalWidth,
                     displayInfo.logicalHeight, display.getRotation(),
                     exitAnim, enterAnim);
+
+            mTransitionAnimationScaleOld = mTransitionAnimationScale;
+            Slog.v(TAG, "save mTransitionAnimationScaleOld=" + mTransitionAnimationScaleOld);
+            //check if screen rotation animation is allowed. if not, set animation scale to 0
+            if (!Surface.isAnimationPermitted()) {
+                mTransitionAnimationScale = 0.0f;
+            }
+
             mAnimator.setScreenRotationAnimationLocked(displayId, screenRotationAnimation);
         }
     }

@@ -243,6 +243,7 @@ public class Surface implements Parcelable {
     private static native Bitmap nativeScreenshot(IBinder displayToken,
             int width, int height, int minLayer, int maxLayer, boolean allLayers);
 
+    private static native boolean nativeIsAnimationPermitted();
     private static native void nativeOpenTransaction();
     private static native void nativeCloseTransaction();
     private static native void nativeSetAnimationTransaction();
@@ -509,6 +510,15 @@ public class Surface implements Parcelable {
         // TODO: should take the display as a parameter
         IBinder displayToken = getBuiltInDisplay(BUILT_IN_DISPLAY_ID_MAIN);
         return nativeScreenshot(displayToken, width, height, minLayer, maxLayer, false);
+    }
+
+    /**
+     * Whether rotation animation is permitted;
+     * isAnimationPermitted() returns false for protected content surface.
+     * @hide
+     */
+    public static boolean isAnimationPermitted() {
+        return nativeIsAnimationPermitted();
     }
 
     /*
