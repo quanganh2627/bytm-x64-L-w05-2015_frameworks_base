@@ -3987,6 +3987,9 @@ public class WifiStateMachine extends StateMachine {
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                     StateChangeResult stateChangeResult = (StateChangeResult) message.obj;
                     setNetworkDetailedState(WifiInfo.getDetailedStateOf(stateChangeResult.state));
+                    if (stateChangeResult.state == SupplicantState.DISCONNECTED) {
+                        handleNetworkDisconnect();
+                    }
                     /* ConnectModeState does the rest of the handling */
                     ret = NOT_HANDLED;
                     break;
