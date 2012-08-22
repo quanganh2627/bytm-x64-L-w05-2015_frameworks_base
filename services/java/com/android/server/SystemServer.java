@@ -130,6 +130,7 @@ class ServerThread extends Thread {
         PowerManagerService power = null;
         DisplayManagerService display = null;
         BatteryService battery = null;
+        CurrentMgmtService current = null;
         VibratorService vibrator = null;
         AlarmManagerService alarm = null;
         MountService mountService = null;
@@ -302,6 +303,10 @@ class ServerThread extends Thread {
             Slog.i(TAG, "Battery Service");
             battery = new BatteryService(context, lights);
             ServiceManager.addService("battery", battery);
+
+            Slog.i(TAG, "Current Mgmt Service");
+            current = new CurrentMgmtService(context);
+            ServiceManager.addService("current", current);
 
             Slog.i(TAG, "Vibrator Service");
             vibrator = new VibratorService(context);
