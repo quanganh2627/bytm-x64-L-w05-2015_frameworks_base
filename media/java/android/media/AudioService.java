@@ -345,6 +345,9 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
 
     private final int[] mMasterVolumeRamp;
 
+    // Forced device usage for media
+    private int mForcedUseForMedia;
+
     // List of binder death handlers for setMode() client processes.
     // The last process to have called setMode() is at the top of the list.
     private final ArrayList <SetModeDeathHandler> mSetModeDeathHandlers = new ArrayList <SetModeDeathHandler>();
@@ -464,7 +467,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         mVolumePanel = new VolumePanel(context, this);
         mMode = AudioSystem.MODE_NORMAL;
         mForcedUseForComm = AudioSystem.FORCE_NONE;
-
+        mForcedUseForMedia = AudioSystem.FORCE_NONE;
         createAudioSystemThread();
 
         boolean cameraSoundForced = mContext.getResources().getBoolean(
@@ -1834,6 +1837,28 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     /** @see AudioManager#isSpeakerphoneOn() */
     public boolean isSpeakerphoneOn() {
         return (mForcedUseForComm == AudioSystem.FORCE_SPEAKER);
+    }
+
+    /** @see AudioManager#setSpeakerfmOn() */
+    public void setSpeakerfmOn(boolean on) {
+        if (!checkAudioSettingsPermission("setSpeakerfmOn()")) {
+            return;
+        }
+        //reset volume to avoid audio bursts when do output device switch
+        if (mFmRxMode == AudioManager.MODE_FM_ON) {
+            Intent intent = new Intent(AudioManager.VOLUME_CHANGED_ACTION);
+            mContext.sendBroadcast(intent);
+        }
+
+        mForcedUseForMedia = on ? AudioSystem.FORCE_SPEAKER : AudioSystem.FORCE_NONE;
+
+        sendMsg(mAudioHandler, MSG_SET_FORCE_USE, SENDMSG_QUEUE,
+               AudioSystem.FOR_MEDIA, mForcedUseForMedia, null, 0);
+    }
+
+    /** @see AudioManager#isSpeakerfmOn() */
+    public boolean isSpeakerfmOn() {
+        return (mForcedUseForMedia == AudioSystem.FORCE_SPEAKER);
     }
 
     /** @see AudioManager#setBluetoothScoOn() */
@@ -3298,6 +3323,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                     AudioSystem.setForceUse(AudioSystem.FOR_RECORD, mForcedUseForComm);
                     AudioSystem.setForceUse(AudioSystem.FOR_SYSTEM, mCameraSoundForced ?
                                     AudioSystem.FORCE_SYSTEM_ENFORCED : AudioSystem.FORCE_NONE);
+                    AudioSystem.setForceUse(AudioSystem.FOR_MEDIA, mForcedUseForMedia);
 
                     // Restore stream volumes
                     int numStreamTypes = AudioSystem.getNumStreamTypes();

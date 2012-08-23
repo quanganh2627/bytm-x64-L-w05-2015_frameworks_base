@@ -100,6 +100,10 @@ interface IAudioService {
 
     boolean isSpeakerphoneOn();
 
+    void setSpeakerfmOn(boolean on);
+
+    boolean isSpeakerfmOn();
+
     void setBluetoothScoOn(boolean on);
 
     boolean isBluetoothScoOn();
