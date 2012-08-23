@@ -1096,6 +1096,40 @@ public class AudioManager {
         }
      }
 
+    /**
+     * Sets the speakerfm on or off.
+     * <p>
+     * This method should only be used by applications that replace the platform-wide
+     * management of audio settings or the main fm radio application.
+     *
+     * @param on set <var>true</var> to turn on speakerfm;
+     *           <var>false</var> to turn it off
+     */
+    public void setSpeakerfmOn(boolean on) {
+        IAudioService service = getService();
+        try {
+            service.setSpeakerfmOn(on);
+        } catch (RemoteException e) {
+            Log.e(TAG, "Dead object in setSpeakerfmOn", e);
+        }
+    }
+
+    /**
+     * Checks whether the speakerfm is on or off.
+     *
+     * @return true if speakerfm is on, false if it's off
+     */
+    public boolean isSpeakerfmOn() {
+        IAudioService service = getService();
+        try {
+            return service.isSpeakerfmOn();
+        } catch (RemoteException e) {
+            Log.e(TAG, "Dead object in isSpeakerfmOn", e);
+            return false;
+        }
+     }
+
+
     //====================================================================
     // Bluetooth SCO control
     /**
