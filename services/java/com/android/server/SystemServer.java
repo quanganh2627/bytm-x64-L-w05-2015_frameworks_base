@@ -632,14 +632,12 @@ class ServerThread extends Thread {
                 }
             }
 
-            if (!"0".equals(SystemProperties.get("startmultidisplayservice"))) {
-                try {
-                    Slog.i(TAG, "Display Observer");
-                    // Listen for display changes
-                    DisplayObserver dso = new DisplayObserver(context);
-                } catch (Throwable e) {
-                    reportWtf("starting DisplayObserver", e);
-                }
+            try {
+                Slog.i(TAG, "Display Observer");
+                // Listen for display changes
+                DisplayObserver dso = new DisplayObserver(context);
+            } catch (Throwable e) {
+                reportWtf("starting DisplayObserver", e);
             }
 
             try {
