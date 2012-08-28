@@ -16,6 +16,9 @@
 
 package com.android.systemui.usb;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -67,6 +70,9 @@ public class StorageNotification extends StorageEventListener {
     private StorageManager mStorageManager;
 
     private Handler        mAsyncEventHandler;
+
+    private String mEventPath;
+    private Map<String, Integer> mNoticeId = new HashMap<String, Integer>();
 
     public StorageNotification(Context context) {
         mContext = context;
@@ -155,6 +161,7 @@ public class StorageNotification extends StorageEventListener {
         if (DEBUG) Slog.i(TAG, String.format(
                 "Media {%s} state changed from {%s} -> {%s}", path, oldState, newState));
 
+        mEventPath = path;
         StorageVolume[] storageVolumes = mStorageManager.getVolumeList();
         if (storageVolumes != null) {
             int length = storageVolumes.length;
@@ -239,7 +246,7 @@ public class StorageNotification extends StorageEventListener {
              * and enable UMS notification if connected.
              */
             Intent intent = intentForFormat(path);
-            PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent, 0);
+            PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent, PendingIntent.FLAG_CANCEL_CURRENT);
 
             setMediaStorageNotification(
                     com.android.internal.R.string.ext_media_nofs_notification_title,
@@ -252,7 +259,7 @@ public class StorageNotification extends StorageEventListener {
              * and enable UMS notification if connected.
              */
             Intent intent = intentForFormat(path);
-            PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent, 0);
+            PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent, PendingIntent.FLAG_CANCEL_CURRENT);
 
             setMediaStorageNotification(
                     com.android.internal.R.string.ext_media_unmountable_notification_title,
@@ -405,15 +412,18 @@ public class StorageNotification extends StorageEventListener {
             return;
         }
 
-        if (mMediaStorageNotification != null && visible) {
+        if (mEventPath != null && mNoticeId != null && visible) {
             /*
              * Dismiss the previous notification - we're about to
              * re-use it.
              */
-            final int notificationId = mMediaStorageNotification.icon;
-            notificationManager.cancel(notificationId);
+            try {
+                final int notificationId = mNoticeId.get(mEventPath);
+                notificationManager.cancel(notificationId);
+            } catch (NullPointerException e) {
+            }
         }
-        
+
         if (visible) {
             Resources r = Resources.getSystem();
             CharSequence title = r.getText(titleId);
@@ -441,6 +451,10 @@ public class StorageNotification extends StorageEventListener {
 
             mMediaStorageNotification.icon = icon;
             mMediaStorageNotification.setLatestEventInfo(mContext, title, message, pi);
+            if (mEventPath != null && mNoticeId != null) {
+                mNoticeId.remove(mEventPath);
+                mNoticeId.put(mEventPath, icon);
+            }
         }
     
         final int notificationId = mMediaStorageNotification.icon;

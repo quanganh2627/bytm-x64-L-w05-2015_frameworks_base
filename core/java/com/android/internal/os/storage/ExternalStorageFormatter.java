@@ -60,7 +60,10 @@ public class ExternalStorageFormatter extends Service
     private boolean supportMultipleStorage(){
         StorageVolume[] storageVolumes = mStorageManager.getVolumeList();
 
-        if( storageVolumes.length == 1 )
+        if (storageVolumes == null)
+            return false;
+
+        if (storageVolumes.length == 1)
             return false;
         else
             return true;
@@ -86,11 +89,14 @@ public class ExternalStorageFormatter extends Service
             Log.i(TAG, "Received storage state changed notification that " +
                     path + " changed state from " + oldState +
                     " to " + newState);
-            if (getExternalStoragePath().equals(path))
+            String volumePath = mStorageVolume == null ?
+                    getExternalStoragePath() : mStorageVolume.getPath();
+            if (volumePath.equals(path))
                 updateProgressState();
             else
                 Log.i(TAG, "Ignore " + path + " since it is not external storage path "
-                           + getExternalStoragePath());
+                           + (mStorageVolume == null ?
+                                   getExternalStoragePath() : mStorageVolume.getPath()));
         }
     };
 
