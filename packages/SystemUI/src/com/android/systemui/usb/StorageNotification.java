@@ -16,6 +16,9 @@
 
 package com.android.systemui.usb;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -85,6 +88,10 @@ public class StorageNotification extends SystemUI {
         }
     }
 
+    private String mEventPath;
+    private Map<String, Integer> mNoticeId = new HashMap<String, Integer>();
+
+
     @Override
     public void start() {
         mStorageManager = (StorageManager) mContext.getSystemService(Context.STORAGE_SERVICE);
@@ -148,6 +155,7 @@ public class StorageNotification extends SystemUI {
 
         boolean isRemovable = false;
 
+        mEventPath = path;
         StorageVolume[] storageVolumes = mStorageManager.getVolumeList();
         if (storageVolumes != null) {
             int length = storageVolumes.length;
@@ -232,7 +240,8 @@ public class StorageNotification extends SystemUI {
              * and enable UMS notification if connected.
              */
             Intent intent = intentForFormat(path);
-            PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent, 0);
+            int i = path.hashCode();
+            PendingIntent pi = PendingIntent.getActivity(mContext, i, intent, PendingIntent.FLAG_CANCEL_CURRENT);
 
             setMediaStorageNotification(
                     com.android.internal.R.string.ext_media_nofs_notification_title,
@@ -245,7 +254,8 @@ public class StorageNotification extends SystemUI {
              * and enable UMS notification if connected.
              */
             Intent intent = intentForFormat(path);
-            PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent, 0);
+            int i = path.hashCode();
+            PendingIntent pi = PendingIntent.getActivity(mContext, i, intent, PendingIntent.FLAG_CANCEL_CURRENT);
 
             setMediaStorageNotification(
                     com.android.internal.R.string.ext_media_unmountable_notification_title,
@@ -398,13 +408,16 @@ public class StorageNotification extends SystemUI {
             return;
         }
 
-        if (mMediaStorageNotification != null && visible) {
+        if (mEventPath != null && mNoticeId != null && visible) {
             /*
              * Dismiss the previous notification - we're about to
              * re-use it.
              */
-            final int notificationId = mMediaStorageNotification.icon;
-            notificationManager.cancel(notificationId);
+            try {
+                final int notificationId = mNoticeId.get(mEventPath);
+                notificationManager.cancel(mEventPath, notificationId);
+            } catch (NullPointerException e) {
+            }
         }
 
         if (visible) {
@@ -434,14 +447,18 @@ public class StorageNotification extends SystemUI {
 
             mMediaStorageNotification.icon = icon;
             mMediaStorageNotification.setLatestEventInfo(mContext, title, message, pi);
+            if (mEventPath != null && mNoticeId != null) {
+                mNoticeId.remove(mEventPath);
+                mNoticeId.put(mEventPath, icon);
+            }
         }
 
         final int notificationId = mMediaStorageNotification.icon;
         if (visible) {
-            notificationManager.notifyAsUser(null, notificationId,
+            notificationManager.notifyAsUser(mEventPath, notificationId,
                     mMediaStorageNotification, UserHandle.ALL);
         } else {
-            notificationManager.cancelAsUser(null, notificationId, UserHandle.ALL);
+            notificationManager.cancelAsUser(mEventPath, notificationId, UserHandle.ALL);
         }
     }
 }
