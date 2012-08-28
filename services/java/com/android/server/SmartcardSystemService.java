@@ -156,8 +156,7 @@ public class SmartcardSystemService extends ISmartcardSystemService.Stub {
             strResponse = bytesToString(rsp);
         } catch (Exception e) {
             Log.w(SMARTCARD_SERVICE_TAG, "transmit exception: " + e.toString());
-            if (error != null)
-                Log.w(SMARTCARD_SERVICE_TAG, "transmit Error object: " + error.toString());
+            Log.w(SMARTCARD_SERVICE_TAG, "transmit Error object: " + error.toString());
         }
         if (LOCAL_LOGD) Log.i(SMARTCARD_SERVICE_TAG, "transmit returned: " + strResponse);
         lastException = error.createException();
