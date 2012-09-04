@@ -55,6 +55,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.HashMap;
+import java.io.BufferedOutputStream;
+import java.io.FileOutputStream;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +72,8 @@ public class UsbDeviceManager {
 
     private static final String USB_SUBSYSTEM_MATCH =
             "SUBSYSTEM=usb";
+    private static final String USB_OTG_CTRL_MATCH =
+            "DRIVER=penwell_otg";
     private static final String USB_STATE_MATCH =
             "DEVPATH=/devices/virtual/android_usb/android0";
     private static final String ACCESSORY_START_MATCH =
@@ -147,6 +151,8 @@ public class UsbDeviceManager {
             String state = event.get("USB_STATE");
             String accessory = event.get("ACCESSORY");
             String warning = event.get("USB_WARNING");
+            String intr = event.get("USB_INTR");
+
             if (state != null) {
                 mHandler.updateState(state);
             } else if ("START".equals(accessory)) {
@@ -156,6 +162,18 @@ public class UsbDeviceManager {
             if (warning != null) {
                 if (DEBUG) Slog.d(TAG, "receive USB warning");
                 mHandler.showUsbWarning(warning);
+            }
+            if (intr != null) {
+                if (DEBUG) Slog.d(TAG, "got BOGUS USB INTR event");
+                File usbBogusTrigger = new File("/logs/stats/USBBOGUS_trigger");
+                try {
+                    BufferedOutputStream write = new BufferedOutputStream(new FileOutputStream(usbBogusTrigger));
+                    write.close();
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
     };
@@ -385,6 +403,7 @@ public class UsbDeviceManager {
                 mUEventObserver.startObserving(USB_STATE_MATCH);
                 mUEventObserver.startObserving(ACCESSORY_START_MATCH);
                 mUEventObserver.startObserving(USB_SUBSYSTEM_MATCH);
+                mUEventObserver.startObserving(USB_OTG_CTRL_MATCH);
 
                 mContext.registerReceiver(
                         mBootCompletedReceiver, new IntentFilter(Intent.ACTION_BOOT_COMPLETED));
