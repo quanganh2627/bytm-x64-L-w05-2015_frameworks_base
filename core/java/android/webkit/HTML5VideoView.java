@@ -334,6 +334,9 @@ public class HTML5VideoView implements MediaPlayer.OnPreparedListener {
         return false;
     }
 
+    public void setMediaControllerHided() {
+    }
+
     public void decideDisplayMode() {
     }
 
