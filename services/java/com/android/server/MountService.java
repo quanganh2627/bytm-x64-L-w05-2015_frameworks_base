@@ -669,15 +669,14 @@ class MountService extends IMountService.Stub
         final String oldState;
         synchronized (mVolumesLock) {
             oldState = mVolumeStates.put(path, state);
-        }
+            if (state.equals(oldState)) {
+                Slog.w(TAG, String.format("Duplicate state transition (%s -> %s) for %s",
+                        state, state, path));
+                return;
+            }
 
-        if (state.equals(oldState)) {
-            Slog.w(TAG, String.format("Duplicate state transition (%s -> %s) for %s",
-                    state, state, path));
-            return;
+            Slog.d(TAG, "volume state changed for " + path + " (" + oldState + " -> " + state + ")");
         }
-
-        Slog.d(TAG, "volume state changed for " + path + " (" + oldState + " -> " + state + ")");
 
         // Tell PackageManager about changes to primary volume state, but only
         // when not emulated.
@@ -989,6 +988,25 @@ class MountService extends IMountService.Stub
                 /*
                  * Media is blank or does not contain a supported filesystem
                  */
+                String oldState;
+                int loop = 50;
+                do {
+                    synchronized(mVolumeStates) {
+                        oldState = mVolumeStates.get(path);
+                        if (oldState == null)
+                            break;
+                    }
+                    /*
+                     * wait for 200ms first to give a chance for MountService
+                     * to handle other events from vold service first
+                     */
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException error) {
+                        Slog.i(TAG, "Exception during sleep");
+                    }
+                    loop--;
+                } while (!oldState.equals(Environment.MEDIA_UNMOUNTED) || loop == 0);
                 updatePublicVolumeState(volume, Environment.MEDIA_NOFS);
                 action = Intent.ACTION_MEDIA_NOFS;
                 rc = StorageResultCode.OperationFailedMediaBlank;
