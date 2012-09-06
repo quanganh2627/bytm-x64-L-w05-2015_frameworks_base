@@ -32,6 +32,9 @@ import android.os.UserHandle;
 import android.util.Slog;
 import android.util.SparseArray;
 import android.widget.RemoteViews;
+import android.util.Log;
+import android.os.ServiceManager;
+import android.os.Parcel;
 
 import com.android.internal.appwidget.IAppWidgetHost;
 import com.android.internal.appwidget.IAppWidgetService;
@@ -62,6 +65,97 @@ class AppWidgetService extends IAppWidgetService.Stub
         mAppWidgetServices = new SparseArray<AppWidgetServiceImpl>(5);
         AppWidgetServiceImpl primary = new AppWidgetServiceImpl(context, 0);
         mAppWidgetServices.append(0, primary);
+    }
+    class FrameCountReceiver extends BroadcastReceiver {
+        public void onReceive(Context context, Intent intent) {
+            Bundle b=intent.getExtras();
+            if (b != null) {
+               Object[] lstName=b.keySet().toArray();
+               String cmd = b.getString("cmd");
+               if (cmd != null) {
+                  if (cmd.equals("on"))
+                      resetFrameCount();
+
+                  if (cmd.equals("start"))
+                      startFrameCount();
+
+                  if (cmd.equals("off"))
+                      offFrameCount();
+               }
+            }
+        }
+    }
+
+    private FrameCountReceiver mCountReceiver = new FrameCountReceiver();
+    private int mDebugFrameCountFlag;
+    private int mDebugFrameCountXCoordinate;
+    private int mDebugFrameCountYCoordinate;
+    private void resetFrameCount() {
+        getFlingerFrameCountOptions();
+        try {
+            IBinder flinger = ServiceManager.getService("SurfaceFlinger");
+            if (flinger != null) {
+                Parcel data = Parcel.obtain();
+                data.writeInterfaceToken("android.ui.ISurfaceComposer");
+                data.writeInt(1);
+                data.writeInt(mDebugFrameCountXCoordinate);
+                data.writeInt(mDebugFrameCountYCoordinate);
+                flinger.transact(1011, data, null, 0);
+                data.recycle();
+            }
+        } catch (RemoteException ex) {
+            Log.e(TAG, "RemoteException in resetFrameCount()", ex);
+        }
+    }
+
+    private void startFrameCount() {
+        try {
+            IBinder flinger = ServiceManager.getService("SurfaceFlinger");
+            if (flinger != null) {
+                Parcel data = Parcel.obtain();
+                data.writeInterfaceToken("android.ui.ISurfaceComposer");
+                data.writeInt(1);
+                flinger.transact(1016, data, null, 0);
+                data.recycle();
+            }
+        } catch (RemoteException ex) {
+            Log.e(TAG, "RemoteException in startFrameCount()", ex);
+        }
+    }
+
+    private void offFrameCount() {
+        try {
+            IBinder flinger = ServiceManager.getService("SurfaceFlinger");
+            if (flinger != null) {
+                Parcel data = Parcel.obtain();
+                data.writeInterfaceToken("android.ui.ISurfaceComposer");
+                data.writeInt(0);
+                data.writeInt(mDebugFrameCountXCoordinate);
+                data.writeInt(mDebugFrameCountYCoordinate);
+                flinger.transact(1011, data, null, 0);
+                data.recycle();
+            }
+        } catch (RemoteException ex) {
+            Log.e(TAG, "RemoteException in offFrameCount()", ex);
+        }
+    }
+
+   private void getFlingerFrameCountOptions() {
+        try {
+            IBinder flinger = ServiceManager.getService("SurfaceFlinger");
+            if (flinger != null) {
+                Parcel data = Parcel.obtain();
+                Parcel reply = Parcel.obtain();
+                data.writeInterfaceToken("android.ui.ISurfaceComposer");
+                flinger.transact(1012, data, reply, 0);
+                mDebugFrameCountFlag = reply.readInt();
+                mDebugFrameCountXCoordinate = reply.readInt();
+                mDebugFrameCountYCoordinate = reply.readInt();
+                data.recycle();
+            }
+        } catch (RemoteException ex) {
+            Log.e(TAG, "RemoteException in getFlingerFrameCountOptions()", ex);
+        }
     }
 
     public void systemReady(boolean safeMode) {
@@ -111,6 +205,8 @@ class AppWidgetService extends IAppWidgetService.Stub
                 }
             }
         }, userFilter);
+        IntentFilter cFilter = new IntentFilter("framecount");
+        mContext.registerReceiver(mCountReceiver, cFilter);
     }
 
     /**
