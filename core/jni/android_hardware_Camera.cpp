@@ -37,7 +37,18 @@ struct fields_t {
     jfieldID    rect_top;
     jfieldID    rect_right;
     jfieldID    rect_bottom;
+    jfieldID    face_id;
+    jfieldID    face_leftEye;
+    jfieldID    face_rightEye;
+    jfieldID    face_mouth;
+    jfieldID    leftEye_x;
+    jfieldID    leftEye_y;
+    jfieldID    rightEye_x;
+    jfieldID    rightEye_y;
+    jfieldID    mouth_x;
+    jfieldID    mouth_y;
     jmethodID   post_event;
+    jmethodID   point_constructor;
     jmethodID   rect_constructor;
     jmethodID   face_constructor;
 };
@@ -79,6 +90,9 @@ JNICameraContext::JNICameraContext(JNIEnv* env, jobject weak_this, jclass clazz,
     jclass rectClazz = env->FindClass("android/graphics/Rect");
     mRectClass = (jclass) env->NewGlobalRef(rectClazz);
 
+    jclass pointClazz = env->FindClass("android/graphics/Point");
+    mPointClass = (jclass) env->NewGlobalRef(pointClazz);
+
     mManualBufferMode = false;
     mManualCameraCallbackSet = false;
 }
@@ -105,6 +119,11 @@ void JNICameraContext::release()
         env->DeleteGlobalRef(mRectClass);
         mRectClass = NULL;
     }
+    if (mPointClass != NULL) {
+        env->DeleteGlobalRef(mPointClass);
+        mPointClass = NULL;
+    }
+
     clearCallbackBuffers_l(env);
     mCamera.clear();
 }
@@ -290,7 +309,26 @@ void JNICameraContext::postMetadata(JNIEnv *env, int32_t msgType, camera_frame_m
 
         env->SetObjectField(face, fields.face_rect, rect);
         env->SetIntField(face, fields.face_score, metadata->faces[i].score);
+        env->SetIntField(face, fields.face_id, metadata->faces[i].id);
 
+        jobject leftEye = env->NewObject(mPointClass, fields.point_constructor);
+        jobject rightEye = env->NewObject(mPointClass, fields.point_constructor);
+        jobject mouth = env->NewObject(mPointClass, fields.point_constructor);
+
+        env->SetIntField(leftEye, fields.leftEye_x, metadata->faces[i].left_eye[0]);
+        env->SetIntField(leftEye, fields.leftEye_y, metadata->faces[i].left_eye[1]);
+        env->SetIntField(rightEye, fields.rightEye_x, metadata->faces[i].right_eye[0]);
+        env->SetIntField(rightEye, fields.rightEye_y, metadata->faces[i].right_eye[1]);
+        env->SetIntField(mouth, fields.mouth_x, metadata->faces[i].mouth[0]);
+        env->SetIntField(mouth, fields.mouth_y, metadata->faces[i].mouth[1]);
+
+        env->SetObjectField(face, fields.face_leftEye, leftEye);
+        env->SetObjectField(face, fields.face_rightEye, rightEye);
+        env->SetObjectField(face, fields.face_mouth, mouth);
+
+        env->DeleteLocalRef(leftEye);
+        env->DeleteLocalRef(rightEye);
+        env->DeleteLocalRef(mouth);
         env->DeleteLocalRef(face);
         env->DeleteLocalRef(rect);
     }
@@ -947,10 +985,20 @@ int register_android_hardware_Camera(JNIEnv *env)
           &fields.canDisableShutterSound },
         { "android/hardware/Camera$Face", "rect", "Landroid/graphics/Rect;", &fields.face_rect },
         { "android/hardware/Camera$Face", "score", "I", &fields.face_score },
+        { "android/hardware/Camera$Face", "id", "I", &fields.face_id },
         { "android/graphics/Rect", "left", "I", &fields.rect_left },
         { "android/graphics/Rect", "top", "I", &fields.rect_top },
         { "android/graphics/Rect", "right", "I", &fields.rect_right },
         { "android/graphics/Rect", "bottom", "I", &fields.rect_bottom },
+        { "android/hardware/Camera$Face", "leftEye", "Landroid/graphics/Point;", &fields.face_leftEye },
+        { "android/hardware/Camera$Face", "rightEye", "Landroid/graphics/Point;", &fields.face_rightEye },
+        { "android/hardware/Camera$Face", "mouth", "Landroid/graphics/Point;", &fields.face_mouth },
+        { "android/graphics/Point", "x", "I", &fields.leftEye_x },
+        { "android/graphics/Point", "y", "I", &fields.leftEye_y },
+        { "android/graphics/Point", "x", "I", &fields.rightEye_x },
+        { "android/graphics/Point", "y", "I", &fields.rightEye_y },
+        { "android/graphics/Point", "x", "I", &fields.mouth_x },
+        { "android/graphics/Point", "y", "I", &fields.mouth_y },
     };
 
     if (find_fields(env, fields_to_find, NELEM(fields_to_find)) < 0)
@@ -975,6 +1023,13 @@ int register_android_hardware_Camera(JNIEnv *env)
     fields.face_constructor = env->GetMethodID(clazz, "<init>", "()V");
     if (fields.face_constructor == NULL) {
         ALOGE("Can't find android/hardware/Camera$Face.Face()");
+        return -1;
+    }
+
+    clazz = env->FindClass("android/graphics/Point");
+    fields.point_constructor = env->GetMethodID(clazz, "<init>", "()V");
+    if (fields.point_constructor == NULL) {
+        ALOGE("Can't find android/graphics/Point.Point()");
         return -1;
     }
 
