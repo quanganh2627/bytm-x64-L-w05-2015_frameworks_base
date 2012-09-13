@@ -62,6 +62,7 @@ private:
     sp<Camera>  mCamera;                // strong reference to native object
     jclass      mFaceClass;  // strong reference to Face class
     jclass      mRectClass;  // strong reference to Rect class
+    jclass      mPointClass; // strong reference to Point class
     Mutex       mLock;
 
     /*
