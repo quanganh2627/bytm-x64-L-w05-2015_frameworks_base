@@ -60,6 +60,8 @@ import android.os.WorkSource;
 import android.provider.Settings;
 import android.provider.Telephony.Carriers;
 import android.provider.Telephony.Sms.Intents;
+import android.telephony.CellLocation;
+import android.telephony.PhoneStateListener;
 import android.telephony.SmsMessage;
 import android.telephony.TelephonyManager;
 import android.telephony.gsm.GsmCellLocation;
@@ -318,6 +320,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
     private int mAGpsDataConnectionIpAddr;
     private final ConnectivityManager mConnMgr;
     private final GpsNetInitiatedHandler mNIHandler;
+    private final TelephonyManager mTelephonyManager;
+    private boolean mRefLocationRequested;
 
     // Wakelocks
     private final static String WAKELOCK_KEY = "GpsLocationProvider";
@@ -395,6 +399,13 @@ public class GpsLocationProvider implements LocationProviderInterface {
         return mGpsGeofenceBinder;
     }
 
+    private PhoneStateListener mPhoneStateListener = new PhoneStateListener() {
+        @Override
+        public void onCellLocationChanged(CellLocation location) {
+            updateCellLocation(location);
+        }
+    };
+
     private final BroadcastReceiver mBroadcastReciever = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
@@ -471,6 +482,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
         // App ops service to keep track of who is accessing the GPS
         mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(
                 Context.APP_OPS_SERVICE));
+        mTelephonyManager = (TelephonyManager)context.getSystemService(Context.TELEPHONY_SERVICE);
+        mTelephonyManager.listen(mPhoneStateListener, PhoneStateListener.LISTEN_CELL_LOCATION);
 
         // Battery statistics service to be notified when GPS turns on or off
         mBatteryStats = IBatteryStats.Stub.asInterface(ServiceManager.getService(
@@ -1724,33 +1737,40 @@ public class GpsLocationProvider implements LocationProviderInterface {
      */
 
     private void requestRefLocation(int flags) {
-        TelephonyManager phone = (TelephonyManager)
-                mContext.getSystemService(Context.TELEPHONY_SERVICE);
-        final int phoneType = phone.getPhoneType();
-        if (phoneType == TelephonyManager.PHONE_TYPE_GSM) {
-            GsmCellLocation gsm_cell = (GsmCellLocation) phone.getCellLocation();
-            if ((gsm_cell != null) && (phone.getNetworkOperator() != null)
-                    && (phone.getNetworkOperator().length() > 3)) {
+        if (mTelephonyManager.getPhoneType() == TelephonyManager.PHONE_TYPE_GSM) {
+            mRefLocationRequested = true;
+            CellLocation.requestLocationUpdate();
+        } else {
+            Log.e(TAG,"Cell location info is not supported for this phone type.");
+        }
+    }
+
+    private final void updateCellLocation(CellLocation location) {
+        if (location instanceof GsmCellLocation && mRefLocationRequested) {
+            mRefLocationRequested = false;
+            GsmCellLocation gsm_cell = (GsmCellLocation)location;
+
+            if ((mTelephonyManager.getNetworkOperator() != null) &&
+                    (mTelephonyManager.getNetworkOperator().length() > 3)) {
                 int type;
-                int mcc = Integer.parseInt(phone.getNetworkOperator().substring(0,3));
-                int mnc = Integer.parseInt(phone.getNetworkOperator().substring(3));
-                int networkType = phone.getNetworkType();
+                int mcc = Integer.parseInt(mTelephonyManager.getNetworkOperator().substring(0,3));
+                int mnc = Integer.parseInt(mTelephonyManager.getNetworkOperator().substring(3));
+                int networkType = mTelephonyManager.getNetworkType();
                 if (networkType == TelephonyManager.NETWORK_TYPE_UMTS
-                    || networkType == TelephonyManager.NETWORK_TYPE_HSDPA
-                    || networkType == TelephonyManager.NETWORK_TYPE_HSUPA
-                    || networkType == TelephonyManager.NETWORK_TYPE_HSPA
-                    || networkType == TelephonyManager.NETWORK_TYPE_HSPAP) {
+                        || networkType == TelephonyManager.NETWORK_TYPE_HSDPA
+                        || networkType == TelephonyManager.NETWORK_TYPE_HSUPA
+                        || networkType == TelephonyManager.NETWORK_TYPE_HSPA
+                        || networkType == TelephonyManager.NETWORK_TYPE_HSPAP) {
                     type = AGPS_REF_LOCATION_TYPE_UMTS_CELLID;
                 } else {
                     type = AGPS_REF_LOCATION_TYPE_GSM_CELLID;
                 }
+
                 native_agps_set_ref_location_cellid(type, mcc, mnc,
                         gsm_cell.getLac(), gsm_cell.getCid());
             } else {
-                Log.e(TAG,"Error getting cell location info.");
+                Log.e(TAG, "Error getting network operators");
             }
-        } else if (phoneType == TelephonyManager.PHONE_TYPE_CDMA) {
-            Log.e(TAG, "CDMA not supported.");
         }
     }
 
