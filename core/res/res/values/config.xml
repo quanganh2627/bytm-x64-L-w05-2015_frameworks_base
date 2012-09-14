@@ -621,7 +621,7 @@
          or taps near the edge of the display.  May be 0 to disable the feature.
          It is recommended that this value be no more than 250 ms.
          This feature should be disabled for most devices. -->
-    <integer name="config_virtualKeyQuietTimeMillis">0</integer>
+    <integer name="config_virtualKeyQuietTimeMillis">200</integer>
 
     <!-- Component name of the default wallpaper. This will be ImageWallpaper if not
          specified -->
