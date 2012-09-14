@@ -601,6 +601,8 @@ class MountService extends IMountService.Stub
                         removeVolumeLocked(volume);
                     }
                 }
+            } else if (action.equals(Intent.ACTION_LOCALE_CHANGED)) {
+                readStorageListLocked();
             }
         }
     };
@@ -1363,6 +1365,7 @@ class MountService extends IMountService.Stub
         final IntentFilter userFilter = new IntentFilter();
         userFilter.addAction(Intent.ACTION_USER_ADDED);
         userFilter.addAction(Intent.ACTION_USER_REMOVED);
+        userFilter.addAction(Intent.ACTION_LOCALE_CHANGED);
         mContext.registerReceiver(mUserReceiver, userFilter, null, mHandler);
 
         // Watch for USB changes on primary volume
