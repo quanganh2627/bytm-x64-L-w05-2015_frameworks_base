@@ -91,6 +91,8 @@ public class ExternalStorageFormatter extends Service
             mProgressDialog.setIndeterminate(true);
             mProgressDialog.setCancelable(true);
             mProgressDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
+            mProgressDialog.getWindow().setFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL);
             if (!mAlwaysReset) {
                 mProgressDialog.setOnCancelListener(this);
             }
@@ -224,6 +226,8 @@ public class ExternalStorageFormatter extends Service
             mProgressDialog.setIndeterminate(true);
             mProgressDialog.setCancelable(false);
             mProgressDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
+            mProgressDialog.getWindow().setFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL);
             mProgressDialog.show();
         }
 
