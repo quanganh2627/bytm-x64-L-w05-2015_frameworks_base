@@ -17,6 +17,7 @@
 package com.android.internal.os;
 
 import android.app.ActivityManagerNative;
+import android.app.ActivityManager;
 import android.app.ApplicationErrorReport;
 import android.os.Build;
 import android.os.Debug;
@@ -28,8 +29,11 @@ import android.util.Slog;
 import com.android.internal.logging.AndroidConfig;
 import com.android.server.NetworkManagementSocketTagger;
 import dalvik.system.VMRuntime;
+import java.io.File;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.TimeZone;
 import java.util.logging.LogManager;
 import org.apache.harmony.luni.internal.util.TimezoneGetter;
@@ -54,22 +58,91 @@ public class RuntimeInit {
     private static final native void nativeFinishInit();
     private static final native void nativeSetExitWithoutCleanup(boolean exitWithoutCleanup);
 
+    private static final String HPROF_ROOT1 = "/logs/core/";
+    private static final String HPROF_ROOT2 = "/data/logs/core/";
+
     /**
      * Use this to log a message when a thread exits due to an uncaught
      * exception.  The framework catches these for the main threads, so
      * this should only matter for threads created by applications.
      */
     private static class UncaughtHandler implements Thread.UncaughtExceptionHandler {
+
+        final static String buildtype = SystemProperties.get("ro.build.type", null);
+
+        /*
+         * mProfilingBubble is a static array used as a buble that we free
+         * when an OutOfMemoryError occurs so that we can liberate some memory
+         * in order to generate some profiling data
+         */
+        static char[] mProfilingBubble = null;
+
+        static {
+            if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
+                // We allocate 4MB (4 * 512 * 1024 * 16bit)
+                Slog.i(TAG, "Allocates 4MB of Dalvik heap for debug purpose");
+                mProfilingBubble = new char[4*512*1024];
+            }
+        }
+
+        private String getAppName(int pID) throws android.os.RemoteException {
+            String processName = "";
+            for ( ActivityManager.RunningAppProcessInfo info :
+                  ActivityManagerNative.getDefault().getRunningAppProcesses()) {
+                if (info.pid == pID) {
+                    return info.processName;
+                }
+            }
+            // not found
+            return processName;
+        }
+
+        private boolean isOOM(Throwable t) {
+            if (t instanceof OutOfMemoryError)
+                return true;
+            // Still a chance with the cause of the current exception
+            if (t.getCause() == null)
+                return false;
+            // Unwind the cause to find an OutOfMemoryError
+            return isOOM(t.getCause());
+        }
+
+        private String getHprofRoot() {
+            /* Select the hprof directory*/
+            File root = new File(HPROF_ROOT1);
+            if(root.exists() && root.isDirectory()) {
+                return HPROF_ROOT1;
+            }
+            return HPROF_ROOT2;
+        }
+
         public void uncaughtException(Thread t, Throwable e) {
             try {
                 // Don't re-enter -- avoid infinite loops if crash-reporting crashes.
                 if (mCrashing) return;
                 mCrashing = true;
 
+                // Frees the bubble here so that the following logs
+                // and dump of hprof data can be processed
+                mProfilingBubble = null;
+
                 if (mApplicationObject == null) {
                     Slog.e(TAG, "*** FATAL EXCEPTION IN SYSTEM PROCESS: " + t.getName(), e);
                 } else {
                     Slog.e(TAG, "FATAL EXCEPTION: " + t.getName(), e);
+                }
+
+                if ((buildtype.equals("userdebug") || buildtype.equals("eng")) && isOOM(e)) {
+                    try {
+                        SimpleDateFormat sdf = new SimpleDateFormat("ddMMyyHHmmss");
+                        String currentDateandTime = sdf.format(new Date());
+
+                        String hprofile = getHprofRoot() + getAppName(Process.myPid()) + "_" + currentDateandTime + "_heap.hprof";
+                        Slog.i(TAG, "Dumping Hprof data to " + hprofile);
+                        android.os.Debug.dumpHprofData(hprofile);
+                    } catch (Throwable throwable) {
+                        Slog.e(TAG, "Cannot dump Hprof data", throwable);
+                    }
                 }
 
                 // Bring up crash dialog, wait for it to be dismissed
