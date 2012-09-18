@@ -1250,6 +1250,9 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
 
     @Override
     public void finishInput(IInputMethodClient client) {
+        synchronized (mMethodMap) {
+            hideInputMethodMenuLocked();
+        }
     }
 
     @Override
