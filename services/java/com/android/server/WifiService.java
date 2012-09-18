@@ -642,7 +642,7 @@ public class WifiService extends IWifiManager.Stub {
                && (supplicantState == SupplicantState.SCANNING)) {
 
             List<WifiConfiguration> configs = getConfiguredNetworks();
-            if (configs.size() != 0) {
+            if (configs != null && configs.size() != 0) {
                 if (DBG) {
                     Slog.d(TAG, "Remembered SSID exist, start periodic scan");
                 }
