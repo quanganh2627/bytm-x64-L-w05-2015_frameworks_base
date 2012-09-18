@@ -4191,12 +4191,18 @@ public class AudioService extends IAudioService.Stub {
                              AudioSystem.DEVICE_STATE_UNAVAILABLE,
                              "");
                      mConnectedDevices.remove(AudioSystem.DEVICE_OUT_WIDI);
+                     AudioSystem.setForceUse(AudioSystem.FOR_MEDIA, AudioSystem.FORCE_NONE);
                  } else if (state == 1 && !isConnected) {
                      Log.d(TAG, "not connected: calling AudioSystem.setDeviceConnectionState()");
                      AudioSystem.setDeviceConnectionState(AudioSystem.DEVICE_OUT_WIDI,
                              AudioSystem.DEVICE_STATE_AVAILABLE,
                              "");
                      mConnectedDevices.put( new Integer(AudioSystem.DEVICE_OUT_WIDI), "");
+                     //force no use of A2DP device if WIDI is available
+                     if (AudioSystem.getDeviceConnectionState(AudioSystem.DEVICE_OUT_BLUETOOTH_A2DP,"")
+                         == AudioSystem.DEVICE_STATE_AVAILABLE) {
+                         AudioSystem.setForceUse(AudioSystem.FOR_MEDIA, AudioSystem.FORCE_NO_BT_A2DP);
+                     }
                  }
             } else if (action.equals(BluetoothHeadset.ACTION_AUDIO_STATE_CHANGED)) {
                 boolean broadcast = false;
@@ -4548,7 +4554,7 @@ public class AudioService extends IAudioService.Stub {
             mBluetoothA2dpEnabled = on;
             mAudioHandler.removeMessages(MSG_SET_FORCE_BT_A2DP_USE);
             AudioSystem.setForceUse(AudioSystem.FOR_MEDIA,
-                    mBluetoothA2dpEnabled ? AudioSystem.FORCE_NONE : AudioSystem.FORCE_NO_BT_A2DP);
+                    (mBluetoothA2dpEnabled && (AudioSystem.getDeviceConnectionState(AudioSystem.DEVICE_OUT_WIDI,"") == AudioSystem.DEVICE_STATE_UNAVAILABLE)) ? AudioSystem.FORCE_NONE : AudioSystem.FORCE_NO_BT_A2DP);
         }
     }
 
