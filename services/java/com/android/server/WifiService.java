@@ -1152,9 +1152,10 @@ public class WifiService extends IWifiManager.Stub {
                     List<WifiConfiguration> configs = getConfiguredNetworks();
                     if (configs != null) {
                         for (final WifiConfiguration w : configs) {
-                            if ( (w.allowedKeyManagement.get(KeyMgmt.WPA_EAP)
-                                  || w.allowedKeyManagement.get(KeyMgmt.IEEE8021X))
-                                      && (w.eap.value().contains("SIM") || w.eap.value().contains("AKA")) ) {
+                            if ( w.eap.value() != null &&
+                                (w.allowedKeyManagement.get(KeyMgmt.WPA_EAP) 
+                                    || w.allowedKeyManagement.get(KeyMgmt.IEEE8021X))
+                                && (w.eap.value().contains("SIM") || w.eap.value().contains("AKA")) ) {
 
                                 eapSimOrAkaNetworkConfigurationFound = true;
                                 if ( enableNetwork(w.networkId, false) != true) {
@@ -1174,9 +1175,10 @@ public class WifiService extends IWifiManager.Stub {
                     if (configs != null) {
                         for (final WifiConfiguration w : configs) {
                             int activeNetworkId = info.getNetworkId();
-                            if ( (w.allowedKeyManagement.get(KeyMgmt.WPA_EAP)
-                                  || w.allowedKeyManagement.get(KeyMgmt.IEEE8021X))
-                                      && (w.eap.value().contains("SIM") || w.eap.value().contains("AKA")) ) {
+                            if ( w.eap.value() != null &&
+                                (w.allowedKeyManagement.get(KeyMgmt.WPA_EAP)
+                                    || w.allowedKeyManagement.get(KeyMgmt.IEEE8021X))
+                                && (w.eap.value().contains("SIM") || w.eap.value().contains("AKA")) ) {
 
                                 eapSimOrAkaNetworkConfigurationFound = true;
                                 /* If the active network uses EAP-SIM or EAP-AKA then disconnect before disabling */
