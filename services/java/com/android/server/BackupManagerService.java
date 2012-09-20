@@ -69,6 +69,7 @@ import android.os.UserHandle;
 import android.os.WorkSource;
 import android.os.Environment.UserEnvironment;
 import android.os.storage.IMountService;
+import android.os.SystemProperties;
 import android.provider.Settings;
 import android.util.EventLog;
 import android.util.Log;
@@ -169,6 +170,17 @@ class BackupManagerService extends IBackupManager.Stub {
     private static final int MSG_RESTORE_TIMEOUT = 8;
     private static final int MSG_FULL_CONFIRMATION_TIMEOUT = 9;
     private static final int MSG_RUN_FULL_RESTORE = 10;
+
+    // Use a property to get the state of the backup/restore for debug builds (eng, userdebug)
+    private static final String STATE_IDLE = "idle";
+    private static final String STATE_RUNNING = "running";
+    private static final String STATE_COMPLETE = "completed";
+    private void debugBackupState (String backupState) {
+        if (SystemProperties.get("ro.debuggable").equals("1")) {
+            // Update the backup status property
+            SystemProperties.set("sys.backup_status", backupState);
+        }
+    }
 
     // backup task state machine tick
     static final int MSG_BACKUP_RESTORE_STEP = 20;
@@ -2833,6 +2845,9 @@ class BackupManagerService extends IBackupManager.Stub {
 
         // wrappers for observer use
         void sendStartBackup() {
+            // Update the backup status property
+            debugBackupState(STATE_RUNNING);
+
             if (mObserver != null) {
                 try {
                     mObserver.onStartBackup();
@@ -2844,6 +2859,9 @@ class BackupManagerService extends IBackupManager.Stub {
         }
 
         void sendOnBackupPackage(String name) {
+            // Update the backup status property
+            debugBackupState(STATE_RUNNING);
+
             if (mObserver != null) {
                 try {
                     // TODO: use a more user-friendly name string
@@ -2856,6 +2874,9 @@ class BackupManagerService extends IBackupManager.Stub {
         }
 
         void sendEndBackup() {
+            // Update the backup status property
+            debugBackupState(STATE_COMPLETE);
+
             if (mObserver != null) {
                 try {
                     mObserver.onEndBackup();
@@ -4042,6 +4063,9 @@ class BackupManagerService extends IBackupManager.Stub {
         }
 
         void sendStartRestore() {
+            // Update the backup status property
+            debugBackupState(STATE_RUNNING);
+
             if (mObserver != null) {
                 try {
                     mObserver.onStartRestore();
@@ -4053,6 +4077,9 @@ class BackupManagerService extends IBackupManager.Stub {
         }
 
         void sendOnRestorePackage(String name) {
+            // Update the backup status property
+            debugBackupState(STATE_RUNNING);
+
             if (mObserver != null) {
                 try {
                     // TODO: use a more user-friendly name string
@@ -4065,6 +4092,9 @@ class BackupManagerService extends IBackupManager.Stub {
         }
 
         void sendEndRestore() {
+            // Update the backup status property
+            debugBackupState(STATE_COMPLETE);
+
             if (mObserver != null) {
                 try {
                     mObserver.onEndRestore();
@@ -4997,6 +5027,9 @@ class BackupManagerService extends IBackupManager.Stub {
             throw new IllegalStateException("Backup supported only for the device owner");
         }
 
+        // Update the backup status property
+        debugBackupState(STATE_IDLE);
+
         // Validate
         if (!doAllApps) {
             if (!includeShared) {
@@ -5065,6 +5098,9 @@ class BackupManagerService extends IBackupManager.Stub {
         if (callingUserHandle != UserHandle.USER_OWNER) {
             throw new IllegalStateException("Restore supported only for the device owner");
         }
+
+        // Update the backup status property
+        debugBackupState(STATE_IDLE);
 
         long oldId = Binder.clearCallingIdentity();
 
