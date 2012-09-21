@@ -66,6 +66,8 @@ public class WifiMonitor {
     private static final String WPA_EVENT_PREFIX_STR = "WPA:";
     private static final String PASSWORD_MAY_BE_INCORRECT_STR =
        "pre-shared key may be incorrect";
+    private static final String AUTH_TIMEOUT_STR =
+       "Authentication timed out";
 
     /* WPS events */
     private static final String WPS_SUCCESS_STR = "WPS-SUCCESS";
@@ -384,6 +386,8 @@ public class WifiMonitor {
                 if (!eventStr.startsWith(EVENT_PREFIX_STR)) {
                     if (eventStr.startsWith(WPA_EVENT_PREFIX_STR) &&
                             0 < eventStr.indexOf(PASSWORD_MAY_BE_INCORRECT_STR)) {
+                        mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
+                    } else if (0 < eventStr.indexOf(AUTH_TIMEOUT_STR)) {
                         mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
                     } else if (eventStr.startsWith(WPS_SUCCESS_STR)) {
                         mStateMachine.sendMessage(WPS_SUCCESS_EVENT);
