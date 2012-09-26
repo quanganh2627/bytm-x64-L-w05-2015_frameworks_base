@@ -1100,7 +1100,7 @@ public class AudioManager {
      }
 
     /**
-     * Sets the speakerfm on or off.
+     * @hide Sets the speakerfm on or off.
      * <p>
      * This method should only be used by applications that replace the platform-wide
      * management of audio settings or the main fm radio application.
@@ -1118,7 +1118,7 @@ public class AudioManager {
     }
 
     /**
-     * Checks whether the speakerfm is on or off.
+     * @hide Checks whether the speakerfm is on or off.
      *
      * @return true if speakerfm is on, false if it's off
      */
@@ -1433,7 +1433,7 @@ public class AudioManager {
     }
 
     /**
-     * Sets the audio FM mode.
+     * @hide Sets the audio FM mode.
      * <p>
      *
      * @param mode  the requested FM mode ({@link #MODE_FM_ON}, {@link #MODE_FM_OFF},
@@ -1462,6 +1462,22 @@ public class AudioManager {
             return service.getMode();
         } catch (RemoteException e) {
             Log.e(TAG, "Dead object in getMode", e);
+            return MODE_INVALID;
+        }
+    }
+
+    /**
+     * @hide Returns the current FM mode.
+     *
+     * @return      the current FM mode ({@link #MODE_FM_ON}, {@link #MODE_FM_OFF}.
+     *              Returns the current current audio state from the HAL.
+     */
+    public int getFmRxMode() {
+        IAudioService service = getService();
+        try {
+            return service.getFmRxMode();
+        } catch (RemoteException e) {
+            Log.e(TAG, "Dead object in getFmRxMode", e);
             return MODE_INVALID;
         }
     }
@@ -1495,10 +1511,21 @@ public class AudioManager {
      */
     public static final int MODE_IN_COMMUNICATION   = AudioSystem.MODE_IN_COMMUNICATION;
 
-    /* Modes for FM */
+    /**
+    /* @hide Modes for FM.
+    */
     public static final int   MODE_FM_OFF           = AudioSystem.MODE_FM_OFF;
+    /** @hide */
     public static final int   MODE_FM_ON            = AudioSystem.MODE_FM_ON;
+    /** @hide */
     public static final int   MODE_FM_NUM           = AudioSystem.MODE_FM_NUM;
+
+    /**
+    /* @hide Return status for setFmRxMode function.
+    */
+    public static final int   SET_FM_MODE_STATUS_OK     = AudioSystem.AUDIO_STATUS_OK;
+    /** @hide */
+    public static final int   SET_FM_MODE_STATUS_ERROR  = AudioSystem.AUDIO_STATUS_ERROR;
 
     /* Routing bits for setRouting/getRouting API */
     /**
