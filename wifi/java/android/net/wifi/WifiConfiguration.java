@@ -498,7 +498,7 @@ public class WifiConfiguration implements Parcelable {
 
         for (EnterpriseField field : enterpriseFields) {
             sbuf.append('\n').append(" " + field.varName() + ": ");
-            String value = field.value();
+            String value = field.varName().equals(password.varName()) ? "*" : field.value();
             if (value != null) sbuf.append(value);
         }
         sbuf.append('\n');
