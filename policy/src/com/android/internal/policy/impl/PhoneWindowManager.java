@@ -3506,7 +3506,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         handleVolumeKey(AudioManager.STREAM_MUSIC, keyCode);
                         break;
                     }
-                    if (GetFmRxMode() == AudioManager.MODE_FM_ON) {
+                    if (GetFmRxMode() == AudioManager.MODE_FM_ON && !isScreenOn) {
                         // If FM is ON, we pass the key to Audio Service,
                         // handle the volume change here.
                         Log.w(TAG, "Key input catched in FM Rx mode");
