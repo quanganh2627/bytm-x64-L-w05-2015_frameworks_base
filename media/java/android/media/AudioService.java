@@ -229,7 +229,8 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         15, // STREAM_BLUETOOTH_SCO
         7,  // STREAM_SYSTEM_ENFORCED
         15, // STREAM_DTMF
-        15  // STREAM_TTS
+        15,  // STREAM_TTS
+        15  // STREAM_FM_RX
     };
     /* mStreamVolumeAlias[] indicates for each stream if it uses the volume settings
      * of another stream: This avoids multiplying the volume settings for hidden
@@ -249,7 +250,8 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         AudioSystem.STREAM_BLUETOOTH_SCO,   // STREAM_BLUETOOTH_SCO
         AudioSystem.STREAM_RING,            // STREAM_SYSTEM_ENFORCED
         AudioSystem.STREAM_RING,            // STREAM_DTMF
-        AudioSystem.STREAM_MUSIC            // STREAM_TTS
+        AudioSystem.STREAM_MUSIC,           // STREAM_TTS
+        AudioSystem.STREAM_MUSIC            // STREAM_FM_RX
     };
     private final int[] STREAM_VOLUME_ALIAS_NON_VOICE = new int[] {
         AudioSystem.STREAM_VOICE_CALL,      // STREAM_VOICE_CALL
@@ -261,7 +263,8 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         AudioSystem.STREAM_BLUETOOTH_SCO,   // STREAM_BLUETOOTH_SCO
         AudioSystem.STREAM_MUSIC,           // STREAM_SYSTEM_ENFORCED
         AudioSystem.STREAM_MUSIC,           // STREAM_DTMF
-        AudioSystem.STREAM_MUSIC            // STREAM_TTS
+        AudioSystem.STREAM_MUSIC,           // STREAM_TTS
+        AudioSystem.STREAM_MUSIC            // STREAM_FM_RX
     };
     private int[] mStreamVolumeAlias;
 
@@ -276,7 +279,8 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
             "STREAM_BLUETOOTH_SCO",
             "STREAM_SYSTEM_ENFORCED",
             "STREAM_DTMF",
-            "STREAM_TTS"
+            "STREAM_TTS",
+            "STREAM_FM_RX"
     };
 
     private final AudioSystem.ErrorCallback mAudioSystemCallback = new AudioSystem.ErrorCallback() {
@@ -2520,6 +2524,8 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                 if (DEBUG_VOL)
                     Log.v(TAG, "getActiveStreamType: Forcing STREAM_MUSIC stream active");
                 return AudioSystem.STREAM_MUSIC;
+            } else if(getFmRxMode() == AudioManager.MODE_FM_ON) {
+                return AudioSystem.STREAM_MUSIC;//for FM the type is MUSIC
             } else {
                 if (DEBUG_VOL) Log.v(TAG, "getActiveStreamType: Returning suggested type "
                         + suggestedStreamType);
@@ -2552,6 +2558,8 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                         Log.v(TAG, "getActiveStreamType: using STREAM_MUSIC as default");
                     return AudioSystem.STREAM_MUSIC;
                 }
+            } else if(getFmRxMode() == AudioManager.MODE_FM_ON) {
+                return AudioSystem.STREAM_MUSIC;//for FM the type is MUSIC
             } else {
                 if (DEBUG_VOL) Log.v(TAG, "getActiveStreamType: Returning suggested type "
                         + suggestedStreamType);
