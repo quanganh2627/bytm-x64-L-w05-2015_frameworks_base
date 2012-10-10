@@ -246,7 +246,8 @@ public class StorageNotification extends StorageEventListener {
              * and enable UMS notification if connected.
              */
             Intent intent = intentForFormat(path);
-            PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent, PendingIntent.FLAG_CANCEL_CURRENT);
+            int i = path.hashCode();
+            PendingIntent pi = PendingIntent.getActivity(mContext, i, intent, PendingIntent.FLAG_CANCEL_CURRENT);
 
             setMediaStorageNotification(
                     com.android.internal.R.string.ext_media_nofs_notification_title,
@@ -259,7 +260,8 @@ public class StorageNotification extends StorageEventListener {
              * and enable UMS notification if connected.
              */
             Intent intent = intentForFormat(path);
-            PendingIntent pi = PendingIntent.getActivity(mContext, 0, intent, PendingIntent.FLAG_CANCEL_CURRENT);
+            int i = path.hashCode();
+            PendingIntent pi = PendingIntent.getActivity(mContext, i, intent, PendingIntent.FLAG_CANCEL_CURRENT);
 
             setMediaStorageNotification(
                     com.android.internal.R.string.ext_media_unmountable_notification_title,
@@ -419,7 +421,7 @@ public class StorageNotification extends StorageEventListener {
              */
             try {
                 final int notificationId = mNoticeId.get(mEventPath);
-                notificationManager.cancel(notificationId);
+                notificationManager.cancel(mEventPath, notificationId);
             } catch (NullPointerException e) {
             }
         }
@@ -459,10 +461,10 @@ public class StorageNotification extends StorageEventListener {
     
         final int notificationId = mMediaStorageNotification.icon;
         if (visible) {
-            notificationManager.notifyAsUser(null, notificationId,
+            notificationManager.notifyAsUser(mEventPath, notificationId,
                     mMediaStorageNotification, UserHandle.ALL);
         } else {
-            notificationManager.cancelAsUser(null, notificationId, UserHandle.ALL);
+            notificationManager.cancelAsUser(mEventPath, notificationId, UserHandle.ALL);
         }
     }
 }
