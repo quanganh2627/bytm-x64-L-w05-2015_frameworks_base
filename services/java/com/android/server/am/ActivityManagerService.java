@@ -9847,7 +9847,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                 }
                 if (logFile != null) {
                     try {
-                        sb.append(FileUtils.readTextFile(logFile, 128 * 1024, "\n\n[[TRUNCATED]]"));
+                        sb.append(FileUtils.readTextFile(logFile, 256 * 1024, "\n\n[[TRUNCATED]]"));
                     } catch (IOException e) {
                         Slog.e(TAG, "Error reading " + logFile, e);
                     }
