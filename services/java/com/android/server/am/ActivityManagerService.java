@@ -4027,28 +4027,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                 }
             }
         }
-        // Dump message history on App side
-        if (!IS_USER_BUILD && app.thread != null) {
-            try {
-                // This is a one-way binder call, meaning that the caller returns immediately,
-                // without waiting for a result from the callee.
-                app.thread.dumpANRInfo();
-            } catch (RemoteException e) {
-                Slog.e(ActivityManagerService.TAG, "Exception in dumpANRInfo", e);
-            }
-        }
 
-        String buildtype = SystemProperties.get("ro.build.type", null);
-        String stackname = null;
-        if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
-            String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
-            String subString = tracesPath.substring(0,10);
-            SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
-            String name = subString + sDateFormat.format(new java.util.Date()) + ".txt";
-            DebugAnr da = new DebugAnr();
-            da.logToFile(name);
-            stackname = "Trace file:" + name;
-        }
         // Log the ANR to the main log.
         StringBuilder info = new StringBuilder();
         info.setLength(0);
@@ -4081,6 +4060,29 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
 
         info.append(processCpuTracker.printCurrentState(anrTime));
+
+        // Dump message history on App side
+        if (!IS_USER_BUILD && app.thread != null) {
+            try {
+                // This is a one-way binder call, meaning that the caller returns immediately,
+                // without waiting for a result from the callee.
+                app.thread.dumpANRInfo();
+            } catch (RemoteException e) {
+                Slog.e(ActivityManagerService.TAG, "Exception in dumpANRInfo", e);
+            }
+        }
+
+        String buildtype = SystemProperties.get("ro.build.type", null);
+        String stackname = null;
+        if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
+            String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
+            String subString = tracesPath.substring(0,10);
+            SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
+            String name = subString + sDateFormat.format(new java.util.Date()) + ".txt";
+            DebugAnr da = new DebugAnr();
+            da.logToFile(name);
+            stackname = "Trace file:" + name;
+        }
 
         Slog.e(TAG, info.toString());
         if (tracesFile == null) {
