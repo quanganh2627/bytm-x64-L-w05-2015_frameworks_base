@@ -427,20 +427,6 @@ public class Watchdog extends Thread {
                 }
             }
 
-            // If we got here, that means that the system is most likely hung.
-            // First collect stack traces from all threads of the system process.
-            // Then kill this process so that the system will restart.
-            final String buildtype = SystemProperties.get("ro.build.type", null);
-            if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
-                final String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
-                final String subString = tracesPath.substring(0,10);
-                SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
-                String name1 = subString + sDateFormat.format(new java.util.Date()) + ".txt";
-                DebugAnr da = new DebugAnr();
-                da.logToFile(name1);
-                stackname = "Trace file:" + name1;
-            }
-
             final String name = (mCurrentMonitor != null) ?
                     mCurrentMonitor.getClass().getName() : "null";
             EventLog.writeEvent(EventLogTags.WATCHDOG, name);
@@ -472,6 +458,19 @@ public class Watchdog extends Thread {
             // Pull our own kernel thread stacks as well if we're configured for that
             if (RECORD_KERNEL_THREADS) {
                 dumpKernelStackTraces();
+            }
+            // If we got here, that means that the system is most likely hung.
+            // First collect stack traces from all threads of the system process.
+            // Then kill this process so that the system will restart.
+            final String buildtype = SystemProperties.get("ro.build.type", null);
+            if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
+                final String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
+                final String subString = tracesPath.substring(0,10);
+                SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
+                String name1 = subString + sDateFormat.format(new java.util.Date()) + ".txt";
+                DebugAnr da = new DebugAnr();
+                da.logToFile(name1);
+                stackname = "Trace file:" + name1;
             }
 
             // Try to add the error to the dropbox, but assuming that the ActivityManager
