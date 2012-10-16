@@ -7917,10 +7917,15 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
 
     void setNewPicture(final WebViewCore.DrawData draw, boolean updateBaseLayer) {
         if (mNativeClass == 0) {
-            if (mDelaySetPicture != null) {
-                throw new IllegalStateException("Tried to setNewPicture with"
-                        + " a delay picture already set! (memory leak)");
+            try {
+                if (mDelaySetPicture != null) {
+                   throw new IllegalStateException("Tried to setNewPicture with"
+                                 + " a delay picture already set! (memory leak)");
+                }
+            } catch (IllegalStateException e) {
+                Log.w(LOGTAG, "Exception"+e);
             }
+
             // Not initialized yet, delay set
             mDelaySetPicture = draw;
             return;
