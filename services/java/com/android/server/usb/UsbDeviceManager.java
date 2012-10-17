@@ -644,7 +644,9 @@ public class UsbDeviceManager {
                     }
                     if (mBootCompleted) {
                         updateUsbState();
-                        updateAudioSourceFunction();
+                        // update audio status when disconnected or configured
+                        if (mConnected == mConfigured)
+                            updateAudioSourceFunction();
                     }
                     break;
                 case MSG_ENABLE_ADB:
