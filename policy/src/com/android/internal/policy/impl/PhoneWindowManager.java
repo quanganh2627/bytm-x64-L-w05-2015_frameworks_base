@@ -447,6 +447,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     int mLockScreenTimeout;
     boolean mLockScreenTimerActive;
 
+    // Measure timeout before action corresponding to power key press is triggered.
+    long mPowerKeyTimeout;
+
     // Behavior of ENDCALL Button.  (See Settings.System.END_BUTTON_BEHAVIOR.)
     int mEndcallBehavior;
 
@@ -661,20 +664,29 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private void interceptPowerKeyDown(boolean handled) {
         mPowerKeyHandled = handled;
         if (!handled) {
-            mHandler.postDelayed(mPowerLongPress, ViewConfiguration.getGlobalActionKeyTimeout());
+            mPowerKeyTimeout = ViewConfiguration.getGlobalActionKeyTimeout();
+            Log.i(TAG, String.format("interceptPowerKeyDown: key down event: not handled: set timeout to %d ms", mPowerKeyTimeout));
+            // Ask mPowerLongPress to be run when specified amount of time elapses.
+            mHandler.postDelayed(mPowerLongPress, mPowerKeyTimeout);
         } else {
-            mHandler.postDelayed(mPowerLongLongPress, ViewConfiguration.getGlobalActionKeyShutdownTimeout() +
-                            ViewConfiguration.getGlobalActionKeyTimeout());
+            mPowerKeyTimeout = ViewConfiguration.getGlobalActionKeyShutdownTimeout() + ViewConfiguration.getGlobalActionKeyTimeout();
+            Log.i(TAG, String.format("interceptPowerKeyDown: key down event: handled: set timeout to %d ms", mPowerKeyTimeout));
+            // Ask mPowerLongLongPress to be run when specified amount of time elapses.
+            mHandler.postDelayed(mPowerLongLongPress, mPowerKeyTimeout);
         }
     }
 
     private boolean interceptPowerKeyUp(boolean canceled) {
         synchronized(lock) {
         if (!mPowerKeyHandled) {
+            // Cancel pending action scheduled in interceptPowerKeyDown
+            Log.i(TAG, "interceptPowerKeyUp: key up event: remove pending callbacks for long press");
             mHandler.removeCallbacks(mPowerLongPress);
             lock.notify();
             return !canceled;
         }
+        // Cancel pending action scheduled in interceptPowerKeyDown
+        Log.i(TAG, "interceptPowerKeyUp: key up event: remove pending callbacks for very long press");
         lock.notify();
         mHandler.removeCallbacks(mPowerLongLongPress);
         return false;
@@ -683,6 +695,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     private void cancelPendingPowerKeyAction() {
         if (!mPowerKeyHandled) {
+            // Cancel pending action scheduled in interceptPowerKeyDown
             mHandler.removeCallbacks(mPowerLongPress);
         }
         if (mPowerKeyTriggered) {
@@ -718,6 +731,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mHandler.removeCallbacks(mScreenshotChordLongPress);
     }
 
+    // Action associated to the timer triggered in interceptPowerKeyDown. Run once the timer expires.
     private final Runnable mPowerLongPress = new Runnable() {
         @Override
         public void run() {
@@ -734,8 +748,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
             switch (resolvedBehavior) {
             case LONG_PRESS_POWER_NOTHING:
+                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: nothing to do", mPowerKeyTimeout));
                 break;
             case LONG_PRESS_POWER_GLOBAL_ACTIONS:
+                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: display close dialog", mPowerKeyTimeout));
                 mPowerKeyHandled = true;
                 if (!performHapticFeedbackLw(null, HapticFeedbackConstants.LONG_PRESS, false)) {
                     performAuditoryFeedbackForAccessibilityIfNeed();
@@ -745,10 +761,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 break;
             case LONG_PRESS_POWER_SHUT_OFF:
             case LONG_PRESS_POWER_SHUT_OFF_NO_CONFIRM:
+                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: run shutdown", mPowerKeyTimeout));
                 mPowerKeyHandled = true;
                 performHapticFeedbackLw(null, HapticFeedbackConstants.LONG_PRESS, false);
                 sendCloseSystemWindows(SYSTEM_DIALOG_REASON_GLOBAL_ACTIONS);
-                Log.i(TAG, "LongPress detected : calling for shutdown confirmation.");
                 mWindowManagerFuncs.shutdown(resolvedBehavior == LONG_PRESS_POWER_SHUT_OFF);
                 break;
             }
@@ -758,8 +774,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
     };
 
+    // Action associated to the timer triggered in interceptPowerKeyDown. Run once the timer expires.
     private final Runnable mPowerLongLongPress = new Runnable() {
         public void run() {
+            Log.i(TAG, String.format("LongLongPressOnPower: force shutdown requested : vibrate %d ms and run shutdown",
+                                       SHUTDOWN_VIBRATE_MS));
             // vibrate to indicate shutdown is started
             try {
                 mVibrator.vibrate(SHUTDOWN_VIBRATE_MS);
@@ -768,7 +787,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 Log.w(TAG, "Failed to vibrate on long powerkey press.", e);
             }
             SystemProperties.set("sys.property_forcedshutdown", "1");
-            Log.i(TAG, "LongLongPress detected : force shutdown requested.");
             mWindowManagerFuncs.shutdown(false);
         }
     };
@@ -3836,6 +3854,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     @Override
     public void screenTurnedOff(int why) {
+        Log.i(TAG, "Screen turned off...");
         EventLog.writeEvent(70000, 0);
         synchronized (mLock) {
             mScreenOnEarly = false;
@@ -3852,11 +3871,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     @Override
     public void screenTurningOn(final ScreenOnListener screenOnListener) {
+        Log.i(TAG, "Screen turning on...");
         EventLog.writeEvent(70000, 1);
         if (false) {
             RuntimeException here = new RuntimeException("here");
             here.fillInStackTrace();
-            Slog.i(TAG, "Screen turning on...", here);
+            Slog.i(TAG, "RuntimeException screen turning on...", here);
         }
 
         synchronized (mLock) {
