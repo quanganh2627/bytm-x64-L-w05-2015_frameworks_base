@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Objects;
+import java.util.Iterator;
 
 /**
  * Describes the properties of a network link.
@@ -233,6 +234,13 @@ public final class LinkProperties implements Parcelable {
         return false;
     }
 
+    public void setLinkAddress(LinkAddress address) {
+        if (address != null) {
+            mLinkAddresses.clear();
+            addLinkAddress(address);
+        }
+    }
+
     /**
      * Returns all the {@link LinkAddress} on this link.  Typically a link will have
      * one IPv4 address and one or more IPv6 addresses.
@@ -396,6 +404,10 @@ public final class LinkProperties implements Parcelable {
      *
      * @hide
      */
+    public void setDnses(ArrayList<InetAddress> dnses) {
+        mDnses =  dnses;
+    }
+
     public boolean addRoute(RouteInfo route) {
         if (route != null) {
             String routeIface = route.getInterface();
@@ -426,6 +438,16 @@ public final class LinkProperties implements Parcelable {
         return route != null &&
                 Objects.equals(mIfaceName, route.getInterface()) &&
                 mRoutes.remove(route);
+    }
+
+    public void setDefaultGateway(InetAddress gw) {
+        Iterator<RouteInfo> iter = mRoutes.iterator();
+        while (iter.hasNext()) {
+            RouteInfo route = iter.next();
+            if (route.isDefaultRoute()) {
+                iter.remove();
+            }
+        }
     }
 
     /**

@@ -287,6 +287,10 @@
     <!-- Content description of the bluetooth label showing what we are connected to. [CHAR LIMIT=NONE] -->
     <string name="accessibility_bluetooth_name">Connected to <xliff:g id="bluetooth" example="Car Audio">%s</xliff:g>.</string>
 
+    <!-- Content description of Ethernet when no connection for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
+    <string name="accessibility_no_ethernet">No Ethernet.</string>
+    <!-- Content description of Ethernet when connection is present for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
+    <string name="accessibility_ethernet_connected">Ethernet connected.</string>
 
     <!-- Content description of the WiMAX signal when no signal for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
     <string name="accessibility_no_wimax">No WiMAX.</string>
@@ -355,6 +359,9 @@
 
     <!-- Content description of the data connection type WiFi for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
     <string name="accessibility_data_connection_wifi">Wi-Fi</string>
+
+    <!-- Content description of the data connection type Ethernet for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
+    <string name="accessibility_data_connection_ethernet">Ethernet</string>
 
     <!-- Content description of the data connection with no SIM for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
     <string name="accessibility_no_sim">No SIM.</string>

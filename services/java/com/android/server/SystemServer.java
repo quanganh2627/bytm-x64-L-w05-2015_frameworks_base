@@ -427,6 +427,7 @@ public final class SystemServer {
         AudioService audioService = null;
         MmsServiceBroker mmsService = null;
         DptfService dptfservice = null;
+        EthernetService eth = null;
 
         boolean disableStorage = SystemProperties.getBoolean("config.disable_storage", false);
         boolean disableMedia = SystemProperties.getBoolean("config.disable_media", false);
@@ -698,6 +699,14 @@ public final class SystemServer {
 
                 if (mPackageManager.hasSystemFeature(PackageManager.FEATURE_ETHERNET)) {
                     mSystemServiceManager.startService(ETHERNET_SERVICE_CLASS);
+                }
+
+                try{
+                    Slog.i(TAG, "Ethernet Service");
+                    eth = new EthernetService(context);
+                    ServiceManager.addService(Context.ETHERNET_SERVICE, eth);
+                } catch (Throwable e) {
+                    reportWtf("starting Ethernet Service", e);
                 }
 
                 try {

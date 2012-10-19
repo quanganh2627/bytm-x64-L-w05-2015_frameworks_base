@@ -292,6 +292,7 @@ LOCAL_SRC_FILES += \
 	core/java/com/android/internal/widget/ILockSettingsObserver.aidl \
 	core/java/com/android/internal/widget/IRemoteViewsFactory.aidl \
 	core/java/com/android/internal/widget/IRemoteViewsAdapterConnection.aidl \
+	ethernet/java/com/android/internal/ethernet/IEthernetManager.aidl \
 	keystore/java/android/security/IKeyChainAliasCallback.aidl \
 	keystore/java/android/security/IKeyChainService.aidl \
 	location/java/android/location/ICountryDetector.aidl \

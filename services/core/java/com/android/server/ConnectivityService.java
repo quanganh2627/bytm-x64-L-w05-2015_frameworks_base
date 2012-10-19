@@ -119,6 +119,7 @@ import android.util.Xml;
 
 import com.android.internal.R;
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.ethernet.EthernetManager;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.net.LegacyVpnInfo;
 import com.android.internal.net.NetworkStatsFactory;

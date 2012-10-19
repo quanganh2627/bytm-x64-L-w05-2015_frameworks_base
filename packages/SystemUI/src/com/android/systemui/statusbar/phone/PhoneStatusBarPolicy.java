@@ -71,6 +71,15 @@ public class PhoneStatusBarPolicy {
     private int mZen;
 
     private boolean mBluetoothEnabled = false;
+    //ethernet
+    private static final int[] sEthernetImages = {
+        R.drawable.stat_sys_ethernet_transitional,
+        R.drawable.stat_sys_ethernet_connected
+    };
+    private boolean mIsEthernetConnected = false;
+
+    // state of inet connection - 0 not connected, 100 connected
+    private int mInetCondition = 0;
 
 
     private BroadcastReceiver mIntentReceiver = new BroadcastReceiver() {

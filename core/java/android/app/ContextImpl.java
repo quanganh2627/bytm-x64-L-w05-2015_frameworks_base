@@ -24,6 +24,8 @@ import android.os.Build;
 import android.service.persistentdata.IPersistentDataBlockService;
 import android.service.persistentdata.PersistentDataBlockManager;
 import com.android.internal.appwidget.IAppWidgetService;
+import static com.android.internal.util.Preconditions.checkNotNull;
+
 import com.android.internal.policy.PolicyManager;
 import com.android.internal.util.Preconditions;
 
@@ -82,8 +84,8 @@ import android.media.tv.ITvInputManager;
 import android.media.tv.TvInputManager;
 import android.net.ConnectivityManager;
 import android.net.IConnectivityManager;
-import android.net.EthernetManager;
-import android.net.IEthernetManager;
+//import android.net.EthernetManager;
+//import android.net.IEthernetManager;
 import android.net.INetworkPolicyManager;
 import android.net.NetworkPolicyManager;
 import android.net.NetworkScoreManager;
@@ -149,7 +151,8 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.app.IAppOpsService;
 import com.android.internal.os.IDropBoxManagerService;
 import com.android.internal.telecom.ITelecomService;
-
+import com.android.internal.ethernet.EthernetManager;
+import com.android.internal.ethernet.IEthernetManager;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -434,6 +437,15 @@ class ContextImpl extends Context {
                     return new BatteryManager();
                 }});
 
+        registerService(ETHERNET_SERVICE, new ServiceFetcher() {
+                public Object createService(ContextImpl ctx) {
+                    IBinder b = checkNotNull(ServiceManager.getService(ETHERNET_SERVICE),
+                            "No ETHERNET_SERVICE");
+                    IEthernetManager service = checkNotNull(IEthernetManager.Stub.asInterface(b),
+                            "No IEthernetManager");
+                     return checkNotNull(new EthernetManager(service), "No EthernetManager");
+                }});
+
         registerService(NFC_SERVICE, new ServiceFetcher() {
                 public Object createService(ContextImpl ctx) {
                     return new NfcManager(ctx);
@@ -623,7 +635,7 @@ class ContextImpl extends Context {
                 public Object createService(ContextImpl ctx) {
                     IBinder b = ServiceManager.getService(ETHERNET_SERVICE);
                     IEthernetManager service = IEthernetManager.Stub.asInterface(b);
-                    return new EthernetManager(ctx.getOuterContext(), service);
+                    return checkNotNull(new EthernetManager(service), "No EthernetManager");
                 }});
 
         registerService(WINDOW_SERVICE, new ServiceFetcher() {
