@@ -170,6 +170,7 @@ class ServerThread {
         TelephonyRegistry telephonyRegistry = null;
         ConsumerIrService consumerIr = null;
         CwsServiceMgr cwsService = null;
+        EthernetService eth = null;
 
         // Create a handler thread just for the window manager to enjoy.
         HandlerThread wmHandlerThread = new HandlerThread("WindowManager");
@@ -586,6 +587,14 @@ class ServerThread {
                     ServiceManager.addService("CsmWifiOffloadService", csmWifiOffload);
                 } catch (Throwable e) {
                     reportWtf("starting CSM Wifi Offload system service", e);
+                }
+
+		try{
+		    Slog.i(TAG, "Ethernet Service");
+                    eth = new EthernetService(context);
+                    ServiceManager.addService(Context.ETHERNET_SERVICE, eth);
+                } catch (Throwable e) {
+                    reportWtf("starting Ethernet Service", e);
                 }
 
                 try {
