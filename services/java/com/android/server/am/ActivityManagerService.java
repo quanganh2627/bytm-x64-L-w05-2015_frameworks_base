@@ -3927,13 +3927,17 @@ public final class ActivityManagerService extends ActivityManagerNative
         String buildtype = SystemProperties.get("ro.build.type", null);
         String stackname = null;
         if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
-            String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
-            String subString = tracesPath.substring(0,10);
-            SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
-            String name = subString + sDateFormat.format(new java.util.Date()) + ".txt";
-            DebugAnr da = new DebugAnr();
-            da.logToFile(name);
-            stackname = "Trace file:" + name;
+            final String dropboxTag = processClass(app) + "_anr";
+            final DropBoxManager dbox = (DropBoxManager)
+                    mContext.getSystemService(Context.DROPBOX_SERVICE);
+            if (dbox != null && dbox.isTagEnabled(dropboxTag) && !dbox.isFull()) {
+                String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
+                String subString = tracesPath.substring(0,10);
+                SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
+                stackname = subString + sDateFormat.format(new java.util.Date()) + ".txt";
+                DebugAnr da = new DebugAnr();
+                da.logToFile(stackname);
+           }
         }
 
         Slog.e(TAG, info.toString());
@@ -9818,7 +9822,7 @@ public final class ActivityManagerService extends ActivityManagerNative
 
         final StringBuilder sb = new StringBuilder(1024);
         if (stackname != null) {
-            sb.append(stackname).append("\n");
+            sb.append("Trace file:" + stackname).append("\n");
         }
         appendDropBoxProcessHeaders(process, processName, sb);
         if (activity != null) {
@@ -9885,6 +9889,18 @@ public final class ActivityManagerService extends ActivityManagerNative
                 }
 
                 dbox.addText(dropboxTag, sb.toString());
+
+                if (dbox.isFull() == true) {
+                    try {
+                        File file = new File(stackname);
+                        if (file.exists() && file.isFile()) {
+                            file.delete();
+                            Slog.d(TAG, "DropBox is full, so remove the stack trace file.");
+                        }
+                    } catch(Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
             }
         };
 
