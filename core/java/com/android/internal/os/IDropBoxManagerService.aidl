@@ -37,6 +37,9 @@ interface IDropBoxManagerService {
     /** @see DropBoxManager#getNextEntry */
     boolean isTagEnabled(String tag);
 
+    /** Check if DropBox is full. */
+    boolean isFull();
+
     /** @see DropBoxManager#getNextEntry */
     DropBoxManager.Entry getNextEntry(String tag, long millis);
 }
