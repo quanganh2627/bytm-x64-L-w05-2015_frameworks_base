@@ -37,6 +37,7 @@ import android.os.Process;
 import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.SystemProperties;
+import android.os.DropBoxManager;
 import android.util.EventLog;
 import android.util.Log;
 import android.util.Slog;
@@ -91,8 +92,9 @@ public class Watchdog extends Thread {
     int mPhonePid;
     IActivityController mController;
     boolean mAllowRestart = true;
-    String stackname = null;
 
+    String stackname = null;
+    private Context mContext = null;
     /**
      * Used for checking status of handle threads and scheduling monitor callbacks.
      */
@@ -250,6 +252,7 @@ public class Watchdog extends Thread {
         context.registerReceiver(new RebootRequestReceiver(),
                 new IntentFilter(Intent.ACTION_REBOOT),
                 android.Manifest.permission.REBOOT, null);
+        mContext = context;
     }
 
     public void processStarted(String name, int pid) {
@@ -413,14 +416,19 @@ public class Watchdog extends Thread {
             // First collect stack traces from all threads of the system process.
             // Then kill this process so that the system will restart.
             final String buildtype = SystemProperties.get("ro.build.type", null);
-            if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
-                final String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
-                final String subString = tracesPath.substring(0,10);
-                SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
-                String name1 = subString + sDateFormat.format(new java.util.Date()) + ".txt";
-                DebugAnr da = new DebugAnr();
-                da.logToFile(name1);
-                stackname = "Trace file:" + name1;
+            stackname = null;
+            if ((buildtype.equals("userdebug") || buildtype.equals("eng")) && mContext != null) {
+                final String dropboxTag = "system_server_watchdog";
+                final DropBoxManager dbox = (DropBoxManager)
+                         mContext.getSystemService(Context.DROPBOX_SERVICE);
+                if (dbox != null && dbox.isTagEnabled(dropboxTag) && !dbox.isFull()) {
+                    final String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
+                    final String subString = tracesPath.substring(0,10);
+                    SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
+                    stackname = subString + sDateFormat.format(new java.util.Date()) + ".txt";
+                    DebugAnr da = new DebugAnr();
+                    da.logToFile(stackname);
+                }
             }
 
             // Trigger the kernel to dump all blocked threads to the kernel log

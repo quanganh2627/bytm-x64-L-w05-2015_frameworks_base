@@ -94,6 +94,8 @@ public final class DropBoxManagerService extends IDropBoxManagerService.Stub {
     private int mCachedQuotaBlocks = 0;  // Space we can use: computed from free space, etc.
     private long mCachedQuotaUptimeMillis = 0;
 
+    private boolean mIsFull = false;
+
     private volatile boolean mBooted = false;
 
     // Provide a way to perform sendBroadcast asynchronously to avoid deadlocks.
@@ -174,11 +176,16 @@ public final class DropBoxManagerService extends IDropBoxManagerService.Stub {
         mContext.unregisterReceiver(mReceiver);
     }
 
+    public boolean isFull() {
+        return mIsFull;
+    }
+
     @Override
     public void add(DropBoxManager.Entry entry) {
         File temp = null;
         OutputStream output = null;
         final String tag = entry.getTag();
+        mIsFull = false;
         try {
             int flags = entry.getFlags();
             if ((flags & DropBoxManager.IS_EMPTY) != 0) throw new IllegalArgumentException();
@@ -238,6 +245,7 @@ public final class DropBoxManagerService extends IDropBoxManagerService.Stub {
                     Slog.w(TAG, "Dropping: " + tag + " (" + temp.length() + " > " + max + " bytes)");
                     temp.delete();
                     temp = null;  // Pass temp = null to createEntry() to leave a tombstone
+                    mIsFull = true;
                     break;
                 }
             } while (read > 0);
