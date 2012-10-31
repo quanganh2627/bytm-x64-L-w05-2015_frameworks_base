@@ -183,6 +183,9 @@ public class MediaRecorder
          * Audio source for remote submix.
          */
         public static final int REMOTE_SUBMIX_SOURCE = 8;
+    
+        /** @hide FM radio audio source for record purposes */
+        public static final int FM_RECORD = 9;
     }
 
     /**
