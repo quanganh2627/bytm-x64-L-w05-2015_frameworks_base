@@ -1577,6 +1577,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         int status = AudioSystem.setFmRxState(mode);
         if (status == AudioSystem.AUDIO_STATUS_OK) {
             mFmRxMode = mode;
+            handleDeviceConnection(mFmRxMode == AudioManager.MODE_FM_ON, AudioSystem.DEVICE_IN_FM_RECORD,"");
         } else {
             Log.e(TAG, "setFmRxMode(): Cannot Set FM RX mode to " + mode);
         }
