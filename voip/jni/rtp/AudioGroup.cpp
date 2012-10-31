@@ -625,13 +625,18 @@ bool AudioGroup::setMode(int mode)
     if (mode < 0 || mode > LAST_MODE) {
         return false;
     }
-    // FIXME: temporary code to overcome echo and mic gain issues on herring and tuna boards.
+    // FIXME: temporary code to overcome echo and mic gain issues on herring and tuna boards,
+    // and on all Intel boards.
     // Must be modified/removed when the root cause of the issue is fixed in the hardware or
     // driver
-    char value[PROPERTY_VALUE_MAX];
-    property_get("ro.product.board", value, "");
+    char board_value[PROPERTY_VALUE_MAX];
+    property_get("ro.product.board", board_value, "");
+    char manufacturer_value[PROPERTY_VALUE_MAX];
+    property_get("ro.product.manufacturer", manufacturer_value, "");
     if (mode == NORMAL &&
-            (!strcmp(value, "herring") || !strcmp(value, "tuna"))) {
+            (!strcmp(board_value, "herring") ||
+             !strcmp(board_value, "tuna") ||
+             !strcmp(manufacturer_value, "intel"))) {
         mode = ECHO_SUPPRESSION;
     }
     if (mMode == mode) {
