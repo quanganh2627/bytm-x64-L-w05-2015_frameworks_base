@@ -66,6 +66,8 @@ public class Watchdog extends Thread {
     static final int REBOOT_DEFAULT_START_TIME = 3*60*60;                  // 3:00am
     static final int REBOOT_DEFAULT_WINDOW = 60*60;                        // within 1 hour
 
+    static final int NB_TIMINGS = 5;
+
     static final String REBOOT_ACTION = "com.android.service.Watchdog.REBOOT";
 
     static final String[] NATIVE_STACKS_OF_INTEREST = new String[] {
@@ -87,6 +89,8 @@ public class Watchdog extends Thread {
     boolean mCompleted;
     boolean mForceKillSystem;
     Monitor mCurrentMonitor;
+    long mTimings[][];
+    int mCurrentTiming = 0;
 
     int mPhonePid;
 
@@ -127,10 +131,16 @@ public class Watchdog extends Thread {
                     }
 
                     final int size = mMonitors.size();
+                    long start, stop = SystemClock.uptimeMillis();
                     for (int i = 0 ; i < size ; i++) {
                         mCurrentMonitor = mMonitors.get(i);
+                        start = stop;
                         mCurrentMonitor.monitor();
+                        stop = SystemClock.uptimeMillis();
+                        mTimings[i][mCurrentTiming] = (stop - start);
                     }
+                    mCurrentTiming++;
+                    if (mCurrentTiming >= NB_TIMINGS) mCurrentTiming = 0;
 
                     synchronized (Watchdog.this) {
                         mCompleted = true;
@@ -375,6 +385,7 @@ public class Watchdog extends Thread {
     @Override
     public void run() {
         boolean waitedHalf = false;
+        mTimings = new long[mMonitors.size()][NB_TIMINGS];
         while (true) {
             mHandler.sendEmptyMessage(MONITOR);
 
@@ -421,6 +432,18 @@ public class Watchdog extends Thread {
             final String name = (mCurrentMonitor != null) ?
                     mCurrentMonitor.getClass().getName() : "null";
             EventLog.writeEvent(EventLogTags.WATCHDOG, name);
+
+            // Prints out the timings of the last NB_TIMINGS checks so that
+            // it can help understanding which component took too much time
+            // but finally returned
+            for (int i = 0 ; i < mMonitors.size() ; i++) {
+                Monitor monitor = mMonitors.get(i);
+                String sMonitor = "Unkown monitor: ";
+                if (monitor != null) sMonitor = monitor.getClass().getName() + ": ";
+                for (int j = 0 ; j < NB_TIMINGS ; j++)
+                    sMonitor += "" + mTimings[i][j] + "ms ";
+                Log.i(TAG, sMonitor);
+            }
 
             ArrayList<Integer> pids = new ArrayList<Integer>();
             pids.add(Process.myPid());
