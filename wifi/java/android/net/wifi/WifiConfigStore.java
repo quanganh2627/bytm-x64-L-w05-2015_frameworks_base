@@ -479,8 +479,29 @@ class WifiConfigStore {
      * @return WpsResult indicating status and pin
      */
     WpsResult startWpsPbc(WpsInfo config) {
+        loadConfiguredNetworks();
+        List<WifiConfiguration> oldConfigs = getConfiguredNetworks();
         WpsResult result = new WpsResult();
         if (mWifiNative.startWpsPbc(config.BSSID)) {
+            loadConfiguredNetworks();
+            boolean found = false;
+            for (WifiConfiguration nConf : getConfiguredNetworks()) {
+                for (WifiConfiguration oConf : oldConfigs) {
+                    if (oConf.SSID.equals(nConf.SSID)) {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (found == false) {
+                    log("wps_pbc: configuration update of network " + nConf.networkId );
+                    selectNetwork(nConf.networkId);
+                    break;
+                }
+
+                found = false;
+            }
+
             /* WPS leaves all networks disabled */
             markAllNetworksDisabled();
             result.status = WpsResult.Status.SUCCESS;
