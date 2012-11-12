@@ -346,6 +346,9 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     // Forced device usage for communications
     private int mForcedUseForComm;
 
+    // Forced device usage for FM radio
+    private int mForcedUseForFM;
+
     // True if we have master volume support
     private final boolean mUseMasterVolume;
 
@@ -474,6 +477,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         mMode = AudioSystem.MODE_NORMAL;
         mForcedUseForComm = AudioSystem.FORCE_NONE;
         mForcedUseForMedia = AudioSystem.FORCE_NONE;
+        mForcedUseForFM = AudioSystem.FORCE_NONE;
         createAudioSystemThread();
 
         boolean cameraSoundForced = mContext.getResources().getBoolean(
@@ -1881,15 +1885,15 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
             mContext.sendBroadcast(intent);
         }
 
-        mForcedUseForMedia = on ? AudioSystem.FORCE_SPEAKER : AudioSystem.FORCE_NONE;
+        mForcedUseForFM = on ? AudioSystem.FORCE_SPEAKER : AudioSystem.FORCE_NONE;
 
         sendMsg(mAudioHandler, MSG_SET_FORCE_USE, SENDMSG_QUEUE,
-               AudioSystem.FOR_MEDIA, mForcedUseForMedia, null, 0);
+                AudioSystem.FOR_FM_RADIO, mForcedUseForFM, null, 0);
     }
 
     /** @see AudioManager#isSpeakerfmOn() */
     public boolean isSpeakerfmOn() {
-        return (mForcedUseForMedia == AudioSystem.FORCE_SPEAKER);
+        return (mForcedUseForFM == AudioSystem.FORCE_SPEAKER);
     }
 
     /** @see AudioManager#setBluetoothScoOn() */
@@ -3359,6 +3363,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                     AudioSystem.setForceUse(AudioSystem.FOR_SYSTEM, mCameraSoundForced ?
                                     AudioSystem.FORCE_SYSTEM_ENFORCED : AudioSystem.FORCE_NONE);
                     AudioSystem.setForceUse(AudioSystem.FOR_MEDIA, mForcedUseForMedia);
+                    AudioSystem.setForceUse(AudioSystem.FOR_FM_RADIO, mForcedUseForFM);
 
                     // Restore stream volumes
                     int numStreamTypes = AudioSystem.getNumStreamTypes();

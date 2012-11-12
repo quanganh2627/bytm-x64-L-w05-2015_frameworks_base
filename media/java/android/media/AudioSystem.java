@@ -376,7 +376,8 @@ public class AudioSystem
     public static final int FOR_RECORD = 2;
     public static final int FOR_DOCK = 3;
     public static final int FOR_SYSTEM = 4;
-    private static final int NUM_FORCE_USE = 5;
+    public static final int FOR_FM_RADIO = 5;
+    private static final int NUM_FORCE_USE = 6;
 
     // usage for AudioRecord.startRecordingSync(), must match AudioSystem::sync_event_t
     public static final int SYNC_EVENT_NONE = 0;
