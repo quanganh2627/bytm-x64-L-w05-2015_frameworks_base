@@ -75,6 +75,11 @@ public class WifiMonitor {
     private static final String AUTH_REQ_FAILED_STR =
        "Authentication request to the driver failed";
 
+    /** All WAPI events coming from the supplicant start with this prefix */
+    private static final String WAPI_EVENT_PREFIX_STR = "WAPI:";
+    private static final String WAPI_AUTHENTICATION_FAILURE_STR =
+       "Authentication failure";
+
     /* WPS events */
     private static final String WPS_SUCCESS_STR = "WPS-SUCCESS";
 
@@ -459,6 +464,9 @@ public class WifiMonitor {
                         handleP2pEvents(eventStr);
                     } else if (eventStr.startsWith(HOST_AP_EVENT_PREFIX_STR)) {
                         handleHostApEvents(eventStr);
+                    } else if (eventStr.startsWith(WAPI_EVENT_PREFIX_STR) &&
+                            0 < eventStr.indexOf(WAPI_AUTHENTICATION_FAILURE_STR)) {
+                        mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
                     }
                     continue;
                 }
