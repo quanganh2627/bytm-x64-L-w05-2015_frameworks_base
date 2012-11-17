@@ -81,6 +81,7 @@ import android.graphics.RectF;
 import android.graphics.Region;
 import android.hardware.display.DisplayManager;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Debug;
 import android.os.Handler;
@@ -104,6 +105,7 @@ import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.util.EventLog;
 import android.util.FloatMath;
+import android.util.LocalLog;
 import android.util.Log;
 import android.util.SparseArray;
 import android.util.Pair;
@@ -208,6 +210,8 @@ public class WindowManagerService extends IWindowManager.Stub
 
     static final boolean PROFILE_ORIENTATION = false;
     static final boolean localLOGV = DEBUG;
+
+    private static final boolean IS_USER_BUILD = "user".equals(Build.TYPE);
 
     /** How much to multiply the policy's type layer, to reserve room
      * for multiple windows of the same type and Z-ordering adjustment
@@ -446,6 +450,8 @@ public class WindowManagerService extends IWindowManager.Stub
     boolean mShowingBootMessages = false;
 
     String mLastANRState;
+    String mWMThreadHistory;
+    String mUiThreadHistory;
 
     /** All DisplayDontents in the world, kept here */
     private SparseArray<DisplayContent> mDisplayContents = new SparseArray<DisplayContent>();
@@ -7305,6 +7311,39 @@ public class WindowManagerService extends IWindowManager.Stub
         }
 
         @Override
+        public String getMessageName(Message msg) {
+            switch (msg.what) {
+                case REPORT_FOCUS_CHANGE: return "REPORT_FOCUS_CHANGE";
+                case REPORT_LOSING_FOCUS: return "REPORT_LOSING_FOCUS";
+                case DO_TRAVERSAL: return "DO_TRAVERSAL";
+                case ADD_STARTING: return "ADD_STARTING";
+                case REMOVE_STARTING: return "REMOVE_STARTING";
+                case FINISHED_STARTING: return "FINISHED_STARTING";
+                case REPORT_APPLICATION_TOKEN_WINDOWS: return "REPORT_APPLICATION_TOKEN_WINDOWS";
+                case REPORT_APPLICATION_TOKEN_DRAWN: return "REPORT_APPLICATION_TOKEN_DRAWN";
+                case WINDOW_FREEZE_TIMEOUT: return "WINDOW_FREEZE_TIMEOUT";
+                case APP_TRANSITION_TIMEOUT: return "APP_TRANSITION_TIMEOUT";
+                case PERSIST_ANIMATION_SCALE: return "PERSIST_ANIMATION_SCALE";
+                case FORCE_GC: return "FORCE_GC";
+                case ENABLE_SCREEN: return "ENABLE_SCREEN";
+                case APP_FREEZE_TIMEOUT: return "APP_FREEZE_TIMEOUT";
+                case SEND_NEW_CONFIGURATION: return "SEND_NEW_CONFIGURATION";
+                case REPORT_WINDOWS_CHANGE: return "REPORT_WINDOWS_CHANGE";
+                case DRAG_START_TIMEOUT: return "DRAG_START_TIMEOUT";
+                case DRAG_END_TIMEOUT: return "DRAG_END_TIMEOUT";
+                case REPORT_HARD_KEYBOARD_STATUS_CHANGE:return "REPORT_HARD_KEYBOARD_STATUS_CHANGE";
+                case BOOT_TIMEOUT: return "BOOT_TIMEOUT";
+                case WAITING_FOR_DRAWN_TIMEOUT: return "WAITING_FOR_DRAWN_TIMEOUT";
+                case SHOW_STRICT_MODE_VIOLATION: return "SHOW_STRICT_MODE_VIOLATION";
+                case DO_ANIMATION_CALLBACK: return "DO_ANIMATION_CALLBACK";
+                case ANIMATOR_WHAT_OFFSET: return "ANIMATOR_WHAT_OFFSET";
+                case SET_TRANSPARENT_REGION: return "SET_TRANSPARENT_REGION";
+                case CLEAR_PENDING_ACTIONS: return "CLEAR_PENDING_ACTIONS";
+            }
+            return super.getMessageName(msg);
+        }
+
+        @Override
         public void handleMessage(Message msg) {
             if (DEBUG_WINDOW_TRACE) {
                 Slog.v(TAG, "handleMessage: entry what=" + msg.what);
@@ -10807,6 +10846,12 @@ public class WindowManagerService extends IWindowManager.Stub
             pw.println("  <no ANR has occurred since boot>");
         } else {
             pw.println(mLastANRState);
+            if (!IS_USER_BUILD) {
+                pw.println("WINDOW MANAGER Thread Dispatch History");
+                pw.println(mWMThreadHistory);
+                pw.println("UiThread (Policy,Keyguard,DisplayService) Dispatch History");
+                pw.println(mUiThreadHistory);
+            }
         }
     }
 
@@ -10832,6 +10877,28 @@ public class WindowManagerService extends IWindowManager.Stub
         dumpWindowsNoHeaderLocked(pw, true, null);
         pw.close();
         mLastANRState = sw.toString();
+        if (!IS_USER_BUILD) saveLooperHistoryLocked();
+        if (!IS_USER_BUILD && windowState != null) {
+            try {
+                windowState.mClient.dumpANRInfo();
+            } catch (RemoteException e) {
+                Slog.e(TAG, "Exception in dumpANRInfo " + windowState, e);
+            }
+        }
+    }
+
+    public void saveLooperHistoryLocked() {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        mH.getLooper().dumpHistory(FileDescriptor.out, pw, new String[0]);
+        pw.close();
+        mWMThreadHistory = sw.toString();
+
+        sw = new StringWriter();
+        pw = new PrintWriter(sw);
+        WindowManagerPolicyThread.getLooper().dumpHistory(FileDescriptor.out, pw, new String[0]);
+        pw.close();
+        mUiThreadHistory = sw.toString();
     }
 
     @Override

@@ -16,11 +16,11 @@
 
 package android.util;
 
-import android.text.format.Time;
-
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
 
@@ -31,18 +31,19 @@ public final class LocalLog {
 
     private LinkedList<String> mLog;
     private int mMaxLines;
-    private Time mNow;
+    private final static Date sDate = new Date();
+    private final static SimpleDateFormat sFormatter =
+            new SimpleDateFormat("HH:mm:ss.SSS");
 
     public LocalLog(int maxLines) {
         mLog = new LinkedList<String>();
         mMaxLines = maxLines;
-        mNow = new Time();
     }
 
     public synchronized void log(String msg) {
         if (mMaxLines > 0) {
-            mNow.setToNow();
-            mLog.add(mNow.format("%H:%M:%S") + " - " + msg);
+            sDate.setTime(System.currentTimeMillis());
+            mLog.add(sFormatter.format(sDate) + " - " + msg);
             while (mLog.size() > mMaxLines) mLog.remove();
         }
     }

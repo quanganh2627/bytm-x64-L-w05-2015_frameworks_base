@@ -72,8 +72,10 @@ import android.os.UserHandle;
 import android.util.AndroidRuntimeException;
 import android.util.DisplayMetrics;
 import android.util.EventLog;
+import android.util.LocalLog;
 import android.util.Log;
 import android.util.LogPrinter;
+import android.util.LogWriter;
 import android.util.PrintWriterPrinter;
 import android.util.Slog;
 import android.view.CompatibilityInfoHolder;
@@ -100,6 +102,7 @@ import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.security.Security;
@@ -1126,6 +1129,35 @@ public final class ActivityThread {
             queueOrSendMessage(H.TRIM_MEMORY, null, level);
         }
 
+        public void dumpLooperHistory() {
+            // upload to server in case app is killed before logcat is done.
+            final DropBoxManager db = (DropBoxManager) mInitialApplication.
+                    getSystemService(Context.DROPBOX_SERVICE);
+            if (db != null) {
+                StringWriter sw = new StringWriter();
+                PrintWriter pw = new PrintWriter(sw);
+                getLooper().dumpHistory(FileDescriptor.out, pw, new String[0]);
+                db.addText("ANR_LOOPER_HISTORY", sw.toString());
+                pw.close();
+            }
+
+            // sometimes dropbox is missing, so logcat it.
+            PrintWriter pw = new PrintWriter(new LogWriter(Log.DEBUG, TAG));
+            getLooper().dumpHistory(FileDescriptor.out, pw, new String[0]);
+            pw.close();
+        }
+
+        // only be called in eng or userdebug build
+        public void dumpANRInfo() {
+            // dump current message queue.
+            Log.d(TAG, "===MessageQueue.dump() of the mainLooper begin===");
+            getLooper().dump(new LogPrinter(Log.DEBUG, "ActivityThread"), "");
+            Log.d(TAG, "===MessageQueue.dump() of the mainLooper end===");
+            // dump dispatch history.
+            Log.d(TAG, "===Dispatch history of the mainLooper begin===");
+            dumpLooperHistory();
+            Log.d(TAG, "===Dispatch history of the mainLooper end===");
+        }
     }
 
     private class H extends Handler {
@@ -1172,6 +1204,57 @@ public final class ActivityThread {
         public static final int TRIM_MEMORY             = 140;
         public static final int DUMP_PROVIDER           = 141;
         public static final int UNSTABLE_PROVIDER_DIED  = 142;
+
+        @Override
+        public String getMessageName(Message message) {
+            switch (message.what) {
+                case LAUNCH_ACTIVITY: return "LAUNCH_ACTIVITY";
+                case PAUSE_ACTIVITY: return "PAUSE_ACTIVITY";
+                case PAUSE_ACTIVITY_FINISHING: return "PAUSE_ACTIVITY_FINISHING";
+                case STOP_ACTIVITY_SHOW: return "STOP_ACTIVITY_SHOW";
+                case STOP_ACTIVITY_HIDE: return "STOP_ACTIVITY_HIDE";
+                case SHOW_WINDOW: return "SHOW_WINDOW";
+                case HIDE_WINDOW: return "HIDE_WINDOW";
+                case RESUME_ACTIVITY: return "RESUME_ACTIVITY";
+                case SEND_RESULT: return "SEND_RESULT";
+                case DESTROY_ACTIVITY: return "DESTROY_ACTIVITY";
+                case BIND_APPLICATION: return "BIND_APPLICATION";
+                case EXIT_APPLICATION: return "EXIT_APPLICATION";
+                case NEW_INTENT: return "NEW_INTENT";
+                case RECEIVER: return "RECEIVER";
+                case CREATE_SERVICE: return "CREATE_SERVICE";
+                case SERVICE_ARGS: return "SERVICE_ARGS";
+                case STOP_SERVICE: return "STOP_SERVICE";
+                case REQUEST_THUMBNAIL: return "REQUEST_THUMBNAIL";
+                case CONFIGURATION_CHANGED: return "CONFIGURATION_CHANGED";
+                case CLEAN_UP_CONTEXT: return "CLEAN_UP_CONTEXT";
+                case GC_WHEN_IDLE: return "GC_WHEN_IDLE";
+                case BIND_SERVICE: return "BIND_SERVICE";
+                case UNBIND_SERVICE: return "UNBIND_SERVICE";
+                case DUMP_SERVICE: return "DUMP_SERVICE";
+                case LOW_MEMORY: return "LOW_MEMORY";
+                case ACTIVITY_CONFIGURATION_CHANGED: return "ACTIVITY_CONFIGURATION_CHANGED";
+                case RELAUNCH_ACTIVITY: return "RELAUNCH_ACTIVITY";
+                case PROFILER_CONTROL: return "PROFILER_CONTROL";
+                case CREATE_BACKUP_AGENT: return "CREATE_BACKUP_AGENT";
+                case DESTROY_BACKUP_AGENT: return "DESTROY_BACKUP_AGENT";
+                case SUICIDE: return "SUICIDE";
+                case REMOVE_PROVIDER: return "REMOVE_PROVIDER";
+                case ENABLE_JIT: return "ENABLE_JIT";
+                case DISPATCH_PACKAGE_BROADCAST: return "DISPATCH_PACKAGE_BROADCAST";
+                case SCHEDULE_CRASH: return "SCHEDULE_CRASH";
+                case DUMP_HEAP: return "DUMP_HEAP";
+                case DUMP_ACTIVITY: return "DUMP_ACTIVITY";
+                case SLEEPING: return "SLEEPING";
+                case SET_CORE_SETTINGS: return "SET_CORE_SETTINGS";
+                case UPDATE_PACKAGE_COMPATIBILITY_INFO: return "UPDATE_PACKAGE_COMPATIBILITY_INFO";
+                case TRIM_MEMORY: return "TRIM_MEMORY";
+                case DUMP_PROVIDER: return "DUMP_PROVIDER";
+                case UNSTABLE_PROVIDER_DIED: return "UNSTABLE_PROVIDER_DIED";
+            }
+            return super.getMessageName(message);
+        }
+
         String codeToString(int code) {
             if (DEBUG_MESSAGES) {
                 switch (code) {
@@ -5034,6 +5117,9 @@ public final class ActivityThread {
         if (false) {
             Looper.myLooper().setMessageLogging(new
                     LogPrinter(Log.DEBUG, "ActivityThread"));
+        }
+        if (!"user".equals(android.os.Build.TYPE)) {
+            Looper.myLooper().setMessageLogging(new LocalLog(128));
         }
 
         Looper.loop();

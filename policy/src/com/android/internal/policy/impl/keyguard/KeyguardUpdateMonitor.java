@@ -117,6 +117,26 @@ public class KeyguardUpdateMonitor {
 
     private final Handler mHandler = new Handler() {
         @Override
+        public String getMessageName(Message msg) {
+            switch (msg.what) {
+                case MSG_TIME_UPDATE: return "MSG_TIME_UPDATE";
+                case MSG_BATTERY_UPDATE: return "MSG_BATTERY_UPDATE";
+                case MSG_CARRIER_INFO_UPDATE: return "MSG_CARRIER_INFO_UPDATE";
+                case MSG_SIM_STATE_CHANGE: return "MSG_SIM_STATE_CHANGE";
+                case MSG_RINGER_MODE_CHANGED: return "MSG_RINGER_MODE_CHANGED";
+                case MSG_PHONE_STATE_CHANGED: return "MSG_PHONE_STATE_CHANGED";
+                case MSG_CLOCK_VISIBILITY_CHANGED: return "MSG_CLOCK_VISIBILITY_CHANGED";
+                case MSG_DEVICE_PROVISIONED: return "MSG_DEVICE_PROVISIONED";
+                case MSG_DPM_STATE_CHANGED: return "MSG_DPM_STATE_CHANGED";
+                case MSG_USER_SWITCHED: return "MSG_USER_SWITCHED";
+                case MSG_USER_REMOVED: return "MSG_USER_REMOVED";
+                case MSG_KEYGUARD_VISIBILITY_CHANGED: return "MSG_KEYGUARD_VISIBILITY_CHANGED";
+                case MSG_BOOT_COMPLETED: return "MSG_BOOT_COMPLETED";
+            }
+            return super.getMessageName(msg);
+        }
+
+        @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
                 case MSG_TIME_UPDATE:

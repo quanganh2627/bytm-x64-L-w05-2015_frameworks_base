@@ -941,6 +941,23 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
         }
 
         @Override
+        public String getMessageName(Message msg) {
+            switch (msg.what) {
+                case MSG_REGISTER_DEFAULT_DISPLAY_ADAPTER:
+                    return "MSG_REGISTER_DEFAULT_DISPLAY_ADAPTER";
+                case MSG_REGISTER_ADDITIONAL_DISPLAY_ADAPTERS:
+                    return "MSG_REGISTER_ADDITIONAL_DISPLAY_ADAPTERS";
+                case MSG_DELIVER_DISPLAY_EVENT:
+                    return "MSG_DELIVER_DISPLAY_EVENT";
+                case MSG_REQUEST_TRAVERSAL:
+                    return "MSG_REQUEST_TRAVERSAL";
+                case MSG_UPDATE_VIEWPORT:
+                    return "MSG_UPDATE_VIEWPORT";
+            }
+            return super.getMessageName(msg);
+        }
+
+        @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
                 case MSG_REGISTER_DEFAULT_DISPLAY_ADAPTER:

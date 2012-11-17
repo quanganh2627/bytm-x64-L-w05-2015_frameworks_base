@@ -28,6 +28,7 @@ import android.content.pm.IPackageManager;
 import android.content.res.Configuration;
 import android.media.AudioService;
 import android.net.wifi.p2p.WifiP2pService;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
@@ -42,6 +43,7 @@ import android.server.search.SearchManagerService;
 import android.service.dreams.DreamService;
 import android.util.DisplayMetrics;
 import android.util.EventLog;
+import android.util.LocalLog;
 import android.util.Log;
 import android.util.Slog;
 import android.view.WindowManager;
@@ -76,6 +78,7 @@ class ServerThread extends Thread {
     private static final String TAG = "SystemServer";
     private static final String ENCRYPTING_STATE = "trigger_restart_min_framework";
     private static final String ENCRYPTED_STATE = "1";
+    private static final boolean IS_USER_BUILD = "user".equals(Build.TYPE);
 
     ContentResolver mContentResolver;
 
@@ -166,6 +169,9 @@ class ServerThread extends Thread {
             public void run() {
                 //Looper.myLooper().setMessageLogging(new LogPrinter(
                 //        Log.VERBOSE, "WindowManagerPolicy", Log.LOG_ID_SYSTEM));
+                if (!IS_USER_BUILD) {
+                    Looper.myLooper().setMessageLogging(new LocalLog(128));
+                }
                 android.os.Process.setThreadPriority(
                         android.os.Process.THREAD_PRIORITY_FOREGROUND);
                 android.os.Process.setCanSelfBackground(false);
@@ -186,6 +192,9 @@ class ServerThread extends Thread {
             public void run() {
                 //Looper.myLooper().setMessageLogging(new LogPrinter(
                 //        android.util.Log.DEBUG, TAG, android.util.Log.LOG_ID_SYSTEM));
+                if (!IS_USER_BUILD) {
+                    Looper.myLooper().setMessageLogging(new LocalLog(128));
+                }
                 android.os.Process.setThreadPriority(
                         android.os.Process.THREAD_PRIORITY_DISPLAY);
                 android.os.Process.setCanSelfBackground(false);

@@ -1093,6 +1093,26 @@ public class KeyguardViewMediator {
      */
     private Handler mHandler = new Handler(Looper.myLooper(), null, true /*async*/) {
         @Override
+        public String getMessageName(Message msg) {
+            switch (msg.what) {
+                case SHOW: return "SHOW";
+                case HIDE: return "HIDE";
+                case RESET: return "RESET";
+                case VERIFY_UNLOCK: return "VERIFY_UNLOCK";
+                case NOTIFY_SCREEN_OFF: return "NOTIFY_SCREEN_OFF";
+                case NOTIFY_SCREEN_ON: return "NOTIFY_SCREEN_ON";
+                case WAKE_WHEN_READY: return "WAKE_WHEN_READY";
+                case KEYGUARD_DONE: return "KEYGUARD_DONE";
+                case KEYGUARD_DONE_DRAWING: return "KEYGUARD_DONE_DRAWING";
+                case KEYGUARD_DONE_AUTHENTICATING: return "KEYGUARD_DONE_AUTHENTICATING";
+                case SET_HIDDEN: return "SET_HIDDEN";
+                case KEYGUARD_TIMEOUT: return "KEYGUARD_TIMEOUT";
+                case SHOW_ASSISTANT: return "SHOW_ASSISTANT";
+            }
+            return super.getMessageName(msg);
+        }
+
+        @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
                 case SHOW:

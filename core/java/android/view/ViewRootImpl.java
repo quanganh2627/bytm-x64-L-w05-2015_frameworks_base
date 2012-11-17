@@ -104,7 +104,7 @@ public final class ViewRootImpl implements ViewParent,
     private static final boolean DEBUG_INPUT_RESIZE = false || LOCAL_LOGV;
     private static final boolean DEBUG_ORIENTATION = false || LOCAL_LOGV;
     private static final boolean DEBUG_TRACKBALL = false || LOCAL_LOGV;
-    private static final boolean DEBUG_IMF = false || LOCAL_LOGV;
+    private static final boolean DEBUG_IMF = true || LOCAL_LOGV;
     private static final boolean DEBUG_CONFIGURATION = false || LOCAL_LOGV;
     private static final boolean DEBUG_FPS = false;
 
@@ -238,6 +238,8 @@ public final class ViewRootImpl implements ViewParent,
     // Input event queue.
     QueuedInputEvent mFirstPendingInputEvent;
     QueuedInputEvent mCurrentInputEvent;
+    private String mLastInputEvent;
+
     boolean mProcessInputEventsScheduled;
 
     boolean mWindowAttributesChanged = false;
@@ -4305,6 +4307,8 @@ public final class ViewRootImpl implements ViewParent,
             throw new IllegalStateException("finished input event out of order");
         }
 
+        mLastInputEvent = q.mEvent.toString();
+
         if (q.mReceiver != null) {
             q.mReceiver.finishInputEvent(q.mEvent, handled);
         } else {
@@ -4342,6 +4346,20 @@ public final class ViewRootImpl implements ViewParent,
                 mInputEventReceiver.consumeBatchedInputEvents(frameTimeNanos);
             }
             doProcessInputEvents();
+        }
+    }
+
+    void dumpInputEvent() {
+        Log.d(TAG, "mLastInputEvent is: " + mLastInputEvent);
+        Log.d(TAG, "mCurrentInputEvent is: "
+                + ((mCurrentInputEvent != null) ? mCurrentInputEvent.mEvent : null));
+
+        QueuedInputEvent q = mFirstPendingInputEvent;
+        int index = 0;
+        while (q != null) {
+            Log.d(TAG, "PendingInputEvent " + index + " is: " + q.mEvent);
+            q = q.mNext;
+            index ++;
         }
     }
 
@@ -4969,6 +4987,15 @@ public final class ViewRootImpl implements ViewParent,
             final ViewRootImpl viewAncestor = mViewAncestor.get();
             if (viewAncestor != null) {
                 viewAncestor.dispatchDoneAnimating();
+            }
+        }
+
+        public void dumpANRInfo() {
+            final ViewRootImpl viewAncestor = mViewAncestor.get();
+            if (viewAncestor != null) {
+                Log.d(TAG,"=======DebugANR dump input event state begin=======");
+                viewAncestor.dumpInputEvent();
+                Log.d(TAG,"=======DebugANR dump input event state end=======");
             }
         }
     }
