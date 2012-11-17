@@ -133,6 +133,7 @@ public interface IApplicationThread extends IInterface {
     void unstableProviderDied(IBinder provider) throws RemoteException;
     void requestActivityExtras(IBinder activityToken, IBinder requestToken, int requestType)
             throws RemoteException;
+    void dumpANRInfo() throws RemoteException;
 
     String descriptor = "android.app.IApplicationThread";
 
@@ -183,4 +184,5 @@ public interface IApplicationThread extends IInterface {
     int DUMP_DB_INFO_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+45;
     int UNSTABLE_PROVIDER_DIED_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+46;
     int REQUEST_ACTIVITY_EXTRAS_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+47;
+    int DUMP_ANR_INFO_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+48;
 }
