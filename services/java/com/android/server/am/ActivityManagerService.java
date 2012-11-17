@@ -3345,6 +3345,17 @@ public final class ActivityManagerService extends ActivityManagerNative
         info.append(processStats.printCurrentState(anrTime));
 
         Slog.e(TAG, info.toString());
+
+        if (!IS_USER_BUILD && app.thread != null) {
+            try {
+                app.thread.dumpANRInfo();
+            } catch (RemoteException e) {
+                Slog.e(ActivityManagerService.TAG, "Exception in dumpANRInfo", e);
+            }
+        }
+
+        // Please add DebugAnr after dumpANRInfo
+
         if (tracesFile == null) {
             // There is no trace file, so dump (only) the alleged culprit's threads to the log
             Process.sendSignal(app.pid, Process.SIGNAL_QUIT);
