@@ -774,7 +774,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         if (DEBUG_VOL) Log.d(TAG, "adjustLocalOrRemoteStreamVolume(dir="+direction+")");
         if (checkUpdateRemoteStateIfActive(AudioSystem.STREAM_MUSIC)) {
             adjustRemoteVolume(AudioSystem.STREAM_MUSIC, direction, 0);
-        } else if (AudioSystem.isStreamActive(AudioSystem.STREAM_MUSIC, 0)) {
+        } else if (AudioSystem.isStreamActive(AudioSystem.STREAM_MUSIC, 0)  || isFmRxActive() ) {
             adjustStreamVolume(AudioSystem.STREAM_MUSIC, direction, 0);
         }
     }
@@ -1582,6 +1582,16 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     public int getFmRxMode() {
         return mFmRxMode;
    }
+
+    /**
+     * Checks whether FM Radio is active.
+     *
+     * @hide
+     * @return true if FM Radio is active.
+     */
+    public boolean isFmRxActive() {
+        return (getFmRxMode() == AudioManager.MODE_FM_ON) ? true : false;
+    }
 
     /** @see AudioManager#getMode() */
     public int getMode() {
