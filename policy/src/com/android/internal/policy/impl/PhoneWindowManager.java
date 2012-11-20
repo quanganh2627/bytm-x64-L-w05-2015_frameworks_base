@@ -148,6 +148,7 @@ import android.view.KeyCharacterMap.FallbackAction;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.hardware.input.InputManager;
 
 import java.io.File;
 import java.io.FileReader;
@@ -181,6 +182,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     static final int LONG_PRESS_HOME_NOTHING = 0;
     static final int LONG_PRESS_HOME_RECENT_DIALOG = 1;
     static final int LONG_PRESS_HOME_RECENT_SYSTEM_UI = 2;
+    static final int LONG_PRESS_HOME_SEARCH = 3;
 
     static final int APPLICATION_MEDIA_SUBLAYER = -2;
     static final int APPLICATION_MEDIA_OVERLAY_SUBLAYER = -1;
@@ -768,7 +770,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             mLongPressOnHomeBehavior
                     = mContext.getResources().getInteger(R.integer.config_longPressOnHomeBehavior);
             if (mLongPressOnHomeBehavior < LONG_PRESS_HOME_NOTHING ||
-                    mLongPressOnHomeBehavior > LONG_PRESS_HOME_RECENT_SYSTEM_UI) {
+                    mLongPressOnHomeBehavior > LONG_PRESS_HOME_SEARCH) {
                 mLongPressOnHomeBehavior = LONG_PRESS_HOME_NOTHING;
             }
         }
@@ -795,6 +797,23 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 // re-acquire status bar service next time it is needed.
                 mStatusBarService = null;
             }
+        } else if (mLongPressOnHomeBehavior == LONG_PRESS_HOME_SEARCH) {
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        long now = SystemClock.uptimeMillis();
+                        InputManager.getInstance().injectInputEvent(new KeyEvent(now, now,
+                                KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SEARCH, 0),
+                                InputManager.INJECT_INPUT_EVENT_MODE_ASYNC);
+                        InputManager.getInstance().injectInputEvent(new KeyEvent(now, now,
+                                KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SEARCH, 0),
+                                InputManager.INJECT_INPUT_EVENT_MODE_ASYNC);
+                    } catch (Exception e) {
+                        Slog.e(TAG, "Exception when launch search", e);
+                    }
+                }
+            });
         }
     }
 
@@ -1952,7 +1971,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             return 0;
         } else if (keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
             if (down && repeatCount == 0 && !keyguardOn) {
-                showOrHideRecentAppsDialog(RECENT_APPS_BEHAVIOR_SHOW_OR_DISMISS);
+                try {
+                    mStatusBarService.toggleRecentApps();
+                } catch (RemoteException e) {
+                    Slog.e(TAG, "RemoteException when showing recent apps", e);
+                }
             }
             return -1;
         } else if (keyCode == KeyEvent.KEYCODE_ASSIST) {
