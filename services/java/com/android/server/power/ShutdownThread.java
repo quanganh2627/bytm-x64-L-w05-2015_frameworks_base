@@ -146,9 +146,14 @@ public final class ShutdownThread extends Thread {
                     .setPositiveButton(com.android.internal.R.string.yes, new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface dialog, int which) {
                             beginShutdownSequence(context);
+                            Log.i(TAG, "[SHTDWN] shutdown, confirm=YES");
                         }
                     })
-                    .setNegativeButton(com.android.internal.R.string.no, null)
+                    .setNegativeButton(com.android.internal.R.string.no, new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int which) {
+                            Log.i(TAG, "[SHTDWN] shutdown, confirm=NO");
+                        }
+                    })
                     .create();
             closer.dialog = sConfirmDialog;
             sConfirmDialog.setOnDismissListener(closer);
