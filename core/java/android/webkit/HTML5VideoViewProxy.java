@@ -98,6 +98,11 @@ class HTML5VideoViewProxy extends Handler
 
         private static boolean isVideoSelfEnded = false;
 
+        private static boolean mWebViewgone = true;
+        private static void markWebViewgone(boolean gone) {
+            mWebViewgone = gone;
+        }
+
         private static void setPlayerBuffering(boolean playerBuffering) {
             mHTML5VideoView.setPlayerBuffering(playerBuffering);
         }
@@ -107,7 +112,7 @@ class HTML5VideoViewProxy extends Handler
         // Otherwise, we may want to delete the Surface Texture to save memory.
         public static void setBaseLayer(int layer) {
             // Don't do this for full screen mode.
-            if (mHTML5VideoView != null
+            if (mWebViewgone ==false && mHTML5VideoView != null
                 && !mHTML5VideoView.isFullScreenMode()
                 && !mHTML5VideoView.isReleased()) {
                 int currentVideoLayerId = mHTML5VideoView.getVideoLayerId();
@@ -608,6 +613,9 @@ class HTML5VideoViewProxy extends Handler
         mNativePointer = nativePtr;
         // create the message handler for this thread
         createWebCoreHandler();
+
+        // mark WebView available
+        VideoPlayer.markWebViewgone(false);
     }
 
     private void createWebCoreHandler() {
@@ -756,6 +764,11 @@ class HTML5VideoViewProxy extends Handler
     // These three function are called from UI thread only by WebView.
     public void setBaseLayer(int layer) {
         VideoPlayer.setBaseLayer(layer);
+    }
+
+    // when WebView is destroyed, this function will be invoked.
+    public void markWebViewgone(boolean gone) {
+        VideoPlayer.markWebViewgone(gone);
     }
 
     public void pauseAndDispatch() {
