@@ -462,7 +462,8 @@ public final class WebViewCore {
                 new WebStorage.QuotaUpdater() {
                         @Override
                         public void updateQuota(long newQuota) {
-                            nativeSetNewStorageLimit(mNativeClass, newQuota);
+                            if (mNativeClass != 0)
+                                nativeSetNewStorageLimit(mNativeClass, newQuota);
                         }
                 });
     }
@@ -480,7 +481,8 @@ public final class WebViewCore {
                 new WebStorage.QuotaUpdater() {
                     @Override
                     public void updateQuota(long newQuota) {
-                        nativeSetNewStorageLimit(mNativeClass, newQuota);
+                        if (mNativeClass != 0)
+                            nativeSetNewStorageLimit(mNativeClass, newQuota);
                     }
                 });
     }
@@ -2067,6 +2069,7 @@ public final class WebViewCore {
 
     // notify webkit that our virtual view size changed size (after inv-zoom)
     private void viewSizeChanged(WebViewClassic.ViewSizeData data) {
+        if (0 == mNativeClass) return;
         int w = data.mWidth;
         int h = data.mHeight;
         int textwrapWidth = data.mTextWrapWidth;
@@ -2208,6 +2211,8 @@ public final class WebViewCore {
                 return;
             }
         }
+
+        if (0 == mNativeClass) return;
 
         mDrawIsScheduled = false;
         DrawData draw = new DrawData();
