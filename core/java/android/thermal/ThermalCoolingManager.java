@@ -46,6 +46,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+// Telephony intent
+import com.android.internal.telephony.TelephonyIntents;
 /**
  * The ThermalCoolingManager class contains strings and constants used for values
  * in the {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED} Intent.
@@ -65,6 +67,11 @@ public class ThermalCoolingManager {
     private static final int sAlertBrightnessRatio = 50;
     private static final int sDefaultBrightness = 102;
     private static final Object sBrightnessLock = new Object();
+    // Emergency call related info
+    private static boolean sOnGoingEmergencyCall = false;
+    // count to keep track of zones in critical state, waiting for shutdown
+    private int mCriticalZonesCount = 0;
+    private static final Object sCriticalZonesCountLock = new Object();
 
     public class CoolingDeviceInfo {
         private int CDeviceID;
@@ -369,6 +376,52 @@ public class ThermalCoolingManager {
        IntentFilter filter = new IntentFilter();
        filter.addAction(Intent.ACTION_THERMAL_ZONE_STATE_CHANGED);
        mContext.registerReceiver(new ThermalZoneReceiver(), filter);
+
+       // register for ongoing emergency call intent
+       IntentFilter emergencyIntentFilter = new IntentFilter();
+       emergencyIntentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALL_STATUS_CHANGED);
+       mContext.registerReceiver(new EmergencyCallReceiver(), emergencyIntentFilter);
+    }
+
+    private final class EmergencyCallReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            boolean callStatus = false;
+            if (action.equals(TelephonyIntents.ACTION_EMERGENCY_CALL_STATUS_CHANGED)) {
+                callStatus = intent.getBooleanExtra("emergencyCallOngoing", false);
+                Log.i(TAG, "emergency call intent received, callStatus = " + callStatus);
+                updateCallStatus(callStatus);
+                // if emergency call has ended, check if any zone is in critical state
+                // if true, initiate shutdown
+                if (callStatus == false) {
+                    checkShutdownCondition();
+                }
+            }
+        }
+    }
+
+    private static synchronized void updateCallStatus(boolean flag) {
+        sOnGoingEmergencyCall = flag;
+    }
+
+    public static synchronized boolean isEmergencyCallOnGoing() {
+        return sOnGoingEmergencyCall;
+    }
+
+    private void checkShutdownCondition() {
+        synchronized (sCriticalZonesCountLock) {
+            if (mCriticalZonesCount > 0) {
+                Log.i(TAG, "checkShutdownCondition(): criticalZonesCount : " + mCriticalZonesCount + " shuting down...");
+                doShutdown();
+            }
+        }
+    }
+
+    private void incrementCrticalZoneCount() {
+        synchronized(sCriticalZonesCountLock) {
+            mCriticalZonesCount++;
+        }
     }
 
     private final class ThermalZoneReceiver extends BroadcastReceiver {
@@ -383,11 +436,12 @@ public class ThermalCoolingManager {
                         " of event type " + thermEvent + " with state " + thermState + " at temperature " + zoneTemp);
             if ((thermState == ThermalZone.THERMAL_STATE_CRITICAL) &&
                 (initiateShutdown(thermZone))) {
-                   Intent criticalIntent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
-                   criticalIntent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
-                   criticalIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                   mContext.startActivity(criticalIntent);
-                   return;
+                if (!isEmergencyCallOnGoing()) {
+                    doShutdown();
+                } else {
+                    // increment the count of zones in critical state pending on shutdown
+                    incrementCrticalZoneCount();
+                }
             }
 
             handleThermalEvent(thermZone, thermEvent, thermState);
@@ -455,6 +509,15 @@ public class ThermalCoolingManager {
         return true;
     }
 
+    // Method to do actual shutdown. It writes a 1 in OSIP Sysfs and
+    // sends the shutdown intent
+    private void doShutdown() {
+        SysfsManager.writeSysfs(THERMAL_SHUTDOWN_NOTIFY_PATH, 1);
+        Intent criticalIntent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
+        criticalIntent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
+        criticalIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(criticalIntent);
+    }
     /* Method to handle the thermal event based on HIGH or LOW event*/
     public static boolean initiateShutdown(int zoneID) {
          ZoneCooling zone = listOfZones.get(zoneID);
@@ -462,8 +525,7 @@ public class ThermalCoolingManager {
          if (zone == null) return false;
 
          if (zone.mIsCriticalActionShutdown == 1) {
-             SysfsManager.writeSysfs(THERMAL_SHUTDOWN_NOTIFY_PATH, 1);
-             return true;
+            return true;
          }
          return false;
     }
