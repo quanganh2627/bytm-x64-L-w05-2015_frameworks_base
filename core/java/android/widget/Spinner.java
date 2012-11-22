@@ -457,6 +457,11 @@ public class Spinner extends AbsSpinner implements OnClickListener {
         super.onLayout(changed, l, t, r, b);
         mInLayout = true;
         layout(0, false);
+        //if popup is showing, restart it to make it relayout too.
+        if ((mPopup != null) && mPopup.isShowing() && (changed == true)) {
+            mPopup.dismiss();
+            mPopup.show();
+        }
         mInLayout = false;
     }
 
