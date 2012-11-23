@@ -1773,10 +1773,11 @@ public class PackageParser {
                 false)) {
             ai.flags |= ApplicationInfo.FLAG_VM_SAFE_MODE;
         }
-
+//Change the Build.VERSION_CODES.ICE_CREAM_SANDWICH to HONEYCOMB
+//to support legacy app with honeycomb and upper version use hardware acceleration
         boolean hardwareAccelerated = sa.getBoolean(
                 com.android.internal.R.styleable.AndroidManifestApplication_hardwareAccelerated,
-                owner.applicationInfo.targetSdkVersion >= Build.VERSION_CODES.ICE_CREAM_SANDWICH);
+                owner.applicationInfo.targetSdkVersion >= Build.VERSION_CODES.HONEYCOMB);
 
         if (sa.getBoolean(
                 com.android.internal.R.styleable.AndroidManifestApplication_hasCode,
