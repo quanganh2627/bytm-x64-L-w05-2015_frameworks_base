@@ -2533,6 +2533,9 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void loadUrlImpl(String url, Map<String, String> extraHeaders) {
+        if (mWebViewCore == null) {
+            return;
+        }
         switchOutDrawHistory();
         WebViewCore.GetUrlData arg = new WebViewCore.GetUrlData();
         arg.mUrl = url;
