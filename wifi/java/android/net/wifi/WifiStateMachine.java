@@ -2140,6 +2140,7 @@ public class WifiStateMachine extends StateMachine {
             intent.putExtra(WifiManager.EXTRA_BSSID, bssid);
         if (mNetworkInfo.getDetailedState() == DetailedState.VERIFYING_POOR_LINK ||
                 mNetworkInfo.getDetailedState() == DetailedState.CONNECTED) {
+            intent.putExtra(WifiManager.EXTRA_NEW_RSSI, mWifiInfo.getRssi());
             intent.putExtra(WifiManager.EXTRA_WIFI_INFO, new WifiInfo(mWifiInfo));
         }
         mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
