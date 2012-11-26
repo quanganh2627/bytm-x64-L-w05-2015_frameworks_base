@@ -203,6 +203,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN;
     // private lock for thread sync
     private Object lock = new Object();
+
+    // length of vibration before shutting down is started on long power key press
+    private static final int SHUTDOWN_VIBRATE_MS = 500;
+
     /* Table of Application Launch keys.  Maps from key codes to intent categories.
      *
      * These are special keys that are used to launch particular kinds of applications,
@@ -658,6 +662,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mPowerKeyHandled = handled;
         if (!handled) {
             mHandler.postDelayed(mPowerLongPress, ViewConfiguration.getGlobalActionKeyTimeout());
+        } else {
+            mHandler.postDelayed(mPowerLongLongPress, ViewConfiguration.getGlobalActionKeyShutdownTimeout() +
+                            ViewConfiguration.getGlobalActionKeyTimeout());
         }
     }
 
@@ -669,6 +676,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             return !canceled;
         }
         lock.notify();
+        mHandler.removeCallbacks(mPowerLongLongPress);
         return false;
        }
     }
@@ -740,11 +748,28 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 mPowerKeyHandled = true;
                 performHapticFeedbackLw(null, HapticFeedbackConstants.LONG_PRESS, false);
                 sendCloseSystemWindows(SYSTEM_DIALOG_REASON_GLOBAL_ACTIONS);
+                Log.i(TAG, "LongPress detected : calling for shutdown confirmation.");
                 mWindowManagerFuncs.shutdown(resolvedBehavior == LONG_PRESS_POWER_SHUT_OFF);
                 break;
             }
            lock.notify();
           }
+            mHandler.postDelayed(mPowerLongLongPress, ViewConfiguration.getGlobalActionKeyShutdownTimeout());
+        }
+    };
+
+    private final Runnable mPowerLongLongPress = new Runnable() {
+        public void run() {
+            // vibrate to indicate shutdown is started
+            try {
+                mVibrator.vibrate(SHUTDOWN_VIBRATE_MS);
+            } catch (Exception e) {
+                // Failure to vibrate shouldn't interrupt SW shutdown. Just log it.
+                Log.w(TAG, "Failed to vibrate on long powerkey press.", e);
+            }
+            SystemProperties.set("sys.property_forcedshutdown", "1");
+            Log.i(TAG, "LongLongPress detected : force shutdown requested.");
+            mWindowManagerFuncs.shutdown(false);
         }
     };
 
