@@ -178,7 +178,6 @@ public final class BatteryService extends Binder {
         // check our power situation now that it is safe to display the shutdown dialog.
         synchronized (mLock) {
             shutdownIfNoPowerLocked();
-            shutdownIfOverTempLocked();
         }
     }
 
@@ -254,25 +253,6 @@ public final class BatteryService extends Binder {
         }
     }
 
-    private void shutdownIfOverTempLocked() {
-        // shut down gracefully if temperature is too high (> 68.0C by default)
-        // wait until the system has booted before attempting to display the
-        // shutdown dialog.
-        if (mBatteryTemperature > mShutdownBatteryTemperature) {
-            mHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    if (ActivityManagerNative.isSystemReady()) {
-                        Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
-                        intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
-                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        mContext.startActivityAsUser(intent, UserHandle.CURRENT);
-                    }
-                }
-            });
-        }
-    }
-
     private void updateLocked() {
         if (!mUpdatesStopped) {
             // Update the values of mAcOnline, et. all.
@@ -324,7 +304,6 @@ public final class BatteryService extends Binder {
         }
 
         shutdownIfNoPowerLocked();
-        shutdownIfOverTempLocked();
 
         if (mBatteryStatus != mLastBatteryStatus ||
                 mBatteryHealth != mLastBatteryHealth ||
