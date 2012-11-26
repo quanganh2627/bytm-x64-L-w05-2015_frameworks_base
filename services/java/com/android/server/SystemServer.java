@@ -152,6 +152,7 @@ class ServerThread extends Thread {
         RecognitionManagerService recognition = null;
         ThrottleService throttle = null;
         NetworkTimeUpdateService networkTimeUpdater = null;
+        ThermalService thermalservice = null;
         CommonTimeManagementService commonTimeMgmtService = null;
         InputManagerService inputManager = null;
         TelephonyRegistry telephonyRegistry = null;
@@ -292,6 +293,11 @@ class ServerThread extends Thread {
 
             Slog.i(TAG, "Lights Service");
             lights = new LightsService(context);
+
+            //THERMAL
+            Slog.i(TAG, "Thermal Service");
+            thermalservice = new ThermalService(context);
+            ServiceManager.addService("thermalservice", thermalservice);
 
             Slog.i(TAG, "Battery Service");
             battery = new BatteryService(context, lights);
