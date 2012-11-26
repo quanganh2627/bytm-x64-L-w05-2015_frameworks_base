@@ -428,8 +428,12 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 setImeWindowVisibilityStatusHiddenLocked();
                 updateActive();
                 return;
-            } else if (Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(action)) {
+            } else if (Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(action) || intent.getAction().equals(Intent.ACTION_CAMERA_BUTTON)) {
                 hideInputMethodMenu();
+                if (mCurToken != null) {
+                    mInputShown = true;
+                    hideMySoftInput(mCurToken, 0);
+                }
                 // No need to updateActive
                 return;
             } else {
