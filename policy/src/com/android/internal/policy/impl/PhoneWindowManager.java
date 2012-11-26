@@ -201,7 +201,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
      */
     static final int SYSTEM_UI_CHANGING_LAYOUT =
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN;
-
+    // private lock for thread sync
+    private Object lock = new Object();
     /* Table of Application Launch keys.  Maps from key codes to intent categories.
      *
      * These are special keys that are used to launch particular kinds of applications,
@@ -661,11 +662,15 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     private boolean interceptPowerKeyUp(boolean canceled) {
+        synchronized(lock) {
         if (!mPowerKeyHandled) {
             mHandler.removeCallbacks(mPowerLongPress);
+            lock.notify();
             return !canceled;
         }
+        lock.notify();
         return false;
+       }
     }
 
     private void cancelPendingPowerKeyAction() {
@@ -708,6 +713,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private final Runnable mPowerLongPress = new Runnable() {
         @Override
         public void run() {
+            synchronized(lock) {
             // The context isn't read
             if (mLongPressOnPowerBehavior < 0) {
                 mLongPressOnPowerBehavior = mContext.getResources().getInteger(
@@ -737,6 +743,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 mWindowManagerFuncs.shutdown(resolvedBehavior == LONG_PRESS_POWER_SHUT_OFF);
                 break;
             }
+           lock.notify();
+          }
         }
     };
 
