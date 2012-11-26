@@ -52,6 +52,8 @@ import com.intel.internal.telephony.OemTelephony.IOemTelephony;
 import android.util.Log;
 import android.view.WindowManager;
 
+import java.lang.Thread;
+
 public final class ShutdownThread extends Thread {
     // constants
     private static final String TAG = "ShutdownThread";
@@ -127,6 +129,9 @@ public final class ShutdownThread extends Thread {
                         : com.android.internal.R.string.shutdown_confirm);
 
         Log.d(TAG, "Notifying thread to start shutdown longPressBehavior=" + longPressBehavior);
+        // dumpStack to log the caller name
+        Log.e(TAG, "[SHTDWN] My call stack is:");
+        Thread.dumpStack();
 
         if (confirm) {
             final CloseDialogReceiver closer = new CloseDialogReceiver(context);
