@@ -168,6 +168,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             | View.STATUS_BAR_TRANSLUCENT
             | View.NAVIGATION_BAR_TRANSLUCENT;
 
+// length of vibration before shutting down is started on long power key press
+    private static final int SHUTDOWN_VIBRATE_MS = 500;
+
     /**
      * Keyguard stuff
      */
@@ -665,6 +668,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mPowerKeyHandled = handled;
         if (!handled) {
             mHandler.postDelayed(mPowerLongPress, ViewConfiguration.getGlobalActionKeyTimeout());
+        } else {
+            mHandler.postDelayed(mPowerLongLongPress,
+                    ViewConfiguration.getGlobalActionKeyShutdownTimeout() +
+                    ViewConfiguration.getGlobalActionKeyTimeout());
         }
     }
 
@@ -673,6 +680,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             mHandler.removeCallbacks(mPowerLongPress);
             return !canceled;
         }
+        mHandler.removeCallbacks(mPowerLongLongPress);
         return false;
     }
 
@@ -741,9 +749,22 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 mPowerKeyHandled = true;
                 performHapticFeedbackLw(null, HapticFeedbackConstants.LONG_PRESS, false);
                 sendCloseSystemWindows(SYSTEM_DIALOG_REASON_GLOBAL_ACTIONS);
+                Log.i(TAG, "LongPress detected : calling for shutdown confirmation.");
                 mWindowManagerFuncs.shutdown(resolvedBehavior == LONG_PRESS_POWER_SHUT_OFF);
                 break;
             }
+            mHandler.postDelayed(mPowerLongLongPress,
+                    ViewConfiguration.getGlobalActionKeyShutdownTimeout());
+        }
+    };
+
+    private final Runnable mPowerLongLongPress = new Runnable() {
+        public void run() {
+            // vibrate to indicate shutdown is started
+            mVibrator.vibrate(SHUTDOWN_VIBRATE_MS);
+            SystemProperties.set("sys.property_forcedshutdown", "1");
+            Log.i(TAG, "LongLongPress detected : force shutdown requested.");
+            mWindowManagerFuncs.shutdown(false);
         }
     };
 
