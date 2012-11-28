@@ -16,14 +16,6 @@
 
 package android.thermal;
 
-import java.io.DataOutputStream;
-import java.io.FileReader;
-import java.io.FileOutputStream;
-import java.io.File;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.util.Scanner;
-import java.util.regex.Pattern;
 import android.util.Log;
 
 /**
@@ -34,180 +26,139 @@ import android.util.Log;
 public class CPUMaxFreqControl {
     private static final String TAG = "CPUMaxFreqControl";
 
-    /* sysfs path for throttle devices */
+    // Sysfs path for throttle devices
     private static final String mCPUDeviceSysfsPath = "/sys/devices/system/cpu/";
     private static final String mCPUThrottleSysfsPath = "/cpufreq/scaling_max_freq";
     private static final String mCPUAvailFreqsPath = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies";
+    private static final String mCPUPresentPath = "/sys/devices/system/cpu/present";
 
-    /* Data to detect the platform, product and hardware */
+    // Data to detect the platform, product and hardware
     private static final String mSPIDPlatformIDPath = "/sys/spid/platform_family_id";
     private static final String mSPIDProductIDPath = "/sys/spid/product_line_id";
     private static final String mSPIDHardwareIDPath = "/sys/spid/hardware_id";
 
-    /* SPID values for PLatform, hardware and product ID */
-    private static final String mSPIDPlatformIDMfld = "0000";
-    private static final String mSPIDPlatformIDCtp = "0002";
-    private static final String mSPIDProductIDLexProd = "0004";
-    private static final String mSPIDProductIDLexEng = "8004";
-    private static final String mSPIDProductIDPRxProd = "0000";
-    private static final String mSPIDProductIDPRxEng = "8000";
-    private static final String mSPIDHardwareIDPR4 = "0007";
-
-
-    /* CPU related data */
-    private static String mCPUInfoSysfsPath = "/proc/interrupts";
+    // CPU related data
     private static int mProcessorCount;
     private static int mMaxFreqCount = 10;
     private static int mAvailFreq[] = new int[mMaxFreqCount];
     private static int mAvailFreqCount;
     private static boolean mNoCPUMaxScalingFreqs = false;
-    private static int mMaxScalingFreq[] = new int[4];   /* max scaling freqs */
+    private static int mMaxScalingFreq[] = new int[4];
 
-    private static void getProdCpuMaxScalingFreqs() {
+    private static final String mDeviceIdentifier[][] = {
+        // platform  product      hardware
+        {"0000",    "8000",     "0007"},    // MFLD  PRxEng  PR4
+        {"0000",    "0000",     "0007"},    // MFLD  PRxProd PR4
+        {"0000",    "0000",     "0003"},    // MFLD  PR3.3   PR3.3
+        {"0000",    "8004",     "0004"},    // MFLD  LEXEng  -
+        {"0000",    "0004",     "0004"},    // MFLD  LEXProd -
+        {"0000",    "any",      "any"},     // MFLD  Default case
+        {"0002",    "8000",     "0016"},    // CTP   PR2Eng  PR2
+        {"0002",    "any",      "any"},     // CTP   Default case
+    };
+
+    // Each Row in this array is matched with that of the same row in mDeviceIdentifier array
+    private static final int mThrottleFreq[][] = {
+        // Warning   Alert       Critical
+        {1400000,   900000,     600000},
+        {1400000,   900000,     600000},
+        {1200000,   900000,     600000},
+        {1200000,   900000,     600000},
+        {1200000,   900000,     600000},
+        {1400000,   900000,     600000},    // Default set of frequencies for MFLD platform
+        {1866000,   1333000,    933000},
+        {1800000,   1400000,    900000},    // Default set of frequencies for CTP platform
+    };
+
+    private static int findIndex(String plat, String prod, String hw) {
+        for (int i = 0; i < mDeviceIdentifier.length; i++) {
+            if (plat.equals(mDeviceIdentifier[i][0]) && prod.equals(mDeviceIdentifier[i][1]) && hw.equals(mDeviceIdentifier[i][2]))
+                return i;
+        }
+        return -1;
+    }
+
+    private static void computeCpuMaxScalingFreqs() {
        String platformId = SysfsManager.readSysfs(mSPIDPlatformIDPath);
        String productId = SysfsManager.readSysfs(mSPIDProductIDPath);
        String hardwareId = SysfsManager.readSysfs(mSPIDHardwareIDPath);
-       int i = 0;
 
        if ((platformId == null) || (productId == null) || (hardwareId == null)) return;
 
-       /* Need to update the file with new set of max scaling freqs
-          when a platform has less than 2 available freqs */
+       // Need to update the file with new set of max scaling freqs,
+       // when a platform has less than 2 available freqs
        if (mAvailFreqCount <= 2) {
             mNoCPUMaxScalingFreqs = true;
-            Log.i(TAG, "Available freq <= 2");
+            Log.i(TAG, "Available CPU freq <= 2");
             return;
         }
 
-       /* MaxScaling frequencies follow the sequence
-          Normal, Warning, Alert and Critical states
-          for mMaxScalingFreq[0] - mMaxScalingFreq[3] */
-
-       /* Normal state freq always the max available freq */
-       mMaxScalingFreq[0] = mAvailFreq[0];
-
-       if (platformId.equals(mSPIDPlatformIDCtp)) {
-       /* CTP device */
-            mMaxScalingFreq[1] = 1800000;
-            mMaxScalingFreq[2] = 1400000;
-            mMaxScalingFreq[3] = 900000;
-
-       } else if (platformId.equals(mSPIDPlatformIDMfld)) {
-          /* Medfield Device */
-          if ((productId.equals(mSPIDProductIDLexProd)) || (productId.equals(mSPIDProductIDLexEng))) {
-             /* Lex */
-             mMaxScalingFreq[1] = 1200000;
-             mMaxScalingFreq[2] = 900000;
-             mMaxScalingFreq[3] = 600000;
-          } else if ((productId.equals(mSPIDProductIDPRxProd)) || (productId.equals(mSPIDProductIDPRxEng))) {
-             /* PRx */
-             if (hardwareId.equals(mSPIDHardwareIDPR4)) {
-                /* PR4*/
-                mMaxScalingFreq[1] = 1400000;
-                mMaxScalingFreq[2] = 900000;
-                mMaxScalingFreq[3] = 600000;
-             } else {
-                /* Non-PR4 */
-                mMaxScalingFreq[1] = 1200000;
-                mMaxScalingFreq[2] = 900000;
-                mMaxScalingFreq[3] = 600000;
-             }
-          } else {
-             mMaxScalingFreq[1] = 1400000;
-             mMaxScalingFreq[2] = 900000;
-             mMaxScalingFreq[3] = 600000;
-
-             Log.i(TAG, "SPID does not match with available Medfield product id");
-          }
-       } else {
-            mMaxScalingFreq[1] = mAvailFreq[1];
-            mMaxScalingFreq[2] = mAvailFreq[2];
-            mMaxScalingFreq[3] = mAvailFreq[mAvailFreqCount - 1];
-
-            Log.i(TAG, "SPID does not match with the available Platform id");
+       int index = findIndex(platformId, productId, hardwareId);
+       if (index == -1) {
+           // We could not get an exact match. So, try for 'this' platform, but any product/HW combination.
+           index = findIndex(platformId, "any", "any");
+           if (index == -1) {
+               Log.i(TAG, "Thermal plugin for CPU Freq control cannot detect the platform.\n" +
+                           "Hence, Choosing a Random set of frequencies.\n" +
+                           "The CPU throttling behavior is undefined.");
+               mMaxScalingFreq[0] = mAvailFreq[0];
+               mMaxScalingFreq[1] = mAvailFreq[1];
+               mMaxScalingFreq[2] = mAvailFreq[2];
+               mMaxScalingFreq[3] = mAvailFreq[mAvailFreqCount - 1];
+               return;
+           } else {
+               Log.i(TAG, "Using default frequency set for platformId" + platformId);
+           }
        }
 
-       Log.i(TAG, "Computed max cpu scaling freq array");
-       for (i = 0; i < 4; i++)
-            Log.i(TAG, "freq " +  mMaxScalingFreq[i]);
-   }
-
-    private static void getNumberOfProcessors() throws IOException {
-        BufferedReader myReader = null;
-        try {
-            myReader = new BufferedReader(new FileReader(mCPUInfoSysfsPath));
-            //In first line: NoOfProcessors = NoOfColumns
-            String line = myReader.readLine();
-            for (String token : line.split(" ")) {
-                if (token.startsWith("C"))
-                   mProcessorCount++;
-            }
-        }
-        catch (Exception e) {
-             Log.i(TAG,"Unable to count Processors");
-        }
-        finally {
-            /* ensure the underlying stream is always closed */
-            myReader.close();
-        }
-        Log.i(TAG,"Number of mProcessorCount" + mProcessorCount);
+       // For Normal State: Max Scaling frequency is always the Max available frequency
+       mMaxScalingFreq[0] = mAvailFreq[0];
+       mMaxScalingFreq[1] = mThrottleFreq[index][0];
+       mMaxScalingFreq[2] = mThrottleFreq[index][1];
+       mMaxScalingFreq[3] = mThrottleFreq[index][2];
     }
 
-    /* function reads the available cpu frequencies */
+    private static void getNumberOfProcessors() {
+        String cpu = SysfsManager.readSysfs(mCPUPresentPath);
+        if (cpu == null) return;
+
+        // This sysfs interface exposes the number of CPUs present in 0-N format,
+        // when there are N+1 CPUs. Tokenize the string and find N
+        try {
+            mProcessorCount = Integer.parseInt(cpu.split("-")[1]) + 1;
+        } catch (NumberFormatException ex) {
+            Log.i(TAG, "NumberFormatException in getNumberOfProcessors");
+        }
+    }
+
     private static void readAvailFreq() {
-        BufferedReader myReader = null;
-        try {
-            myReader = new BufferedReader(new FileReader(mCPUAvailFreqsPath));
-            int i = 0;
-            String line;
-            while ((line = myReader.readLine()) != null) {
-                for (String token : line.split(" ")) {
-                    try {
-                        mAvailFreq[i++] = Integer.parseInt(token);
-                        Log.i(TAG, "Freq:"+mAvailFreq[i-1]);
-                    } catch (NumberFormatException ex) {
-                        Log.i(TAG, token + " is not a number");
-                    }
-                }
+        String line = SysfsManager.readSysfs(mCPUAvailFreqsPath);
+        if (line == null) return;
+
+        for (String token : line.split(" ")) {
+            try {
+                mAvailFreq[mAvailFreqCount++] = Integer.parseInt(token);
+            } catch (NumberFormatException ex) {
+                Log.i(TAG, token + " is not a number");
             }
-            mAvailFreqCount = i;
-            myReader.close();
-        }
-        catch(IOException e) {
-            Log.i(TAG,"IOException on read available frequencies");
         }
     }
 
-    public static void initializeCpuFreqThrottling() {
-        /* read the available frequencies */
-        readAvailFreq();
-
-        /* determine number of cpu cores on the platform */
-        try {
-            getNumberOfProcessors();
-        }
-        catch (IOException e) {
-            /* We should never come here */
-            Log.i(TAG, "Exception occured while reading number of processors");
-            return;
-        }
-
-        /* compute the scaling max frequencies used for
-           cpu freq throttling based on device's spid */
-          getProdCpuMaxScalingFreqs();
-    }
-
-    public static int getMaxCpuFreq() {
-        int currCpuMaxFreq;
-        String processorString = "cpu0";
-        currCpuMaxFreq = SysfsManager.readSysfsAsInt(mCPUDeviceSysfsPath+processorString+mCPUThrottleSysfsPath);
-        return currCpuMaxFreq;
+    private static void printAttrs() {
+        Log.i(TAG, "Thermal plugin for CPU freq control: Initialized parameters:");
+        Log.i(TAG, "Number of Processors present: " + mProcessorCount);
+        
+        Log.i(TAG, "Number of Available frequencies: " + mAvailFreqCount);
+        for (int i = 0; i < mAvailFreqCount; i++)
+            Log.i(TAG, "AvailableFrequency[" + i + "]: " + mAvailFreq[i]);
+        
+        Log.i(TAG, "Computed Max Scaling Array:");
+        for (int i = 0; i < 4; i++)
+             Log.i(TAG, "ScalingMaxFreq[" + i + "]: " + mMaxScalingFreq[i]);
     }
 
     public static void throttleDevice(int tstate) {
-        Log.d(TAG, "throttleDevice called with" + tstate);
-
-       /* check if scaling frequencies are available */
+        // Check if scaling frequencies are available
         if (mNoCPUMaxScalingFreqs || (mProcessorCount == 0)) {
            Log.i(TAG, "Throttling CPU max freq not possible." +
                       "Scaling frequencies not available" +
@@ -215,23 +166,21 @@ public class CPUMaxFreqControl {
            return;
         }
 
-        /* get the new scaling max scaling freq */
-        int newMaxCpuFreq = mMaxScalingFreq[tstate];
-        Log.i(TAG, "Throttling CPU max freq value is." + newMaxCpuFreq);
+        Log.d(TAG, "throttleDevice called with" + tstate);
+        Log.i(TAG, "Throttling CPU max freq value is " + mMaxScalingFreq[tstate]);
 
-        /* loop through and write scaling max freq of
-           all logical cpus for a given core */
-        String path;
-        String cpuString = "cpu";
+        // Throttle frequency of all CPUs by writing into the Sysfs
         for (int i = 0; i < mProcessorCount; i++) {
-            path = mCPUDeviceSysfsPath+cpuString+i+mCPUThrottleSysfsPath;
-            SysfsManager.writeSysfs(path,newMaxCpuFreq);
+            String path = mCPUDeviceSysfsPath + "cpu" + i + mCPUThrottleSysfsPath;
+            SysfsManager.writeSysfs(path, mMaxScalingFreq[tstate]);
         }
     }
 
     public static void init(String path) {
-       /* Initialize scalingfactors */
-       initializeCpuFreqThrottling();
+       readAvailFreq();
+       getNumberOfProcessors();
+       computeCpuMaxScalingFreqs();
+       printAttrs();
     }
 }
 
