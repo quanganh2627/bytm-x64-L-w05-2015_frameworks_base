@@ -1528,6 +1528,7 @@
   <java-symbol type="array" name="config_locationProviderPackageNames" />
   <java-symbol type="bool" name="config_animateScreenLights" />
   <java-symbol type="bool" name="config_automatic_brightness_available" />
+  <java-symbol type="bool" name="config_button_automatic_brightness_available" />
   <java-symbol type="bool" name="config_sf_limitedAlpha" />
   <java-symbol type="bool" name="config_unplugTurnsOnScreen" />
   <java-symbol type="bool" name="config_wifi_background_scan_support" />
