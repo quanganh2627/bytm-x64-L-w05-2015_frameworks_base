@@ -282,10 +282,10 @@ int register_android_server_BatteryService(JNIEnv* env)
                     if (access(path, R_OK) == 0)
                         gPaths.batteryCapacityPath = strdup(path);
 
-                    snprintf(path, sizeof(path), "%s/%s/voltage_now", POWER_SUPPLY_PATH, name);
+                    snprintf(path, sizeof(path), "%s/%s/voltage_ocv", POWER_SUPPLY_PATH, name);
                     if (access(path, R_OK) == 0) {
                         gPaths.batteryVoltagePath = strdup(path);
-                        // voltage_now is in microvolts, not millivolts
+                        // voltage_ocv is in microvolts, not millivolts
                         gVoltageDivisor = 1000;
                     } else {
                         snprintf(path, sizeof(path), "%s/%s/batt_vol", POWER_SUPPLY_PATH, name);
