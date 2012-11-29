@@ -114,6 +114,7 @@ public final class Choreographer {
     private static final int MSG_DO_FRAME = 0;
     private static final int MSG_DO_SCHEDULE_VSYNC = 1;
     private static final int MSG_DO_SCHEDULE_CALLBACK = 2;
+    private static final int MSG_FAKE_VSYNC = 3;
 
     // All frame callbacks posted by applications have this token.
     private static final Object FRAME_CALLBACK_TOKEN = new Object() {
@@ -135,6 +136,8 @@ public final class Choreographer {
     private final CallbackQueue[] mCallbackQueues;
 
     private boolean mFrameScheduled;
+    private boolean mVsyncDone = false;
+    private boolean mPendingFakeVsync = false;
     private boolean mCallbacksRunning;
     private long mLastFrameTimeNanos;
     private long mFrameIntervalNanos;
@@ -271,6 +274,19 @@ public final class Choreographer {
      */
     public void postCallback(int callbackType, Runnable action, Object token) {
         postCallbackDelayed(callbackType, action, token, 0);
+    }
+    /**
+     * @hide
+     */
+    public void sendFakeVsync() {
+       // prevent multiple Fake sync messsage from sending
+       if (!mPendingFakeVsync)
+       {
+            Message msg = mHandler.obtainMessage(MSG_FAKE_VSYNC);
+            msg.setAsynchronous(true);
+            mHandler.sendMessageDelayed(msg, 0);
+            mPendingFakeVsync = true;
+       }
     }
 
     /**
@@ -488,8 +504,21 @@ public final class Choreographer {
         }
     }
 
+    private void doFakeFrame(long frameTimeNanos, int frame) {
+        // Only do traversals ahead of actual vync
+        if (mVsyncDone)
+        {
+            if (DEBUG) {
+                Log.d(TAG, "scheduling a fake vsync");
+            }
+            doCallbacks(Choreographer.CALLBACK_TRAVERSAL, frameTimeNanos);
+            mVsyncDone = false;
+        }
+        mPendingFakeVsync = false;
+    }
     void doFrame(long frameTimeNanos, int frame) {
         final long startNanos;
+        mVsyncDone = true;
         synchronized (mLock) {
             if (!mFrameScheduled) {
                 return; // no work to do
@@ -668,6 +697,9 @@ public final class Choreographer {
                     break;
                 case MSG_DO_SCHEDULE_CALLBACK:
                     doScheduleCallback(msg.arg1);
+                    break;
+                case MSG_FAKE_VSYNC:
+                    doFakeFrame(0, 0);
                     break;
             }
         }
