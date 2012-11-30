@@ -42,9 +42,11 @@ import android.util.Slog;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
-
+import java.io.FileWriter;
 
 /**
  * <p>BatteryService monitors the charging status, and charge level of the device
@@ -169,9 +171,43 @@ public final class BatteryService extends Binder {
         }
 
         // set initial status
+        writeStats();
         synchronized (mLock) {
             updateLocked();
         }
+    }
+
+    static String readSysfs(String path) {
+       if (!(new File(path).exists())) {
+          Slog.i(TAG, path + "does not exist");
+          return null;
+       }
+       BufferedReader br = null;
+       String val = null;
+       try {
+           br = new BufferedReader(new FileReader(path));
+           val = br.readLine();
+           br.close();
+       } catch(Exception e) {
+          e.printStackTrace();
+       }
+       return val;
+    }
+
+    public void writeStats() {
+       try {
+           if (mBatteryHealth == BatteryManager.BATTERY_HEALTH_DEAD) {
+              PrintWriter pw = new PrintWriter(new FileWriter("/logs/stats/lowbatt_trigger"));
+              pw.println("Status:" + mBatteryStatus);
+              pw.println("Prev capacity:" + mLastBatteryLevel);
+              pw.println("Voltage now:" + mBatteryVoltage);
+              pw.println("Health:" + mBatteryHealth);
+              pw.println("Temp:" + mBatteryTemperature);
+              pw.close();
+           }
+       } catch (Exception e) {
+               android.util.Log.e(TAG, "crash logs not written:" + e);
+       }
     }
 
     void systemReady() {
@@ -243,6 +279,7 @@ public final class BatteryService extends Binder {
                 @Override
                 public void run() {
                     if (ActivityManagerNative.isSystemReady()) {
+                        writeStats();
                         Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
                         intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
                         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
