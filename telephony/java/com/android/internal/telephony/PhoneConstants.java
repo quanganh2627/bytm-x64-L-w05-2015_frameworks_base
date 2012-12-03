@@ -120,5 +120,9 @@ public class PhoneConstants {
     public static final String APN_TYPE_IMS = "ims";
     /** APN type for CBS */
     public static final String APN_TYPE_CBS = "cbs";
+    /** APN type for BIP 1 traffic*/
+    public static final String APN_TYPE_BIP_GPRS1 = "bip_gprs1";
+    /** APN type for BIP 2 traffic*/
+    public static final String APN_TYPE_BIP_GPRS2 = "bip_gprs2";
 
 }
