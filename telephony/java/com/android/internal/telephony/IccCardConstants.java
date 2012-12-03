@@ -46,6 +46,8 @@ public class IccCardConstants {
     public static final String INTENT_VALUE_LOCKED_NETWORK = "NETWORK";
     /* PERM_DISABLED means ICC is permanently disabled due to puk fails */
     public static final String INTENT_VALUE_ABSENT_ON_PERM_DISABLED = "PERM_DISABLED";
+    /* NETWORK_PUK means Device is locked on NETWORK PERSONALIZATION PUK */
+    public static final String INTENT_VALUE_LOCKED_NETWORK_PUK = "NETWORK_PUK";
 
     /**
      * This is combination of IccCardStatus.CardState and IccCardApplicationStatus.AppState
@@ -63,7 +65,8 @@ public class IccCardConstants {
         NETWORK_LOCKED,
         READY,
         NOT_READY,
-        PERM_DISABLED;
+        PERM_DISABLED,
+        NETWORK_LOCKED_PUK;
 
         public boolean isPinLocked() {
             return ((this == PIN_REQUIRED) || (this == PUK_REQUIRED));
@@ -72,7 +75,7 @@ public class IccCardConstants {
         public boolean iccCardExist() {
             return ((this == PIN_REQUIRED) || (this == PUK_REQUIRED)
                     || (this == NETWORK_LOCKED) || (this == READY)
-                    || (this == PERM_DISABLED));
+                    || (this == PERM_DISABLED) || (this == NETWORK_LOCKED_PUK));
         }
     }
 }
