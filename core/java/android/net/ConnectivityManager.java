@@ -322,11 +322,29 @@ public class ConnectivityManager {
      */
     public static final int TYPE_WIFI_P2P    = 13;
 
-    /** {@hide} */
-    public static final int MAX_RADIO_TYPE   = TYPE_WIFI_P2P;
+    /**
+     * TYPE_MOBILE_BIP_ONE: one of two BIP-specific Mobile data connection.
+     * This connection may be same as {@link #TYPE_MOBILE} but it may be different.
+     * This is used by applications needing to talk to the carrier's Bip Service servers.
+     * It may coexist with default data connections.
+     * {@hide}
+     */
+    public static final int TYPE_MOBILE_BIP_GPRS1  = 14;
+
+    /**
+     * TYPE_MOBILE_BIP_TWO: one of two BIP-specific Mobile data connection.
+     * This connection may be the same as {@link #TYPE_MOBILE} but it may be different.
+     * This is used by applications needing to talk to the carrier's Bip Service servers.
+     * It may coexist with default data connections.
+     * {@hide}
+     */
+    public static final int TYPE_MOBILE_BIP_GPRS2  = 15;
 
     /** {@hide} */
-    public static final int MAX_NETWORK_TYPE = TYPE_WIFI_P2P;
+    public static final int MAX_RADIO_TYPE   = TYPE_MOBILE_BIP_GPRS2;
+
+    /** {@hide} */
+    public static final int MAX_NETWORK_TYPE = TYPE_MOBILE_BIP_GPRS2;
 
     public static final int DEFAULT_NETWORK_PREFERENCE = TYPE_WIFI;
 
