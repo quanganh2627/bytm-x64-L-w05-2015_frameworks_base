@@ -82,6 +82,7 @@ public class PhoneConstants {
     public static final String NETWORK_UNAVAILABLE_KEY = "networkUnvailable";
     public static final String DATA_NETWORK_ROAMING_KEY = "networkRoaming";
     public static final String PHONE_IN_ECM_STATE = "phoneinECMState";
+    public static final String EMERGENCY_CALL_STATUS_KEY = "emergencyCallOngoing";
 
     public static final String REASON_LINK_PROPERTIES_CHANGED = "linkPropertiesChanged";
 
