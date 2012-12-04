@@ -274,6 +274,8 @@ public class KeyguardUpdateMonitor {
                 }
             } else if (IccCardConstants.INTENT_VALUE_LOCKED_NETWORK.equals(stateExtra)) {
                 state = IccCardConstants.State.NETWORK_LOCKED;
+            } else if (IccCardConstants.INTENT_VALUE_LOCKED_NETWORK_PUK.equals(stateExtra)) {
+                state = IccCardConstants.State.NETWORK_LOCKED_PUK;
             } else if (IccCardConstants.INTENT_VALUE_ICC_LOADED.equals(stateExtra)
                         || IccCardConstants.INTENT_VALUE_ICC_IMSI.equals(stateExtra)) {
                 // This is required because telephony doesn't return to "READY" after
@@ -825,7 +827,8 @@ public class KeyguardUpdateMonitor {
     public static boolean isSimLocked(IccCardConstants.State state) {
         return state == IccCardConstants.State.PIN_REQUIRED
         || state == IccCardConstants.State.PUK_REQUIRED
-        || state == IccCardConstants.State.PERM_DISABLED;
+        || state == IccCardConstants.State.PERM_DISABLED
+        || state == IccCardConstants.State.NETWORK_LOCKED_PUK;
     }
 
     public boolean isSimPinSecure() {
