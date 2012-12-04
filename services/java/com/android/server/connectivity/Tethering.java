@@ -312,6 +312,8 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
             }
             sm.sendMessage(TetherInterfaceSM.CMD_INTERFACE_DOWN);
             mIfaces.remove(iface);
+            if (isUsb((String)iface))
+                mRndisEnabled = false;
         }
     }
 
