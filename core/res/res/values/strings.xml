@@ -2143,6 +2143,9 @@
          locked -->
     <string name="lockscreen_network_locked_message">Network locked</string>
 
+    <!-- When the phone is network PUK locked -->
+    <string name="lockscreen_network_puk_locked_message">Network PUK locked, Please contact Customer Care</string>
+    <string name="lockscreen_network_puk_locked_instructions">Please contact Customer Care.</string>
 
     <!-- When the user enters a wrong sim pin too many times, it becomes
          PUK locked (Pin Unlock Kode) -->
