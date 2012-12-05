@@ -23,6 +23,7 @@ import android.annotation.SdkConstant.SdkConstantType;
 import android.app.Activity;
 import android.content.ContentUris;
 import android.content.Context;
+import android.content.CursorLoader;
 import android.content.res.AssetFileDescriptor;
 import android.database.Cursor;
 import android.net.Uri;
@@ -551,7 +552,9 @@ public class RingtoneManager {
             String[] selectionArgs,
             String sortOrder) {
         if (mActivity != null) {
-            return mActivity.managedQuery(uri, projection, selection, selectionArgs, sortOrder);
+            CursorLoader loader = new CursorLoader(mActivity, uri, projection,
+                    selection, selectionArgs, sortOrder);
+            return loader.loadInBackground();
         } else {
             return mContext.getContentResolver().query(uri, projection, selection, selectionArgs,
                     sortOrder);
