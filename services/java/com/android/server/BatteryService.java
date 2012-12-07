@@ -21,6 +21,8 @@ import com.android.server.am.BatteryStatsService;
 
 import android.app.ActivityManagerNative;
 import android.content.ContentResolver;
+import android.content.IntentFilter;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -144,6 +146,9 @@ public final class BatteryService extends Binder {
     private Led mLed;
 
     private boolean mSentLowBatteryBroadcast = false;
+    // Variables to represent the last saved state of fuel gauge config data
+    private int mLastSavedLevel;
+    private int mLastSavedState;
 
     // Variables used to check if battery is discharging, by taking voltage samples
     private static int dischargeCount = 0;
@@ -180,6 +185,43 @@ public final class BatteryService extends Binder {
         synchronized (mLock) {
             updateLocked();
         }
+        // register for shutdown intent //
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_SHUTDOWN);
+        mContext.registerReceiver(new ShutDownReceiver(), filter);
+    }
+
+    private final class ShutDownReceiver extends BroadcastReceiver {
+       @Override
+       public void onReceive(Context context, Intent intent) {
+          try {
+              if (!new File("/system/bin/fg_conf").exists()) {
+                 return;
+              }
+              Runtime.getRuntime().exec("/system/bin/fg_conf -r");
+          } catch (IOException e) {
+              throw new RuntimeException(e);
+          }
+       }
+    }
+
+    private final void updateConfigDataIfAvailable() {
+       if (!new File("/system/bin/fg_conf").exists()) {
+          return;
+       }
+       try {
+           if (((mBatteryLevel != mLastSavedLevel) &&
+                (mBatteryLevel == 70 || mBatteryLevel == 5)) ||
+              ((mBatteryStatus != mLastSavedState) &&
+                (mBatteryStatus == BatteryManager.BATTERY_STATUS_FULL ||
+                mBatteryStatus == BatteryManager.BATTERY_STATUS_DISCHARGING))) {
+                    Runtime.getRuntime().exec("/system/bin/fg_conf -r");
+                    mLastSavedState = mBatteryStatus;
+                    mLastSavedLevel = mBatteryLevel;
+           }
+       } catch (IOException e) {
+              throw new RuntimeException(e);
+       }
     }
 
     private final boolean isDischarging() {
@@ -358,6 +400,7 @@ public final class BatteryService extends Binder {
             // Should never happen.
         }
 
+        updateConfigDataIfAvailable();
         shutdownIfNoPowerLocked();
 
         if (mBatteryStatus != mLastBatteryStatus ||
