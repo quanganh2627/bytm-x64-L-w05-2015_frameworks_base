@@ -145,6 +145,11 @@ public final class BatteryService extends Binder {
 
     private boolean mSentLowBatteryBroadcast = false;
 
+    // Variables used to check if battery is discharging, by taking voltage samples
+    private static int dischargeCount = 0;
+    private static int voltPrev = -1;
+    private static final int MAX_DISCHARGE_COUNT = 3;
+
     private native void native_update();
 
     public BatteryService(Context context, LightsService lights) {
@@ -175,6 +180,18 @@ public final class BatteryService extends Binder {
         synchronized (mLock) {
             updateLocked();
         }
+    }
+
+    private final boolean isDischarging() {
+    // If the voltage is dropping during consecutive readings, report that battery is discharging.
+    // Reset the discharge count if the current voltage is greater than the previous voltage
+	if ((mBatteryVoltage < voltPrev) && (voltPrev != -1)) {
+           dischargeCount++;
+	} else if (mBatteryVoltage > voltPrev) {
+           dischargeCount = 0;
+	}
+	voltPrev = mBatteryVoltage;
+	return (dischargeCount >= MAX_DISCHARGE_COUNT);
     }
 
     static String readSysfs(String path) {
@@ -272,9 +289,10 @@ public final class BatteryService extends Binder {
     }
 
     private void shutdownIfNoPowerLocked() {
-        // shut down gracefully if our battery is critically low and we are not powered.
+        // shut down gracefully if our battery is critically low and we are not powered , or.
+        // if platform consuming more than what is being supplied at 0% battery capacity.
         // wait until the system has booted before attempting to display the shutdown dialog.
-        if (mBatteryLevel == 0 && !isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY)) {
+        if (mBatteryLevel == 0 && (!isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY) || isDischarging())) {
             mHandler.post(new Runnable() {
                 @Override
                 public void run() {
