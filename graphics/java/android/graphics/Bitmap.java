@@ -549,12 +549,6 @@ public final class Bitmap implements Parcelable {
             throw new IllegalArgumentException("y + height must be <= bitmap.height()");
         }
 
-        // check if we can just return our argument unchanged
-        if (!source.isMutable() && x == 0 && y == 0 && width == source.getWidth() &&
-                height == source.getHeight() && (m == null || m.isIdentity())) {
-            return source;
-        }
-
         int neww = width;
         int newh = height;
         Canvas canvas = new Canvas();
