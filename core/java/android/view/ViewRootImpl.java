@@ -97,6 +97,7 @@ public final class ViewRootImpl implements ViewParent,
     private static final String TAG = "ViewRootImpl";
     private static final boolean DBG = false;
     private static final boolean LOCAL_LOGV = false;
+    private static final boolean IS_USER_BUILD = "user".equals(android.os.Build.TYPE);
     /** @noinspection PointlessBooleanExpression*/
     private static final boolean DEBUG_DRAW = false || LOCAL_LOGV;
     private static final boolean DEBUG_LAYOUT = false || LOCAL_LOGV;
@@ -104,7 +105,7 @@ public final class ViewRootImpl implements ViewParent,
     private static final boolean DEBUG_INPUT_RESIZE = false || LOCAL_LOGV;
     private static final boolean DEBUG_ORIENTATION = false || LOCAL_LOGV;
     private static final boolean DEBUG_TRACKBALL = false || LOCAL_LOGV;
-    private static final boolean DEBUG_IMF = true || LOCAL_LOGV;
+    private static final boolean DEBUG_IMF = false || LOCAL_LOGV || !IS_USER_BUILD;
     private static final boolean DEBUG_CONFIGURATION = false || LOCAL_LOGV;
     private static final boolean DEBUG_FPS = false;
 
