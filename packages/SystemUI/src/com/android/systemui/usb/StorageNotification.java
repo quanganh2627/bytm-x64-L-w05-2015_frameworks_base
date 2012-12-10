@@ -155,6 +155,7 @@ public class StorageNotification extends StorageEventListener {
 
     private void onStorageStateChangedAsync(String path, String oldState, String newState) {
         boolean isRemovable = false;
+        String storageDescription = "Removable Storage";
 
         Slog.i(TAG, String.format(
                 "Media {%s} state changed from {%s} -> {%s}", path, oldState, newState));
@@ -167,6 +168,7 @@ public class StorageNotification extends StorageEventListener {
                 StorageVolume storageVolume = storageVolumes[i];
                 if (path.equals(storageVolume.getPath())) {
                     isRemovable = storageVolume.isRemovable();
+                    storageDescription = storageVolume.getDescription(mContext);
                 }
             }
         }
@@ -219,10 +221,10 @@ public class StorageNotification extends StorageEventListener {
                      * notification if connected.
                      */
                     if (isRemovable) {
-                        setMediaStorageNotification(
+                        setMediaStorageNotification_ext(
                                 com.android.internal.R.string.ext_media_safe_unmount_notification_title,
                                 com.android.internal.R.string.ext_media_safe_unmount_notification_message,
-                                com.android.internal.R.drawable.stat_notify_sdcard, true, true, null);
+                                com.android.internal.R.drawable.stat_notify_sdcard, true, true, null, storageDescription);
                     } else {
                         // This device does not have removable storage, so
                         // don't tell the user they can remove it.
@@ -247,10 +249,11 @@ public class StorageNotification extends StorageEventListener {
             int i = path.hashCode();
             PendingIntent pi = PendingIntent.getActivity(mContext, i, intent, PendingIntent.FLAG_CANCEL_CURRENT);
 
-            setMediaStorageNotification(
+            setMediaStorageNotification_ext(
                     com.android.internal.R.string.ext_media_nofs_notification_title,
                     com.android.internal.R.string.ext_media_nofs_notification_message,
-                    com.android.internal.R.drawable.stat_notify_sdcard_usb, true, false, pi);
+                    com.android.internal.R.drawable.stat_notify_sdcard_usb, true, false, pi,
+                    storageDescription);
             updateUsbMassStorageNotification(mUmsAvailable);
         } else if (newState.equals(Environment.MEDIA_UNMOUNTABLE)) {
             /*
@@ -261,32 +264,33 @@ public class StorageNotification extends StorageEventListener {
             int i = path.hashCode();
             PendingIntent pi = PendingIntent.getActivity(mContext, i, intent, PendingIntent.FLAG_CANCEL_CURRENT);
 
-            setMediaStorageNotification(
+            setMediaStorageNotification_ext(
                     com.android.internal.R.string.ext_media_unmountable_notification_title,
                     com.android.internal.R.string.ext_media_unmountable_notification_message,
-                    com.android.internal.R.drawable.stat_notify_sdcard_usb, true, false, pi); 
+                    com.android.internal.R.drawable.stat_notify_sdcard_usb, true, false, pi,
+                    storageDescription);
             updateUsbMassStorageNotification(mUmsAvailable);
         } else if (newState.equals(Environment.MEDIA_REMOVED)) {
             /*
              * Storage has been removed. Show nomedia media notification,
              * and disable UMS notification regardless of connection state.
              */
-            setMediaStorageNotification(
+            setMediaStorageNotification_ext(
                     com.android.internal.R.string.ext_media_nomedia_notification_title,
                     com.android.internal.R.string.ext_media_nomedia_notification_message,
                     com.android.internal.R.drawable.stat_notify_sdcard_usb,
-                    true, false, null);
+                    true, false, null, storageDescription);
             updateUsbMassStorageNotification(false);
         } else if (newState.equals(Environment.MEDIA_BAD_REMOVAL)) {
             /*
              * Storage has been removed unsafely. Show bad removal media notification,
              * and disable UMS notification regardless of connection state.
              */
-            setMediaStorageNotification(
+            setMediaStorageNotification_ext(
                     com.android.internal.R.string.ext_media_badremoval_notification_title,
                     com.android.internal.R.string.ext_media_badremoval_notification_message,
                     com.android.internal.R.drawable.stat_sys_warning,
-                    true, true, null);
+                    true, true, null, storageDescription);
             updateUsbMassStorageNotification(false);
         } else {
             Slog.w(TAG, String.format("Ignoring unknown state {%s}", newState));
@@ -465,4 +469,76 @@ public class StorageNotification extends StorageEventListener {
             notificationManager.cancelAsUser(mEventPath, notificationId, UserHandle.ALL);
         }
     }
+
+
+    private synchronized void setMediaStorageNotification_ext(int titleId, int messageId, int icon, boolean visible,
+                                                              boolean dismissable, PendingIntent pi,
+                                                              String storageDesciption) {
+
+        if (!visible && mMediaStorageNotification == null) {
+            return;
+        }
+
+        NotificationManager notificationManager = (NotificationManager) mContext
+                .getSystemService(Context.NOTIFICATION_SERVICE);
+
+        if (notificationManager == null) {
+            return;
+        }
+
+        if (mEventPath != null && mNoticeId != null && visible) {
+            /*
+             * Dismiss the previous notification - we're about to
+             * re-use it.
+             */
+            try {
+                final int notificationId = mNoticeId.get(mEventPath);
+                notificationManager.cancel(mEventPath, notificationId);
+            } catch (NullPointerException e) {
+            }
+        }
+
+        if (visible) {
+            Resources r = Resources.getSystem();
+            CharSequence title = r.getText(titleId);
+            String tempTitle = title.toString();
+            CharSequence message = r.getText(messageId);
+
+            if (storageDesciption != null)
+                tempTitle = String.format(tempTitle + "(" + storageDesciption + ")");
+
+            if (mMediaStorageNotification == null) {
+                mMediaStorageNotification = new Notification();
+                mMediaStorageNotification.when = 0;
+            }
+
+            mMediaStorageNotification.defaults &= ~Notification.DEFAULT_SOUND;
+
+            if (dismissable) {
+                mMediaStorageNotification.flags = Notification.FLAG_AUTO_CANCEL;
+            } else {
+                mMediaStorageNotification.flags = Notification.FLAG_ONGOING_EVENT;
+            }
+
+            mMediaStorageNotification.tickerText = (CharSequence)tempTitle;
+            if (pi == null) {
+                Intent intent = new Intent();
+                pi = PendingIntent.getBroadcast(mContext, 0, intent, 0);
+            }
+
+            mMediaStorageNotification.icon = icon;
+            mMediaStorageNotification.setLatestEventInfo(mContext, (CharSequence)tempTitle, message, pi);
+            if (mEventPath != null && mNoticeId != null) {
+                mNoticeId.remove(mEventPath);
+                mNoticeId.put(mEventPath, icon);
+            }
+        }
+
+        final int notificationId = mMediaStorageNotification.icon;
+        if (visible) {
+            notificationManager.notify(mEventPath, notificationId, mMediaStorageNotification);
+        } else {
+            notificationManager.cancel(mEventPath, notificationId);
+        }
+   }
 }
