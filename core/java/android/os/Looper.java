@@ -160,6 +160,7 @@ public class Looper {
                 } else {
                     localLog.log(duration + " due Message" + me.mDispatching);
                 }
+                me.mDispatching = null;
             }
 
             // Make sure that during the course of dispatching the
@@ -172,8 +173,6 @@ public class Looper {
                         + msg.target.getClass().getName() + " "
                         + msg.callback + " what=" + msg.what);
             }
-            me.mDispatching = null;
-            me.mDispatchStart = 0;
             msg.recycle();
         }
     }
@@ -288,8 +287,10 @@ public class Looper {
         pw.println("mRun=" + mRun);
         pw.println("mThread=" + mThread);
         pw.println("mQueue=" + ((mQueue != null) ? mQueue : "(null"));
-        final long duration = SystemClock.uptimeMillis() - mDispatchStart;
-        pw.println("mDispatching=" + mDispatching + ", " + duration + "ms ago.");
+        if (mLocalLog != null) {
+            final long duration = SystemClock.uptimeMillis() - mDispatchStart;
+            pw.println("mDispatching=" + mDispatching + ", " + duration + "ms ago.");
+        }
         if (mQueue != null) {
             synchronized (mQueue) {
                 long now = SystemClock.uptimeMillis();
