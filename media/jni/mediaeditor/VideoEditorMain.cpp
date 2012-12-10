@@ -2834,6 +2834,11 @@ M4OSA_ERR videoEditor_processClip(
                     ALOGV("videoEditor_processClip ITEM %d SaveStart() returned 0x%x",
                         unuseditemID, (unsigned int) result);
 
+                    // Check the status whether it is changed by other thread
+                    if (pContext->state != ManualEditState_OPENED) {
+                        return result;
+                    }
+
                     // Set the state to saving.
                     pContext->state  = ManualEditState_SAVING;
                     completionState  = ManualEditState_SAVED;
