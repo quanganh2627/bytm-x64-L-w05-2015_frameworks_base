@@ -7187,7 +7187,8 @@ public class WindowManagerService extends IWindowManager.Stub
         }
         if (mSafeMode) {
             Log.i(TAG, "SAFE MODE ENABLED (menu=" + menuState + " s=" + sState
-                    + " dpad=" + dpadState + " trackball=" + trackballState + ")");
+                    + " dpad=" + dpadState + " trackball=" + trackballState
+                    + " voldown=" + volumeDownState + ")");
         } else {
             Log.i(TAG, "SAFE MODE not enabled");
         }
