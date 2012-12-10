@@ -4024,7 +4024,10 @@ public class AudioService extends IAudioService.Stub {
         synchronized (mConnectedDevices) {
             if ((state == 0) && ((device == AudioSystem.DEVICE_OUT_WIRED_HEADSET) ||
                     (device == AudioSystem.DEVICE_OUT_WIRED_HEADPHONE))) {
-                setBluetoothA2dpOnInt(true);
+                if (!mConnectedDevices.containsKey(AudioSystem.DEVICE_OUT_WIRED_HEADSET) &&
+                    !mConnectedDevices.containsKey(AudioSystem.DEVICE_OUT_WIRED_HEADPHONE)) {
+                    setBluetoothA2dpOnInt(true);
+                }
             }
             boolean isUsb = ((device & AudioSystem.DEVICE_OUT_ALL_USB) != 0);
             handleDeviceConnection((state == 1), device, (isUsb ? name : ""));
