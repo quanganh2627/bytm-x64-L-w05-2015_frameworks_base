@@ -358,7 +358,7 @@ public class ThermalService extends Binder {
 
             /* initialize the thermal notifier thread */
             Notify notifier = new Notify(ThermalServiceEventQueue.eventQueue);
-            new Thread(notifier).start();
+            new Thread(notifier, "ThermalNotifier").start();
 
             /* start monitoring the thermal zones */
             startMonitoringZones();

@@ -203,7 +203,8 @@ public class ThermalZone {
     public class monitorThermalZone implements Runnable {
         Thread t;
         monitorThermalZone() {
-           t = new Thread (this);
+           String threadName = "ThermalZone" + getZoneId();
+           t = new Thread (this, threadName);
            t.start();
         }
 
