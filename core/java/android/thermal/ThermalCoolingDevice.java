@@ -39,6 +39,12 @@ public class ThermalCoolingDevice {
     /** Maintains corresponding state of zone present in mZoneidList */
     private ArrayList<Integer> mZoneStateList = new ArrayList<Integer>();
 
+
+    public ThermalCoolingDevice() {
+        mCurrentThermalState = 0;
+    }
+
+
     public void setDeviceName(String Name) {
         mDeviceName = Name;
     }
@@ -100,10 +106,10 @@ public class ThermalCoolingDevice {
      * will be maximum of all states of zones under which this
      * cooling device falls.
      */
-    private void updateMaxThermalState() {
+    private void updateCurrentThermalState() {
         int state = 0;
         for (Integer coolingDevState : mZoneStateList) {
-            if (state < coolingDevState) state = coolingDevState;
+            state = Math.max(state, coolingDevState);
         }
         mCurrentThermalState = state;
     }
@@ -113,49 +119,26 @@ public class ThermalCoolingDevice {
      * mListOfTStatesOfZones array. If zoneId exists then its thermal
      * state is updated else zoneId and its state will be added to array.
      */
-    public void addZoneState(int zoneId, int state) {
-        if (mZoneIdList.isEmpty()) {
-            mZoneIdList.add(zoneId);
-            mZoneStateList.add(state);
-            mCurrentThermalState = state;
-            return;
+    public void updateZoneState(int zoneId, int state) {
+        int index = -1;
+
+        if (!mZoneIdList.isEmpty()) {
+            index = mZoneIdList.indexOf(zoneId);
         }
-        int zoneIdIndex = mZoneIdList.indexOf(zoneId);
-        if (zoneIdIndex == -1) {
+
+        // Entry does not exist
+        if (index == -1) {
             mZoneIdList.add(zoneId);
             mZoneStateList.add(state);
-            updateMaxThermalState();
         } else {
-            if (state == 0) {
-                // Removing entry from array list if state is NORMAL.
-                state = mZoneStateList.remove(zoneIdIndex);
-                zoneId = mZoneIdList.remove(zoneIdIndex);
-            } else {
-                mZoneStateList.set(zoneIdIndex, state);
-            }
-            if (mZoneIdList.isEmpty()) mCurrentThermalState = 0;
-            else updateMaxThermalState();
+            mZoneStateList.set(index, state);
         }
+
+        updateCurrentThermalState();
     }
 
-    /** Return true if cooling device can be de-throttled otherwise false. */
-    public boolean isDeviceDeThrottlingAllowed(int zoneId, int state) {
-        int index = 0;
-        if (mZoneIdList.isEmpty() || state >= mCurrentThermalState) return false;
-        for (Integer coolingDevZoneId : mZoneIdList) {
-            if (coolingDevZoneId != zoneId && mCurrentThermalState == mZoneStateList.get(index)) {
-                return false;
-            }
-            index++;
-        }
-        return true;
-    }
-
-    /** Return true if cooling device can be throttled otherwise false. */
-    public boolean isDeviceThrottlingAllowed(int zoneId, int state) {
-        if (mZoneIdList.isEmpty() || state > mCurrentThermalState) return true;
-
-        return false;
+    public int getThermalState() {
+        return mCurrentThermalState;
     }
 
     public void printAttrs() {
