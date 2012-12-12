@@ -532,49 +532,59 @@ public class ThermalCoolingManager {
 
     /* Method to handle the thermal event based on HIGH or LOW event*/
     public static void handleThermalEvent(int zoneId, int eventType, int thermalState) {
+         ThermalCoolingDevice tDevice;
+         int deviceId;
+         int existingState, targetState;
+         int currThrottleMask, currDethrottleMask;
+
+         ZoneCooling zone = listOfZones.get(zoneId);
+         if (zone == null) return;
 
          Log.i(TAG, "handleThermalEvent called for zone" + zoneId +
                     "event type" +  eventType +
                     "with thermal state" + thermalState);
-         /* get the contributing devices for the zone */
-         ZoneCooling zone = listOfZones.get(zoneId);
-         ThermalCoolingDevice tDevice;
-         int deviceId = 0;
-         int currThrottleMask = 0;
-         int currDethrottleMask = 0;
-
-         if (zone == null)
-            return;
 
          if (ThermalZone.THERMAL_HIGH_EVENT == eventType) {
              for (CoolingDeviceInfo CdeviceInfo : zone.GetCoolingdeviceInfoList()) {
+
                  currThrottleMask = CdeviceInfo.GetThrottleMaskList().get(thermalState);
-                 if (THROTTLE_MASK_ENABLE == currThrottleMask) {
-                     deviceId = CdeviceInfo.GetCoolingDeviceId();
-                     tDevice = listOfCoolers.get(deviceId);
-                     if (tDevice == null) continue;
-                     if (tDevice.isDeviceThrottlingAllowed(zoneId, thermalState)) {
-                         throttleDevice(deviceId, thermalState);
-                     }
-                     tDevice.addZoneState(zoneId, thermalState);
+                 deviceId = CdeviceInfo.GetCoolingDeviceId();
+
+                 tDevice = listOfCoolers.get(deviceId);
+                 if (tDevice == null) continue;
+
+                 if (currThrottleMask == THROTTLE_MASK_ENABLE) {
+                    existingState = tDevice.getThermalState();
+                    tDevice.updateZoneState(zoneId, thermalState);
+                    targetState = tDevice.getThermalState();
+
+                    /* Do not throttle if device is already in desired state. (We can save Sysfs write) */
+                    if (existingState != targetState) throttleDevice(deviceId, targetState);
+
+                 } else {
+                    /* If throttle mask is not enabled, don't do anything here. No-Op */
                  }
              }
-             return;
          }
 
          if (ThermalZone.THERMAL_LOW_EVENT == eventType) {
             for (CoolingDeviceInfo CdeviceInfo : zone.GetCoolingdeviceInfoList()) {
-                currDethrottleMask = CdeviceInfo.GetDeThrottleMaskList().get(thermalState);
-                if (DETHROTTLE_MASK_ENABLE == currDethrottleMask) {
-                    deviceId = CdeviceInfo.GetCoolingDeviceId();
-                    tDevice = listOfCoolers.get(deviceId);
-                    if (tDevice == null) continue;
-                    if (tDevice.isDeviceDeThrottlingAllowed(zoneId, thermalState)) {
-                        throttleDevice(deviceId, thermalState);
-                    }
-                    tDevice.addZoneState(zoneId, thermalState);
-                }
-            }
+
+                 currDethrottleMask = CdeviceInfo.GetDeThrottleMaskList().get(thermalState);
+                 deviceId = CdeviceInfo.GetCoolingDeviceId();
+
+                 tDevice = listOfCoolers.get(deviceId);
+                 if (tDevice == null) continue;
+
+                 thermalState = currDethrottleMask == DETHROTTLE_MASK_ENABLE ? thermalState : 0;
+
+                 existingState = tDevice.getThermalState();
+                 tDevice.updateZoneState(zoneId, thermalState);
+                 targetState = tDevice.getThermalState();
+
+                 /* Do not dethrottle if device is already in desired state. (We can save Sysfs write) */
+                 if (existingState != targetState) throttleDevice(deviceId, targetState);
+             }
          }
     }
 
