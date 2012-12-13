@@ -198,6 +198,9 @@ public final class ShutdownThread extends Thread {
         mReboot = true;
         mRebootSafeMode = false;
         mRebootReason = reason;
+        Log.i(TAG, "[SHTDWN] reboot, reboot requested"
+            + " reason=" + (reason != null ? reason : "null")
+            + " confirm=" + (confirm ? "yes" : "no"));
         shutdownInner(context, confirm);
     }
 
@@ -212,6 +215,9 @@ public final class ShutdownThread extends Thread {
         mReboot = true;
         mRebootSafeMode = true;
         mRebootReason = null;
+        Log.i(TAG, "[SHTDWN] reboot, rebootSafeMode requested"
+            + " reason=null"
+            + " confirm=" + (confirm ? "yes" : "no"));
         shutdownInner(context, confirm);
     }
 
@@ -382,7 +388,9 @@ public final class ShutdownThread extends Thread {
                 }
             }
         }
-
+        Log.i(TAG, "[SHTDWN] run, "
+            + (mReboot ? "reboot" : "shutdown") + " requested "
+            + "reason=" + (mRebootReason != null ? mRebootReason : "null"));
         rebootOrShutdown(mReboot, mRebootReason);
     }
 
@@ -567,6 +575,7 @@ public final class ShutdownThread extends Thread {
 
         // Shutdown power
         Log.i(TAG, "Performing low-level shutdown...");
+        Log.i(TAG, "[SHTDWN] rebootOrShutdown, shutdown");
         PowerManagerService.lowLevelShutdown();
     }
 }
