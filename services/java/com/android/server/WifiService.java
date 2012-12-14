@@ -24,10 +24,13 @@ import android.app.PendingIntent;
 import android.app.TaskStackBuilder;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.ServiceConnection;
+import android.content.pm.ResolveInfo;
 import android.content.pm.PackageManager;
 import android.database.ContentObserver;
 import android.net.wifi.IWifiManager;
@@ -80,6 +83,7 @@ import com.android.server.am.BatteryStatsService;
 import com.android.internal.R;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.telephony.IccCardConstants;
+import com.android.internal.telephony.CwsMMGRService.IMmgrService;
 
 /**
  * WifiService handles remote WiFi operation requests by implementing
@@ -94,6 +98,61 @@ import com.android.internal.telephony.IccCardConstants;
 public class WifiService extends IWifiManager.Stub {
     private static final String TAG = "WifiService";
     private static final boolean DBG = false;
+
+    private IMmgrService mModemManagerService = null;
+    private boolean modemManagerServiceIsBound = false;
+    private ServiceConnection mModemConnection = new ServiceConnection() {
+        public void onServiceConnected(ComponentName className,
+                IBinder service) {
+            // This is called when the connection with the service has been
+            // established, giving us the service object we can use to
+            // interact with the service.  We are communicating with our
+            // service through an IDL interface, so get a client-side
+            // representation of that from the raw service object.
+            mModemManagerService = IMmgrService.Stub.asInterface(service);
+            Slog.i(TAG, "Bound to modem manager service");
+            try {
+                Log.d(TAG, "Registering callback to modem manager service.");
+                mModemManagerService.registerCallback(null);
+            }
+            catch(RemoteException e) {
+                Slog.i(TAG, "Unable to register callback to modem manager service.");
+            }
+            // We want to monitor the service for as long as we are
+            // connected to it.
+        }
+        public void onServiceDisconnected(ComponentName className) {
+            mModemManagerService = null;
+            Slog.i(TAG, "Modem manager service unbound");
+        }
+    };
+
+   private void bindModemManagerService() {
+       List<ResolveInfo> list = mContext.getPackageManager().queryIntentServices(
+                        new Intent(IMmgrService.class.getName()),0);
+       if (list.size()>0) {
+           Slog.i(TAG,"The manager service is there!");
+           if (!modemManagerServiceIsBound) {
+               if (!mContext.bindService(new Intent(IMmgrService.class.getName()),mModemConnection,
+                       Context.BIND_AUTO_CREATE)) {
+                   Slog.e(TAG,"binservice failed for modem manager");
+               }
+               else {
+                   modemManagerServiceIsBound = true;
+                   Slog.i(TAG,"Bound to modem manager");
+               }
+           }
+       }
+       else {
+           Slog.i(TAG,"The manager service is NOT there!");
+       }
+   }
+   private void unbindModemManagerService() {
+       if (modemManagerServiceIsBound) {
+           mContext.unbindService(mModemConnection);
+           modemManagerServiceIsBound = false;
+       }
+   }
 
     private final WifiStateMachine mWifiStateMachine;
 
@@ -668,6 +727,12 @@ public class WifiService extends IWifiManager.Stub {
      *         started or is already in the queue.
      */
     public synchronized boolean setWifiEnabled(boolean enable) {
+        if (enable) {// Code for binding modem manager
+            bindModemManagerService();
+        }
+        else {
+            unbindModemManagerService();
+        }
         enforceChangePermission();
         Slog.d(TAG, "setWifiEnabled: " + enable + " pid=" + Binder.getCallingPid()
                     + ", uid=" + Binder.getCallingUid());
