@@ -50,6 +50,7 @@ public class CPUMaxFreqControl {
         {"0000",    "8000",     "0007"},    // MFLD  PRxEng  PR4
         {"0000",    "0000",     "0007"},    // MFLD  PRxProd PR4
         {"0000",    "0000",     "0003"},    // MFLD  PR3.3   PR3.3
+        {"0000",    "8000",     "0001"},    // MFLD  PR3.1   PR3.1
         {"0000",    "8004",     "0004"},    // MFLD  LEXEng  -
         {"0000",    "0004",     "0004"},    // MFLD  LEXProd -
         {"0000",    "any",      "any"},     // MFLD  Default case
@@ -62,6 +63,7 @@ public class CPUMaxFreqControl {
         // Warning   Alert       Critical
         {1400000,   900000,     600000},
         {1400000,   900000,     600000},
+        {1200000,   900000,     600000},
         {1200000,   900000,     600000},
         {1200000,   900000,     600000},
         {1200000,   900000,     600000},
