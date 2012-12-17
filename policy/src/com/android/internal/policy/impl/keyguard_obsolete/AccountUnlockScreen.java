@@ -281,7 +281,9 @@ public class AccountUnlockScreen extends RelativeLayout implements KeyguardScree
                 new AccountManagerCallback<Bundle>() {
             public void run(AccountManagerFuture<Bundle> future) {
                 try {
-                    mCallback.pokeWakelock(AWAKE_POKE_MILLIS);
+                    if (mCallback != null) {
+                        mCallback.pokeWakelock(AWAKE_POKE_MILLIS);
+                    }
                     final Bundle result = future.getResult();
                     final boolean verified = result.getBoolean(AccountManager.KEY_BOOLEAN_RESULT);
                     postOnCheckPasswordResult(verified);
