@@ -25,6 +25,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.ContentObserver;
 import static android.os.BatteryManager.BATTERY_STATUS_FULL;
+import static android.os.BatteryManager.BATTERY_STATUS_CHARGING;
 import static android.os.BatteryManager.BATTERY_STATUS_UNKNOWN;
 import static android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN;
 import static android.os.BatteryManager.EXTRA_STATUS;
@@ -322,6 +323,14 @@ public class KeyguardUpdateMonitor {
          */
         public boolean isCharged() {
             return status == BATTERY_STATUS_FULL || level >= 100;
+        }
+
+        /**
+         * Whether battery is charging.
+         * @return true if battery is charging
+         */
+        public boolean isCharging() {
+            return status == BATTERY_STATUS_CHARGING;
         }
 
         /**
