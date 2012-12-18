@@ -158,7 +158,7 @@ static jstring doStringCommand(JNIEnv* env, const char *ifname, const char* fmt,
         }
     }
 
-    char reply[4096];
+    char reply[12288];
     int ret = doCommand(ifname, dynBuf ? dynBuf : buf, reply, sizeof(reply));
     if (dynBuf)
         free(dynBuf);
