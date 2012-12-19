@@ -280,7 +280,6 @@ public class HTML5VideoFullScreen extends HTML5VideoView
         mVideoSurfaceView.setFocusable(true);
         mVideoSurfaceView.setFocusableInTouchMode(true);
         mVideoSurfaceView.requestFocus();
-        mVideoSurfaceView.setOnKeyListener(mProxy);
         // Create a FrameLayout that will contain the VideoView and the
         // progress view (if any).
         mLayout = new FrameLayout(mProxy.getContext());
