@@ -49,8 +49,7 @@ class HTML5VideoViewProxy extends Handler
                           MediaPlayer.OnCompletionListener,
                           MediaPlayer.OnErrorListener,
                           MediaPlayer.OnInfoListener,
-                          SurfaceTexture.OnFrameAvailableListener,
-                          View.OnKeyListener {
+                          SurfaceTexture.OnFrameAvailableListener {
     // Logging tag.
     private static final String LOGTAG = "HTML5VideoViewProxy";
 
@@ -853,19 +852,6 @@ class HTML5VideoViewProxy extends Handler
             sendMessage(obtainMessage(BUFFERING_START, what, extra));
         } else if (what == MediaPlayer.MEDIA_INFO_BUFFERING_END) {
             sendMessage(obtainMessage(BUFFERING_END, what, extra));
-        }
-        return false;
-    }
-
-    @Override
-    public boolean onKey(View v, int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                return true;
-            } else if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
-                VideoPlayer.exitFullScreenVideo(this, mWebView);
-                return true;
-            }
         }
         return false;
     }
