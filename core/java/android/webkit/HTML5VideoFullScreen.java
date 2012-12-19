@@ -299,7 +299,6 @@ public class HTML5VideoFullScreen extends HTML5VideoView
             mVideoWidth = mPlayer.getVideoWidth();
             mVideoHeight = mPlayer.getVideoHeight();
         }
-        mVideoSurfaceView.setOnKeyListener(mProxy);
         // Create a FrameLayout that will contain the VideoView and the
         // progress view (if any).
         mLayout = new FrameLayout(mProxy.getContext());
