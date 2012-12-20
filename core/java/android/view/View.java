@@ -4435,14 +4435,13 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             }
 
             position.offset(child.mLeft, child.mTop);
+            position.offset(-child.getScrollX(), -child.getScrollY());
 
             if (!(parent instanceof View)) {
                 break;
             }
 
             View parentView = (View) parent;
-
-            position.offset(-parentView.getScrollX(), -parentView.getScrollY());
 
             child = parentView;
             parent = child.getParent();
