@@ -222,6 +222,11 @@ final class NativeDaemonConnector implements Runnable, Handler.Callback, Watchdo
             builder.append(' ');
             appendEscaped(builder, argString);
         }
+
+        // FrameworkListener's data buffer length is 255, so we cannot exceed it.
+        if (builder.toString().length() > 254) {
+            throw new IllegalArgumentException("command too long: " + builder.toString());
+        }
     }
 
     /**
