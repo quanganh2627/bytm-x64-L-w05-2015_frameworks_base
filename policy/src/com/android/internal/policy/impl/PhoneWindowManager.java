@@ -661,7 +661,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
     }
 
-    private void interceptPowerKeyDown(boolean handled) {
+    private void interceptPowerKeyDown(boolean handled, boolean longLongPressCandidate) {
         mPowerKeyHandled = handled;
         if (!handled) {
             mPowerKeyTimeout = ViewConfiguration.getGlobalActionKeyTimeout();
@@ -669,10 +669,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             // Ask mPowerLongPress to be run when specified amount of time elapses.
             mHandler.postDelayed(mPowerLongPress, mPowerKeyTimeout);
         } else {
-            mPowerKeyTimeout = ViewConfiguration.getGlobalActionKeyShutdownTimeout() + ViewConfiguration.getGlobalActionKeyTimeout();
-            Log.i(TAG, String.format("interceptPowerKeyDown: key down event: handled: set timeout to %d ms", mPowerKeyTimeout));
-            // Ask mPowerLongLongPress to be run when specified amount of time elapses.
-            mHandler.postDelayed(mPowerLongLongPress, mPowerKeyTimeout);
+            // only for calls from POWER BUTTON handling can start longLongPress timer
+            if (longLongPressCandidate) {
+                mPowerKeyTimeout = ViewConfiguration.getGlobalActionKeyShutdownTimeout() + ViewConfiguration.getGlobalActionKeyTimeout();
+                Log.i(TAG, String.format("interceptPowerKeyDown: key down event: handled: set timeout to %d ms", mPowerKeyTimeout));
+                // Ask mPowerLongLongPress to be run when specified amount of time elapses.
+                mHandler.postDelayed(mPowerLongLongPress, mPowerKeyTimeout);
+            }
         }
     }
 
@@ -3579,7 +3582,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                             Log.w(TAG, "ITelephony threw RemoteException", ex);
                         }
                     }
-                    interceptPowerKeyDown(!isScreenOn || hungUp);
+                    interceptPowerKeyDown(!isScreenOn || hungUp, false);
                 } else {
                     if (interceptPowerKeyUp(canceled)) {
                         if ((mEndcallBehavior
@@ -3627,7 +3630,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         }
                     }
                     interceptPowerKeyDown(!isScreenOn || hungUp
-                            || mVolumeDownKeyTriggered || mVolumeUpKeyTriggered);
+                            || mVolumeDownKeyTriggered || mVolumeUpKeyTriggered, true);
                 } else {
                     mPowerKeyTriggered = false;
                     cancelPendingScreenshotChordAction();
