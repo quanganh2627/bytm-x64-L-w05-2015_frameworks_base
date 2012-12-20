@@ -310,12 +310,12 @@ public class ThermalService extends Binder {
     /* Register for boot complete Intent */
     public ThermalService(Context context) {
         super();
-        mContext = context;
+
         Log.i(TAG, "Initializing Thermal Manager Service");
+
+        mContext = context;
         mCoolingManager = new ThermalCoolingManager();
-        if (mCoolingManager != null) {
-            mCoolingManager.init(mContext);
-        }
+
         // Wait for the BOOT Completion
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_BOOT_COMPLETED);
@@ -333,6 +333,9 @@ public class ThermalService extends Binder {
                Log.i(TAG, "Exiting Thermal Management: Config files does not exist");
                return;
             }
+
+            /* Start and Initialize the Thermal Cooling Manager */
+            if (mCoolingManager != null) mCoolingManager.init(mContext);
 
             /* Parse the thermal configuration file to determine
                sensor information/zone information */
