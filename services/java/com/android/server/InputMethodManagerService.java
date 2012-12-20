@@ -1205,7 +1205,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
             throw new IllegalArgumentException("Unknown id: " + mCurMethodId);
         }
 
-        unbindCurrentMethodLocked(false, true);
+        unbindCurrentMethodLocked(false, false);
 
         mCurIntent = new Intent(InputMethod.SERVICE_INTERFACE);
         mCurIntent.setComponent(info.getComponent());
