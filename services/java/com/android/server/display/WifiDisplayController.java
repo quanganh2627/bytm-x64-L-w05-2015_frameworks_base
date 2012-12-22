@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+/*
+* Portions contributed by: Intel Corporation
+*/
+
 package com.android.server.display;
 
 import com.android.internal.util.DumpUtils;
@@ -44,6 +48,10 @@ import android.os.Handler;
 import android.provider.Settings;
 import android.util.Slog;
 import android.view.Surface;
+import android.os.HandlerThread;
+import android.os.Looper;
+import android.os.UserHandle;
+import android.app.ActivityManagerNative;
 
 import java.io.PrintWriter;
 import java.net.Inet4Address;
@@ -149,6 +157,10 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private int mAdvertisedDisplayHeight;
     private int mAdvertisedDisplayFlags;
 
+    private WidiHandler mWidiHandler;
+    private boolean mAudioRoutingEnabled = false;
+    private boolean mServiceCreated = false;
+
     public WifiDisplayController(Context context, Handler handler, Listener listener) {
         mContext = context;
         mHandler = handler;
@@ -176,6 +188,17 @@ final class WifiDisplayController implements DumpUtils.Dump {
         resolver.registerContentObserver(Settings.Global.getUriFor(
                 Settings.Global.WIFI_DISPLAY_ON), false, settingsObserver);
         updateSettings();
+
+        HandlerThread widiThread = new HandlerThread("WidiService");
+        widiThread.start();
+        Looper looper = widiThread.getLooper();
+        if (looper == null) {
+            Slog.e(TAG, "looper is null");
+            mServiceCreated = false;
+        } else {
+            mWidiHandler = new WidiHandler(looper);
+            mServiceCreated = true;
+        }
     }
 
     private void updateSettings() {
@@ -630,6 +653,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
         if (mRemoteSubmixOn != on) {
             mRemoteSubmixOn = on;
             mAudioManager.setRemoteSubmixOn(on, REMOTE_SUBMIX_ADDRESS);
+
+            if (mServiceCreated)
+                enableAudioRouting(on);
         }
     }
 
@@ -888,5 +914,56 @@ final class WifiDisplayController implements DumpUtils.Dump {
         void onDisplayConnected(WifiDisplay display,
                 Surface surface, int width, int height, int flags);
         void onDisplayDisconnected();
+    }
+
+    private Runnable sendAudioIntent = new Runnable() {
+        @Override
+        public void run() {
+            // send an intent to notify Widi streaming is being turned on/off
+            Intent intent = new Intent(Intent.ACTION_WIDI_TURNED);
+            intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY);
+            intent.putExtra("state", mAudioRoutingEnabled ? 1 : 0);
+            Slog.i(TAG, "Setting audio routing to " + mAudioRoutingEnabled);
+            ActivityManagerNative.broadcastStickyIntent(intent, null, UserHandle.myUserId());
+        }
+    };
+
+    public void enableAudioRouting(boolean enable)
+    {
+        // If we're turning off audio routing, send ACTION_AUDIO_BECOMING_NOISY by default
+        enableAudioRouting(enable, !enable);
+    }
+
+    private void enableAudioRouting(boolean enable, boolean sendBecomingNoisy)
+    {
+        mAudioRoutingEnabled = enable;
+        mWidiHandler.removeCallbacks(sendAudioIntent);
+        if (sendBecomingNoisy) {
+            // First send an intent to alert the applications (e.g music player) that
+            // audio is becoming noisy due to audio output device change.
+            Intent audioNoisyIntent = new Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY);
+            Slog.i(TAG, "Sending ACTION_AUDIO_BECOMING_NOISY");
+            ActivityManagerNative.broadcastStickyIntent(audioNoisyIntent, null, UserHandle.myUserId());
+
+            // It can take hundreds of ms to flush the audio pipeline after
+            // apps pause audio playback, but audio route changes are immediate.
+            // The delay between the above intent is sent and the audio pipeline end
+            // is ~250ms from the logcat logs. so delay the route change by 300ms to be safe.
+            mWidiHandler.postDelayed(sendAudioIntent, 300);
+        }
+        else {
+            // If we're not sending ACTION_AUDIO_BECOMING_NOISY, then
+            // trigger the routing change immediately
+            sendAudioIntent.run();
+        }
+    }
+
+     /**
+     * Handler that allows posting to the WifiThread.
+     */
+    private class WidiHandler extends Handler {
+        public WidiHandler(Looper looper) {
+            super(looper);
+        }
     }
 }
