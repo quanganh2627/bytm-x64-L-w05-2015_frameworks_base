@@ -63,13 +63,11 @@ public class ThermalZone {
      * integer containing the temperature of the zone.
      */
     public static final String EXTRA_TEMP = "temp";
-
-    /* values for "ThermalZone" field in the THERMAL_STATE_CHANGED */
-    public static int THERMAL_ZONE_CPU;
-    public static int THERMAL_ZONE_TOP_SKIN;
-    public static int THERMAL_ZONE_BOTTOM_SKIN;
-    public static int THERMAL_ZONE_BATTERY;
-    public static int THERMAL_ZONE_TELEPHONY;
+    /**
+     * Extra for {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED}:
+     * integer containing the name of the zone.
+     */
+    public static final String EXTRA_NAME = "name";
 
     /* values for "STATE" field in the THERMAL_STATE_CHANGED Intent */
     public static final int THERMAL_STATE_OFF = -1;
@@ -77,11 +75,12 @@ public class ThermalZone {
     public static final int THERMAL_STATE_WARNING = 1;
     public static final int THERMAL_STATE_ALERT = 2;
     public static final int THERMAL_STATE_CRITICAL = 3;
+    public static final String STATE_NAMES[] = {"OFF", "NORMAL", "WARNING", "ALERT", "CRITICAL"};
 
     /* values of the "EVENT" field in the THERMAL_STATE_CHANGED intent */
     /* Indicates type of event */
-    public static final int THERMAL_HIGH_EVENT = 2;
     public static final int THERMAL_LOW_EVENT = 1;
+    public static final int THERMAL_HIGH_EVENT = 2;
 
     /* Thermal Zone related members */
     private int mZoneID;               /* ID of the Thermal zone */
@@ -112,6 +111,17 @@ public class ThermalZone {
 
     public ThermalZone() {
         Log.i(TAG, "ThermalZone constructor called");
+    }
+
+    public static String getStateAsString(int index) {
+        if (index < -1 || index > 3)
+           return "Invalid";
+
+        return STATE_NAMES[index + 1];
+    }
+
+    public static String getEventTypeAsString(int type) {
+        return type == 1 ? "LOW" : "HIGH";
     }
 
     public void setSensorList(ArrayList<ThermalSensor> ThermalSensors) {
@@ -212,7 +222,7 @@ public class ThermalZone {
            try {
             while (true) {
                if (isZoneStateChanged()) {
-                  ThermalEvent event = new ThermalEvent(mZoneID, mCurrEventType, mCurrThermalState, mZoneTemp);
+                  ThermalEvent event = new ThermalEvent(mZoneID, mCurrEventType, mCurrThermalState, mZoneTemp, mZoneName);
                   try {
                      ThermalServiceEventQueue.eventQueue.put(event);
                   }
@@ -226,7 +236,7 @@ public class ThermalZone {
 
     public void update() {
         Log.i(TAG, " state of thermal zone " + mZoneID + " changed to " + mCurrThermalState + " at temperature " + mZoneTemp);
-        ThermalEvent event = new ThermalEvent(mZoneID, mCurrEventType, mCurrThermalState, mZoneTemp);
+        ThermalEvent event = new ThermalEvent(mZoneID, mCurrEventType, mCurrThermalState, mZoneTemp, mZoneName);
         try {
            ThermalServiceEventQueue.eventQueue.put(event);
         }
