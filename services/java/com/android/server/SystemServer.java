@@ -67,6 +67,7 @@ import com.android.server.power.ShutdownThread;
 import com.android.server.usb.UsbService;
 import com.android.server.wm.WindowManagerService;
 import com.android.server.SmartcardSystemService;
+import com.intel.multidisplay.DisplayObserver;
 
 import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
@@ -646,11 +647,11 @@ class ServerThread extends Thread {
             }
 
             try {
-                Slog.i(TAG, "Display Observer");
+                Slog.i(TAG, "Intel Display Observer");
                 // Listen for display changes
                 DisplayObserver dso = new DisplayObserver(context);
             } catch (Throwable e) {
-                reportWtf("starting DisplayObserver", e);
+                reportWtf("starting Intel DisplayObserver", e);
             }
 
             try {
