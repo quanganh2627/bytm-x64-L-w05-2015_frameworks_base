@@ -11,13 +11,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE:= services
 
-LOCAL_JAVA_LIBRARIES := android.policy telephony-common
-
-ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
-	LOCAL_STATIC_JAVA_LIBRARIES := displayobserver
-else
-	LOCAL_SRC_FILES += ../dummy/DisplayObserver.java
-endif
+LOCAL_JAVA_LIBRARIES := android.policy telephony-common com.intel.multidisplay
 
 include $(BUILD_JAVA_LIBRARY)
 
