@@ -46,9 +46,9 @@ LOCAL_SHARED_LIBRARIES := \
 
 ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
     LOCAL_SHARED_LIBRARIES += \
-		libmultidisplay \
-		libbinder
-    LOCAL_STATIC_LIBRARIES := libdisplayobserverjni
+        libmultidisplay \
+        libbinder \
+        libmultidisplayjni
     LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
 endif
 
