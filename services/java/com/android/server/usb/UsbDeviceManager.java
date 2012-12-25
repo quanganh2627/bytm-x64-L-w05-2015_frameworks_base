@@ -695,6 +695,9 @@ public class UsbDeviceManager {
                     break;
                 case MSG_BOOT_COMPLETED:
                     mBootCompleted = true;
+                    updateUsbState();
+                    if (mConnected == mConfigured)
+                        updateAudioSourceFunction();
                     if (mCurrentAccessory != null) {
                         getCurrentSettings().accessoryAttached(mCurrentAccessory);
                     }
