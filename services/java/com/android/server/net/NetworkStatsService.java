@@ -939,7 +939,11 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
     private void performPoll(int flags) {
         // try refreshing time source when stale
         if (mTime.getCacheAge() > mSettings.getTimeCacheMaxAge()) {
-            mTime.forceRefresh();
+            new Thread(new Runnable() {
+                public void run() {
+                    mTime.forceRefresh();
+                }
+            }).start();
         }
 
         synchronized (mStatsLock) {
