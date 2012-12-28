@@ -9994,10 +9994,10 @@ public class WindowManagerService extends IWindowManager.Stub
                  if (moveInputMethodWindowsIfNeededLocked(
                          mode != UPDATE_FOCUS_WILL_ASSIGN_LAYERS &&
                          mode != UPDATE_FOCUS_WILL_PLACE_SURFACES)) {
-                    if ((oldFocus != null && oldFocus.mIsImWindow) && oldIMTarget!=mInputMethodTarget
-                        && mInputMethodTarget==mCurrentFocus) {
-                       // if the mInputMethodDialogs is not null, and the old focus is mInputMethodDialogs,
-                       // it means that we should change the focus to the mInputMethodDialogs again.otherwise
+                    if (((oldFocus != null && oldFocus.mIsImWindow) || (null == oldFocus && mInputMethodDialogs.size() > 0))
+                                           && oldIMTarget!=mInputMethodTarget && mInputMethodTarget==mCurrentFocus) {
+                      // if the mInputMethodDialogs is not null, or the old focus is mInputMethodDialogs,
+                      // it means that we should change the focus to the mInputMethodDialogs again.otherwise
                       // the mInputMethodDialogs will show but it can't click.
                         updateFocusedWindowForIMLocked();
                     }
