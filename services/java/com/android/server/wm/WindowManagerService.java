@@ -9956,6 +9956,19 @@ public class WindowManagerService extends IWindowManager.Stub
         return leakedSurface || killedApps;
     }
 
+   private void updateFocusedWindowForIMLocked() {
+        WindowState newFocus = computeFocusedWindowLocked();
+        if (mCurrentFocus != newFocus) {
+           // This check makes sure that we don't already have the focus
+           // change message pending.
+           mH.removeMessages(H.REPORT_FOCUS_CHANGE);
+           mH.sendEmptyMessage(H.REPORT_FOCUS_CHANGE);
+           if (localLOGV||DEBUG_FOCUS) Slog.v(
+               TAG, "IM Changing focus from " + mCurrentFocus + " to " + newFocus);
+               mCurrentFocus = newFocus;
+           }
+      }
+
     private boolean updateFocusedWindowLocked(int mode, boolean updateInputWindows) {
         WindowState newFocus = computeFocusedWindowLocked();
         if (mCurrentFocus != newFocus) {
@@ -9976,10 +9989,18 @@ public class WindowManagerService extends IWindowManager.Stub
             final DisplayContent displayContent = getDefaultDisplayContentLocked();
 
             final WindowState imWindow = mInputMethodWindow;
-            if (newFocus != imWindow && oldFocus != imWindow) {
-                if (moveInputMethodWindowsIfNeededLocked(
-                        mode != UPDATE_FOCUS_WILL_ASSIGN_LAYERS &&
-                        mode != UPDATE_FOCUS_WILL_PLACE_SURFACES)) {
+            if (newFocus != imWindow && (oldFocus != imWindow || null == oldFocus)) {
+                WindowState oldIMTarget = mInputMethodTarget;
+                 if (moveInputMethodWindowsIfNeededLocked(
+                         mode != UPDATE_FOCUS_WILL_ASSIGN_LAYERS &&
+                         mode != UPDATE_FOCUS_WILL_PLACE_SURFACES)) {
+                    if ((oldFocus != null && oldFocus.mIsImWindow) && oldIMTarget!=mInputMethodTarget
+                        && mInputMethodTarget==mCurrentFocus) {
+                       // if the mInputMethodDialogs is not null, and the old focus is mInputMethodDialogs,
+                       // it means that we should change the focus to the mInputMethodDialogs again.otherwise
+                      // the mInputMethodDialogs will show but it can't click.
+                        updateFocusedWindowForIMLocked();
+                    }
                     displayContent.layoutNeeded = true;
                 }
                 if (mode == UPDATE_FOCUS_PLACING_SURFACES) {
