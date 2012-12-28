@@ -244,6 +244,8 @@ public class Surface implements Parcelable {
             int width, int height, int minLayer, int maxLayer, boolean allLayers);
 
     private static native boolean nativeIsAnimationPermitted();
+    private static native void nativeSetTransition(boolean on);
+    private static native void nativeSetOrientationEnd(boolean end);
     private static native void nativeOpenTransaction();
     private static native void nativeCloseTransaction();
     private static native void nativeSetAnimationTransaction();
@@ -519,6 +521,16 @@ public class Surface implements Parcelable {
      */
     public static boolean isAnimationPermitted() {
         return nativeIsAnimationPermitted();
+    }
+
+    /** set animation scale @hide */
+    public static void setTransition(boolean on) {
+        nativeSetTransition(on);
+    }
+
+    /** set orientation end @hide */
+    public static void setOrientationEnd(boolean end) {
+        nativeSetOrientationEnd(end);
     }
 
     /*

@@ -525,6 +525,18 @@ static jboolean nativeIsAnimationPermitted(
     return SurfaceComposerClient::isAnimationPermitted() ? JNI_TRUE : JNI_FALSE;
 }
 
+static void nativeSetTransition(
+        JNIEnv* env, jobject clazz, jboolean on)
+{
+    SurfaceComposerClient::setTransitionTransaction(on);
+}
+
+static void nativeSetOrientationEnd(
+        JNIEnv* env, jobject clazz, jboolean end)
+{
+    SurfaceComposerClient::setOrientationEndTransaction(end);
+}
+
 static void nativeOpenTransaction(JNIEnv* env, jclass clazz) {
     SurfaceComposerClient::openGlobalTransaction();
 }
@@ -831,6 +843,10 @@ static JNINativeMethod gSurfaceMethods[] = {
             (void*)nativeScreenshot },
     {"nativeIsAnimationPermitted", "()Z",
             (void*)nativeIsAnimationPermitted },
+    {"nativeSetTransition", "(Z)V",
+            (void*)nativeSetTransition },
+    {"nativeSetOrientationEnd", "(Z)V",
+            (void*)nativeSetOrientationEnd },
     {"nativeOpenTransaction", "()V",
             (void*)nativeOpenTransaction },
     {"nativeCloseTransaction", "()V",
