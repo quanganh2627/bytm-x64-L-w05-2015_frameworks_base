@@ -168,6 +168,8 @@
 
 
 
+    <protected-broadcast android:name="android.intent.action.THERMAL_ZONE_STATE_CHANGED" />
+
     <!-- ====================================== -->
     <!-- Permissions for things that cost money -->
     <!-- ====================================== -->
