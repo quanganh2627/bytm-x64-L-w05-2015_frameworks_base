@@ -2259,6 +2259,10 @@ public class WifiStateMachine extends StateMachine {
         } else {
             mWifiInfo.setNetworkId(WifiConfiguration.INVALID_NETWORK_ID);
         }
+        // Update RSSI value once associated to the AP
+        if (state == SupplicantState.ASSOCIATED) {
+            fetchRssiAndLinkSpeedNative();
+        }
 
         mWifiInfo.setBSSID(stateChangeResult.BSSID);
         mWifiInfo.setSSID(stateChangeResult.wifiSsid);
