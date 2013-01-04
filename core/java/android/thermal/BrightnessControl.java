@@ -28,7 +28,7 @@ import android.os.RemoteException;
 
 public class BrightnessControl {
 
-    private static final String TAG = "Thermal:BrightnessControl";
+    private static final String TAG = "BrightnessControl";
     /* interface to powermanager */
     private static IPowerManager sPower;
     private static final int sDefaultBrightness = 102;

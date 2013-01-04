@@ -22,7 +22,7 @@ package android.thermal;
  *@hide
  */
 public class BatteryChargeCurrentControl {
-    private static final String TAG = "Thermal:BatteryChargeCurrentControl";
+    private static final String TAG = "BatteryChargeCurrentControl";
     /* Maximum four levels of Throttling for Charger available */
     private static final int mMaxChargeRate = 4;
     private static String mThrottlePath;
