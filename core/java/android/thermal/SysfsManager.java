@@ -33,7 +33,7 @@ import java.io.FileWriter;
  */
 class SysfsManager
 {
-    private static final String TAG = "Thermal:SysfsManager";
+    private static final String TAG = "SysfsManager";
 
     private static boolean isFileExists(String path) {
          return (new File(path)).exists();
@@ -52,8 +52,8 @@ class SysfsManager
           val = br.readLine();
           br.close();
        }
-       catch(IOException ioe){
-          Log.i(TAG, "IOException in readSysfs. Path:" + path);
+       catch(Exception e){
+          e.printStackTrace();
        }
        return val;
     }
@@ -62,8 +62,8 @@ class SysfsManager
        int val = -1;
        try {
           val = Integer.parseInt((readSysfs(path)).trim());
-       } catch (NumberFormatException nfe) {
-          Log.i(TAG, "NumberFormatException in readSysfsAsInt. Path:" + path);
+       } catch (Exception e) {
+          e.printStackTrace();
        }
        return val;
     }
@@ -76,7 +76,7 @@ class SysfsManager
             bw.close();
         }
         catch (IOException ioe) {
-            Log.i(TAG, "IOException in writeSysfs. Path:" + path + " value:" + value);
+            ioe.printStackTrace();
         }
     }
 }

@@ -289,11 +289,11 @@ public class ThermalService extends Binder {
 
             /* Determine which THERMAL ZONE state changed
                and pack the INTENT appropriately and send */
-            statusIntent.putExtra(ThermalZone.EXTRA_NAME, event.zoneName);
             statusIntent.putExtra(ThermalZone.EXTRA_ZONE, event.zoneID);
             statusIntent.putExtra(ThermalZone.EXTRA_EVENT, event.eventType);
             statusIntent.putExtra(ThermalZone.EXTRA_STATE, event.thermalLevel);
             statusIntent.putExtra(ThermalZone.EXTRA_TEMP, event.zoneTemp);
+            Log.i(TAG, "Sending intent for zone "+ event.zoneID + " with level " + event.thermalLevel + " at temperature " + event.zoneTemp);
 
             /* Send the INTENT */
             mContext.sendBroadcast(statusIntent);

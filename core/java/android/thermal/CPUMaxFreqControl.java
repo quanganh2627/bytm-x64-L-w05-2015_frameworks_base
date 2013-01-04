@@ -24,7 +24,7 @@ import android.util.Log;
  *@hide
  */
 public class CPUMaxFreqControl {
-    private static final String TAG = "Thermal:CPUMaxFreqControl";
+    private static final String TAG = "CPUMaxFreqControl";
 
     // Sysfs path for throttle devices
     private static final String mCPUDeviceSysfsPath = "/sys/devices/system/cpu/";

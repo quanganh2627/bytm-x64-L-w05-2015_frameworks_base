@@ -24,7 +24,7 @@ import java.io.File;
  *@hide
  */
 public class SoCControl {
-    private static final String TAG = "Thermal:SoCControl";
+    private static final String TAG = "SoCControl";
     private static String mSoCThrottlePath;
     private static String mGPUThrottlePath;
     private static boolean mIsGPUDeviceExists = false;
