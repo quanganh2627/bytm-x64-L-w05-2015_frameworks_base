@@ -284,6 +284,12 @@ class HTML5VideoViewProxy extends Handler
                 if (paused) {
                     mCurrentProxy.dispatchOnPlayed();
                 }
+                // Here, if browser is in background, we pause video.
+                if (mCurrentProxy != null) {
+                    WebViewClassic webView = mCurrentProxy.getWebView();
+                    if (webView != null && webView.isPaused())
+                        pauseAndDispatch();
+                }
                 return;
             }
 
