@@ -70,6 +70,7 @@ class HTML5VideoViewProxy extends Handler
     private static final int PAUSED            = 203;
     private static final int STOPFULLSCREEN    = 204;
     private static final int RESTORESTATE      = 205;
+    private static final int PLAYED            = 206;
 
     // Timer thread -> UI thread
     private static final int TIMEUPDATE = 300;
@@ -242,6 +243,7 @@ class HTML5VideoViewProxy extends Handler
 
             boolean skipPrepare = false;
             boolean createInlineView = false;
+            boolean paused = false;
             if (backFromFullScreenMode
                 && currentVideoLayerId == videoLayerId
                 && !mHTML5VideoView.isReleased()) {
@@ -257,6 +259,7 @@ class HTML5VideoViewProxy extends Handler
                 // inside the HTML5VideoView.
                 if (mHTML5VideoView != null) {
                     if (!backFromFullScreenMode) {
+                        paused = true;
                         mHTML5VideoView.pauseAndDispatch(mCurrentProxy);
                     }
                     mHTML5VideoView.reset();
@@ -278,6 +281,9 @@ class HTML5VideoViewProxy extends Handler
 
                 mHTML5VideoView.setVideoURI(url, mCurrentProxy);
                 mHTML5VideoView.prepareDataAndDisplayMode(proxy);
+                if (paused) {
+                    mCurrentProxy.dispatchOnPlayed();
+                }
                 return;
             }
 
@@ -384,6 +390,11 @@ class HTML5VideoViewProxy extends Handler
 
     public void dispatchOnPaused() {
         Message msg = Message.obtain(mWebCoreHandler, PAUSED);
+        mWebCoreHandler.sendMessage(msg);
+    }
+
+    public void dispatchOnPlayed() {
+        Message msg = Message.obtain(mWebCoreHandler, PLAYED);
         mWebCoreHandler.sendMessage(msg);
     }
 
@@ -680,6 +691,9 @@ class HTML5VideoViewProxy extends Handler
                     case PAUSED:
                         nativeOnPaused(mNativePointer);
                         break;
+                    case PLAYED:
+                        nativeOnPlayed(mNativePointer);
+                        break;
                     case POSTER_FETCHED:
                         Bitmap poster = (Bitmap) msg.obj;
                         nativeOnPosterFetched(poster, mNativePointer);
@@ -847,6 +861,7 @@ class HTML5VideoViewProxy extends Handler
     private native void nativeOnPrepared(int duration, int width, int height, int nativePointer);
     private native void nativeOnEnded(int nativePointer);
     private native void nativeOnPaused(int nativePointer);
+    private native void nativeOnPlayed(int nativePointer);
     private native void nativeOnPosterFetched(Bitmap poster, int nativePointer);
     private native void nativeOnTimeupdate(int position, int nativePointer);
     private native void nativeOnStopFullscreen(int stillPlaying, int nativePointer);
