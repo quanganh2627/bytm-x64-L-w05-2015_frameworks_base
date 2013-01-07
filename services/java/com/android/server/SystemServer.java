@@ -298,9 +298,13 @@ class ServerThread extends Thread {
             lights = new LightsService(context);
 
             //THERMAL
-            Slog.i(TAG, "Thermal Service");
-            thermalservice = new ThermalService(context);
-            ServiceManager.addService("thermalservice", thermalservice);
+            if ("1".equals(SystemProperties.get("persist.service.thermal", "0"))) {
+               Slog.i(TAG, "Thermal Service enabled");
+               thermalservice = new ThermalService(context);
+               ServiceManager.addService("thermalservice", thermalservice);
+            } else {
+               Log.i(TAG, "Thermal Service disabled");
+            }
 
             Slog.i(TAG, "Battery Service");
             battery = new BatteryService(context, lights);
