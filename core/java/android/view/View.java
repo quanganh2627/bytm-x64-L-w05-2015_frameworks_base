@@ -13565,7 +13565,8 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             final boolean opaque = drawingCacheBackgroundColor != 0 || isOpaque();
             final boolean use32BitCache = attachInfo != null && attachInfo.mUse32BitDrawingCache;
 
-            final long projectedBitmapSize = width * height * (opaque && !use32BitCache ? 2 : 4);
+            final long projectedBitmapSize = (long) width * height * (opaque
+                    && !use32BitCache ? 2 : 4);
             final long drawingCacheSize =
                     ViewConfiguration.get(mContext).getScaledMaximumDrawingCacheSize();
             if (width <= 0 || height <= 0 || projectedBitmapSize > drawingCacheSize) {
