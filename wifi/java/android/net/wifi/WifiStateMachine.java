@@ -74,6 +74,7 @@ import android.provider.Settings;
 import android.util.EventLog;
 import android.util.Log;
 import android.util.LruCache;
+import android.util.Slog;
 
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
@@ -238,6 +239,8 @@ public class WifiStateMachine extends StateMachine {
     private static final int EVENTLOG_WIFI_STATE_CHANGED        = 50021;
     private static final int EVENTLOG_WIFI_EVENT_HANDLED        = 50022;
     private static final int EVENTLOG_SUPPLICANT_STATE_CHANGED  = 50023;
+    public static final String SHUT_DOWN_WIFI_ACTION =
+            "android.net.wifi.SET_DEVICE_IDLE_AND_UPDATE";
 
     /* The base for wifi message types */
     static final int BASE = Protocol.BASE_WIFI;
@@ -1905,6 +1908,22 @@ public class WifiStateMachine extends StateMachine {
         }).start();
     }
 
+    private void enableBackgroundScanOrTurnOffWifi() {
+        List<WifiConfiguration> configs = mWifiConfigStore.getConfiguredNetworks();
+        if (configs != null) {
+            if (configs.size() != 0) {
+                mWifiNative.enableBackgroundScan(true);
+            } else {
+                // No remembered SSID, turn off Wifi immediately
+                Slog.d(TAG, "No remembered SSID, turn off wifi");
+                mContext.sendBroadcast(new Intent(SHUT_DOWN_WIFI_ACTION));
+                mEnableBackgroundScan = false;
+            }
+        } else {
+            Log.e(TAG, "Impossible to get the configured networks when considering PNO enabling");
+        }
+    }
+
     /********************************************************
      * HSM states
      *******************************************************/
@@ -3533,7 +3552,7 @@ public class WifiStateMachine extends StateMachine {
         public void enter() {
             if (DBG) log(getName() + "\n");
             EventLog.writeEvent(EVENTLOG_WIFI_STATE_CHANGED, getName());
-       }
+        }
         @Override
         public boolean processMessage(Message message) {
             if (DBG) log(getName() + message.toString() + "\n");
@@ -3649,7 +3668,7 @@ public class WifiStateMachine extends StateMachine {
                  * cleared
                  */
                 if (!mScanResultIsPending) {
-                    mWifiNative.enableBackgroundScan(true);
+                    enableBackgroundScanOrTurnOffWifi();
                 }
             } else {
                 setScanAlarm(true);
@@ -3700,7 +3719,7 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_ENABLE_BACKGROUND_SCAN:
                     mEnableBackgroundScan = (message.arg1 == 1);
                     if (mEnableBackgroundScan) {
-                        mWifiNative.enableBackgroundScan(true);
+                        enableBackgroundScanOrTurnOffWifi();
                         setScanAlarm(false);
                     } else {
                         mWifiNative.enableBackgroundScan(false);

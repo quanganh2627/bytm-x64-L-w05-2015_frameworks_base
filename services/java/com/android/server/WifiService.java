@@ -1197,6 +1197,8 @@ public class WifiService extends IWifiManager.Stub {
                     /* Save the current list of configurations to make the enable/disable actions persistant */
                     saveConfiguration();
                 }
+            } else if (action.equals(WifiStateMachine.SHUT_DOWN_WIFI_ACTION)) {
+                setDeviceIdleAndUpdateWifi(true);
             }
         }
 
@@ -1311,6 +1313,7 @@ public class WifiService extends IWifiManager.Stub {
         intentFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+        intentFilter.addAction(WifiStateMachine.SHUT_DOWN_WIFI_ACTION);
         mContext.registerReceiver(mReceiver, intentFilter);
     }
 
