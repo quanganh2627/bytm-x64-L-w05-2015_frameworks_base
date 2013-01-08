@@ -2089,7 +2089,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode {
         @Override
         public void tickerStarting() {
             mTicking = true;
-            mStatusBarContents.setVisibility(View.GONE);
+            mStatusBarContents.setVisibility(View.INVISIBLE);
             mTickerView.setVisibility(View.VISIBLE);
             mTickerView.startAnimation(loadAnim(com.android.internal.R.anim.push_up_in, null));
             mStatusBarContents.startAnimation(loadAnim(com.android.internal.R.anim.push_up_out, null));
