@@ -1505,14 +1505,14 @@ public class WifiStateMachine extends StateMachine {
     }
 
     /**
-     * Start filtering Multicast v4 packets
+     * Start filtering Multicast v6 packets
      */
     public void startFilteringMulticastV6Packets() {
         sendMessage(CMD_START_PACKET_FILTERING, MULTICAST_V6, 0);
     }
 
     /**
-     * Stop filtering Multicast v4 packets
+     * Stop filtering Multicast v6 packets
      */
     public void stopFilteringMulticastV6Packets() {
         sendMessage(CMD_STOP_PACKET_FILTERING, MULTICAST_V6, 0);
@@ -3033,8 +3033,8 @@ public class WifiStateMachine extends StateMachine {
             /* initialize network state */
             setNetworkDetailedState(DetailedState.DISCONNECTED);
 
-            /* Remove any filtering on Multicast v6 at start */
-            mWifiNative.stopFilteringMulticastV6Packets();
+            /* Start filtering Multicast v6 packets */
+            mWifiNative.startFilteringMulticastV6Packets();
 
             /* Reset Multicast v4 filtering state */
             if (mFilteringMulticastV4Packets.get()) {
