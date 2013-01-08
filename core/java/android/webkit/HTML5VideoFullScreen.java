@@ -386,6 +386,17 @@ public class HTML5VideoFullScreen extends HTML5VideoView
                 || keyCode == KeyEvent.KEYCODE_MEDIA_PAUSE)) {
             return mMediaController.dispatchKeyEvent(event);
         }
+        // Handle back key to exit full screen
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                return true;
+            } else if (event.getAction() == KeyEvent.ACTION_UP
+                           && !event.isCanceled()
+                           && mProxy != null) {
+                mProxy.exitFullScreenVideo();
+                return true;
+            }
+        }
         return false;
     }
 
