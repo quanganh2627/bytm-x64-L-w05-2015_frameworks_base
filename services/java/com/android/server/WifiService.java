@@ -59,6 +59,7 @@ import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.WorkSource;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
@@ -100,6 +101,7 @@ public class WifiService extends IWifiManager.Stub {
     private Context mContext;
 
     private AlarmManager mAlarmManager;
+    private PowerManager mPowerManager;
     private PendingIntent mIdleIntent;
     private static final int IDLE_REQUEST = 0;
     private boolean mScreenOff;
@@ -387,6 +389,7 @@ public class WifiService extends IWifiManager.Stub {
         mBatteryStats = BatteryStatsService.getService();
 
         mAlarmManager = (AlarmManager)mContext.getSystemService(Context.ALARM_SERVICE);
+        mPowerManager = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
         Intent idleIntent = new Intent(ACTION_DEVICE_IDLE, null);
         mIdleIntent = PendingIntent.getBroadcast(mContext, IDLE_REQUEST, idleIntent, 0);
 
@@ -617,6 +620,46 @@ public class WifiService extends IWifiManager.Stub {
         final ContentResolver cr = mContext.getContentResolver();
         mPersistWifiState.set(state);
         Settings.Global.putInt(cr, Settings.Global.WIFI_ON, state);
+    }
+
+    private void managePeriodicScanStart(int pluggedType) {
+        int wifiSleepPolicy = Settings.Global.getInt(mContext.getContentResolver(),
+                  Settings.System.WIFI_SLEEP_POLICY,
+                  Settings.System.WIFI_SLEEP_POLICY_NEVER);
+
+        final WifiInfo wifiInfo = getConnectionInfo();
+        SupplicantState supplicantState = wifiInfo.getSupplicantState();
+
+        boolean isScreenOn = mPowerManager.isScreenOn();
+
+        Slog.d(TAG, "Periodic Scan criteria check: SleepPolicy = " + wifiSleepPolicy
+                     + " / pluggedType = " + pluggedType
+                     + " supplicantState = " + supplicantState
+                     + " ScreenOff = " + mScreenOff
+                     + " isScreenOn = " + isScreenOn);
+
+
+        if ((wifiSleepPolicy == Settings.System.WIFI_SLEEP_POLICY_NEVER)
+               && (mScreenOff == true)
+               && (isScreenOn == false) // Add Robustness to confirm Screen is well OFF
+               && (pluggedType == 0) // 0 means not plugged
+               && (supplicantState == SupplicantState.SCANNING)) {
+
+            List<WifiConfiguration> configs = getConfiguredNetworks();
+            if (configs.size() != 0) {
+                if (DBG) {
+                    Slog.d(TAG, "Remembered SSID exist, start periodic scan");
+                }
+                // Start Periodic scan
+                mWifiStateMachine.enablePeriodicScan(true);
+            } else {
+                // No SSID in remember so turns off Wifi immediately
+                if (DBG) {
+                    Slog.d(TAG, "No SSID in remember, turns off wifi");
+                }
+                setDeviceIdleAndUpdateWifi(true);
+            }
+        }
     }
 
     /**
@@ -953,7 +996,6 @@ public class WifiService extends IWifiManager.Stub {
         mWifiStateMachine.setFrequencyBand(band, persist);
     }
 
-
     /**
      * Get the operational frequency band
      */
@@ -1075,6 +1117,9 @@ public class WifiService extends IWifiManager.Stub {
                 mScreenOff = false;
                 evaluateTrafficStatsPolling();
                 setDeviceIdleAndUpdateWifi(false);
+
+                // Stop Periodic scan
+                mWifiStateMachine.enablePeriodicScan(false);
             } else if (action.equals(Intent.ACTION_SCREEN_OFF)) {
                 if (DBG) {
                     Slog.d(TAG, "ACTION_SCREEN_OFF");
@@ -1099,6 +1144,9 @@ public class WifiService extends IWifiManager.Stub {
                             setDeviceIdleAndUpdateWifi(true);
                         }
                     }
+                } else {
+                    /* try to enable periodic scan if necessary */
+                    managePeriodicScanStart(mPluggedType);
                 }
             } else if (action.equals(ACTION_DEVICE_IDLE)) {
                 setDeviceIdleAndUpdateWifi(true);
@@ -1114,23 +1162,35 @@ public class WifiService extends IWifiManager.Stub {
                 if (DBG) {
                     Slog.d(TAG, "ACTION_BATTERY_CHANGED pluggedType: " + pluggedType);
                 }
-                if (mScreenOff && shouldWifiStayAwake(stayAwakeConditions, mPluggedType) &&
-                        !shouldWifiStayAwake(stayAwakeConditions, pluggedType)) {
-                    long triggerTime = System.currentTimeMillis() + idleMillis;
-
-                    if (mNetworkInfo.getDetailedState() == DetailedState.CONNECTED && !mTetherUsbOn) {
-                        // Delayed sleep request if wifi is connected
-                        if (DBG) {
-                            Slog.d(TAG, "setting ACTION_DEVICE_IDLE timer for " + idleMillis + "ms");
+                if (mScreenOff) {
+                    if (shouldWifiStayAwake(stayAwakeConditions, mPluggedType) &&
+                           !shouldWifiStayAwake(stayAwakeConditions, pluggedType)) {
+                        long triggerTime = System.currentTimeMillis() + idleMillis;
+                        // plugged state & sleep policy permits to go in idle
+                        // check connection state to delay or not wifi Idle state transition
+                        if (mNetworkInfo.getDetailedState() == DetailedState.CONNECTED && !mTetherUsbOn) {
+                            // Delayed sleep request if wifi is connected
+                            if (DBG) {
+                                Slog.d(TAG, "setting ACTION_DEVICE_IDLE timer for " + idleMillis + "ms");
+                            }
+                            mAlarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, mIdleIntent);
+                        } else {
+                            // Sleep now if wifi is not connected
+                            setDeviceIdleAndUpdateWifi(true);
                         }
-                        mAlarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, mIdleIntent);
                     } else {
-                        // Sleep now if wifi is not connected
-                        setDeviceIdleAndUpdateWifi(true);
+                        if ((pluggedType == 0) && (pluggedType != mPluggedType)) {
+                            // when plugged type is transitionning to unplugged
+                            // Check if periodic scan should be enabled
+                            managePeriodicScanStart(pluggedType);
+                        }
                     }
                 }
 
                 mPluggedType = pluggedType;
+            } else if (action.equals(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION)) {
+                // Check if periodic scan should be enabled
+                managePeriodicScanStart(mPluggedType);
             } else if (action.equals(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)) {
                 int state = intent.getIntExtra(BluetoothAdapter.EXTRA_CONNECTION_STATE,
                         BluetoothAdapter.STATE_DISCONNECTED);
@@ -1311,6 +1371,7 @@ public class WifiService extends IWifiManager.Stub {
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);
         intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
         intentFilter.addAction(Intent.ACTION_BATTERY_CHANGED);
+        intentFilter.addAction(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION);
         intentFilter.addAction(ACTION_DEVICE_IDLE);
         intentFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);

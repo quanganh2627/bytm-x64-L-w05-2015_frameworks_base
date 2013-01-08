@@ -146,6 +146,8 @@ public class WifiStateMachine extends StateMachine {
      */
     private AtomicBoolean mScreenBroadcastReceived = new AtomicBoolean(false);
 
+    private boolean mPeriodicScanEnabled = false;
+
     private boolean mBluetoothConnectionActive = false;
     private boolean mBGscan_learn_ongoing = false;
 
@@ -380,11 +382,17 @@ public class WifiStateMachine extends StateMachine {
     public static final int CMD_DISABLE_P2P_REQ           = BASE + 132;
     public static final int CMD_DISABLE_P2P_RSP           = BASE + 133;
 
+    /* enable a periodic scan */
+    static final int CMD_START_PERIODIC_SCAN              = BASE + 150;
+
     private static final int CONNECT_MODE   = 1;
     private static final int SCAN_ONLY_MODE = 2;
 
     private static final int SCAN_ACTIVE = 1;
     private static final int SCAN_PASSIVE = 2;
+
+    private static final int ENABLE_PERIODIC_SCAN = 1;
+    private static final int DISABLE_PERIODIC_SCAN = 2;
 
     private static final int SUCCESS = 1;
     private static final int FAILURE = -1;
@@ -763,8 +771,15 @@ public class WifiStateMachine extends StateMachine {
      * TODO: doc
      */
     public void startScan(boolean forceActive) {
-        sendMessage(obtainMessage(CMD_START_SCAN, forceActive ?
-                SCAN_ACTIVE : SCAN_PASSIVE, 0));
+        if (!mPeriodicScanEnabled) {
+            sendMessage(obtainMessage(CMD_START_SCAN, forceActive ?
+                    SCAN_ACTIVE : SCAN_PASSIVE, 0));
+        }
+    }
+
+    public void enablePeriodicScan(boolean forceEnable) {
+        sendMessage(obtainMessage(CMD_START_PERIODIC_SCAN, forceEnable ?
+                        ENABLE_PERIODIC_SCAN : DISABLE_PERIODIC_SCAN , 0));
     }
 
     /**
@@ -2914,6 +2929,44 @@ public class WifiStateMachine extends StateMachine {
                         setSuspendOptimizationsNative(SUSPEND_DUE_TO_SCREEN, false);
                     }
                     break;
+                case CMD_START_PERIODIC_SCAN:
+                    if (message.arg1 == ENABLE_PERIODIC_SCAN) {
+                        if (mPeriodicScanEnabled)
+                            break;
+
+                        ArrayList<String> ssidList = new ArrayList<String>();
+                        int i = 0;
+
+                        /* get 16 first SSID in network list */
+                        List<WifiConfiguration> configs = mWifiConfigStore.getConfiguredNetworks();
+                        if (configs != null) {
+                            for (WifiConfiguration config : configs) {
+                                if (i < 16) {
+                                    if (config.SSID == null)
+                                        continue;
+                                    /* Remove first and last double quote if any */
+                                    if (config.SSID.startsWith("\""))
+                                        ssidList.add(config.SSID.substring(1,config.SSID.length()-1));
+                                    else
+                                        ssidList.add(config.SSID);
+                                    i++;
+                                }
+                            }
+                        }
+
+                        if (!mWifiNative.startPeriodicScan(ssidList)) {
+                            loge("Failed to enable periodic scan");
+                        }
+                        else {
+                            log("periodic scan enabled");
+                            mPeriodicScanEnabled = true;
+                            mScanResultIsPending = true;
+                        }
+                    } else if (mPeriodicScanEnabled) {
+                        mWifiNative.stopPeriodicScan();
+                        mPeriodicScanEnabled = false;
+                    }
+                    break;
                 case CMD_SET_HIGH_PERF_MODE:
                     if (message.arg1 == 1) {
                         setSuspendOptimizationsNative(SUSPEND_DUE_TO_HIGH_PERF, false);
@@ -3533,7 +3586,7 @@ public class WifiStateMachine extends StateMachine {
         public void enter() {
             if (DBG) log(getName() + "\n");
             EventLog.writeEvent(EVENTLOG_WIFI_STATE_CHANGED, getName());
-       }
+        }
         @Override
         public boolean processMessage(Message message) {
             if (DBG) log(getName() + message.toString() + "\n");
@@ -3652,7 +3705,9 @@ public class WifiStateMachine extends StateMachine {
                     mWifiNative.enableBackgroundScan(true);
                 }
             } else {
-                setScanAlarm(true);
+                if (!mPeriodicScanEnabled) {
+                    setScanAlarm(true);
+                }
             }
 
             /**
@@ -3727,6 +3782,15 @@ public class WifiStateMachine extends StateMachine {
                     /* Handled in parent state */
                     ret = NOT_HANDLED;
                     break;
+                case CMD_START_PERIODIC_SCAN:
+                    /* Disable regular scan while using periodic scan */
+                    if (message.arg1 == ENABLE_PERIODIC_SCAN) {
+                        if (!mPeriodicScanEnabled)
+                            setScanAlarm(false);
+                    } else if (mPeriodicScanEnabled)
+                        setScanAlarm(true);
+                    /* Handled in parent state */
+                    return NOT_HANDLED;
                 case WifiMonitor.SCAN_RESULTS_EVENT:
                     /* Re-enable background scan when a pending scan result is received */
                     if (mEnableBackgroundScan && mScanResultIsPending) {

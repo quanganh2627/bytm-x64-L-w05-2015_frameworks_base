@@ -120,6 +120,24 @@ public class WifiNative {
        return doBooleanCommand("SCAN");
     }
 
+    public boolean startPeriodicScan(ArrayList<String> ssidList) {
+        String command = "SET pso 1 ";
+        int i = 0;
+
+        for (String SSID: ssidList)
+        {
+            command += SSID.length() + ":" + SSID;
+            i++;
+            if (i < ssidList.size())
+                command += ";";
+        }
+       return doBooleanCommand(command);
+    }
+
+    public boolean stopPeriodicScan() {
+       return doBooleanCommand("SET pso 0");
+    }
+
     public boolean setScanMode(boolean setActive) {
         if (setActive) {
             return doBooleanCommand("DRIVER SCAN-ACTIVE");
