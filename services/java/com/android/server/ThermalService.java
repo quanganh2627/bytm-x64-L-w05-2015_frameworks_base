@@ -53,6 +53,7 @@ import android.thermal.ThermalSensor;
 import android.thermal.ThermalServiceEventQueue;
 import android.thermal.ThermalEvent;
 import android.thermal.ThermalCoolingManager;
+import android.thermal.ModemZone;
 /**
  * The ThermalService class contains strings and constants used for values
  * in the {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED} Intent.
@@ -83,7 +84,7 @@ public class ThermalService extends Binder {
     }
 
     public class ThermalParser {
-       //Names of the XML Tags
+       // Names of the XML Tags
        private static final String PINFO = "PlatformInfo";
        private static final String SENSOR = "Sensor";
        private static final String ZONE = "Zone";
@@ -101,6 +102,7 @@ public class ThermalService extends Binder {
        private ArrayList<Integer> mPollDelayList;
        XmlPullParserFactory mFactory;
        XmlPullParser mParser;
+       int tempZoneId = -1;
 
        ThermalParser(String fname) {
           try {
@@ -165,6 +167,7 @@ public class ThermalService extends Binder {
        }
 
        void processStartElement(String name) {
+          String zoneName;
           try {
                if (name.equalsIgnoreCase(PINFO)) {
                    mPlatformInfo = new PlatformInfo();
@@ -175,17 +178,25 @@ public class ThermalService extends Binder {
                } else if (name.equalsIgnoreCase(ZONE)) {
                    if (mThermalZones == null)
                        mThermalZones = new ArrayList<ThermalZone>();
-                       mCurrZone = new ThermalZone();
                } else {
-                   //Retrieve Platform Information
+                   // Retrieve Platform Information
                    if (mPlatformInfo != null && name.equalsIgnoreCase("PlatformThermalStates"))
                        mPlatformInfo.mMaxThermalStates = Integer.parseInt(mParser.nextText());
-
-                   //Retrieve Zone Information
-                   else if (name.equalsIgnoreCase("ZoneID") && mCurrZone != null)
-                       mCurrZone.setZoneId(Integer.parseInt(mParser.nextText()));
-                   else if (name.equalsIgnoreCase("ZoneName") && mCurrZone != null)
-                       mCurrZone.setZoneName(mParser.nextText());
+                   // Retrieve Zone Information
+                   else if (name.equalsIgnoreCase("ZoneName") && tempZoneId != -1) {
+                        // if modem create a object of type modem and assign to base class
+                        zoneName = mParser.nextText();
+                        if (zoneName.contains("Modem")) {
+                           mCurrZone = new ModemZone(mContext);// upcasting to base class
+                        } else {
+                           mCurrZone = new ThermalZone();
+                        }
+                        if (mCurrZone != null) {
+                            mCurrZone.setZoneName(zoneName);
+                            mCurrZone.setZoneId(tempZoneId);
+                        }
+                   } else if (name.equalsIgnoreCase("ZoneID"))
+                       tempZoneId = Integer.parseInt(mParser.nextText());
                    else if (name.equalsIgnoreCase("SupportsUEvent") && mCurrZone != null)
                        mCurrZone.setSupportsUEvent(Integer.parseInt(mParser.nextText()));
                    else if (name.equalsIgnoreCase("SensorLogic") && mCurrZone != null)
@@ -195,7 +206,7 @@ public class ThermalService extends Binder {
                    else if (name.equalsIgnoreCase(POLLDELAY) && mCurrZone != null) {
                        mPollDelayList = new ArrayList<Integer>();
                    }
-                   //Retrieve Sensor Information
+                   // Retrieve Sensor Information
                    else if (name.equalsIgnoreCase("SensorID") && mCurrSensor != null)
                        mCurrSensor.setSensorID(Integer.parseInt(mParser.nextText()));
                    else if (name.equalsIgnoreCase("SensorName") && mCurrSensor != null)
@@ -213,7 +224,7 @@ public class ThermalService extends Binder {
                    else if (name.equalsIgnoreCase(THRESHOLD) && mCurrSensor != null) {
                        mThresholdList = new ArrayList<Integer>();
                    }
-                   //Poll delay info
+                   // Poll delay info
                    else if (name.equalsIgnoreCase("DelayTOff") && mPollDelayList != null) {
                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
                    } else if (name.equalsIgnoreCase("DelayNormal") && mPollDelayList != null) {
@@ -225,7 +236,7 @@ public class ThermalService extends Binder {
                    } else if (name.equalsIgnoreCase("DelayCritical") && mPollDelayList != null) {
                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
                    }
-                   //Threshold info
+                   // Threshold info
                    else if (name.equalsIgnoreCase("ThresholdTOff") && mThresholdList != null) {
                        mThresholdList.add(Integer.parseInt(mParser.nextText()));
                    } else if (name.equalsIgnoreCase("ThresholdNormal") && mThresholdList != null) {
@@ -252,6 +263,7 @@ public class ThermalService extends Binder {
             mThermalZones.add(mCurrZone);
             mCurrSensorList = null;
             mCurrZone = null;
+            tempZoneId = -1;
          } else if (name.equalsIgnoreCase(THRESHOLD) &&
            (mCurrSensor != null)) {
             mCurrSensor.setThermalThresholds(mThresholdList);

@@ -23077,6 +23077,91 @@ package android.text.util {
 
 }
 
+package android.thermal {
+
+  public class ThermalSensor {
+    ctor public ThermalSensor();
+    method public void UpdateSensorID();
+    method public int getCurrState();
+    method public int getCurrState(int);
+    method public int getCurrTemp();
+    method public int getLowerThresholdTemp(int);
+    method public java.lang.String getSensorHighTempPath();
+    method public int getSensorID();
+    method public java.lang.String getSensorInputTempPath();
+    method public java.lang.String getSensorLowTempPath();
+    method public java.lang.String getSensorName();
+    method public java.lang.String getSensorPath();
+    method public int getSensorThermalState();
+    method public int getThermalThreshold(int);
+    method public int getUpperThresholdTemp(int);
+    method public void printAttrs();
+    method public void setCurrTemp(int);
+    method public void setHighTempPath(java.lang.String);
+    method public void setInputTempPath(java.lang.String);
+    method public void setLowTempPath(java.lang.String);
+    method public void setSensorID(int);
+    method public void setSensorName(java.lang.String);
+    method public void setSensorPath(java.lang.String);
+    method public void setSensorThermalState(int);
+    method public void setThermalThresholds(java.util.ArrayList<java.lang.Integer>);
+    method public void setUEventDevPath(java.lang.String);
+    method public void updateSensorTemp();
+  }
+
+  public class ThermalZone {
+    ctor public ThermalZone();
+    method public int getCurrEventType();
+    method public int getCurrThermalState();
+    method public int getDBInterval();
+    method public int getPollDelay(int);
+    method public boolean getSensorLogic();
+    method public java.util.ArrayList<android.thermal.ThermalSensor> getThermalSensorList();
+    method public int getZoneId();
+    method public java.lang.String getZoneName();
+    method public boolean isUEventSupported();
+    method public boolean isZoneStateChanged();
+    method public void printAttrs();
+    method public void setCurrThermalState(int);
+    method public void setDBInterval(int);
+    method public void setPollDelay(java.util.ArrayList<java.lang.Integer>);
+    method public void setSensorList(java.util.ArrayList<android.thermal.ThermalSensor>);
+    method public void setSensorLogic(int);
+    method public void setSupportsUEvent(int);
+    method public void setZoneId(int);
+    method public void setZoneName(java.lang.String);
+    method public void startMonitoring();
+    method public void update();
+    field public static final java.lang.String EXTRA_EVENT = "event";
+    field public static final java.lang.String EXTRA_STATE = "state";
+    field public static final java.lang.String EXTRA_TEMP = "temp";
+    field public static final java.lang.String EXTRA_ZONE = "zone";
+    field public static final int THERMAL_HIGH_EVENT = 2; // 0x2
+    field public static final int THERMAL_LOW_EVENT = 1; // 0x1
+    field public static final int THERMAL_STATE_ALERT = 2; // 0x2
+    field public static final int THERMAL_STATE_CRITICAL = 3; // 0x3
+    field public static final int THERMAL_STATE_NORMAL = 0; // 0x0
+    field public static final int THERMAL_STATE_OFF = -1; // 0xffffffff
+    field public static final int THERMAL_STATE_WARNING = 1; // 0x1
+    field public static int THERMAL_ZONE_BATTERY;
+    field public static int THERMAL_ZONE_BOTTOM_SKIN;
+    field public static int THERMAL_ZONE_CPU;
+    field public static int THERMAL_ZONE_TELEPHONY;
+    field public static int THERMAL_ZONE_TOP_SKIN;
+    field protected int mCurrEventType;
+    field protected int mCurrThermalState;
+    field protected java.util.ArrayList mThermalSensors;
+    field protected int mZoneID;
+    field protected java.lang.String mZoneName;
+    field protected int mZoneTemp;
+  }
+
+  public class ThermalZone.monitorThermalZone implements java.lang.Runnable {
+    method public void run();
+  }
+
+}
+
 package android.util {
 
   public class AndroidException extends java.lang.Exception {

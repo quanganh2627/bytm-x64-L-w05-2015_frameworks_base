@@ -38,7 +38,7 @@ import android.thermal.ThermalEvent;
 /**
  * The ThermalZone class contains strings and constants used for values
  * in the {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED} Intent.
- *@hide
+ *
  */
 public class ThermalZone {
 
@@ -84,17 +84,18 @@ public class ThermalZone {
     public static final int THERMAL_LOW_EVENT = 1;
 
     /* Thermal Zone related members */
-    private int mZoneID;               /* ID of the Thermal zone */
-    private int mCurrThermalState;     /* Current thermal state of the zone */
-    private int mCurrEventType;        /* specifies thermal event type, HIGH or LOW */
+    protected int mZoneID;               /* ID of the Thermal zone */
+    protected int mCurrThermalState;     /* Current thermal state of the zone */
+    protected int mCurrEventType;        /* specifies thermal event type, HIGH or LOW */
+    protected String mZoneName;          /* Name of the Thermal zone */
+    protected ArrayList <ThermalSensor> mThermalSensors = new ArrayList <ThermalSensor>();
+                                        /* List of sensors under this thermal zone */
+    protected int mZoneTemp;             /* Temperature of the Thermal Zone */
     private int mDebounceInterval;     /* Debounce value to avoid thrashing of throttling actions */
     private int mPollDelayList[];          /* Delay between sucessive polls */
     private boolean mSupportsUEvent;   /* Determines if Sensor supports Uvevents */
     private boolean mSensorLogic;      /* AND or OR logic to be used to determine thermal state of zone */
-    private String mZoneName;          /* Name of the Thermal zone */
-    private ArrayList <ThermalSensor> mThermalSensors = new ArrayList <ThermalSensor>();
-                                       /* List of sensors under this thermal zone */
-    private int mZoneTemp;             /* Temperature of the Thermal Zone */
+
 
     public void printAttrs() {
         Log.i(TAG, "mZoneID:" + Integer.toString(mZoneID));
