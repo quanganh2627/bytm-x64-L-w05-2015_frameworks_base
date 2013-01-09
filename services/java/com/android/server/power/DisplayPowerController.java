@@ -657,7 +657,7 @@ final class DisplayPowerController {
         if (wantScreenOn(mPowerRequest.screenState)) {
             int target;
             boolean slow;
-            if (mScreenAutoBrightness >= 0 && mLightSensorEnabled) {
+            if (mScreenAutoBrightness >= 0 && mAutoBrightnessEnabled) {
                 // Use current auto-brightness value.
                 target = mScreenAutoBrightness;
                 slow = mUsingScreenAutoBrightness;
@@ -887,8 +887,9 @@ final class DisplayPowerController {
 
     private void setLightSensorEnabled(boolean enable, boolean updateAutoBrightness) {
         if (enable) {
-            if (!mLightSensorEnabled) {
+            if (mAutoBrightnessEnabled)
                 updateAutoBrightness = true;
+            if (!mLightSensorEnabled) {
                 mLightSensorEnabled = true;
                 mLightSensorEnableTime = SystemClock.uptimeMillis();
                 mSensorManager.registerListener(mLightSensorListener, mLightSensor,
@@ -925,8 +926,10 @@ final class DisplayPowerController {
     private void handleLightSensorEvent(long time, float lux) {
         mHandler.removeMessages(MSG_LIGHT_SENSOR_DEBOUNCED);
 
-        applyLightSensorMeasurement(time, lux);
-        updateAmbientLux(time);
+        if (mAutoBrightnessEnabled) {
+            applyLightSensorMeasurement(time, lux);
+            updateAmbientLux(time);
+        }
         if (mButtonAutoBrightnessEnabled)
             updateButtonBrightness(lux);
     }
