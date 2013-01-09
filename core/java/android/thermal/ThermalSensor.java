@@ -30,11 +30,13 @@ import java.io.FileReader;
 import java.io.BufferedReader;
 import java.io.IOException;
 import android.thermal.ThermalZone;
+// Modem specific imports
+import com.intel.internal.telephony.OemTelephony.OemTelephonyConstants;
 
 /**
  * The ThermalSensor class contains strings and constants used for values
  * in the {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED} Intent.
- *@hide
+ *
  */
 public class ThermalSensor {
 
@@ -56,6 +58,8 @@ public class ThermalSensor {
     private int upperLimit = 90;    /* intermediate lower thershold */
     private int lowerLimit = 0;     /* intermediate upper threshold */
     private int mTempThresholds[];  /* array contain the temperature thresholds */
+    private int mSensorState;
+    private static final int INVALID_TEMP = 0xDEADBEEF;
 
     public void printAttrs() {
         Log.i(TAG, "mSensorID: " + Integer.toString(mSensorID));
@@ -84,7 +88,10 @@ public class ThermalSensor {
     }
 
     public ThermalSensor() {
+        mSensorState = ThermalZone.THERMAL_STATE_OFF;
+        mCurrTemp = INVALID_TEMP;
     }
+
 
     public int getSensorID() {
         return mSensorID;
@@ -209,5 +216,57 @@ public class ThermalSensor {
 
         /* should never come here */
         return ThermalZone.THERMAL_STATE_OFF;
+    }
+
+    public int getSensorThermalState() {
+        return mSensorState;
+    }
+
+    public void setSensorThermalState(int state) {
+        mSensorState = state;
+    }
+
+    // method overloaded
+    public int getCurrState(int currTemp) {
+        // Return OFF state if temperature less than starting of thresholds
+        if (currTemp < mTempThresholds[0]) return ThermalZone.THERMAL_STATE_OFF;
+
+        if (currTemp >= mTempThresholds[mTempThresholds.length - 2])
+            return ThermalZone.THERMAL_STATE_CRITICAL;
+
+        for (int i = 0; i < (mTempThresholds.length - 1); i++) {
+            if (currTemp >= mTempThresholds[i] && currTemp < mTempThresholds[i+1])
+                return i;
+        }
+
+        // should never come here
+        return ThermalZone.THERMAL_STATE_OFF;
+    }
+
+    public int getLowerThresholdTemp(int index) {
+        if (index < 0 || index >= mTempThresholds.length)
+            return -1;
+        return mTempThresholds[index];
+    }
+
+    public int getUpperThresholdTemp(int index) {
+        if (index < 0 || index >= mTempThresholds.length)
+            return -1;
+        return mTempThresholds[index + 1];
+    }
+
+
+    // Modem specific sensor IDs
+    public void UpdateSensorID() {
+        mSensorID = -1;
+        if (mSensorName == null) return;
+
+        if (mSensorName.contains("PCB")) {
+            mSensorID = OemTelephonyConstants.MODEM_SENSOR_ID_PCB;
+        } else if (mSensorName.contains("RF")) {
+            mSensorID = OemTelephonyConstants.MODEM_SENSOR_ID_RF;
+        } else if (mSensorName.contains("BB")) {
+            mSensorID = OemTelephonyConstants.MODEM_SENSOR_ID_BASEBAND_CHIP;
+        }
     }
 }
