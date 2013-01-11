@@ -443,7 +443,8 @@ public class WifiService extends IWifiManager.Stub {
                     public void onReceive(Context context, Intent intent) {
                       ArrayList<String> active = intent.getStringArrayListExtra(
                               ConnectivityManager.EXTRA_ACTIVE_TETHER);
-                      updateTetherUsbState(active);
+                      if (active != null)
+                            updateTetherUsbState(active);
 
                     }
                 },new IntentFilter(ConnectivityManager.ACTION_TETHER_STATE_CHANGED));
