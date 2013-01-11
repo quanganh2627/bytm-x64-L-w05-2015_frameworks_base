@@ -842,6 +842,16 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             showOrHideRecentAppsDialog(RECENT_APPS_BEHAVIOR_SHOW_OR_DISMISS);
         } else if (mLongPressOnHomeBehavior == LONG_PRESS_HOME_RECENT_SYSTEM_UI) {
             try {
+                ITelephony telephonyService = getTelephonyService();
+                if (telephonyService != null) {
+                    if(telephonyService.isRinging())
+                    return;
+                }
+            } catch (RemoteException ex) {
+                Log.w(TAG, "RemoteException from getPhoneInterface()", ex);
+            }
+
+            try {
                 IStatusBarService statusbar = getStatusBarService();
                 if (statusbar != null) {
                     statusbar.toggleRecentApps();
