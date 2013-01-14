@@ -1030,12 +1030,6 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
                         break;
                     case CMD_TETHER_CONNECTION_CHANGED:
                         String newUpstreamIfaceName = (String)(message.obj);
-                        /**
-                        * Workaround to remove wlan0:0 alias on wlan0 interface
-                        */
-                        if (newUpstreamIfaceName != null &&
-                               newUpstreamIfaceName.indexOf(":",0) != -1)
-                             newUpstreamIfaceName = newUpstreamIfaceName.substring(0,newUpstreamIfaceName.indexOf(":",0));
                         if ((mMyUpstreamIfaceName == null && newUpstreamIfaceName == null) ||
                                 (mMyUpstreamIfaceName != null &&
                                 mMyUpstreamIfaceName.equals(newUpstreamIfaceName))) {
