@@ -378,11 +378,6 @@ public class WifiService extends IWifiManager.Stub {
         mContext = context;
 
         mInterfaceName =  SystemProperties.get("wifi.interface", "wlan0");
-        /*
-         * Workaround to remove wlan0:0 alias on wlan0 interface
-         */
-        if (mInterfaceName.indexOf(":",0) != -1)
-            mInterfaceName = mInterfaceName.substring(0,mInterfaceName.indexOf(":",0));
 
         mWifiStateMachine = new WifiStateMachine(mContext, mInterfaceName);
         mWifiStateMachine.enableRssiPolling(true);
