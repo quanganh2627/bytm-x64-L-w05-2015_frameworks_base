@@ -248,12 +248,10 @@
   <java-symbol type="bool" name="config_bluetooth_address_validation" />
   <java-symbol type="bool" name="config_bluetooth_sco_off_call" />
   <java-symbol type="bool" name="config_cellBroadcastAppLinks" />
-  <java-symbol type="bool" name="gsm_call_status_polling_enable" />
   <java-symbol type="bool" name="config_duplicate_port_omadm_wappush" />
   <java-symbol type="bool" name="config_enable_emergency_call_while_sim_locked" />
   <java-symbol type="bool" name="config_enable_puk_unlock_screen" />
   <java-symbol type="bool" name="config_mms_content_disposition_support" />
-  <java-symbol type="bool" name="config_usage_oem_hooks_supported"/>
   <java-symbol type="bool" name="config_showMenuShortcutsWhenKeyboardPresent" />
   <java-symbol type="bool" name="config_sip_wifi_only" />
   <java-symbol type="bool" name="config_sms_capable" />
@@ -279,6 +277,8 @@
   <java-symbol type="bool" name="config_safe_media_volume_enabled" />
   <java-symbol type="bool" name="config_camera_sound_forced" />
   <java-symbol type="bool" name="config_dontPreferApn" />
+  <java-symbol type="bool" name="gsm_call_status_polling_enable" />
+  <java-symbol type="bool" name="config_usage_oem_hooks_supported"/>
 
   <java-symbol type="integer" name="config_cursorWindowSize" />
   <java-symbol type="integer" name="config_longPressOnPowerBehavior" />
@@ -626,8 +626,6 @@
   <java-symbol type="string" name="numeric_wday1_md1_wday2_md2" />
   <java-symbol type="string" name="numeric_wday1_mdy1_time1_wday2_mdy2_time2" />
   <java-symbol type="string" name="numeric_wday1_mdy1_wday2_mdy2" />
-  <java-symbol type="string" name="oemhook_datastate_property"/>
-  <java-symbol type="string" name="oemhook_concurrentdata_property"/>
   <java-symbol type="string" name="old_app_action" />
   <java-symbol type="string" name="old_app_description" />
   <java-symbol type="string" name="older" />
@@ -865,6 +863,8 @@
   <java-symbol type="string" name="media_route_status_available" />
   <java-symbol type="string" name="media_route_status_not_available" />
   <java-symbol type="string" name="owner_name" />
+  <java-symbol type="string" name="oemhook_datastate_property"/>
+  <java-symbol type="string" name="oemhook_concurrentdata_property"/>
 
   <java-symbol type="plurals" name="abbrev_in_num_days" />
   <java-symbol type="plurals" name="abbrev_in_num_hours" />
@@ -1212,7 +1212,6 @@
   <java-symbol type="bool" name="config_allowAllRotations" />
   <java-symbol type="bool" name="config_annoy_dianne" />
   <java-symbol type="bool" name="config_carDockEnablesAccelerometer" />
-  <java-symbol type="bool" name="config_nonPollingWindowOrientation" />
   <java-symbol type="bool" name="config_deskDockEnablesAccelerometer" />
   <java-symbol type="bool" name="config_disableMenuKeyInLockScreen" />
   <java-symbol type="bool" name="config_enableLockBeforeUnlockScreen" />
@@ -1227,6 +1226,7 @@
   <java-symbol type="bool" name="target_honeycomb_needs_options_menu" />
   <java-symbol type="bool" name="kg_center_small_widgets_vertically" />
   <java-symbol type="bool" name="kg_show_ime_at_screen_on" />
+  <java-symbol type="bool" name="config_nonPollingWindowOrientation" />
   <java-symbol type="color" name="kg_multi_user_text_active" />
   <java-symbol type="color" name="kg_multi_user_text_inactive" />
   <java-symbol type="color" name="kg_widget_pager_gradient" />
@@ -1440,12 +1440,9 @@
   <java-symbol type="string" name="lockscreen_permanent_disabled_sim_message_short" />
   <java-symbol type="string" name="lockscreen_permanent_disabled_sim_instructions" />
   <java-symbol type="string" name="lockscreen_plugged_in" />
-  <java-symbol type="string" name="lockscreen_not_charging"/>
   <java-symbol type="string" name="lockscreen_sim_locked_message" />
   <java-symbol type="string" name="lockscreen_sim_puk_locked_message" />
   <java-symbol type="string" name="lockscreen_sim_unlock_progress_dialog_message" />
-  <java-symbol type="string" name="lockscreen_network_puk_locked_message" />
-  <java-symbol type="string" name="lockscreen_network_puk_locked_instructions" />
   <java-symbol type="string" name="lockscreen_sound_off_label" />
   <java-symbol type="string" name="lockscreen_sound_on_label" />
   <java-symbol type="string" name="lockscreen_too_many_failed_attempts_countdown" />
@@ -1454,6 +1451,9 @@
   <java-symbol type="string" name="lockscreen_too_many_failed_pin_attempts_dialog_message" />
   <java-symbol type="string" name="lockscreen_unlock_label" />
   <java-symbol type="string" name="status_bar_device_locked" />
+  <java-symbol type="string" name="lockscreen_network_puk_locked_message" />
+  <java-symbol type="string" name="lockscreen_network_puk_locked_instructions" />
+  <java-symbol type="string" name="lockscreen_not_charging"/>
   <java-symbol type="style" name="Animation.LockScreen" />
   <java-symbol type="style" name="Theme.Dialog.RecentApplications" />
   <java-symbol type="style" name="Theme.ExpandedMenu" />
@@ -1537,13 +1537,13 @@
   <java-symbol type="array" name="config_notificationFallbackVibePattern" />
   <java-symbol type="bool" name="config_animateScreenLights" />
   <java-symbol type="bool" name="config_automatic_brightness_available" />
-  <java-symbol type="bool" name="config_button_automatic_brightness_available" />
   <java-symbol type="bool" name="config_sf_limitedAlpha" />
   <java-symbol type="bool" name="config_unplugTurnsOnScreen" />
   <java-symbol type="bool" name="config_wifi_background_scan_support" />
   <java-symbol type="bool" name="config_wifi_dual_band_support" />
   <java-symbol type="bool" name="config_wimaxEnabled" />
   <java-symbol type="bool" name="show_ongoing_ime_switcher" />
+  <java-symbol type="bool" name="config_button_automatic_brightness_available" />
   <java-symbol type="color" name="config_defaultNotificationColor" />
   <java-symbol type="drawable" name="ic_notification_ime_default" />
   <java-symbol type="drawable" name="ic_notify_wifidisplay" />
@@ -1673,13 +1673,6 @@
   <java-symbol type="string" name="usb_notification_message" />
   <java-symbol type="string" name="use_physical_keyboard" />
   <java-symbol type="string" name="usb_ptp_notification_title" />
-  <java-symbol type="string" name="usb_warn_device_not_support" />
-  <java-symbol type="string" name="usb_warn_device_not_responding" />
-  <java-symbol type="string" name="usb_warn_device_vbus_invalid_title" />
-  <java-symbol type="string" name="usb_warn_device_vbus_invalid_message" />
-  <java-symbol type="string" name="usb_warn_hub_max_tier" />
-  <java-symbol type="string" name="usb_warn_insufficient_power_title" />
-  <java-symbol type="string" name="usb_warn_insufficient_power_message" />
   <java-symbol type="string" name="vpn_text" />
   <java-symbol type="string" name="vpn_text_long" />
   <java-symbol type="string" name="vpn_title" />
@@ -1692,6 +1685,13 @@
   <java-symbol type="string" name="wifi_display_notification_title" />
   <java-symbol type="string" name="wifi_display_notification_message" />
   <java-symbol type="string" name="wifi_display_notification_disconnect" />
+  <java-symbol type="string" name="usb_warn_device_not_support" />
+  <java-symbol type="string" name="usb_warn_device_not_responding" />
+  <java-symbol type="string" name="usb_warn_device_vbus_invalid_title" />
+  <java-symbol type="string" name="usb_warn_device_vbus_invalid_message" />
+  <java-symbol type="string" name="usb_warn_hub_max_tier" />
+  <java-symbol type="string" name="usb_warn_insufficient_power_title" />
+  <java-symbol type="string" name="usb_warn_insufficient_power_message" />
   <java-symbol type="style" name="Theme.Dialog.AppError" />
   <java-symbol type="style" name="Theme.Toast" />
   <java-symbol type="xml" name="storage_list" />

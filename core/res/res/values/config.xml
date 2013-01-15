@@ -308,7 +308,6 @@
     <!-- Flag indicating whether the we should enable the automatic brightness in Settings.
          Software implementation will be used if config_hardware_auto_brightness_available is not set -->
     <bool name="config_automatic_brightness_available">false</bool>
-    <bool name="config_button_automatic_brightness_available">false</bool>
 
     <!-- Don't name config resources like this.  It should look like config_annoyDianne -->
     <bool name="config_annoy_dianne">true</bool>
@@ -380,10 +379,6 @@
          screen orientation.  This defaults to true because putting a device in
          a car dock make the accelerometer more a physical input (like a lid). -->
     <bool name="config_carDockEnablesAccelerometer">true</bool>
-
-    <!-- Controls whether window orientation should use non-polling mode accelerometer.
-         set default to false to use polling mode. -->
-    <bool name="config_nonPollingWindowOrientation">false</bool>
 
     <!-- Indicate whether the lid state impacts the accessibility of
          the physical keyboard.  0 means it doesn't, 1 means it is accessible
@@ -935,9 +930,6 @@
     <!-- Set to true to add links to Cell Broadcast app from Settings and MMS app. -->
     <bool name="config_cellBroadcastAppLinks">false</bool>
 
-    <!-- When set to false, the call status polling is disabled -->
-    <bool name="gsm_call_status_polling_enable">true</bool>
-
     <!-- The default value if the SyncStorageEngine should sync automatically or not -->
     <bool name="config_syncstorageengine_masterSyncAutomatically">true</bool>
 
@@ -1029,6 +1021,15 @@
         <item>250</item>
         <item>250</item>
     </integer-array>
+
+    <bool name="config_button_automatic_brightness_available">false</bool>
+
+    <!-- Controls whether window orientation should use non-polling mode accelerometer.
+         set default to false to use polling mode. -->
+    <bool name="config_nonPollingWindowOrientation">false</bool>
+
+    <!-- When set to false, the call status polling is disabled -->
+    <bool name="gsm_call_status_polling_enable">true</bool>
 
     <!-- set to true if oem hooks are supported by framework -->
     <bool name="config_usage_oem_hooks_supported">false</bool>
