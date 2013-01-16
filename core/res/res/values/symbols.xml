@@ -279,6 +279,7 @@
   <java-symbol type="bool" name="config_dontPreferApn" />
   <java-symbol type="bool" name="gsm_call_status_polling_enable" />
   <java-symbol type="bool" name="config_usage_oem_hooks_supported"/>
+  <java-symbol type="bool" name="config_cat_support"/>
 
   <java-symbol type="integer" name="config_cursorWindowSize" />
   <java-symbol type="integer" name="config_longPressOnPowerBehavior" />
