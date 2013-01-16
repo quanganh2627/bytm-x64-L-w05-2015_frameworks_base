@@ -1037,4 +1037,11 @@
     <string name="oemhook_datastate_property"></string>
     <!-- set the concurrent data support property -->
     <string name="oemhook_concurrentdata_property"></string>
+
+    <!-- Flag indicating whether the current device supports
+         CAT aka STK handling. If true, this means that the
+         device supports handling of CAT messages from UICC.
+         Set to false if the device do not want to support CAT
+         aka STK feature -->
+    <bool name="config_cat_support">true</bool>
 </resources>
