@@ -49,34 +49,44 @@ class SysfsManager
         String val = null;
         try {
           br = new BufferedReader(new FileReader(path));
-          val = br.readLine();
-          br.close();
-       }
-       catch(Exception e){
-          e.printStackTrace();
+          if (br != null) {
+              val = br.readLine();
+              br.close();
+          }
+       } catch (IOException ioe) {
+            Log.i(TAG, "caught IOException in readSysfs()");
+       } catch (Exception e) {
+            Log.i(TAG, "caught Exception in readSysfs()");
        }
        return val;
     }
 
     public static int readSysfsAsInt(String path) {
-       int val = -1;
-       try {
-          val = Integer.parseInt((readSysfs(path)).trim());
-       } catch (Exception e) {
-          e.printStackTrace();
-       }
-       return val;
+        int val = -1;
+        try {
+            String tempStr = readSysfs(path);
+            if (tempStr != null) {
+                val = Integer.parseInt(tempStr.trim());
+            }
+        } catch (NumberFormatException e) {
+            Log.i(TAG, "NumberFormatException in readSysfsAsInt()");
+        }
+        return val;
     }
 
     public static void writeSysfs(String path, int value) {
-       BufferedWriter bw = null;
+       if (!isFileExists(path)) {
+           Log.i(TAG, "writeSysfs failed:"+ path + "does not exist");
+           return;
+       }
        try {
-            bw = new BufferedWriter(new FileWriter(path));
-            bw.write(Integer.toString(value));
-            bw.close();
-        }
-        catch (IOException ioe) {
-            ioe.printStackTrace();
-        }
+            BufferedWriter bw = new BufferedWriter(new FileWriter(path));
+            if (bw != null) {
+                bw.write(Integer.toString(value));
+                bw.close();
+            }
+       } catch (IOException ioe) {
+           ioe.printStackTrace();
+       }
     }
 }
