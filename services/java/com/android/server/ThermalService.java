@@ -103,16 +103,15 @@ public class ThermalService extends Binder {
        XmlPullParserFactory mFactory;
        XmlPullParser mParser;
        int tempZoneId = -1;
-
+       FileReader mInputStream = null;
        ThermalParser(String fname) {
           try {
                mFactory = XmlPullParserFactory.newInstance(System.getProperty(XmlPullParserFactory.PROPERTY_NAME), null);
                mFactory.setNamespaceAware(true);
                mParser = mFactory.newPullParser();
+               if (mParser == null) return;
           } catch (SecurityException e) {
                Log.e(TAG, "SecurityException caught in ThermalParser");
-          } catch (NullPointerException e) {
-               Log.e(TAG, "NullPointerException caught in ThermalParser");
           } catch (IllegalArgumentException e) {
                Log.e(TAG, "IllegalArgumentException caught in ThermalParser");
           } catch (XmlPullParserException xppe) {
@@ -121,12 +120,15 @@ public class ThermalService extends Binder {
           }
 
           try {
-               mParser.setInput ( new FileReader (fname) );
+               mInputStream = new FileReader(fname);
                mPlatformInfo = null;
                mCurrSensor = null;
                mCurrZone = null;
                mCurrSensorList = null;
                mThermalZones = null;
+               if (mInputStream == null) return;
+               mParser.setInput(mInputStream);
+
           } catch (FileNotFoundException e) {
               Log.e(TAG, "FileNotFoundException Exception in ThermalParser()");
           } catch (XmlPullParserException e) {
@@ -143,6 +145,9 @@ public class ThermalService extends Binder {
        }
 
        public void parse() {
+          if (mParser == null ||
+              mInputStream == null) return;
+
           try {
                int mEventType = mParser.getEventType();
                while (mEventType != XmlPullParser.END_DOCUMENT && !done) {
@@ -159,6 +164,8 @@ public class ThermalService extends Binder {
                   }
                   mEventType = mParser.next();
                }
+               // end of parsing, close the stream
+               if (mInputStream != null) mInputStream.close();
           } catch (XmlPullParserException xppe) {
                xppe.printStackTrace();
           } catch (Exception e) {
@@ -255,10 +262,13 @@ public class ThermalService extends Binder {
        }
 
        void processEndElement(String name) {
-         if (name.equalsIgnoreCase(SENSOR)) {
+         if (name.equalsIgnoreCase(SENSOR) &&
+            mCurrSensorList != null) {
             mCurrSensorList.add(mCurrSensor);
             mCurrSensor = null;
-         } else if (name.equalsIgnoreCase(ZONE)) {
+         } else if (name.equalsIgnoreCase(ZONE) &&
+            mCurrZone != null &&
+            mThermalZones != null) {
             mCurrZone.setSensorList(mCurrSensorList);
             mThermalZones.add(mCurrZone);
             mCurrSensorList = null;
@@ -290,6 +300,7 @@ public class ThermalService extends Binder {
            try {
                 while (true) { consume((ThermalEvent) cQueue.take()); }
             } catch (InterruptedException ex) {
+                Log.i(TAG, "caught InterruptedException in run()");
               }
         }
 
@@ -347,7 +358,9 @@ public class ThermalService extends Binder {
             }
 
             /* Start and Initialize the Thermal Cooling Manager */
-            if (mCoolingManager != null) mCoolingManager.init(mContext);
+            if (mCoolingManager != null) {
+                if (!mCoolingManager.init(mContext)) return;
+            }
 
             /* Parse the thermal configuration file to determine
                sensor information/zone information */

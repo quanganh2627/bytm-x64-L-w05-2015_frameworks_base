@@ -79,46 +79,46 @@ public class ThermalCoolingManager {
         private ArrayList<Integer> DeviceDethrottleMask = new ArrayList<Integer>();
         public CoolingDeviceInfo() {}
 
-        public void CreateThrottleStateMask(String mask) {
+        public void createThrottleStateMask(String mask) {
             try {
                 for (String str : mask.split(",")) {
                     this.DeviceThrottleMask.add(Integer.parseInt(str));
                 }
             } catch (NumberFormatException e) {
-                Log.i(TAG,"exception caught in CreateThrottleStateMask: " + e.getMessage());
+                Log.i(TAG,"exception caught in createThrottleStateMask: " + e.getMessage());
             }
         }
 
-        public void CreateDeThrottleStateMask(String mask) {
+        public void createDeThrottleStateMask(String mask) {
             try {
                 for (String str : mask.split(",")) {
                     this.DeviceDethrottleMask.add(Integer.parseInt(str));
                 }
             } catch (NumberFormatException e) {
-                Log.i(TAG,"exception caught in CreateDeThrottleStateMask: " + e.getMessage());
+                Log.i(TAG,"exception caught in createDeThrottleStateMask: " + e.getMessage());
             }
         }
 
-        public int GetCoolingDeviceId() {
+        public int getCoolingDeviceId() {
             return CDeviceID;
         }
 
-        public void SetCoolingDeviceId(int deviceID) {
+        public void setCoolingDeviceId(int deviceID) {
             CDeviceID = deviceID;
         }
 
-        public ArrayList<Integer> GetThrottleMaskList() {
+        public ArrayList<Integer> getThrottleMaskList() {
             return DeviceThrottleMask;
         }
 
-        public ArrayList<Integer> GetDeThrottleMaskList() {
+        public ArrayList<Integer> getDeThrottleMaskList() {
             return DeviceDethrottleMask;
         }
-        public void SetThrottleMaskList (ArrayList<Integer> list) {
+        public void setThrottleMaskList (ArrayList<Integer> list) {
                 this.DeviceThrottleMask = list;
         }
 
-        public void SetDeThrottleMaskList (ArrayList<Integer> list) {
+        public void setDeThrottleMaskList (ArrayList<Integer> list) {
                 this.DeviceDethrottleMask = list;
         }
 
@@ -147,13 +147,13 @@ public class ThermalCoolingManager {
         ArrayList <CoolingDeviceInfo> mCoolingdeviceInfoList = null;
         CoolingDeviceInfo lastCoolingDevInfoInstance = null;
 
-        public void ZoneCooling() {}
+        public ZoneCooling() {}
 
-        public void CreateNewCoolingDeviceInstance() {
+        public void createNewCoolingDeviceInstance() {
             lastCoolingDevInfoInstance = new CoolingDeviceInfo();
         }
 
-        public CoolingDeviceInfo GetLastCoolingDeviceInstance() {
+        public CoolingDeviceInfo getLastCoolingDeviceInstance() {
             return lastCoolingDevInfoInstance;
         }
 
@@ -184,19 +184,19 @@ public class ThermalCoolingManager {
             }
         }
 
-        public void SetCoolingdeviceInfoList(ArrayList<CoolingDeviceInfo> devinfoList) {
+        public void setCoolingdeviceInfoList(ArrayList<CoolingDeviceInfo> devinfoList) {
             mCoolingdeviceInfoList = devinfoList;
         }
 
-        public ArrayList<CoolingDeviceInfo> GetCoolingdeviceInfoList() {
+        public ArrayList<CoolingDeviceInfo> getCoolingdeviceInfoList() {
             return mCoolingdeviceInfoList;
         }
 
-        public void InitializeCoolingDeviceInfoList() {
+        public void initializeCoolingDeviceInfoList() {
             mCoolingdeviceInfoList = new ArrayList<CoolingDeviceInfo>();
         }
 
-        public void AddCoolingDeviceToList(CoolingDeviceInfo CdeviceInfo) {
+        public void addCoolingDeviceToList(CoolingDeviceInfo CdeviceInfo) {
             mCoolingdeviceInfoList.add(CdeviceInfo);
         }
     }
@@ -280,10 +280,10 @@ public class ThermalCoolingManager {
                     if (mZone == null)
                         mZone = new ZoneCooling();
                 } else if (name.equalsIgnoreCase(COOLINGDEVICEINFO) && mZone != null) {
-                        if (mZone.GetCoolingdeviceInfoList() == null) {
-                            mZone.InitializeCoolingDeviceInfoList();
+                        if (mZone.getCoolingdeviceInfoList() == null) {
+                            mZone.initializeCoolingDeviceInfoList();
                         }
-                        mZone.CreateNewCoolingDeviceInstance();
+                        mZone.createNewCoolingDeviceInstance();
                 } else {
                     // Retrieve zone and contirbuting device mapping
                     if (name.equalsIgnoreCase("ZoneID") && mZone != null) {
@@ -297,7 +297,7 @@ public class ThermalCoolingManager {
                         mTempMaskList = new ArrayList<Integer>();
                         isThrottleMask = false;
                     } else if (name.equalsIgnoreCase("CoolingDevId") && mZone != null) {
-                        mZone.GetLastCoolingDeviceInstance().SetCoolingDeviceId(Integer.parseInt(mParser.nextText()));
+                        mZone.getLastCoolingDeviceInstance().setCoolingDeviceId(Integer.parseInt(mParser.nextText()));
                     }
                     //device mask
                     else if (name.equalsIgnoreCase("Normal") && mTempMaskList != null) {
@@ -344,9 +344,9 @@ public class ThermalCoolingManager {
            } else if ((name.equalsIgnoreCase(THROTTLEMASK) ||
                      name.equalsIgnoreCase(DETHROTTLEMASK)) && mZone != null) {
                 if (isThrottleMask) {
-                    mZone.GetLastCoolingDeviceInstance().SetThrottleMaskList(mTempMaskList);
+                    mZone.getLastCoolingDeviceInstance().setThrottleMaskList(mTempMaskList);
                 } else {
-                    mZone.GetLastCoolingDeviceInstance().SetDeThrottleMaskList(mTempMaskList);
+                    mZone.getLastCoolingDeviceInstance().setDeThrottleMaskList(mTempMaskList);
                 }
                 isThrottleMask = false;
                 mTempMaskList = null;
@@ -355,21 +355,22 @@ public class ThermalCoolingManager {
                 done = true;
            } else if (name.equalsIgnoreCase(COOLINGDEVICEINFO) && mZone != null) {
                 Log.i(TAG, "CoolingDeviceInfo Parsing Finished");
-                mZone.AddCoolingDeviceToList(mZone.GetLastCoolingDeviceInstance());
-                mZone.GetLastCoolingDeviceInstance().printAttrs();
+                mZone.addCoolingDeviceToList(mZone.getLastCoolingDeviceInstance());
+                mZone.getLastCoolingDeviceInstance().printAttrs();
            }
        }
     }
 
-    public void init(Context context) {
+    public boolean init(Context context) {
        Log.i(TAG, "Thermal Cooling manager init() called");
        if (!new File(FNAME).exists()) {
           Log.i(TAG, "Thermal throttle config file does not exist: " + FNAME);
-          return;
+          return false;
        }
 
        ThermalParser parser = new ThermalParser(FNAME);
-       if (parser != null) parser.parse();
+       if (parser == null) return false;
+       parser.parse();
 
        mContext = context;
        // Register for thermal zone state changed notifications
@@ -381,15 +382,15 @@ public class ThermalCoolingManager {
        IntentFilter emergencyIntentFilter = new IntentFilter();
        emergencyIntentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALL_STATUS_CHANGED);
        mContext.registerReceiver(new EmergencyCallReceiver(), emergencyIntentFilter);
+       return true;
     }
 
     private final class EmergencyCallReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            boolean callStatus = false;
             if (action.equals(TelephonyIntents.ACTION_EMERGENCY_CALL_STATUS_CHANGED)) {
-                callStatus = intent.getBooleanExtra("emergencyCallOngoing", false);
+                boolean callStatus = intent.getBooleanExtra("emergencyCallOngoing", false);
                 Log.i(TAG, "emergency call intent received, callStatus = " + callStatus);
                 updateCallStatus(callStatus);
                 // if emergency call has ended, check if any zone is in critical state
@@ -472,11 +473,9 @@ public class ThermalCoolingManager {
             Method init = cls.getMethod("init", partypes);
             Object arglist[] = new Object[1];
             arglist[0] = device.getThrottlePath();
-            Object retobj = init.invoke(cls, arglist);
+            init.invoke(cls, arglist);
         } catch (NoSuchMethodException e) {
             Log.i(TAG, "NoSuchMethodException caught in device class init: " + device.getClassPath());
-        } catch (NullPointerException e) {
-            Log.i(TAG, "NullPointerException caught in device class init: " + device.getClassPath());
         } catch (SecurityException e) {
             Log.i(TAG, "SecurityException caught in device class init: " + device.getClassPath());
         } catch (IllegalAccessException e) {
@@ -497,13 +496,8 @@ public class ThermalCoolingManager {
             device.setThrottleMethod(throttleMethod);
         } catch (NoSuchMethodException e) {
             Log.i(TAG, "NoSuchMethodException caught initializing throttle funciton ");
-
-        } catch (NullPointerException e) {
-            Log.i(TAG, "NullPointerException caught initializing throttle funciton ");
-
         } catch (SecurityException e) {
             Log.i(TAG, "SecurityException caught initializing throttle funciton ");
-
         }
 
         return true;
@@ -545,10 +539,10 @@ public class ThermalCoolingManager {
                     "with thermal state" + thermalState);
 
          if (ThermalZone.THERMAL_HIGH_EVENT == eventType) {
-             for (CoolingDeviceInfo CdeviceInfo : zone.GetCoolingdeviceInfoList()) {
+             for (CoolingDeviceInfo CdeviceInfo : zone.getCoolingdeviceInfoList()) {
 
-                 currThrottleMask = CdeviceInfo.GetThrottleMaskList().get(thermalState);
-                 deviceId = CdeviceInfo.GetCoolingDeviceId();
+                 currThrottleMask = CdeviceInfo.getThrottleMaskList().get(thermalState);
+                 deviceId = CdeviceInfo.getCoolingDeviceId();
 
                  tDevice = listOfCoolers.get(deviceId);
                  if (tDevice == null) continue;
@@ -568,10 +562,10 @@ public class ThermalCoolingManager {
          }
 
          if (ThermalZone.THERMAL_LOW_EVENT == eventType) {
-            for (CoolingDeviceInfo CdeviceInfo : zone.GetCoolingdeviceInfoList()) {
+            for (CoolingDeviceInfo CdeviceInfo : zone.getCoolingdeviceInfoList()) {
 
-                 currDethrottleMask = CdeviceInfo.GetDeThrottleMaskList().get(thermalState);
-                 deviceId = CdeviceInfo.GetCoolingDeviceId();
+                 currDethrottleMask = CdeviceInfo.getDeThrottleMaskList().get(thermalState);
+                 deviceId = CdeviceInfo.getCoolingDeviceId();
 
                  tDevice = listOfCoolers.get(deviceId);
                  if (tDevice == null) continue;
@@ -602,22 +596,15 @@ public class ThermalCoolingManager {
            /* invoke the throttle method passing the
               throttle level as parameter */
            try {
-                Object retobj = throt.invoke(c, arglist);
-           } catch (NullPointerException e) {
-                Log.i(TAG, "NullPointerException caught throttleDevice() ");
-
+                throt.invoke(c, arglist);
            } catch (IllegalAccessException e) {
                 Log.i(TAG, "IllegalAccessException caught throttleDevice() ");
-
            } catch (IllegalArgumentException e) {
                 Log.i(TAG, "IllegalArgumentException caught throttleDevice() ");
-
            } catch (ExceptionInInitializerError e) {
                 Log.i(TAG, "ExceptionInInitializerError caught throttleDevice() ");
-
            } catch (SecurityException e) {
                 Log.i(TAG, "SecurityException caught throttleDevice() ");
-
            } catch (InvocationTargetException e) {
                 Log.i(TAG, "InvocationTargetException caught throttleDevice() ");
            }

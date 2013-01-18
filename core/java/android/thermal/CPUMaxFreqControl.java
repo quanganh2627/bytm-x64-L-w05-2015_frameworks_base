@@ -109,7 +109,7 @@ public class CPUMaxFreqControl {
                mMaxScalingFreq[3] = mAvailFreq[mAvailFreqCount - 1];
                return;
            } else {
-               Log.i(TAG, "Using default frequency set for platformId" + platformId);
+               Log.i(TAG, "Using default frequency. Selected index: " + index);
            }
        }
 

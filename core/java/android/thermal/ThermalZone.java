@@ -215,13 +215,17 @@ public class ThermalZone {
                if (isZoneStateChanged()) {
                   ThermalEvent event = new ThermalEvent(mZoneID, mCurrEventType, mCurrThermalState, mZoneTemp);
                   try {
-                     ThermalServiceEventQueue.eventQueue.put(event);
+                      ThermalServiceEventQueue.eventQueue.put(event);
                   }
-                  catch (InterruptedException ex) { }
+                  catch (InterruptedException ex) {
+                      Log.i(TAG, "caught InterruptedException in posting to event queue");
+                  }
                }
-              t.sleep(getPollDelay(mCurrThermalState));
+               Thread.sleep(getPollDelay(mCurrThermalState));
             }
-          } catch (InterruptedException iex) {}
+          } catch (InterruptedException iex) {
+            Log.i(TAG, "caught InterruptedException in run()");
+          }
        }
     }
 
@@ -231,7 +235,9 @@ public class ThermalZone {
         try {
            ThermalServiceEventQueue.eventQueue.put(event);
         }
-        catch (InterruptedException ex) { }
+        catch (InterruptedException ex) {
+            Log.i(TAG, "caught InterruptedException in update()");
+        }
     }
 
     private UEventObserver mThermalZoneObserver = new UEventObserver() {
