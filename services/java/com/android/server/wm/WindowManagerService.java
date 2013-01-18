@@ -302,6 +302,8 @@ public class WindowManagerService extends IWindowManager.Stub
 
     private static final float THUMBNAIL_ANIMATION_DECELERATE_FACTOR = 1.5f;
 
+    private boolean mForceLandScape;
+
     final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -309,6 +311,19 @@ public class WindowManagerService extends IWindowManager.Stub
             if (DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED.equals(action)) {
                 mKeyguardDisableHandler.sendEmptyMessage(
                     KeyguardDisableHandler.KEYGUARD_POLICY_CHANGED);
+            }
+            if (Intent.ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE.equals(action)) {
+                Bundle extras = intent.getExtras();
+                if (extras == null) {
+                    Slog.d(TAG, "No extra content");
+                    return;
+                }
+                boolean forceToLandscape = extras.getBoolean(Intent.EXTRA_SET_LANDSCAPE);
+                if (forceToLandscape == mForceLandScape)
+                    return;
+
+                mForceLandScape = forceToLandscape;
+                Slog.d(TAG, forceToLandscape ? "Force to landscape." : "Screen can rotate.");
             }
         }
     };
@@ -806,6 +821,8 @@ public class WindowManagerService extends IWindowManager.Stub
         mDisplayManagerService = displayManager;
         mHeadless = displayManager.isHeadless();
 
+        mForceLandScape = false;
+
         mDisplayManager = (DisplayManager)context.getSystemService(Context.DISPLAY_SERVICE);
         mDisplayManager.registerDisplayListener(this, null);
         Display[] displays = mDisplayManager.getDisplays();
@@ -836,6 +853,7 @@ public class WindowManagerService extends IWindowManager.Stub
         // Track changes to DevicePolicyManager state so we can enable/disable keyguard.
         IntentFilter filter = new IntentFilter();
         filter.addAction(DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED);
+        filter.addAction(Intent.ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE);
         mContext.registerReceiver(mBroadcastReceiver, filter);
 
         mHoldingScreenWakeLock = pmc.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK
@@ -4040,6 +4058,10 @@ public class WindowManagerService extends IWindowManager.Stub
         int req = getOrientationFromWindowsLocked();
         if (req == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
             req = getOrientationFromAppTokensLocked();
+        }
+        if (mForceLandScape &&
+                req == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
+            req = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
         }
         return req;
     }
@@ -10239,6 +10261,7 @@ public class WindowManagerService extends IWindowManager.Stub
                     exitAnim, enterAnim);
 
             mTransitionAnimationScaleOld = mTransitionAnimationScale;
+            mTransitionAnimationScale = mForceLandScape ? 0.0f : mTransitionAnimationScaleOld;
             Slog.v(TAG, "save mTransitionAnimationScaleOld=" + mTransitionAnimationScaleOld);
             Surface.setOrientationEnd(false);
             //check if screen rotation animation is allowed. if not, set animation scale to 0
