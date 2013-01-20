@@ -55,6 +55,7 @@ import android.os.SystemProperties;
 import android.os.SystemService;
 import android.os.UserHandle;
 import android.os.WorkSource;
+import android.os.SystemProperties;
 import android.provider.Settings;
 import android.util.EventLog;
 import android.util.Log;
@@ -647,6 +648,13 @@ public final class PowerManagerService extends IPowerManager.Stub
                 mWakeLocks.add(wakeLock);
             }
 
+            // Generate user-level wakelock traces for Wuwatch
+            if (SystemProperties.get("wakelock.trace", "unknown").equals("1")) {
+                Slog.i("WAKELOCK_ACQUIRE", "TIMESTAMP=" + SystemClock.elapsedRealtimeNanos()
+                        + ", TAG=" + tag + ", TYPE=" + wakeLock.getLockLevelString()
+                        + ", COUNT=0" + ", PID=" + pid + ", UID=" + uid);
+            }
+
             applyWakeLockFlagsOnAcquireLocked(wakeLock);
             mDirty |= DIRTY_WAKE_LOCKS;
             updatePowerStateLocked();
@@ -715,6 +723,14 @@ public final class PowerManagerService extends IPowerManager.Stub
             applyWakeLockFlagsOnReleaseLocked(wakeLock);
             mDirty |= DIRTY_WAKE_LOCKS;
             updatePowerStateLocked();
+
+            // Generate user-level wakelock traces for Wuwatch
+            if (SystemProperties.get("wakelock.trace", "unknown").equals("1")) {
+                Slog.i("WAKELOCK_RELEASE", "TIMESTAMP=" + SystemClock.elapsedRealtimeNanos()
+                        + ", TAG=" + wakeLock.mTag + ", TYPE=" + wakeLock.getLockLevelString()
+                        + ", COUNT=0" + ", PID=" + wakeLock.mOwnerPid + ", UID="
+                        + wakeLock.mOwnerUid);
+            }
         }
     }
 
@@ -736,6 +752,14 @@ public final class PowerManagerService extends IPowerManager.Stub
             applyWakeLockFlagsOnReleaseLocked(wakeLock);
             mDirty |= DIRTY_WAKE_LOCKS;
             updatePowerStateLocked();
+
+            // Generate user-level wakelock traces for Wuwatch
+            if (SystemProperties.get("wakelock.trace", "unknown").equals("1")) {
+                Slog.i("WAKELOCK_RELEASE", "TIMESTAMP=" + SystemClock.elapsedRealtimeNanos()
+                        + ", TAG=" + wakeLock.mTag + ", TYPE=" + wakeLock.getLockLevelString()
+                        + ", COUNT=0" + ", PID=" + wakeLock.mOwnerPid + ", UID="
+                        + wakeLock.mOwnerUid);
+            }
         }
     }
 
