@@ -393,11 +393,10 @@ public class Watchdog extends Thread {
         boolean waitedHalf = false;
         mTimings = new long[mMonitors.size()][NB_TIMINGS];
         while (true) {
-            mCompleted = false;
-            mHandler.sendEmptyMessage(MONITOR);
-
             synchronized (this) {
                 long timeout = TIME_TO_WAIT;
+                mCompleted = false;
+                mHandler.sendEmptyMessage(MONITOR);
 
                 // NOTE: We use uptimeMillis() here because we do not want to increment the time we
                 // wait while asleep. If the device is asleep then the thing that we are waiting
