@@ -42,6 +42,7 @@ public class xmlCheckExt implements ICheckExt {
     public boolean doCheck(String... params) {
         String param = null;
         String param_tag = null;
+        InputStream in=null;
         try {
             int eventType;
             String tag;
@@ -53,7 +54,6 @@ public class xmlCheckExt implements ICheckExt {
             File file = new File(CHECKXMLPATH);
             if (!file.exists())
                 return false;
-            InputStream in=null;
             in = new FileInputStream(file);
             xmlParser.setInput(in, "utf-8");
 
@@ -74,13 +74,20 @@ public class xmlCheckExt implements ICheckExt {
                 }
                 eventType = xmlParser.next();
             }
-          in.close();
         } catch (XmlPullParserException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         } catch (FileNotFoundException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+
+        try {
+            if (in != null)
+                in.close();
         } catch (IOException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
