@@ -1044,4 +1044,9 @@
          Set to false if the device do not want to support CAT
          aka STK feature -->
     <bool name="config_cat_support">true</bool>
+    <!-- Flag indicating whether the operator should be part of the unique Identifier used to track
+         requests associated with a poll. If true, this means that the operator query is part of
+         the unique identifier used to track requests associated with a poll. If false, this means
+         that the operator query is not part of the unique identifier used to track requests. -->
+    <bool name="config_track_get_operator_polling">true</bool>
 </resources>
