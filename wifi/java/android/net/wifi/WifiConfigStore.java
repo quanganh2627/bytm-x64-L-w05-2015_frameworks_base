@@ -488,7 +488,7 @@ class WifiConfigStore {
             boolean found = false;
             for (WifiConfiguration nConf : getConfiguredNetworks()) {
                 for (WifiConfiguration oConf : oldConfigs) {
-                    if (oConf.SSID != null && oConf.SSID.equals(nConf.SSID)) {
+                    if (oConf.SSID.equals(nConf.SSID)) {
                         found = true;
                         break;
                     }
