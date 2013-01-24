@@ -408,6 +408,13 @@ public class SpellCheckerSession {
                     mPendingTasks.offer(scp);
                     if (closeTask != null) {
                         mPendingTasks.offer(closeTask);
+                    } else if (scp.mWhat == TASK_CLOSE) {
+                        // Close asked but the session was not opened...
+                        // Set mHandler to NULL to avoid to prevent
+                        // the GC to collect the related activity
+                        synchronized (this) {
+                            mHandler = null;
+                        }
                     }
                     return;
                 }
