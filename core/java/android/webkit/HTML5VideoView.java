@@ -99,6 +99,11 @@ public class HTML5VideoView implements MediaPlayer.OnPreparedListener {
     }
 
     public void pause() {
+        //clear the flag
+        if (getStartWhenPrepared()) {
+            setStartWhenPrepared(false);
+        }
+
         if (isPlaying()) {
             mPlayer.pause();
         } else if (mCurrentState == STATE_PREPARING) {
