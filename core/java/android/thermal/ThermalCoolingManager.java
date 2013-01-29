@@ -570,14 +570,13 @@ public class ThermalCoolingManager {
                  tDevice = listOfCoolers.get(deviceId);
                  if (tDevice == null) continue;
 
-                 thermalState = currDethrottleMask == DETHROTTLE_MASK_ENABLE ? thermalState : 0;
-
                  existingState = tDevice.getThermalState();
                  tDevice.updateZoneState(zoneId, thermalState);
                  targetState = tDevice.getThermalState();
 
                  /* Do not dethrottle if device is already in desired state. (We can save Sysfs write) */
-                 if (existingState != targetState) throttleDevice(deviceId, targetState);
+                 if ((existingState != targetState) &&
+                     (currDethrottleMask == DETHROTTLE_MASK_ENABLE))  throttleDevice(deviceId, targetState);
              }
          }
     }
