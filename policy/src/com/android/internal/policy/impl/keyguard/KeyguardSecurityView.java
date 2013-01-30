@@ -84,4 +84,10 @@ public interface KeyguardSecurityView {
      * @param duration millisends for the transisiton animation.
      */
     void hideBouncer(int duration);
+
+     /**
+     * return its visibility
+     */
+    int getVisibility();
+
 }
