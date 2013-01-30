@@ -70,21 +70,6 @@ public class RuntimeInit {
 
         final static String buildtype = SystemProperties.get("ro.build.type", null);
 
-        /*
-         * mProfilingBubble is a static array used as a buble that we free
-         * when an OutOfMemoryError occurs so that we can liberate some memory
-         * in order to generate some profiling data
-         */
-        static char[] mProfilingBubble = null;
-
-        static {
-            if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
-                // We allocate 4MB (4 * 512 * 1024 * 16bit)
-                Slog.i(TAG, "Allocates 4MB of Dalvik heap for debug purpose");
-                mProfilingBubble = new char[4*512*1024];
-            }
-        }
-
         private String getAppName(int pID) throws android.os.RemoteException {
             String processName = "";
             for ( ActivityManager.RunningAppProcessInfo info :
@@ -110,10 +95,14 @@ public class RuntimeInit {
         private String getHprofRoot() {
             /* Select the hprof directory*/
             File root = new File(HPROF_ROOT1);
-            if(root.exists() && root.isDirectory()) {
+            if (root.exists() && root.isDirectory()) {
                 return HPROF_ROOT1;
             }
-            return HPROF_ROOT2;
+            root = new File(HPROF_ROOT2);
+            if (root.exists() && root.isDirectory()) {
+                return HPROF_ROOT2;
+            }
+            return null;
         }
 
         public void uncaughtException(Thread t, Throwable e) {
@@ -122,9 +111,13 @@ public class RuntimeInit {
                 if (mCrashing) return;
                 mCrashing = true;
 
-                // Frees the bubble here so that the following logs
-                // and dump of hprof data can be processed
-                mProfilingBubble = null;
+                if ((buildtype.equals("userdebug") || buildtype.equals("eng"))) {
+                    // Clears the heap growth limit in order to allow the hprof
+                    // necessary allocations - do it early because if the
+                    // memory gets too fragmented, even the following logs
+                    // will fail
+                    dalvik.system.VMRuntime.getRuntime().clearGrowthLimit();
+                }
 
                 if (mApplicationObject == null) {
                     Slog.e(TAG, "*** FATAL EXCEPTION IN SYSTEM PROCESS: " + t.getName(), e);
@@ -137,9 +130,14 @@ public class RuntimeInit {
                         SimpleDateFormat sdf = new SimpleDateFormat("ddMMyyHHmmss");
                         String currentDateandTime = sdf.format(new Date());
 
-                        String hprofile = getHprofRoot() + getAppName(Process.myPid()) + "_" + currentDateandTime + "_heap.hprof";
-                        Slog.i(TAG, "Dumping Hprof data to " + hprofile);
-                        android.os.Debug.dumpHprofData(hprofile);
+                        String root = getHprofRoot();
+                        if (root != null) {
+                            String hprofile = root + getAppName(Process.myPid()) + "_" + currentDateandTime + "_heap.hprof";
+                            Slog.i(TAG, "Dumping Hprof data to " + hprofile);
+                            android.os.Debug.dumpHprofData(hprofile);
+                        } else {
+                            Slog.e(TAG, "Hprof root directories not accessible, cancel the generation");
+                        }
                     } catch (Throwable throwable) {
                         Slog.e(TAG, "Cannot dump Hprof data", throwable);
                     }
