@@ -136,13 +136,17 @@ public class KeyguardViewManager {
         @Override
         protected void onConfigurationChanged(Configuration newConfig) {
             super.onConfigurationChanged(newConfig);
+            final Configuration config = newConfig;
             post(new Runnable() {
                 @Override
                 public void run() {
                     synchronized (KeyguardViewManager.this) {
                         if (mKeyguardHost.getVisibility() == View.VISIBLE) {
                             // only propagate configuration messages if we're currently showing
-                            maybeCreateKeyguardLocked(shouldEnableScreenRotation(), true, null);
+                            // but don't contain the mcc and mnc change situation
+                            if (config.orientation==Configuration.ORIENTATION_PORTRAIT || (config.mcc == 0 || config.mnc == 0)) {
+                                maybeCreateKeyguardLocked(shouldEnableScreenRotation(), true, null);
+                            }
                         } else {
                             if (DEBUG) Log.v(TAG, "onConfigurationChanged: view not visible");
                         }
