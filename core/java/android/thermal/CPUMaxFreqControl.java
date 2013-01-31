@@ -56,8 +56,7 @@ public class CPUMaxFreqControl {
         {"0000",    "0004",     "0000"},    // MFLD  LEXProd YB
         {"0000",    "any",      "any"},     // MFLD  Default case
         {"0001",    "0003",     "0001"},    // MFLD  Tablet  Salitpa
-        {"0002",    "8000",     "0016"},    // CTP   PR2Eng  PR2
-        {"0002",    "any",      "any"},     // CTP   Default case
+        {"0002",    "any",      "any"},     // CTP   -       -
     };
 
     // Each Row in this array is matched with that of the same row in mDeviceIdentifier array
@@ -66,13 +65,13 @@ public class CPUMaxFreqControl {
         {1400000,   900000,     600000},     // MFLD  PRxEng  PR4
         {1400000,   900000,     600000},     // MFLD  PRxProd PR4
         {1200000,   900000,     600000},     // MFLD  PR3.3   PR3.3
+        {1200000,   900000,     600000},     // MFLD  PR3.1   PR3.1
         {1200000,   900000,     600000},     // MFLD  LEXEng  -
         {1200000,   900000,     600000},     // MFLD  LEXProd -
         {1200000,   900000,     600000},     // MFLD  LEXProd YB
         {1400000,   900000,     600000},    // Default set of frequencies for MFLD platform
         {1400000,   1200000,    900000},    // MFLD  Tablet  Salitpa
-        {1866000,   1333000,    933000},    // CTP   PR2Eng  PR2
-        {1800000,   1400000,    900000},    // Default set of frequencies for CTP platform
+        {1866000,   1333000,    933000},    // Default set of frequencies for CTP platform
     };
 
     private static int findIndex(String plat, String prod, String hw) {
