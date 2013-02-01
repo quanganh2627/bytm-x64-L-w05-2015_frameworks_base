@@ -223,6 +223,7 @@ public class ThermalCoolingManager {
        XmlPullParser mParser;
        ThermalCoolingDevice mDevice;
        ZoneCooling mZone;
+       FileReader mInputStream = null;
 
        ThermalParser(String fname) {
           try {
@@ -234,7 +235,11 @@ public class ThermalCoolingManager {
           }
 
           try {
-               mParser.setInput ( new FileReader (fname) );
+               mInputStream = new FileReader(fname);
+               if (mInputStream == null) return;
+               if (mParser != null) {
+                   mParser.setInput(mInputStream);
+               }
                mDevice = null;
                mZone = null;
           } catch (XmlPullParserException xppe) {
@@ -246,8 +251,18 @@ public class ThermalCoolingManager {
        }
 
        public void parse() {
+
+          if (mInputStream == null) return;
+          /* if mParser is null, close any open stream before exiting */
+          if (mParser == null) {
+               try {
+                   mInputStream.close();
+               } catch (IOException e) {
+                   Log.i(TAG,"IOException caught in parse() function");
+               }
+               return;
+          }
           try {
-               if (mParser == null) return;
                int mEventType = mParser.getEventType();
                while (mEventType != XmlPullParser.END_DOCUMENT && !done) {
                   switch (mEventType) {
@@ -263,6 +278,8 @@ public class ThermalCoolingManager {
                   }
                   mEventType = mParser.next();
                }
+               // end of parsing close the input stream
+               if (mInputStream != null) mInputStream.close();
           } catch (XmlPullParserException xppe) {
                Log.i(TAG, "XmlPullParserException caught in parse() function");
           } catch (IOException e) {

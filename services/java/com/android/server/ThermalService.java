@@ -42,6 +42,7 @@ import org.xmlpull.v1.XmlPullParserFactory;
 import org.xmlpull.v1.XmlPullParserException;
 import java.lang.NullPointerException;
 import java.lang.SecurityException;
+import java.io.IOException;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.BufferedReader;
@@ -109,7 +110,6 @@ public class ThermalService extends Binder {
                mFactory = XmlPullParserFactory.newInstance(System.getProperty(XmlPullParserFactory.PROPERTY_NAME), null);
                mFactory.setNamespaceAware(true);
                mParser = mFactory.newPullParser();
-               if (mParser == null) return;
           } catch (SecurityException e) {
                Log.e(TAG, "SecurityException caught in ThermalParser");
           } catch (IllegalArgumentException e) {
@@ -120,6 +120,7 @@ public class ThermalService extends Binder {
           }
 
           try {
+
                mInputStream = new FileReader(fname);
                mPlatformInfo = null;
                mCurrSensor = null;
@@ -127,8 +128,9 @@ public class ThermalService extends Binder {
                mCurrSensorList = null;
                mThermalZones = null;
                if (mInputStream == null) return;
-               mParser.setInput(mInputStream);
-
+               if (mParser != null) {
+                   mParser.setInput(mInputStream);
+               }
           } catch (FileNotFoundException e) {
               Log.e(TAG, "FileNotFoundException Exception in ThermalParser()");
           } catch (XmlPullParserException e) {
@@ -145,10 +147,18 @@ public class ThermalService extends Binder {
        }
 
        public void parse() {
-          if (mParser == null ||
-              mInputStream == null) return;
+       if (mInputStream == null) return;
+       /* if mParser is null, close any open stream before exiting */
+       if (mParser == null) {
+           try {
+               mInputStream.close();
+           } catch (IOException e) {
+               Log.i(TAG,"IOException caught in parse() function");
+           }
+           return;
+       }
 
-          try {
+       try {
                int mEventType = mParser.getEventType();
                while (mEventType != XmlPullParser.END_DOCUMENT && !done) {
                   switch (mEventType) {
