@@ -2001,4 +2001,15 @@ public class WifiManager {
             super.finalize();
         }
     }
+
+    /**
+     * Quit Looper to stop "HandlerThread", we need to use this function
+     * instead of finalize().
+     */
+    /** @hide */
+    public void destroy() {
+        if (mHandler != null && mHandler.getLooper() != null) {
+                mHandler.getLooper().quit();
+        }
+    }
 }
