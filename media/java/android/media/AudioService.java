@@ -534,7 +534,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);
         intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
         intentFilter.addAction(Intent.ACTION_USER_SWITCHED);
-        intentFilter.addAction(Intent.HDMI_SET_STATUS);
 
         intentFilter.addAction(Intent.ACTION_CONFIGURATION_CHANGED);
         // Register a configuration change listener only if requested by system properties
@@ -3937,21 +3936,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                 mState = intent.getIntExtra("state", 0);
                 Log.v(TAG, "Broadcast Receiver: Got ACTION_HDMI_AUDIO_PLUG, state = "+mState);
                 handleDeviceConnection((mState == 1), AudioSystem.DEVICE_OUT_AUX_DIGITAL, "");
-            } else if (action.equals(Intent.HDMI_SET_STATUS)) {
-                Bundle extras = intent.getExtras();
-                if (extras == null)
-                    return;
-                mHdmiEnable = extras.getInt("Status", 0);
-                Log.v(TAG, "Broadcast Receiver: Got ACTION_HDMI_SET_STATUS, HdmiEnable = "+mHdmiEnable);
-                if ((mState == 0 ) || (mHdmiEnable == 0)) {
-                    AudioSystem.setDeviceConnectionState(AudioSystem.DEVICE_OUT_AUX_DIGITAL,
-                                                         AudioSystem.DEVICE_STATE_UNAVAILABLE,
-                                                         "");
-                } else if ((mState == 1) && (mHdmiEnable == 1)) {
-                    AudioSystem.setDeviceConnectionState(AudioSystem.DEVICE_OUT_AUX_DIGITAL,
-                                                         AudioSystem.DEVICE_STATE_AVAILABLE,
-                                                         "");
-                }
             } else if (action.equals(Intent.ACTION_USB_AUDIO_ACCESSORY_PLUG) ||
                            action.equals(Intent.ACTION_USB_AUDIO_DEVICE_PLUG)) {
                 state = intent.getIntExtra("state", 0);
