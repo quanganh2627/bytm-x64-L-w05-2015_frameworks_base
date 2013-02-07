@@ -6000,7 +6000,8 @@ public final class ViewRootImpl implements ViewParent,
                 }
             } break;
         }
-        mAccessibilityManager.sendAccessibilityEvent(event);
+        if (mAccessibilityManager.isEnabled())
+            mAccessibilityManager.sendAccessibilityEvent(event);
         return true;
     }
 
