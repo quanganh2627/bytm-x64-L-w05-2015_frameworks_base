@@ -461,7 +461,10 @@ public class ThermalCoolingManager {
                     incrementCrticalZoneCount();
                 }
             }
-
+            /* if THERMALOFF is the zone state, it is gauranteed that the zone has transistioned
+            from a higher state, due to a low event, to THERMALOFF.Hence take dethrottling action
+            corrosponding to NORMAL */
+            if (thermState == ThermalZone.THERMAL_STATE_OFF) thermState = ThermalZone.THERMAL_STATE_NORMAL;
             handleThermalEvent(thermZone, thermEvent, thermState);
         }
     }

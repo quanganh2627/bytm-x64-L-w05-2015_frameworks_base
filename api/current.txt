@@ -23082,6 +23082,7 @@ package android.thermal {
   public class ThermalSensor {
     ctor public ThermalSensor();
     method public void UpdateSensorID();
+    method public int calculateSensorState(int);
     method public int getCurrState();
     method public int getCurrState(int);
     method public int getCurrTemp();
@@ -23106,6 +23107,7 @@ package android.thermal {
     method public void setSensorThermalState(int);
     method public void setThermalThresholds(java.util.ArrayList<java.lang.Integer>);
     method public void setUEventDevPath(java.lang.String);
+    method public void updateSensorAttributes(int);
     method public void updateSensorTemp();
   }
 

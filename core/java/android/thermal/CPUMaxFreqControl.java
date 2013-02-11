@@ -163,14 +163,14 @@ public class CPUMaxFreqControl {
 
     public static void throttleDevice(int tstate) {
         // Check if scaling frequencies are available
-        if (mNoCPUMaxScalingFreqs || (mProcessorCount == 0)) {
+        Log.d(TAG, "throttleDevice called with" + tstate);
+        if (mNoCPUMaxScalingFreqs || (mProcessorCount == 0) || (tstate < 0)) {
            Log.i(TAG, "Throttling CPU max freq not possible." +
                       "Scaling frequencies not available" +
                       "or Processor count is zero");
            return;
         }
 
-        Log.d(TAG, "throttleDevice called with" + tstate);
         Log.i(TAG, "Throttling CPU max freq value is " + mMaxScalingFreq[tstate]);
 
         // Throttle frequency of all CPUs by writing into the Sysfs

@@ -202,6 +202,7 @@ public class ThermalSensor {
     }
 
     /* Method to determine the current thermal state of sensor */
+    // TBD: needs to be removed. calculateSensorState() needs to be used instead.
     public int getCurrState() {
         int currTemp = getCurrTemp();
         /* Return OFF state if temperature less than starting of thresholds */
@@ -227,6 +228,9 @@ public class ThermalSensor {
     }
 
     // method overloaded
+    // TBD:this overloaded method needs to be removed,
+    // and calculateSensorState needs to be used.
+    // Change needs to be made to modemzone class.
     public int getCurrState(int currTemp) {
         // Return OFF state if temperature less than starting of thresholds
         if (currTemp < mTempThresholds[0]) return ThermalZone.THERMAL_STATE_OFF;
@@ -268,5 +272,55 @@ public class ThermalSensor {
         } else if (mSensorName.contains("BB")) {
             mSensorID = OemTelephonyConstants.MODEM_SENSOR_ID_BASEBAND_CHIP;
         }
+    }
+
+    public int calculateSensorState(int currTemp) {
+        // Return OFF state if temperature less than starting of thresholds
+        if (currTemp < mTempThresholds[0]) return ThermalZone.THERMAL_STATE_OFF;
+
+        if (currTemp >= mTempThresholds[mTempThresholds.length - 2])
+            return ThermalZone.THERMAL_STATE_CRITICAL;
+
+        for (int i = 0; i < (mTempThresholds.length - 1); i++) {
+            if (currTemp >= mTempThresholds[i] && currTemp < mTempThresholds[i+1])
+                return i;
+        }
+
+        // should never come here
+        return ThermalZone.THERMAL_STATE_OFF;
+    }
+
+    /**
+     * this fucntion updates the sensor attributes. However for a low event,
+     * if the decrease in sensor temp is less than the debounce interval, donot
+     * change sensor state. Hence the sensor state changes only for a high event
+     * or a low event which staisfies debounce condition
+     */
+    public void updateSensorAttributes(int debounceInterval) {
+        /* read sysfs and update the sensor temp variable mCurrTemp */
+        updateSensorTemp();
+        int oldSensorState = getSensorThermalState();
+        int newSensorState = calculateSensorState(mCurrTemp);
+
+        /* if state for the sensor has not changed, just update the temparature and return */
+        if (newSensorState == oldSensorState) return;
+
+        /* if new sensor state in THERMAL_STATE_OFF, donot consider debounce.
+           Update the sensor stae, temp and return */
+        if (newSensorState ==  ThermalZone.THERMAL_STATE_OFF) {
+            setSensorThermalState(newSensorState);
+            return;
+        }
+
+        /* get the lower temp threshold for the old state. this is used for debounce test */
+        int threshold = getLowerThresholdTemp(oldSensorState);
+        /* second condition of if is tested only if (newState < oldState) is true */
+        if ((newSensorState < oldSensorState) && (mCurrTemp > (threshold - debounceInterval))) {
+            Log.i(TAG, " THERMAL_LOW_EVENT for sensor:" +getSensorName() + " rejected due to debounce interval");
+            return;
+        }
+
+        /* debounce check passed, now update the sensor state */
+        setSensorThermalState(newSensorState);
     }
 }

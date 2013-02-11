@@ -95,7 +95,7 @@ public class ThermalZone {
     private int mPollDelayList[];          /* Delay between sucessive polls */
     private boolean mSupportsUEvent;   /* Determines if Sensor supports Uvevents */
     private boolean mSensorLogic;      /* AND or OR logic to be used to determine thermal state of zone */
-
+    private static final int INVALID_TEMP = 0xDEADBEEF;
 
     public void printAttrs() {
         Log.i(TAG, "mZoneID:" + Integer.toString(mZoneID));
@@ -113,6 +113,8 @@ public class ThermalZone {
 
     public ThermalZone() {
         Log.i(TAG, "ThermalZone constructor called");
+        mCurrThermalState = THERMAL_STATE_OFF;
+        mZoneTemp = INVALID_TEMP;
     }
 
     public void setSensorList(ArrayList<ThermalSensor> ThermalSensors) {
@@ -195,9 +197,16 @@ public class ThermalZone {
        }
     }
 
+    /* in polldelay array,index of TOFF =0, Normal = 1, Warning = 2, Alert = 3, Critical = 4.
+       Thermal Zone states are enumarated as TOFF = -1,Normal =0,Warning = 1,Alert = 2,Critical = 3.
+       Hence we add 1 while querying poll delay */
     public int getPollDelay(int index) {
-        if (index < 0 || index >= mPollDelayList.length)
-            return -1;
+        index ++;
+        /* if polldelay is requested for an invalid state,
+           donot return invalid number like -1, return the delay corresponding
+           to normal state */
+        if (index < 0 || index >= mPollDelayList.length) index = THERMAL_STATE_NORMAL + 1;
+
         return mPollDelayList[index];
     }
 
@@ -258,47 +267,39 @@ public class ThermalZone {
     }
 
     public boolean isZoneStateChanged() {
-        int newThermalState = 0;
-        int threshold = 0;
-        int lowEventThermalState = 0;
-        int oneTimeExecution = 1;
+        int newMaxSensorState = -1;
+        int tempSensorState = -1;
+        int currMaxTemp = INVALID_TEMP;
+        int oldZoneState = mCurrThermalState;
 
+        /* browse through all sensors and update sensor states, and record the max
+        sensor state and max sensor temp */
         for (ThermalSensor ts : mThermalSensors) {
-            ts.updateSensorTemp();
-            mZoneTemp = ts.getCurrTemp();
-            threshold = ts.getThermalThreshold(mCurrThermalState);
-            int sensorState = ts.getCurrState();
-            if (sensorState > newThermalState) newThermalState = sensorState;
-
-            /* Debounce interval calculations not required for THERMAL_STATE_OFF */
-            if (mCurrThermalState == THERMAL_STATE_OFF) continue;
-            /* Parameter assignment for considering debounce interval */
-            if (oneTimeExecution == 1) {
-                oneTimeExecution = 0;
-                lowEventThermalState = sensorState;
-            }
-            if (sensorState < mCurrThermalState && sensorState > lowEventThermalState) {
-                lowEventThermalState = sensorState;
+            /* updateSensorAttributes updates sensor state.Debaounce Interval is passed
+            as input, so that for LOWEVENT, if decrease in sensor temp is less than debounce
+            interval, sensor state change is ignored and original state is maintained */
+            ts.updateSensorAttributes(mDebounceInterval);
+            tempSensorState = ts.getSensorThermalState();
+            if (tempSensorState > newMaxSensorState) {
+                newMaxSensorState = tempSensorState;
+                currMaxTemp = ts.getCurrTemp();
             }
         }
-        if (newThermalState == mCurrThermalState) return false;
 
+        Log.i(TAG, "Zone:" + getZoneName() +" newZonestate:" + newMaxSensorState + " OldZoneState:" + oldZoneState);
+        /* zone state is always max of sensor states. newMaxSensorState is
+        supposed to be new zone state. But if zone is already in that state,
+        no intent needs to be sent, hence return false */
+        if (newMaxSensorState == oldZoneState) return false;
+
+        /* else update the current zone state, zone temp*/
+        mCurrThermalState = newMaxSensorState;
         /* set the Event type */
-        mCurrEventType = newThermalState > mCurrThermalState ? THERMAL_HIGH_EVENT : THERMAL_LOW_EVENT;
+        mCurrEventType = mCurrThermalState > oldZoneState ? THERMAL_HIGH_EVENT : THERMAL_LOW_EVENT;
+        /* set zone temp equal to the max sensor temp */
+        mZoneTemp = currMaxTemp;
 
-        /* For THERMAL_STATE_OFF debounce interval is not considered */
-        if (newThermalState == THERMAL_STATE_OFF) {
-           mCurrThermalState = newThermalState;
-           return true;
-        }
-        /* Consider the debounce interval while de-throtlling */
-        if ((mCurrEventType == THERMAL_LOW_EVENT) && (mZoneTemp > (threshold - mDebounceInterval))) {
-            Log.i(TAG, " THERMAL_LOW_EVENT rejected due to debounce interval ");
-            return false;
-        }
-
-        /* update Current State for this thermal zone */
-        mCurrThermalState = newThermalState;
         return true;
+
     }
 }
