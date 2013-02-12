@@ -29,7 +29,7 @@ import libcore.util.Objects;
  *
  * @hide
  */
-public final class WifiDisplay implements Parcelable {
+public final class WifiDisplay implements Parcelable, Comparable<WifiDisplay> {
     private final String mDeviceAddress;
     private final String mDeviceName;
     private final String mDeviceAlias;
@@ -183,5 +183,13 @@ public final class WifiDisplay implements Parcelable {
         result += ", isAvailable " + mIsAvailable + ", canConnect " + mCanConnect
                 + ", isRemembered " + mIsRemembered;
         return result;
+    }
+
+    @Override
+    public int compareTo(WifiDisplay other) {
+        if (mDeviceAlias == null || other.mDeviceAlias == null)
+            return mDeviceName.compareTo(other.mDeviceName);
+        else
+            return mDeviceAlias.compareTo(other.mDeviceAlias);
     }
 }
