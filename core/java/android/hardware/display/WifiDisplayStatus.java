@@ -108,7 +108,9 @@ public final class WifiDisplayStatus implements Parcelable {
         mScanState = scanState;
         mActiveDisplayState = activeDisplayState;
         mActiveDisplay = activeDisplay;
+        Arrays.sort(availableDisplays);
         mAvailableDisplays = availableDisplays;
+        Arrays.sort(rememberedDisplays);
         mRememberedDisplays = rememberedDisplays;
     }
 
