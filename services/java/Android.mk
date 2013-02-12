@@ -12,6 +12,7 @@ LOCAL_SRC_FILES := \
 LOCAL_MODULE:= services
 
 LOCAL_JAVA_LIBRARIES := android.policy telephony-common com.intel.multidisplay
+LOCAL_STATIC_JAVA_LIBRARIES := CwsMMGRService
 
 include $(BUILD_JAVA_LIBRARY)
 

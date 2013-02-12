@@ -30,6 +30,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
+import android.content.pm.ResolveInfo;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -43,6 +44,9 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
+
+import com.android.internal.telephony.CwsMMGRService.IMmgrService;
+
 import java.util.ArrayList;
 import java.util.List;
 class BluetoothManagerService extends IBluetoothManager.Stub {
@@ -143,6 +147,42 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 mHandler.sendMessage(mHandler.obtainMessage(MESSAGE_USER_SWITCHED,
                        intent.getIntExtra(Intent.EXTRA_USER_HANDLE, 0), 0));
             }
+        }
+    };
+
+    // Modem manager service
+    private IMmgrService mService = null;
+
+    // Indicate wether or not we are bound to
+    // the modem manager service
+    private static boolean sIsBound = false;
+
+    /**
+     * Class for interacting with the main interface of the modem manager service.
+     */
+    private ServiceConnection mCwsMMGRConnection = new ServiceConnection() {
+        public void onServiceConnected(ComponentName className,
+                IBinder service) {
+            // This is called when the connection with the service has been
+            // established, giving us the service object we can use to
+            // interact with the service.  We are communicating with our
+            // service through an IDL interface, so get a client-side
+            // representation of that from the raw service object.
+            mService = IMmgrService.Stub.asInterface((IBinder)service);
+            Log.d(TAG, "Connected to modem manager service");
+            try {
+                Log.d(TAG, "Registering callback interface for MMGR");
+                mService.registerCallback(null);
+            } catch (RemoteException e) {
+                Log.e(TAG, "Unable to register callback for MMGR : "+e);
+            }
+        }
+
+        public void onServiceDisconnected(ComponentName className) {
+            // This is called when the connection with the service has been
+            // unexpectedly disconnected -- that is, its process crashed.
+            mService = null;
+            Log.d(TAG, "Disconnected from modem manager service");
         }
     };
 
@@ -370,6 +410,11 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         Message msg = mHandler.obtainMessage(MESSAGE_DISABLE);
         msg.arg1=(persist?1:0);
         mHandler.sendMessage(msg);
+        // BT should be disabled, unbind from modem manager service if needed
+        if (sIsBound) {
+            mContext.unbindService(mCwsMMGRConnection);
+            sIsBound = false;
+        }
         return true;
     }
 
@@ -971,6 +1016,19 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         msg.arg1=1; //persist
         msg.arg2=0; //No Quiet Mode
         mHandler.sendMessage(msg);
+        // BT should be enabled, bind to modem manager service if needed
+        // We first check if MMGR service is available on device
+        List<ResolveInfo> list = mContext.getPackageManager().queryIntentServices(new Intent(IMmgrService.class.getName()),0);
+        if (list.size() > 0) {
+            if (!sIsBound) {
+                sIsBound = mContext.bindService(new Intent(IMmgrService.class.getName()), mCwsMMGRConnection, Context.BIND_AUTO_CREATE);
+                if (sIsBound) {
+                    Log.e(TAG, "Failed to bind to Service : " + IMmgrService.class.getName());
+                } else {
+                    Log.d(TAG, "Bound to Service : " + IMmgrService.class.getName());
+                }
+            }
+        }
         return true;
     }
 
