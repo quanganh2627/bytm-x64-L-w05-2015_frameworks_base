@@ -43,6 +43,7 @@ import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.UserHandle;
+import android.media.AudioManager;
 import android.provider.Settings;
 import android.util.Log;
 class BluetoothManagerService extends IBluetoothManager.Stub {
@@ -64,6 +65,8 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final int ERROR_RESTART_TIME_MS = 3000;
     //Maximum msec to delay MESSAGE_USER_SWITCHED
     private static final int USER_SWITCHED_TIME_MS = 200;
+
+    private static final String AUDIO_PARAMETER_KEY_BLUETOOTH_STATE = "bluetooth_enabled";
 
     private static final int MESSAGE_ENABLE = 1;
     private static final int MESSAGE_DISABLE = 2;
@@ -123,6 +126,8 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private HandlerThread mThread;
     private final BluetoothHandler mHandler;
     private int mErrorRecoveryRetryCounter;
+
+    private AudioManager mAudioManager;
 
     private void registerForAirplaneMode(IntentFilter filter) {
         final ContentResolver resolver = mContext.getContentResolver();
@@ -209,6 +214,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         mAddress = null;
         mName = null;
         mErrorRecoveryRetryCounter = 0;
+        mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         mContentResolver = context.getContentResolver();
         mCallbacks = new RemoteCallbackList<IBluetoothManagerCallback>();
         mStateChangeCallbacks = new RemoteCallbackList<IBluetoothStateChangeCallback>();
@@ -1061,6 +1067,9 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     Log.e(TAG,"Unable to call enable()",e);
                 }
             }
+
+            // Inform AudioRouteManager that bluetooth is enabled
+            mAudioManager.setParameters(AUDIO_PARAMETER_KEY_BLUETOOTH_STATE + "=true");
         }
     }
 
@@ -1070,6 +1079,9 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
             // service will be unbinded after Name and Address are saved
             if ((mBluetooth != null) && (!mConnection.isGetNameAddressOnly())) {
                 if (DBG) Log.d(TAG,"Sending off request.");
+
+                // Inform AudioRouteManager that bluetooth is disabled
+                mAudioManager.setParameters(AUDIO_PARAMETER_KEY_BLUETOOTH_STATE + "=false");
 
                 try {
                     if(!mBluetooth.disable()) {
