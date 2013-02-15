@@ -27,7 +27,6 @@ import android.graphics.PixelFormat;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Parcelable;
-import android.telephony.TelephonyManager;
 import android.os.SystemProperties;
 import android.util.Log;
 import android.util.Slog;
@@ -122,31 +121,18 @@ public class KeyguardViewManager {
     }
 
     class ViewManagerHost extends FrameLayout {
-        private TelephonyManager tManager;
         public ViewManagerHost(Context context) {
             super(context);
             setFitsSystemWindows(true);
-            tManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
         }
 
         @Override
         protected void onConfigurationChanged(Configuration newConfig) {
             super.onConfigurationChanged(newConfig);
-            final String simOperator = tManager.getSimOperator();
-            int mcc = 0;
-            int mnc = 0;
-            try {
-                mcc = new Integer(simOperator.substring(0,3));
-                mnc = new Integer(simOperator.substring(3));
-            } catch (Exception e) {
-                // if sim state is not SIM_STATE_READY will raise exception, so reset mcc and mnc
-                mcc = 0;
-                mnc = 0;
-            }
             if (mKeyguardHost.getVisibility() == View.VISIBLE) {
                 // only propagate configuration messages if we're currently showing
                 // but don't contain the mcc and mnc change situation
-                if (newConfig.mcc == mcc && newConfig.mnc == mnc) {
+                if (newConfig.mcc == 0 || newConfig.mnc == 0) {
                     maybeCreateKeyguardLocked(shouldEnableScreenRotation(), true, null);
                 }
             } else {
