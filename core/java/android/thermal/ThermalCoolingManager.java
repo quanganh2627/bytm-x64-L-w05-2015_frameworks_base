@@ -523,6 +523,11 @@ public class ThermalCoolingManager {
     // Method to do actual shutdown. It writes a 1 in OSIP Sysfs and
     // sends the shutdown intent
     private void doShutdown() {
+        /* sending shutdown INTENT */
+        Intent statusIntent = new Intent();
+        statusIntent.setAction(Intent.ACTION_THERMAL_SHUTDOWN);
+        mContext.sendBroadcast(statusIntent);
+
         SysfsManager.writeSysfs(THERMAL_SHUTDOWN_NOTIFY_PATH, 1);
         Intent criticalIntent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
         criticalIntent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
