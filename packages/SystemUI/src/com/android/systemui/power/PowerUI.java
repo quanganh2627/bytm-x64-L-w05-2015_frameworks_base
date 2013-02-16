@@ -42,6 +42,10 @@ import android.widget.TextView;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
 import android.os.Vibrator;
+import android.widget.Toast;
+import android.view.LayoutInflater;
+import android.view.ViewGroup;
+import android.view.Gravity;
 
 import com.android.systemui.R;
 import com.android.systemui.SystemUI;
@@ -78,6 +82,7 @@ public class PowerUI extends SystemUI {
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_BATTERY_CHANGED);
         filter.addAction(Intent.ACTION_POWER_CONNECTED);
+        filter.addAction(Intent.ACTION_THERMAL_SHUTDOWN);
         mContext.registerReceiver(mIntentReceiver, filter, null, mHandler);
     }
 
@@ -166,11 +171,29 @@ public class PowerUI extends SystemUI {
                 } else if (mBatteryLevelTextView != null) {
                     showLowBatteryWarning();
                 }
+            } else if (action.equals(Intent.ACTION_THERMAL_SHUTDOWN)) {
+                // Display thermal shutdown message
+                showThermalShutdown();
             } else {
                 Slog.w(TAG, "unknown intent: " + intent);
             }
         }
     };
+
+    void showThermalShutdown() {
+        LayoutInflater inflater = (LayoutInflater)mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        View v = View.inflate(mContext, R.layout.thermal, null);
+        View layout = inflater.inflate(R.layout.thermal, (ViewGroup)v.findViewById(R.id.thermal_view));
+
+        TextView text = (TextView)layout.findViewById(R.id.thermal_text);
+        text.setText(mContext.getString(R.string.thermal_message));
+
+        Toast toast = new Toast(mContext);
+        toast.setGravity(Gravity.BOTTOM, 0, 0);
+        toast.setDuration(Toast.LENGTH_LONG);
+        toast.setView(layout);
+        toast.show();
+    }
 
     void dismissLowBatteryWarning() {
         if (mLowBatteryDialog != null) {

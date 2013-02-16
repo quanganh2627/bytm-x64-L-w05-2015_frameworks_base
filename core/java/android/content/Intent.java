@@ -1476,6 +1476,12 @@ public class Intent implements Parcelable, Cloneable {
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
     public static final String ACTION_THERMAL_ZONE_STATE_CHANGED = "android.intent.action.THERMAL_ZONE_STATE_CHANGED";
     /**
+     * This intent is sent when platform is shutting down due to thermal critical event.
+     * @hide
+     */
+    @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
+    public static final String ACTION_THERMAL_SHUTDOWN = "android.intent.action.THERMAL_SHUTDOWN";
+    /**
      * Sync State Changed Action: This is broadcast when the sync starts or stops or when one has
      * been failing for a long time.  It is used by the SyncManager and the StatusBar service.
      * @hide
