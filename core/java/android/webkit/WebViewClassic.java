@@ -8041,8 +8041,15 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
                 mPictureListener.onNewPicture(getWebView(), capturePicture());
             }
         }
-    }
+        if (viewRoot != null)
+        {
+            if ((!mWebView.isHardwareAccelerated()
+                    || mWebView.getLayerType() == View.LAYER_TYPE_SOFTWARE)) {
+                mWebView.getViewRootImpl().sendFakeVsync();
+            }
+        }
 
+    }
     /**
      * Used when receiving messages for REQUEST_KEYBOARD_WITH_SELECTION_MSG_ID
      * and UPDATE_TEXT_SELECTION_MSG_ID.

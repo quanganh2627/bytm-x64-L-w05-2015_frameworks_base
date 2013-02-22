@@ -116,6 +116,7 @@ public final class BatteryService extends Binder {
     private int mBatteryLevel;
     private int mBatteryVoltage;
     private int mBatteryTemperature;
+    private int mBatteryCurrent;
     private String mBatteryTechnology;
     private boolean mBatteryLevelCritical;
     /* End native fields. */
@@ -262,6 +263,7 @@ public final class BatteryService extends Binder {
               pw.println("Voltage now:" + mBatteryVoltage);
               pw.println("Health:" + mBatteryHealth);
               pw.println("Temp:" + mBatteryTemperature);
+              pw.println("Current:" + mBatteryCurrent);
               pw.close();
            }
        } catch (Exception e) {
@@ -444,7 +446,7 @@ public final class BatteryService extends Binder {
                     mBatteryVoltage != mLastBatteryVoltage ||
                     mBatteryTemperature != mLastBatteryTemperature) {
                 EventLog.writeEvent(EventLogTags.BATTERY_LEVEL,
-                        mBatteryLevel, mBatteryVoltage, mBatteryTemperature);
+                        mBatteryLevel, mBatteryVoltage, mBatteryTemperature, mBatteryCurrent);
             }
             if (mBatteryLevelCritical && !mLastBatteryLevelCritical &&
                     mPlugType == BATTERY_PLUGGED_NONE) {
@@ -688,6 +690,7 @@ public final class BatteryService extends Binder {
                 pw.println("  voltage:" + mBatteryVoltage);
                 pw.println("  temperature: " + mBatteryTemperature);
                 pw.println("  technology: " + mBatteryTechnology);
+                pw.println("  current: " + mBatteryCurrent);
             } else if (args.length == 3 && "set".equals(args[0])) {
                 String key = args[1];
                 String value = args[2];

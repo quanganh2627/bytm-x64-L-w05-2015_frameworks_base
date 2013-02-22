@@ -2618,6 +2618,12 @@ public final class ViewRootImpl implements ViewParent,
             }
         }
     }
+    /**
+     * send a fake vsync to trigger doFrame ahead of hw sync
+     * */
+    public void sendFakeVsync() {
+         mChoreographer.sendFakeVsync();
+    }
 
     void dispatchDetachedFromWindow() {
         if (mView != null && mView.mAttachInfo != null) {
@@ -4716,7 +4722,8 @@ public final class ViewRootImpl implements ViewParent,
                 }
             } break;
         }
-        mAccessibilityManager.sendAccessibilityEvent(event);
+        if (mAccessibilityManager.isEnabled())
+            mAccessibilityManager.sendAccessibilityEvent(event);
         return true;
     }
 
