@@ -136,19 +136,12 @@ public class KeyguardViewManager {
         @Override
         protected void onConfigurationChanged(Configuration newConfig) {
             super.onConfigurationChanged(newConfig);
-            post(new Runnable() {
-                @Override
-                public void run() {
-                    synchronized (KeyguardViewManager.this) {
-                        if (mKeyguardHost.getVisibility() == View.VISIBLE) {
-                            // only propagate configuration messages if we're currently showing
-                            maybeCreateKeyguardLocked(shouldEnableScreenRotation(), true, null);
-                        } else {
-                            if (DEBUG) Log.v(TAG, "onConfigurationChanged: view not visible");
-                        }
-                    }
-                }
-            });
+            if (mKeyguardHost.getVisibility() == View.VISIBLE) {
+                // only propagate configuration messages if we're currently showing
+                maybeCreateKeyguardLocked(shouldEnableScreenRotation(), true, null);
+            } else {
+                if (DEBUG) Log.v(TAG, "onConfigurationChanged: view not visible");
+            }
         }
 
         @Override
