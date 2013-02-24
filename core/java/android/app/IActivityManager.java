@@ -341,8 +341,6 @@ public interface IActivityManager extends IInterface {
 
     public boolean isIntentSenderAnActivity(IIntentSender sender) throws RemoteException;
 
-    public Intent getIntentForIntentSender(IIntentSender sender) throws RemoteException;
-
     public void updatePersistentConfiguration(Configuration values) throws RemoteException;
 
     public long[] getProcessPss(int[] pids) throws RemoteException;
@@ -623,5 +621,4 @@ public interface IActivityManager extends IInterface {
     int REQUEST_BUG_REPORT_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+157;
     int INPUT_DISPATCHING_TIMED_OUT_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+158;
     int CLEAR_PENDING_BACKUP_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+159;
-    int GET_INTENT_FOR_INTENT_SENDER_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+160;
 }
