@@ -4421,14 +4421,12 @@ public final class ActivityThread {
             new ArrayList<IActivityManager.ContentProviderHolder>();
 
         for (ProviderInfo cpi : providers) {
-            if (DEBUG_PROVIDER) {
-                StringBuilder buf = new StringBuilder(128);
-                buf.append("Pub ");
-                buf.append(cpi.authority);
-                buf.append(": ");
-                buf.append(cpi.name);
-                Log.i(TAG, buf.toString());
-            }
+            StringBuilder buf = new StringBuilder(128);
+            buf.append("Pub ");
+            buf.append(cpi.authority);
+            buf.append(": ");
+            buf.append(cpi.name);
+            Log.i(TAG, buf.toString());
             IActivityManager.ContentProviderHolder cph = installProvider(context, null, cpi,
                     false /*noisy*/, true /*noReleaseNeeded*/, true /*stable*/);
             if (cph != null) {

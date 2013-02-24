@@ -33,7 +33,6 @@ import android.util.Slog;
 
 public class StorageNotification extends StorageEventListener {
     private static final String TAG = "StorageNotification";
-    private static final boolean DEBUG = false;
 
     private static final boolean POP_UMS_ACTIVITY_ON_CONNECT = true;
 
@@ -71,8 +70,8 @@ public class StorageNotification extends StorageEventListener {
 
         mStorageManager = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
         final boolean connected = mStorageManager.isUsbMassStorageConnected();
-        if (DEBUG) Slog.d(TAG, String.format( "Startup with UMS connection %s (media state %s)",
-                mUmsAvailable, Environment.getExternalStorageState()));
+        Slog.d(TAG, String.format( "Startup with UMS connection %s (media state %s)", mUmsAvailable,
+                Environment.getExternalStorageState()));
         
         HandlerThread thr = new HandlerThread("SystemUI StorageNotification");
         thr.start();
@@ -102,8 +101,7 @@ public class StorageNotification extends StorageEventListener {
          */
         String st = Environment.getExternalStorageState();
 
-        if (DEBUG) Slog.i(TAG, String.format("UMS connection changed to %s (media state %s)",
-                connected, st));
+        Slog.i(TAG, String.format("UMS connection changed to %s (media state %s)", connected, st));
 
         if (connected && (st.equals(
                 Environment.MEDIA_REMOVED) || st.equals(Environment.MEDIA_CHECKING))) {
@@ -129,7 +127,7 @@ public class StorageNotification extends StorageEventListener {
     }
 
     private void onStorageStateChangedAsync(String path, String oldState, String newState) {
-        if (DEBUG) Slog.i(TAG, String.format(
+        Slog.i(TAG, String.format(
                 "Media {%s} state changed from {%s} -> {%s}", path, oldState, newState));
         if (newState.equals(Environment.MEDIA_SHARED)) {
             /*

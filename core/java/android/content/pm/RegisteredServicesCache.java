@@ -69,7 +69,6 @@ import java.util.Map;
  */
 public abstract class RegisteredServicesCache<V> {
     private static final String TAG = "PackageManager";
-    private static final boolean DEBUG = false;
 
     public final Context mContext;
     private final String mInterfaceName;
@@ -196,7 +195,7 @@ public abstract class RegisteredServicesCache<V> {
     }
 
     private void notifyListener(final V type, final int userId, final boolean removed) {
-        if (DEBUG) {
+        if (Log.isLoggable(TAG, Log.VERBOSE)) {
             Log.d(TAG, "notifyListener: " + type + " is " + (removed ? "removed" : "added"));
         }
         RegisteredServicesCacheListener<V> listener;
@@ -292,9 +291,7 @@ public abstract class RegisteredServicesCache<V> {
      * given {@link UserHandle}.
      */
     private void generateServicesMap(int userId) {
-        if (DEBUG) {
-            Slog.d(TAG, "generateServicesMap() for " + userId);
-        }
+        Slog.d(TAG, "generateServicesMap() for " + userId);
 
         final PackageManager pm = mContext.getPackageManager();
         final ArrayList<ServiceInfo<V>> serviceInfos = new ArrayList<ServiceInfo<V>>();
@@ -325,7 +322,6 @@ public abstract class RegisteredServicesCache<V> {
             }
 
             StringBuilder changes = new StringBuilder();
-            boolean changed = false;
             for (ServiceInfo<V> info : serviceInfos) {
                 // four cases:
                 // - doesn't exist yet
@@ -338,41 +334,33 @@ public abstract class RegisteredServicesCache<V> {
                 //   - add, notify user that it was added
                 Integer previousUid = user.persistentServices.get(info.type);
                 if (previousUid == null) {
-                    if (DEBUG) {
-                        changes.append("  New service added: ").append(info).append("\n");
-                    }
-                    changed = true;
+                    changes.append("  New service added: ").append(info).append("\n");
                     user.services.put(info.type, info);
                     user.persistentServices.put(info.type, info.uid);
                     if (!(mPersistentServicesFileDidNotExist && firstScan)) {
                         notifyListener(info.type, userId, false /* removed */);
                     }
                 } else if (previousUid == info.uid) {
-                    if (DEBUG) {
+                    if (Log.isLoggable(TAG, Log.VERBOSE)) {
                         changes.append("  Existing service (nop): ").append(info).append("\n");
                     }
                     user.services.put(info.type, info);
                 } else if (inSystemImage(info.uid)
                         || !containsTypeAndUid(serviceInfos, info.type, previousUid)) {
-                    if (DEBUG) {
-                        if (inSystemImage(info.uid)) {
-                            changes.append("  System service replacing existing: ").append(info)
-                                    .append("\n");
-                        } else {
-                            changes.append("  Existing service replacing a removed service: ")
-                                    .append(info).append("\n");
-                        }
+                    if (inSystemImage(info.uid)) {
+                        changes.append("  System service replacing existing: ").append(info)
+                                .append("\n");
+                    } else {
+                        changes.append("  Existing service replacing a removed service: ")
+                                .append(info).append("\n");
                     }
-                    changed = true;
                     user.services.put(info.type, info);
                     user.persistentServices.put(info.type, info.uid);
                     notifyListener(info.type, userId, false /* removed */);
                 } else {
                     // ignore
-                    if (DEBUG) {
-                        changes.append("  Existing service with new uid ignored: ").append(info)
-                                .append("\n");
-                    }
+                    changes.append("  Existing service with new uid ignored: ").append(info)
+                            .append("\n");
                 }
             }
 
@@ -383,24 +371,21 @@ public abstract class RegisteredServicesCache<V> {
                 }
             }
             for (V v1 : toBeRemoved) {
-                if (DEBUG) {
-                    changes.append("  Service removed: ").append(v1).append("\n");
-                }
-                changed = true;
                 user.persistentServices.remove(v1);
+                changes.append("  Service removed: ").append(v1).append("\n");
                 notifyListener(v1, userId, true /* removed */);
             }
-            if (DEBUG) {
-                if (changes.length() > 0) {
+            if (changes.length() > 0) {
+                if (Log.isLoggable(TAG, Log.VERBOSE)) {
                     Log.d(TAG, "generateServicesMap(" + mInterfaceName + "): " +
                             serviceInfos.size() + " services:\n" + changes);
-                } else {
+                }
+                writePersistentServicesLocked();
+            } else {
+                if (Log.isLoggable(TAG, Log.VERBOSE)) {
                     Log.d(TAG, "generateServicesMap(" + mInterfaceName + "): " +
                             serviceInfos.size() + " services unchanged");
                 }
-            }
-            if (changed) {
-                writePersistentServicesLocked();
             }
         }
     }

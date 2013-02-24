@@ -50,7 +50,7 @@ import libcore.util.Objects;
  * @hide
  */
 public final class DreamManagerService extends IDreamManager.Stub {
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
     private static final String TAG = "DreamManagerService";
 
     private final Object mLock = new Object();
@@ -325,7 +325,7 @@ public final class DreamManagerService extends IDreamManager.Stub {
 
         stopDreamLocked();
 
-        if (DEBUG) Slog.i(TAG, "Entering dreamland.");
+        Slog.i(TAG, "Entering dreamland.");
 
         final Binder newToken = new Binder();
         mCurrentDreamToken = newToken;
@@ -343,7 +343,7 @@ public final class DreamManagerService extends IDreamManager.Stub {
 
     private void stopDreamLocked() {
         if (mCurrentDreamToken != null) {
-            if (DEBUG) Slog.i(TAG, "Leaving dreamland.");
+            Slog.i(TAG, "Leaving dreamland.");
 
             cleanupDreamLocked();
 

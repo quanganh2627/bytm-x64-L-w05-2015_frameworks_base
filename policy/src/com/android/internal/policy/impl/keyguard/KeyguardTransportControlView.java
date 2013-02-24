@@ -189,7 +189,7 @@ public class KeyguardTransportControlView extends FrameLayout implements OnClick
 
     public KeyguardTransportControlView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        if (DEBUG) Log.v(TAG, "Create TCV " + this);
+        Log.v(TAG, "Create TCV " + this);
         mAudioManager = new AudioManager(mContext);
         mCurrentPlayState = RemoteControlClient.PLAYSTATE_NONE; // until we get a callback
         mIRCD = new IRemoteControlDisplayWeak(mHandler);
