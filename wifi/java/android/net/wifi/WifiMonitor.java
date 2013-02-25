@@ -25,6 +25,7 @@ import android.net.wifi.p2p.WifiP2pService.P2pStatus;
 import android.net.wifi.p2p.WifiP2pProvDiscEvent;
 import android.net.wifi.p2p.nsd.WifiP2pServiceResponse;
 import android.net.wifi.StateChangeResult;
+import android.net.wifi.WifiManager;
 import android.os.Message;
 import android.util.Log;
 
@@ -348,6 +349,37 @@ public class WifiMonitor {
      */
     private static final int MAX_RECV_ERRORS    = 10;
 
+    /**
+     *  Wifi_Hotspot:
+     *  Three Wifi modes to be defined in WifiMonitor for WifiHotspot event
+     *  When mode is WIFI_SUPPLICANT_MODE, Wifimonitor will be connected to
+     *  supplicant daemon.
+     */
+    public static final int WIFI_SUPPLICANT_MODE = 1;
+
+    /**
+     *  Wifi_Hotspot:
+     *  Three Wifi modes to be defined in WifiMonitor for WifiHotspot event
+     *  When mode is WIFI_P2P_MODE, Wifimonitor will be connected to
+     *  supplicant daemon.
+     */
+    public static final int WIFI_P2P_MODE = 2;
+
+    /**
+     *  Wifi_Hotspot:
+     *  Three Wifi modes to be defined in WifiMonitor for WifiHotspot event
+     *  When mode is WIFI_AP_MODE, Wifimonitor will be connected to
+     *  hostapd daemon.
+     */
+    public static final int WIFI_AP_MODE = 3;
+
+    /**
+     *  Wifi_Hotspot:
+     *  WIFI supplicant mode is default mode for Wifi Monitor
+     */
+    private static int mWifi_mode = WIFI_SUPPLICANT_MODE;
+
+
     public WifiMonitor(StateMachine wifiStateMachine, WifiNative wifiNative) {
         mStateMachine = wifiStateMachine;
         mWifiNative = wifiNative;
@@ -357,22 +389,40 @@ public class WifiMonitor {
         new MonitorThread().start();
     }
 
+    /* Wifi_Hotspot: wifi_mode is added as argument of MonitorThread */
+    public void startMonitoring(int wifi_mode) {
+        Log.d(TAG, "Wifi_Hotspot - startMonitoring");
+        new MonitorThread(wifi_mode).start();
+    }
+
     class MonitorThread extends Thread {
         public MonitorThread() {
             super("WifiMonitor");
+            mWifi_mode = WIFI_SUPPLICANT_MODE;
+        }
+
+        public MonitorThread(int wifi_mode) {
+            super("WifiMonitor");
+            mWifi_mode = wifi_mode;
         }
 
         public void run() {
 
-            if (connectToSupplicant()) {
-                // Send a message indicating that it is now possible to send commands
-                // to the supplicant
-                mStateMachine.sendMessage(SUP_CONNECTION_EVENT);
+            if (mWifi_mode == WIFI_AP_MODE) {
+                if (connectToHostapd())
+                    Log.d(TAG, "Wifi_Hotspot: connectToHostAP Success");
+                else
+                    Log.d(TAG, "Wifi_Hotspot: connectToHostAP Failed");
             } else {
-                mStateMachine.sendMessage(SUP_DISCONNECTION_EVENT);
-                return;
+                if (connectToSupplicant()) {
+                    // Send a message indicating that it is now possible to send commands
+                    // to the supplicant
+                    mStateMachine.sendMessage(SUP_CONNECTION_EVENT);
+                } else {
+                    mStateMachine.sendMessage(SUP_DISCONNECTION_EVENT);
+                    return;
+                }
             }
-
             //noinspection InfiniteLoopStatement
             for (;;) {
                 String eventStr = mWifiNative.waitForEvent();
@@ -485,6 +535,23 @@ public class WifiMonitor {
 
             while (true) {
                 if (mWifiNative.connectToSupplicant()) {
+                    return true;
+                }
+                if (connectTries++ < 5) {
+                    nap(1);
+                } else {
+                    break;
+                }
+            }
+            return false;
+        }
+
+        /* Wifi_Hotspot */
+        private boolean connectToHostapd() {
+            int connectTries = 0;
+
+            while (true) {
+                if (WifiNative.connectToHostapd()) {
                     return true;
                 }
                 if (connectTries++ < 5) {
@@ -648,10 +715,23 @@ public class WifiMonitor {
             String[] tokens = dataString.split(" ");
             /* AP-STA-CONNECTED 42:fc:89:a8:96:09 p2p_dev_addr=02:90:4c:a0:92:54 */
             if (tokens[0].equals(AP_STA_CONNECTED_STR)) {
-                mStateMachine.sendMessage(AP_STA_CONNECTED_EVENT, new WifiP2pDevice(dataString));
+                /* Wifi_Hotspot: WIFI_AP_MODE is added to deliver the event to hotspot app */
+                if (mWifi_mode == WIFI_AP_MODE)
+                {
+                   mStateMachine.sendMessage(AP_STA_CONNECTED_EVENT, tokens[1]);
+                   Log.d(TAG, "Wifi_Hotspot- handleHostApEvents - AP_STA_CONNECTED_STR");
+                } else {
+                   mStateMachine.sendMessage(AP_STA_CONNECTED_EVENT, new WifiP2pDevice(dataString));
+                }
             /* AP-STA-DISCONNECTED 42:fc:89:a8:96:09 p2p_dev_addr=02:90:4c:a0:92:54 */
             } else if (tokens[0].equals(AP_STA_DISCONNECTED_STR)) {
-                mStateMachine.sendMessage(AP_STA_DISCONNECTED_EVENT, new WifiP2pDevice(dataString));
+                if (mWifi_mode == WIFI_AP_MODE)
+                {
+                    mStateMachine.sendMessage(AP_STA_DISCONNECTED_EVENT, tokens[1]);
+                    Log.d(TAG, "WifiHotspot- handleHostApEvents - AP_STA_DISCONNECTED_STR");
+                } else {
+                     mStateMachine.sendMessage(AP_STA_DISCONNECTED_EVENT, new WifiP2pDevice(dataString));
+                }
             }
         }
 

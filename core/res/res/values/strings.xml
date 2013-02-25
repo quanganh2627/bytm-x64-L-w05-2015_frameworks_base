@@ -3590,7 +3590,7 @@
 
     <!-- Strings for tethered notification -->
     <!-- Shown when the device is tethered -->
-    <string name="tethered_notification_title">Tethering or hotspot active</string>
+    <string name="tethered_notification_title">Tethering active</string>
     <string name="tethered_notification_message">Touch to set up.</string>
 
     <!--  Strings for possible PreferenceActivity Back/Next buttons -->
@@ -4127,4 +4127,11 @@
     <!-- Message informing user that the requested activity could not be found [CHAR LIMIT=none] -->
     <string name="app_not_found">No application found to handle this action</string>
     <string name="revoke">Revoke</string>
+
+    <string name="hotspot_active">"Hotspot active"</string>
+    <string name="hotspot_no_connections">"No hotspot devices connected"</string>
+    <string name="hotspot_multiple_devices_connected">%d devices connected</string>
+    <string name="hotspot_device_connected">Device connected to hotspot</string>
+    <string name="hotspot_device_disconnected">Device disconnected from hotspot</string>
+
 </resources>

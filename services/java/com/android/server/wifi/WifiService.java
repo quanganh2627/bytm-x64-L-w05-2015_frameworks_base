@@ -32,6 +32,7 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiStateMachine;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiWatchdogStateMachine;
+import android.net.wifi.WifiApConnectedDevice;
 import android.net.DhcpInfo;
 import android.net.DhcpResults;
 import android.net.LinkAddress;
@@ -413,6 +414,13 @@ public final class WifiService extends IWifiManager.Stub {
         if (wifiConfig == null)
             return;
         mWifiStateMachine.setWifiApConfiguration(wifiConfig);
+    }
+
+   /**
+    * Wifi_Hotspot: Request the list of connected stations in Wifi_Hotspot mode.
+    */
+    public List<WifiApConnectedDevice> getWifiApConnectedList() {
+        return mWifiStateMachine.getWifiApConnectedList();
     }
 
     /**

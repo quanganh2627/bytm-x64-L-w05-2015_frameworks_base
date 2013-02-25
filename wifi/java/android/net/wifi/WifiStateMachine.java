@@ -86,6 +86,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Iterator;
 import java.util.regex.Pattern;
+/* Wifi_Hotspot */
+import java.io.File;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import android.net.wifi.WifiApConnectedDevice;
+
 
 /**
  * Track the state of Wifi connectivity. All event handling is done here,
@@ -514,6 +520,9 @@ public class WifiStateMachine extends StateMachine {
     private static final int DRIVER_STOP_REQUEST = 0;
     private static final String ACTION_DELAYED_DRIVER_STOP =
         "com.android.server.WifiManager.action.DELAYED_DRIVER_STOP";
+
+    /* Wifi_Hotspot: The location of dnsmasq.leases file */
+    private static final String DNSMASQ_FILE_NAME = "/data/misc/dhcp/dnsmasq.leases";
 
     /**
      * Keep track of whether WIFI is running.
@@ -1138,6 +1147,55 @@ public class WifiStateMachine extends StateMachine {
                 mWakeLock.setWorkSource(newSource);
             } catch (RemoteException ignore) {
             }
+        }
+    }
+
+    /* Wifi_Hotspot */
+    public List<WifiApConnectedDevice> getWifiApConnectedList() {
+        String ListStr = mWifiNative.getWifiApStationList();
+
+        if (ListStr == null)
+          return null;
+
+        List<WifiApConnectedDevice> DeviceList = new ArrayList<WifiApConnectedDevice>();
+
+        String[] tokens = ListStr.split(" ");
+
+        for (int i=0; i < tokens.length; i++) {
+           getConnectedDeviceInfo(tokens[i], DeviceList);
+        }
+        return DeviceList;
+    }
+
+   /* Wifi_Hotspot */
+    public void getConnectedDeviceInfo(String macAddress,
+                List<WifiApConnectedDevice> DeviceList) {
+        File file = new File(DNSMASQ_FILE_NAME);
+
+        try {
+            if (DBG) log("Parsing file:" + file + " mac address:" + macAddress);
+            if (file.isFile()) {
+                BufferedReader br = new BufferedReader(new FileReader(file));
+                String line;
+
+                while ((line = br.readLine()) != null) {
+                    if (DBG) log(" Searching line:" + line);
+
+                    String[] columns = line.split(" ");
+
+                    if ((columns.length >= 3) && (columns[1].equals(macAddress))) {
+                        if (DBG) log(" Timestamp: " + columns[0] + " Found mac:" + columns[1] +
+                                            " ip:" + columns[2] + " name:" + columns[3]);
+                        AddNewDevice(line, DeviceList);
+                        break;
+                    }
+                }
+                br.close();
+            } else {
+                loge("File is not found in " + DNSMASQ_FILE_NAME);
+            }
+        } catch (Exception e) {
+            loge("Exception:" + e);
         }
     }
 
@@ -1900,6 +1958,32 @@ public class WifiStateMachine extends StateMachine {
                 sendMessage(CMD_START_AP_SUCCESS);
             }
         }).start();
+    }
+
+
+   /* Wifi_Hotspot: dnsmasq.leases file need to be deleted in order to avoid
+     * the unnecessary old event from dnsmasq daemon when tethering starts and ends.
+     */
+    private void DeleteDnsmasqLease(String filename) {
+        File file = null;
+        try {
+            file = new File(filename);
+            if (file.isFile()) {
+                file.delete();
+            } else {
+                log("Wifi_Hotspot: dnsmasq.lease doesn't exist");
+            }
+        } catch (Exception e) {
+            loge("Exception:" + e);
+        }
+    }
+
+    /* Wifi_Hotspot */
+    private void AddNewDevice(String lineToParse, List<WifiApConnectedDevice> DeviceList) {
+        String[] tokens = lineToParse.split(" ");
+
+        WifiApConnectedDevice newDevice = new WifiApConnectedDevice(Integer.parseInt(tokens[0]), tokens[1], tokens[2], tokens[3]);
+        DeviceList.add(newDevice);
     }
 
     /********************************************************
@@ -3609,6 +3693,11 @@ public class WifiStateMachine extends StateMachine {
                     }
                     break;
                 case CMD_START_AP_SUCCESS:
+                    // Wifi_Hotspot: new device notification
+                    DeleteDnsmasqLease(DNSMASQ_FILE_NAME);
+                    mWifiMonitor.startMonitoring(mWifiMonitor.WIFI_AP_MODE);
+                    log("Wifi_Hotspot : mWifiMonitor.startMonitoring was called " );
+
                     setWifiApState(WIFI_AP_STATE_ENABLED);
                     transitionTo(mSoftApStartedState);
                     break;
@@ -3626,6 +3715,8 @@ public class WifiStateMachine extends StateMachine {
     class SoftApStartedState extends State {
         @Override
         public boolean processMessage(Message message) {
+            String MacAddress;
+            final Intent intent;
             switch(message.what) {
                 case CMD_STOP_AP:
                     if (DBG) log("Stopping Soft AP");
@@ -3636,6 +3727,7 @@ public class WifiStateMachine extends StateMachine {
                         loge("Exception in stopAccessPoint()");
                     }
                     setWifiApState(WIFI_AP_STATE_DISABLED);
+                    WifiNative.closeHostapdConnection();
                     transitionTo(mInitialState);
                     break;
                 case CMD_START_AP:
@@ -3652,6 +3744,26 @@ public class WifiStateMachine extends StateMachine {
                         transitionTo(mTetheringState);
                     }
                     break;
+                case WifiMonitor.AP_STA_CONNECTED_EVENT:
+                    /* Wifi_Hotspot:
+                       This event only includes MAC address, so application will use
+                       other event from dnsmasq daemon for getting host name and ip address. */
+                    MacAddress = (String) message.obj;
+                    log("Wifi_Hotspot: WifiMonitor.AP_STA_CONNECTED_EVENT, MAC:" + MacAddress);
+                    deferMessage(message);
+                    break;
+
+                case WifiMonitor.AP_STA_DISCONNECTED_EVENT:
+                     MacAddress = (String) message.obj;
+                     log("Wifi_Hotspot: WifiMonitor.AP_STA_DISCONNECTED_EVENT, MAC:" + MacAddress);
+
+                     intent = new Intent(WifiManager.WIFI_AP_STA_NOTIFICATION_ACTION);
+                     intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
+                     intent.putExtra(WifiManager.EXTRA_WIFI_AP_STA_EVENT, WifiManager.WIFI_AP_STA_DISCONNECT);
+                     intent.putExtra(WifiManager.EXTRA_WIFI_AP_DEVICE_ADDRESS, MacAddress);
+                     mContext.sendBroadcast(intent);
+                     break;
+
                 default:
                     return NOT_HANDLED;
             }
@@ -3717,6 +3829,11 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_STOP_AP:
                     if (DBG) log("Untethering before stopping AP");
                     setWifiApState(WIFI_AP_STATE_DISABLING);
+
+                    /* Wifi_Hotspot: dnsmasq.leases file need to be deleted in order to
+                       avoid the unnecessary old event when tethering atarts and ends. */
+                    DeleteDnsmasqLease(DNSMASQ_FILE_NAME);
+
                     stopTethering();
                     transitionTo(mUntetheringState);
                     // More work to do after untethering

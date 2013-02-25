@@ -66,6 +66,15 @@ public class WifiNative {
 
     private native void closeSupplicantConnection(String iface);
 
+    /* Wifi_Hotspot */
+    public native static boolean connectToHostapd();
+
+    /* Wifi_Hotspot */
+    public native static void closeHostapdConnection();
+
+    /* Wifi_Hotspot */
+    public native String getWifiApStationList();
+
     /**
      * Wait for the supplicant to send an event, returning the event string.
      * @return the event string sent by the supplicant.

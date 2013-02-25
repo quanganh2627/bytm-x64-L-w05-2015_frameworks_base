@@ -892,6 +892,12 @@
   <java-symbol type="string" name="action_bar_home_subtitle_description_format" />
   <java-symbol type="string" name="wireless_display_route_description" />
 
+  <java-symbol type="string" name="hotspot_active" />
+  <java-symbol type="string" name="hotspot_no_connections" />
+  <java-symbol type="string" name="hotspot_multiple_devices_connected" />
+  <java-symbol type="string" name="hotspot_device_connected" />
+  <java-symbol type="string" name="hotspot_device_disconnected" />
+
   <java-symbol type="plurals" name="abbrev_in_num_days" />
   <java-symbol type="plurals" name="abbrev_in_num_hours" />
   <java-symbol type="plurals" name="abbrev_in_num_minutes" />
