@@ -323,6 +323,8 @@ public class WindowManagerService extends IWindowManager.Stub
                     return;
 
                 mForceLandScape = forceToLandscape;
+                if (!mForceLandScape && updateOrientationFromAppTokensLocked(false))
+                    mH.sendEmptyMessage(H.SEND_NEW_CONFIGURATION);
                 Slog.d(TAG, forceToLandscape ? "Force to landscape." : "Screen can rotate.");
             }
         }
