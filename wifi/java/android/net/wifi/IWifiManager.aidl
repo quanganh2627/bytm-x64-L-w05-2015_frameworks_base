@@ -19,6 +19,7 @@ package android.net.wifi;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.ScanResult;
+import android.net.wifi.WifiApConnectedDevice;
 import android.net.DhcpInfo;
 
 import android.os.Messenger;
@@ -108,5 +109,7 @@ interface IWifiManager
     String getConfigFile();
 
     void captivePortalCheckComplete();
+
+    List<WifiApConnectedDevice> getWifiApConnectedList();
 }
 

@@ -208,6 +208,35 @@ static void android_net_wifi_closeSupplicantConnection(JNIEnv* env, jobject, jst
     ::wifi_close_supplicant_connection(ifname.c_str());
 }
 
+static jboolean android_net_wifi_connectToHostapd(JNIEnv* env, jobject)
+{
+    return (jboolean)(::wifi_connect_to_hostapd() == 0);
+}
+
+static void android_net_wifi_closeHostapdConnection(JNIEnv* env, jobject)
+{
+    ::wifi_close_hostapd_connection();
+}
+
+static jstring android_net_wifi_getWifiApStationList(JNIEnv* env, jobject)
+{
+    char reply[4096];
+    size_t reply_len = sizeof(reply) - 1;
+
+    if (::wifi_get_AP_station_list( reply, &reply_len ) != 0 )
+        return NULL;
+    else {
+        // Strip off trailing newline
+        if (reply_len > 0 && reply[reply_len-1] == '\n')
+            reply[reply_len-1] = '\0';
+        else
+            reply[reply_len] = '\0';
+    }
+
+    String16 str((char *)reply);
+    return env->NewString((const jchar *)str.string(), str.size());
+}
+
 static jstring android_net_wifi_waitForEvent(JNIEnv* env, jobject, jstring jIface)
 {
     char buf[EVENT_BUF_SIZE];
@@ -278,6 +307,10 @@ static JNINativeMethod gWifiMethods[] = {
             (void *)android_net_wifi_connectToSupplicant },
     { "closeSupplicantConnection", "(Ljava/lang/String;)V",
             (void *)android_net_wifi_closeSupplicantConnection },
+    { "connectToHostapd", "()Z",  (void *)android_net_wifi_connectToHostapd },
+    { "closeHostapdConnection", "()V",  (void *)android_net_wifi_closeHostapdConnection },
+    { "getWifiApStationList", "()Ljava/lang/String;",
+            (void *) android_net_wifi_getWifiApStationList },
     { "waitForEvent", "(Ljava/lang/String;)Ljava/lang/String;",
             (void*) android_net_wifi_waitForEvent },
     { "doBooleanCommand", "(Ljava/lang/String;Ljava/lang/String;)Z",

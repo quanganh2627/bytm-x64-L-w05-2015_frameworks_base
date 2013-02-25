@@ -3502,7 +3502,7 @@
 
     <!-- Strings for tethered notification -->
     <!-- Shown when the device is tethered -->
-    <string name="tethered_notification_title">Tethering or hotspot active</string>
+    <string name="tethered_notification_title">Tethering active</string>
     <string name="tethered_notification_message">Touch to set up.</string>
 
     <!--  Strings for possible PreferenceActivity Back/Next buttons -->
@@ -4018,5 +4018,11 @@
     <string name="user_switched">Current user <xliff:g id="name" example="Bob">%1$s</xliff:g>.</string>
     <!-- Default name of the owner user [CHAR LIMIT=20] -->
     <string name="owner_name" msgid="3879126011135546571">Owner</string>
+
+    <string name="hotspot_active">"Hotspot active"</string>
+    <string name="hotspot_no_connections">"No hotspot devices connected"</string>
+    <string name="hotspot_multiple_devices_connected">%d devices connected</string>
+    <string name="hotspot_device_connected">Device connected to hotspot</string>
+    <string name="hotspot_device_disconnected">Device disconnected from hotspot</string>
 
 </resources>
