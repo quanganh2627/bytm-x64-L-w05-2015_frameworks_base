@@ -53,7 +53,7 @@ public class CPUMaxFreqControl {
         {"0000",    "8004",     "0004"},    // MFLD  LEX  -
         {"0000",    "8004",     "0000"},    // MFLD  LEX YB
         {"0000",    "any",      "any"},     // MFLD  Default case
-        {"0001",    "8003",     "0001"},    // MFLD  Tablet  Salitpa
+        {"0001",    "8003",     "any"},    // MFLD  Tablet  Salitpa
         {"0002",    "any",      "any"},    // CTP   -       -
     };
 
@@ -113,19 +113,23 @@ public class CPUMaxFreqControl {
        Log.i(TAG, "modified prodID:" + newProdId);
        int index = findIndex(platformId, newProdId, hardwareId);
        if (index == -1) {
-           // We could not get an exact match. So, try for 'this' platform, but any product/HW combination.
-           index = findIndex(platformId, "any", "any");
+           // We could not get an exact match. So, try for 'this' platform, and 'this' product but any HW combination.
+           index = findIndex(platformId, newProdId, "any");
            if (index == -1) {
-               Log.i(TAG, "Thermal plugin for CPU Freq control cannot detect the platform.\n" +
-                          "Hence, Choosing a Random set of frequencies.\n" +
-                          "The CPU throttling behavior is undefined.");
-               mMaxScalingFreq[0] = mAvailFreq[0];
-               mMaxScalingFreq[1] = mAvailFreq[1];
-               mMaxScalingFreq[2] = mAvailFreq[2];
-               mMaxScalingFreq[3] = mAvailFreq[mAvailFreqCount - 1];
-               return;
-           } else {
-               Log.i(TAG, "Using default frequency. Selected index: " + index);
+               // We could not get an exact match. So, try for 'this' platform, but any product/HW combination.
+               index = findIndex(platformId, "any", "any");
+               if (index == -1) {
+                   Log.i(TAG, "Thermal plugin for CPU Freq control cannot detect the platform.\n" +
+                              "Hence, Choosing a Random set of frequencies.\n" +
+                              "The CPU throttling behavior is undefined.");
+                   mMaxScalingFreq[0] = mAvailFreq[0];
+                   mMaxScalingFreq[1] = mAvailFreq[1];
+                   mMaxScalingFreq[2] = mAvailFreq[2];
+                   mMaxScalingFreq[3] = mAvailFreq[mAvailFreqCount - 1];
+                   return;
+               } else {
+                   Log.i(TAG, "Using default frequency. Selected index: " + index);
+               }
            }
        }
 
