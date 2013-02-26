@@ -8045,7 +8045,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         {
             if ((!mWebView.isHardwareAccelerated()
                     || mWebView.getLayerType() == View.LAYER_TYPE_SOFTWARE)) {
-                mWebView.getViewRootImpl().sendFakeVsync();
+                viewRoot.sendFakeVsync();
             }
         }
 
