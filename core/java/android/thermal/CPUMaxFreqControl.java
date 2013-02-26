@@ -17,7 +17,7 @@
 package android.thermal;
 
 import android.util.Log;
-
+import java.lang.Integer;
 /**
  * The CPUMaxFreqControl class contains strings and constants used for values
  * in the {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED} Intent.
@@ -47,28 +47,24 @@ public class CPUMaxFreqControl {
 
     private static final String mDeviceIdentifier[][] = {
         // platform  product      hardware
-        {"0000",    "8000",     "0007"},    // MFLD  PRxEng  PR4
-        {"0000",    "0000",     "0007"},    // MFLD  PRxProd PR4
-        {"0000",    "0000",     "0003"},    // MFLD  PR3.3   PR3.3
+        {"0000",    "8000",     "0007"},    // MFLD  PRx     PR4
+        {"0000",    "8000",     "0003"},    // MFLD  PR3.3   PR3.3
         {"0000",    "8000",     "0001"},    // MFLD  PR3.1   PR3.1
-        {"0000",    "8004",     "0004"},    // MFLD  LEXEng  -
-        {"0000",    "0004",     "0004"},    // MFLD  LEXProd -
-        {"0000",    "0004",     "0000"},    // MFLD  LEXProd YB
+        {"0000",    "8004",     "0004"},    // MFLD  LEX  -
+        {"0000",    "8004",     "0000"},    // MFLD  LEX YB
         {"0000",    "any",      "any"},     // MFLD  Default case
-        {"0001",    "0003",     "0001"},    // MFLD  Tablet  Salitpa
-        {"0002",    "any",      "any"},     // CTP   -       -
+        {"0001",    "8003",     "0001"},    // MFLD  Tablet  Salitpa
+        {"0002",    "any",      "any"},    // CTP   -       -
     };
 
     // Each Row in this array is matched with that of the same row in mDeviceIdentifier array
     private static final int mThrottleFreq[][] = {
         // Warning   Alert       Critical
-        {1400000,   900000,     600000},     // MFLD  PRxEng  PR4
-        {1400000,   900000,     600000},     // MFLD  PRxProd PR4
+        {1400000,   900000,     600000},     // MFLD  PRx     PR4
         {1200000,   900000,     600000},     // MFLD  PR3.3   PR3.3
         {1200000,   900000,     600000},     // MFLD  PR3.1   PR3.1
-        {1200000,   900000,     600000},     // MFLD  LEXEng  -
-        {1200000,   900000,     600000},     // MFLD  LEXProd -
-        {1200000,   900000,     600000},     // MFLD  LEXProd YB
+        {1200000,   900000,     600000},     // MFLD  LEX  -
+        {1200000,   900000,     600000},     // MFLD  LEX YB
         {1400000,   900000,     600000},    // Default set of frequencies for MFLD platform
         {1400000,   1200000,    900000},    // MFLD  Tablet  Salitpa
         {1866000,   1333000,    933000},    // Default set of frequencies for CTP platform
@@ -80,6 +76,22 @@ public class CPUMaxFreqControl {
                 return i;
         }
         return -1;
+    }
+    /*
+    * This function makes the MSB to of prodID to 1 always
+    * (as we choose not to differentiate between prod and eng version)
+    */
+    private static String ignoreProductIdMSB(String productID) {
+        int lProdId = 0;
+        int finalVal = 0;
+        String hexFormat = "0x";
+        try {
+           lProdId =  Integer.decode(hexFormat + productID).intValue();
+           finalVal = lProdId | 0x8000;
+        } catch (NumberFormatException e) {
+           Log.i(TAG, "NumberFormatException: not a valid Product ID");
+        }
+        return Integer.toHexString(finalVal);
     }
 
     private static void computeCpuMaxScalingFreqs() {
@@ -97,14 +109,16 @@ public class CPUMaxFreqControl {
             return;
         }
 
-       int index = findIndex(platformId, productId, hardwareId);
+       String newProdId = ignoreProductIdMSB(productId);
+       Log.i(TAG, "modified prodID:" + newProdId);
+       int index = findIndex(platformId, newProdId, hardwareId);
        if (index == -1) {
            // We could not get an exact match. So, try for 'this' platform, but any product/HW combination.
            index = findIndex(platformId, "any", "any");
            if (index == -1) {
                Log.i(TAG, "Thermal plugin for CPU Freq control cannot detect the platform.\n" +
-                           "Hence, Choosing a Random set of frequencies.\n" +
-                           "The CPU throttling behavior is undefined.");
+                          "Hence, Choosing a Random set of frequencies.\n" +
+                          "The CPU throttling behavior is undefined.");
                mMaxScalingFreq[0] = mAvailFreq[0];
                mMaxScalingFreq[1] = mAvailFreq[1];
                mMaxScalingFreq[2] = mAvailFreq[2];
