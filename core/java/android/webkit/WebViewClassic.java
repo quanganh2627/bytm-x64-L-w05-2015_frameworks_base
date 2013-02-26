@@ -8564,6 +8564,15 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     /**
+     * Called by VideoViewProxy to resetBaseLayer for videoView
+     */
+    public void requestWebkitDraw() {
+        if (mWebViewCore != null) {
+            mWebViewCore.sendMessage(EventHub.WEBKIT_DRAW);
+        }
+    }
+
+    /**
      * Set the time to wait between passing touches to WebCore. See also the
      * TOUCH_SENT_INTERVAL member for further discussion.
      *

@@ -317,6 +317,12 @@ class HTML5VideoViewProxy extends Handler
             if (!mHTML5VideoView.isFullScreenMode()) {
                 mHTML5VideoView.start();
             }
+            WebViewClassic webView = mCurrentProxy == null ? null : mCurrentProxy.getWebView();
+            if (webView != null) {
+                //Send WEBKIT_DRAW msg to WebCoreThread, so that to get a new baseLayer
+                //for the view. Here we don't use mBaseLayer for it may be released.
+                webView.requestWebkitDraw();
+            }
         }
 
         public static void end() {
