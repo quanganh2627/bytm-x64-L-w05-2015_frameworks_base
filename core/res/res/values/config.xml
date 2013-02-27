@@ -1022,6 +1022,9 @@
         <item>100</item>
     </integer-array>
 
+    <!-- Flag indicating if the speed up audio on mt call code should be executed -->
+    <bool name="config_speed_up_audio_on_mt_calls">false</bool>
+
     <bool name="config_button_automatic_brightness_available">false</bool>
 
     <!-- Controls whether window orientation should use non-polling mode accelerometer.
