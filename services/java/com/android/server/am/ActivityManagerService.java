@@ -10012,6 +10012,17 @@ public final class ActivityManagerService extends ActivityManagerNative
                     } catch (IOException e) {
                         Slog.e(TAG, "Error reading " + logFile, e);
                     }
+                    // When Dropbox is full, the DropBoxManager only produces zero-length log files.
+                    // So in case of ANR or System_Server_Watchdog, we dump here the stack traces file
+                    // content (if not null) to the System log to keep some debug data before losing them
+                    String buildtype = SystemProperties.get("ro.build.type", null);
+                    if ( "userdebug".equals(buildtype) || "eng".equals(buildtype) ) {
+                        if ( ( dropboxTag.contains("anr") || dropboxTag.contains("system_server_watchdog") ) && dbox.isFull() ) {
+                            Slog.i(TAG, "---- DropBox full: Begin dumping dropbox logfile " + dropboxTag + " ----");
+                            Slog.i(TAG, sb.toString());
+                            Slog.i(TAG, "---- End dumping dropbox logfile " + dropboxTag + " ----");
+                        }
+                    }
                 }
                 if (crashInfo != null && crashInfo.stackTrace != null) {
                     sb.append(crashInfo.stackTrace);
