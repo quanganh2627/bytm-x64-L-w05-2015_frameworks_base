@@ -198,8 +198,13 @@ public class Input {
 
     private void injectKeyEvent(KeyEvent event) {
         Log.i(TAG, "injectKeyEvent: " + event);
-        InputManager.getInstance().injectInputEvent(event,
+        InputManager input = InputManager.getInstance();
+        if (input != null) {
+            input.injectInputEvent(event,
                 InputManager.INJECT_INPUT_EVENT_MODE_WAIT_FOR_FINISH);
+        } else {
+            System.err.println("InputManager service is not available.");
+        }
     }
 
     /**
@@ -224,8 +229,13 @@ public class Input {
                 DEFAULT_EDGE_FLAGS);
         event.setSource(inputSource);
         Log.i("Input", "injectMotionEvent: " + event);
-        InputManager.getInstance().injectInputEvent(event,
+        InputManager input = InputManager.getInstance();
+        if (input != null) {
+            input.injectInputEvent(event,
                 InputManager.INJECT_INPUT_EVENT_MODE_WAIT_FOR_FINISH);
+        } else {
+            System.err.println("InputManager service is not available.");
+        }
     }
 
     private static final float lerp(float a, float b, float alpha) {

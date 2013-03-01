@@ -1476,6 +1476,12 @@ public class Intent implements Parcelable, Cloneable {
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
     public static final String ACTION_THERMAL_ZONE_STATE_CHANGED = "android.intent.action.THERMAL_ZONE_STATE_CHANGED";
     /**
+     * This intent is sent when platform is shutting down due to thermal critical event.
+     * @hide
+     */
+    @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
+    public static final String ACTION_THERMAL_SHUTDOWN = "android.intent.action.THERMAL_SHUTDOWN";
+    /**
      * Sync State Changed Action: This is broadcast when the sync starts or stops or when one has
      * been failing for a long time.  It is used by the SyncManager and the StatusBar service.
      * @hide
@@ -3053,6 +3059,26 @@ public class Intent implements Parcelable, Cloneable {
      */
     public static final String EXTRA_USER_HANDLE =
             "android.intent.extra.user_handle";
+
+    /**
+     * Used to force the screen orientation to landscape.
+     * The boolean extra field {@link #EXTRA_SET_LANDSCAPE} can be set to true
+     * to request the screen orientation forced to landscape unless the application
+     * has already specified it.
+     *
+     * {@hide}
+     */
+    public static final String ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE =
+            "android.intent.action.REQUEST_SCREEN_ORIENTATION_LANDSCAPE";
+
+    /**
+     * Set to true in {@link #ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE} to
+     * force device's screen orientation to landscape. Or set to false to let
+     * the device orientation changed according to the originall logic.
+     *
+     * {@hide}
+     */
+    public static final String EXTRA_SET_LANDSCAPE = "android.intent.extra.SET_LANDSCAPE";
 
     // ---------------------------------------------------------------------
     // ---------------------------------------------------------------------

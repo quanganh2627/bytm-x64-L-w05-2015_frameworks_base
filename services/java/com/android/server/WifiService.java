@@ -24,10 +24,13 @@ import android.app.PendingIntent;
 import android.app.TaskStackBuilder;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.ServiceConnection;
+import android.content.pm.ResolveInfo;
 import android.content.pm.PackageManager;
 import android.database.ContentObserver;
 import android.net.wifi.IWifiManager;
@@ -59,7 +62,6 @@ import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.WorkSource;
-import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
@@ -81,6 +83,7 @@ import com.android.server.am.BatteryStatsService;
 import com.android.internal.R;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.telephony.IccCardConstants;
+import com.android.internal.telephony.CwsMMGRService.IMmgrService;
 
 /**
  * WifiService handles remote WiFi operation requests by implementing
@@ -96,12 +99,66 @@ public class WifiService extends IWifiManager.Stub {
     private static final String TAG = "WifiService";
     private static final boolean DBG = false;
 
+    private IMmgrService mModemManagerService = null;
+    private boolean modemManagerServiceIsBound = false;
+    private ServiceConnection mModemConnection = new ServiceConnection() {
+        public void onServiceConnected(ComponentName className,
+                IBinder service) {
+            // This is called when the connection with the service has been
+            // established, giving us the service object we can use to
+            // interact with the service.  We are communicating with our
+            // service through an IDL interface, so get a client-side
+            // representation of that from the raw service object.
+            mModemManagerService = IMmgrService.Stub.asInterface(service);
+            Slog.i(TAG, "Bound to modem manager service");
+            try {
+                Log.d(TAG, "Registering callback to modem manager service.");
+                mModemManagerService.registerCallback(null);
+            }
+            catch(RemoteException e) {
+                Slog.i(TAG, "Unable to register callback to modem manager service.");
+            }
+            // We want to monitor the service for as long as we are
+            // connected to it.
+        }
+        public void onServiceDisconnected(ComponentName className) {
+            mModemManagerService = null;
+            Slog.i(TAG, "Modem manager service unbound");
+        }
+    };
+
+   private void bindModemManagerService() {
+       List<ResolveInfo> list = mContext.getPackageManager().queryIntentServices(
+                        new Intent(IMmgrService.class.getName()),0);
+       if (list.size()>0) {
+           Slog.i(TAG,"The manager service is there!");
+           if (!modemManagerServiceIsBound) {
+               if (!mContext.bindService(new Intent(IMmgrService.class.getName()),mModemConnection,
+                       Context.BIND_AUTO_CREATE)) {
+                   Slog.e(TAG,"binservice failed for modem manager");
+               }
+               else {
+                   modemManagerServiceIsBound = true;
+                   Slog.i(TAG,"Bound to modem manager");
+               }
+           }
+       }
+       else {
+           Slog.i(TAG,"The manager service is NOT there!");
+       }
+   }
+   private void unbindModemManagerService() {
+       if (modemManagerServiceIsBound) {
+           mContext.unbindService(mModemConnection);
+           modemManagerServiceIsBound = false;
+       }
+   }
+
     private final WifiStateMachine mWifiStateMachine;
 
     private Context mContext;
 
     private AlarmManager mAlarmManager;
-    private PowerManager mPowerManager;
     private PendingIntent mIdleIntent;
     private static final int IDLE_REQUEST = 0;
     private boolean mScreenOff;
@@ -384,7 +441,6 @@ public class WifiService extends IWifiManager.Stub {
         mBatteryStats = BatteryStatsService.getService();
 
         mAlarmManager = (AlarmManager)mContext.getSystemService(Context.ALARM_SERVICE);
-        mPowerManager = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
         Intent idleIntent = new Intent(ACTION_DEVICE_IDLE, null);
         mIdleIntent = PendingIntent.getBroadcast(mContext, IDLE_REQUEST, idleIntent, 0);
 
@@ -618,46 +674,6 @@ public class WifiService extends IWifiManager.Stub {
         Settings.Global.putInt(cr, Settings.Global.WIFI_ON, state);
     }
 
-    private void managePeriodicScanStart(int pluggedType) {
-        int wifiSleepPolicy = Settings.Global.getInt(mContext.getContentResolver(),
-                  Settings.System.WIFI_SLEEP_POLICY,
-                  Settings.System.WIFI_SLEEP_POLICY_NEVER);
-
-        final WifiInfo wifiInfo = getConnectionInfo();
-        SupplicantState supplicantState = wifiInfo.getSupplicantState();
-
-        boolean isScreenOn = mPowerManager.isScreenOn();
-
-        Slog.d(TAG, "Periodic Scan criteria check: SleepPolicy = " + wifiSleepPolicy
-                     + " / pluggedType = " + pluggedType
-                     + " supplicantState = " + supplicantState
-                     + " ScreenOff = " + mScreenOff
-                     + " isScreenOn = " + isScreenOn);
-
-
-        if ((wifiSleepPolicy == Settings.System.WIFI_SLEEP_POLICY_NEVER)
-               && (mScreenOff == true)
-               && (isScreenOn == false) // Add Robustness to confirm Screen is well OFF
-               && (pluggedType == 0) // 0 means not plugged
-               && (supplicantState == SupplicantState.SCANNING)) {
-
-            List<WifiConfiguration> configs = getConfiguredNetworks();
-            if (configs != null && configs.size() != 0) {
-                if (DBG) {
-                    Slog.d(TAG, "Remembered SSID exist, start periodic scan");
-                }
-                // Start Periodic scan
-                mWifiStateMachine.enablePeriodicScan(true);
-            } else {
-                // No SSID in remember so turns off Wifi immediately
-                if (DBG) {
-                    Slog.d(TAG, "No SSID in remember, turns off wifi");
-                }
-                setDeviceIdleAndUpdateWifi(true);
-            }
-        }
-    }
-
     /**
      * see {@link android.net.wifi.WifiManager#pingSupplicant()}
      * @return {@code true} if the operation succeeds, {@code false} otherwise
@@ -711,6 +727,12 @@ public class WifiService extends IWifiManager.Stub {
      *         started or is already in the queue.
      */
     public synchronized boolean setWifiEnabled(boolean enable) {
+        if (enable) {// Code for binding modem manager
+            bindModemManagerService();
+        }
+        else {
+            unbindModemManagerService();
+        }
         enforceChangePermission();
         Slog.d(TAG, "setWifiEnabled: " + enable + " pid=" + Binder.getCallingPid()
                     + ", uid=" + Binder.getCallingUid());
@@ -992,6 +1014,7 @@ public class WifiService extends IWifiManager.Stub {
         mWifiStateMachine.setFrequencyBand(band, persist);
     }
 
+
     /**
      * Get the operational frequency band
      */
@@ -1113,9 +1136,6 @@ public class WifiService extends IWifiManager.Stub {
                 mScreenOff = false;
                 evaluateTrafficStatsPolling();
                 setDeviceIdleAndUpdateWifi(false);
-
-                // Stop Periodic scan
-                mWifiStateMachine.enablePeriodicScan(false);
             } else if (action.equals(Intent.ACTION_SCREEN_OFF)) {
                 if (DBG) {
                     Slog.d(TAG, "ACTION_SCREEN_OFF");
@@ -1140,9 +1160,6 @@ public class WifiService extends IWifiManager.Stub {
                             setDeviceIdleAndUpdateWifi(true);
                         }
                     }
-                } else {
-                    /* try to enable periodic scan if necessary */
-                    managePeriodicScanStart(mPluggedType);
                 }
             } else if (action.equals(ACTION_DEVICE_IDLE)) {
                 setDeviceIdleAndUpdateWifi(true);
@@ -1158,35 +1175,23 @@ public class WifiService extends IWifiManager.Stub {
                 if (DBG) {
                     Slog.d(TAG, "ACTION_BATTERY_CHANGED pluggedType: " + pluggedType);
                 }
-                if (mScreenOff) {
-                    if (shouldWifiStayAwake(stayAwakeConditions, mPluggedType) &&
-                           !shouldWifiStayAwake(stayAwakeConditions, pluggedType)) {
-                        long triggerTime = System.currentTimeMillis() + idleMillis;
-                        // plugged state & sleep policy permits to go in idle
-                        // check connection state to delay or not wifi Idle state transition
-                        if (mNetworkInfo.getDetailedState() == DetailedState.CONNECTED && !mTetherUsbOn) {
-                            // Delayed sleep request if wifi is connected
-                            if (DBG) {
-                                Slog.d(TAG, "setting ACTION_DEVICE_IDLE timer for " + idleMillis + "ms");
-                            }
-                            mAlarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, mIdleIntent);
-                        } else {
-                            // Sleep now if wifi is not connected
-                            setDeviceIdleAndUpdateWifi(true);
+                if (mScreenOff && shouldWifiStayAwake(stayAwakeConditions, mPluggedType) &&
+                        !shouldWifiStayAwake(stayAwakeConditions, pluggedType)) {
+                    long triggerTime = System.currentTimeMillis() + idleMillis;
+
+                    if (mNetworkInfo.getDetailedState() == DetailedState.CONNECTED && !mTetherUsbOn) {
+                        // Delayed sleep request if wifi is connected
+                        if (DBG) {
+                            Slog.d(TAG, "setting ACTION_DEVICE_IDLE timer for " + idleMillis + "ms");
                         }
+                        mAlarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, mIdleIntent);
                     } else {
-                        if ((pluggedType == 0) && (pluggedType != mPluggedType)) {
-                            // when plugged type is transitionning to unplugged
-                            // Check if periodic scan should be enabled
-                            managePeriodicScanStart(pluggedType);
-                        }
+                        // Sleep now if wifi is not connected
+                        setDeviceIdleAndUpdateWifi(true);
                     }
                 }
 
                 mPluggedType = pluggedType;
-            } else if (action.equals(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION)) {
-                // Check if periodic scan should be enabled
-                managePeriodicScanStart(mPluggedType);
             } else if (action.equals(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)) {
                 int state = intent.getIntExtra(BluetoothAdapter.EXTRA_CONNECTION_STATE,
                         BluetoothAdapter.STATE_DISCONNECTED);
@@ -1257,6 +1262,8 @@ public class WifiService extends IWifiManager.Stub {
                     /* Save the current list of configurations to make the enable/disable actions persistant */
                     saveConfiguration();
                 }
+            } else if (action.equals(WifiStateMachine.SHUT_DOWN_WIFI_ACTION)) {
+                setDeviceIdleAndUpdateWifi(true);
             }
         }
 
@@ -1367,11 +1374,11 @@ public class WifiService extends IWifiManager.Stub {
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);
         intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
         intentFilter.addAction(Intent.ACTION_BATTERY_CHANGED);
-        intentFilter.addAction(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION);
         intentFilter.addAction(ACTION_DEVICE_IDLE);
         intentFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+        intentFilter.addAction(WifiStateMachine.SHUT_DOWN_WIFI_ACTION);
         mContext.registerReceiver(mReceiver, intentFilter);
     }
 

@@ -19,9 +19,12 @@ package com.android.server.location;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.ServiceConnection;
+import android.content.pm.ResolveInfo;
 import android.database.Cursor;
 import android.location.Criteria;
 import android.location.IGpsStatusListener;
@@ -64,6 +67,8 @@ import com.android.internal.location.ProviderRequest;
 import com.android.internal.location.GpsNetInitiatedHandler.GpsNiNotification;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.CwsMMGRService.IMmgrService;
+import com.android.internal.telephony.CwsMMGRService.IMmgrServiceListener;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -73,8 +78,11 @@ import java.io.PrintWriter;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.Properties;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A GPS implementation of LocationProvider used by LocationManager.
@@ -312,6 +320,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
     // only modified on handler thread
     private int[] mClientUids = new int[0];
+
+    private CwsMMGRClient mCwsMMGRClient = new CwsMMGRClient();
 
     private final IGpsStatusProvider mGpsStatusProvider = new IGpsStatusProvider.Stub() {
         @Override
@@ -968,7 +978,13 @@ public class GpsLocationProvider implements LocationProviderInterface {
             mStarted = true;
             mPositionMode = GPS_POSITION_MODE_STANDALONE;
 
-             if (Settings.Global.getInt(mContext.getContentResolver(),
+            if (!mCwsMMGRClient.startClient()) {
+                mStarted = false;
+                Log.e(TAG, "CwsMMGRClient.startClient failed in startNavigating()");
+                return;
+            }
+
+            if (Settings.Global.getInt(mContext.getContentResolver(),
                     Settings.Global.ASSISTED_GPS_ENABLED, 1) != 0) {
                 if (hasCapability(GPS_CAPABILITY_MSB)) {
                     mPositionMode = GPS_POSITION_MODE_MS_BASED;
@@ -1010,6 +1026,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
             mTimeToFirstFix = 0;
             mLastFixTime = 0;
             mLocationFlags = LOCATION_INVALID;
+            mCwsMMGRClient.stopClient();
 
             // reset SV count to zero
             updateStatus(LocationProvider.TEMPORARILY_UNAVAILABLE, 0);
@@ -1573,6 +1590,146 @@ public class GpsLocationProvider implements LocationProviderInterface {
         public void onProviderEnabled(String provider) { }
         @Override
         public void onProviderDisabled(String provider) { }
+    }
+
+    private class CwsMMGRClient {
+
+        private Semaphore waitOnModemUp = new Semaphore(0, true);
+        private IMmgrService mService = null;
+
+        private boolean mModemColdReset = false;
+        private boolean mModemShutdown = false;
+        private boolean mIsBound = false;
+
+        private boolean startClient() {
+            List<ResolveInfo> list = mContext.getPackageManager().queryIntentServices(
+                    new Intent(IMmgrService.class.getName()), 0);
+
+            if (list.size() > 0) {
+                if (!mIsBound) {
+                    Log.d(TAG, "Start Navigating - bind service IMMGR_SERVICE");
+
+                    mIsBound = mContext.bindService(new Intent(IMmgrService.class.getName()),
+                            mCwsMMGRConnection, Context.BIND_AUTO_CREATE);
+                    if (mIsBound) {
+                        try {
+                            Log.d(TAG, "Waiting on modem Up");
+                            if (!waitOnModemUp.tryAcquire(60L, TimeUnit.SECONDS)) {
+                                Log.e(TAG, "Cannot start GPS");
+                                Log.e(TAG, "MODEM_UP event not received");
+                                mContext.unbindService(mCwsMMGRConnection);
+                                mIsBound = false;
+                                return false;
+                            }
+                        } catch (InterruptedException e) {
+                            Log.e(TAG, "Unable to wait on semaphore");
+                            waitOnModemUp.release();
+                            mContext.unbindService(mCwsMMGRConnection);
+                            mIsBound = false;
+                            return false;
+                        }
+                        return true;
+                    } else {
+                        Log.e(TAG, "Failed to bind Service: " + IMmgrService.class.getName());
+                        mContext.unbindService(mCwsMMGRConnection);
+                        mIsBound = false;
+                        return false;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private void stopClient() {
+            if (mIsBound) {
+                try {
+                    if (mModemColdReset) {
+                        Log.d(TAG, "Acknowledge Modem cold reset");
+                        mService.ackModemColdReset();
+                        mModemColdReset = false;
+                    }
+                    if (mModemShutdown) {
+                        Log.d(TAG, "Acknowledge Modem shutdown");
+                        mService.ackModemShutdown();
+                        mModemShutdown = false;
+                    }
+                    mService.unregisterCallback(mMmgrCallbacks);
+                } catch (RemoteException e) {
+                    Log.e(TAG, "Unable to disconnect cws modem manager");
+                }
+                Log.d(TAG, "unbindService");
+                mContext.unbindService(mCwsMMGRConnection);
+                mIsBound = false;
+            }
+        }
+
+        /**
+         * Class for interacting with the main interface of the service.
+         */
+        private ServiceConnection mCwsMMGRConnection = new ServiceConnection() {
+
+            public void onServiceConnected(ComponentName className,
+                    IBinder service) {
+                // This is called when the connection with the service has been
+                // established, giving us the service object we can use to
+                // interact with the service. We are communicating with our
+                // service through an IDL interface, so get a client-side
+                // representation of that from the raw service object.
+                mService = IMmgrService.Stub.asInterface((IBinder) service);
+                Log.d(TAG, "onServiceConnected");
+                try {
+                    Log.d(TAG, "Registering callback interface");
+                    mService.registerCallback(mMmgrCallbacks);
+                    Log.d(TAG, "Recover modem if Modem is Down");
+                    mService.checkModemDown();
+                } catch (RemoteException e) {
+                    Log.e(TAG, "Unable to register callback");
+                }
+            }
+
+            public void onServiceDisconnected(ComponentName className) {
+                // This is called when the connection with the service has been
+                // unexpectedly disconnected -- that is, its process crashed.
+                try {
+                    if (mModemColdReset) {
+                        Log.d(TAG, "Acknowledge Modem cold reset");
+                        mService.ackModemColdReset();
+                        mModemColdReset = false;
+                    }
+                    if (mModemShutdown) {
+                        Log.d(TAG, "Acknowledge Modem shutdown");
+                        mService.ackModemShutdown();
+                        mModemShutdown = false;
+                    }
+                    mService.unregisterCallback(mMmgrCallbacks);
+                } catch (RemoteException e) {
+                    Log.e(TAG, "Unable to disconnect cws modem manager");
+                }
+                mIsBound = false;
+                mService = null;
+                Log.d(TAG, "onServiceDisconnected");
+            }
+        };
+
+        private final IMmgrServiceListener.Stub mMmgrCallbacks =
+                new IMmgrServiceListener.Stub() {
+                    public void modemUp() {
+                        Log.d(TAG, "Modem is going UP message received");
+                        waitOnModemUp.release();
+                    }
+
+                    public void modemColdReset() {
+                        Log.d(TAG, "Modem is going COLD_RESET message received, STOP NAVIGATING");
+                        mModemColdReset = true;
+                        stopNavigating();
+                    }
+
+                    public void modemShutdown() {
+                        Log.d(TAG, "Modem is going SHUTDOWN message received, STOP NAVIGATING");
+                        mModemShutdown = true;
+                        stopNavigating();
+                    }
+                };
     }
 
     private String getSelectedApn() {
