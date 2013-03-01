@@ -51,6 +51,7 @@ import android.util.Slog;
 import android.view.Surface;
 import android.os.HandlerThread;
 import android.os.Looper;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.app.ActivityManagerNative;
 
@@ -631,6 +632,18 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 wps.setup = WpsInfo.DISPLAY;
             }
             config.wps = wps;
+            String wps_method = SystemProperties.get("wifi.p2p.wps_method", "");
+            if (!wps_method.equals("")) {
+                if (wps_method.equals("display")) {
+                    config.wps.setup = WpsInfo.DISPLAY;
+                }
+                if (wps_method.equals("keypad")) {
+                    config.wps.setup = WpsInfo.KEYPAD;
+                }
+                if (wps_method.equals("pbc")) {
+                    config.wps.setup = WpsInfo.PBC;
+                }
+            }
             config.deviceAddress = mConnectingDevice.deviceAddress;
             // Helps with STA & P2P concurrency
             // Google set groupOwnerIntent to 0 ( WifiP2pConfig.MIN_GROUP_OWNER_INTENT).
