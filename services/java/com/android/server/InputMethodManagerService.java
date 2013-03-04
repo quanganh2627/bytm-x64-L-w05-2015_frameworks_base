@@ -889,7 +889,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
         final boolean isScreenSecurelyLocked =
                 isScreenLocked && mKeyguardManager.isKeyguardSecure();
         final boolean inputShown = mInputShown && (!isScreenLocked || mInputBoundToKeyguard);
-        mImeWindowVis = (!isScreenSecurelyLocked && (inputShown || hardKeyShown)) ?
+        mImeWindowVis = (!isScreenSecurelyLocked && inputShown) ?
                 (InputMethodService.IME_ACTIVE | InputMethodService.IME_VISIBLE) : 0;
         updateImeWindowStatusLocked();
     }
