@@ -24,7 +24,7 @@ import java.lang.Integer;
  *@hide
  */
 public class CPUMaxFreqControl {
-    private static final String TAG = "CPUMaxFreqControl";
+    private static final String TAG = "Thermal:CPUMaxFreqControl";
 
     // Sysfs path for throttle devices
     private static final String mCPUDeviceSysfsPath = "/sys/devices/system/cpu/";

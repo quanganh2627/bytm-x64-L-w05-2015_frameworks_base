@@ -23116,8 +23116,10 @@ package android.thermal {
     method public int getCurrEventType();
     method public int getCurrThermalState();
     method public int getDBInterval();
+    method public static java.lang.String getEventTypeAsString(int);
     method public int getPollDelay(int);
     method public boolean getSensorLogic();
+    method public static java.lang.String getStateAsString(int);
     method public java.util.ArrayList<android.thermal.ThermalSensor> getThermalSensorList();
     method public int getZoneId();
     method public java.lang.String getZoneName();
@@ -23135,9 +23137,11 @@ package android.thermal {
     method public void startMonitoring();
     method public void update();
     field public static final java.lang.String EXTRA_EVENT = "event";
+    field public static final java.lang.String EXTRA_NAME = "name";
     field public static final java.lang.String EXTRA_STATE = "state";
     field public static final java.lang.String EXTRA_TEMP = "temp";
     field public static final java.lang.String EXTRA_ZONE = "zone";
+    field public static final java.lang.String[] STATE_NAMES;
     field public static final int THERMAL_HIGH_EVENT = 2; // 0x2
     field public static final int THERMAL_LOW_EVENT = 1; // 0x1
     field public static final int THERMAL_STATE_ALERT = 2; // 0x2
@@ -23145,11 +23149,6 @@ package android.thermal {
     field public static final int THERMAL_STATE_NORMAL = 0; // 0x0
     field public static final int THERMAL_STATE_OFF = -1; // 0xffffffff
     field public static final int THERMAL_STATE_WARNING = 1; // 0x1
-    field public static int THERMAL_ZONE_BATTERY;
-    field public static int THERMAL_ZONE_BOTTOM_SKIN;
-    field public static int THERMAL_ZONE_CPU;
-    field public static int THERMAL_ZONE_TELEPHONY;
-    field public static int THERMAL_ZONE_TOP_SKIN;
     field protected int mCurrEventType;
     field protected int mCurrThermalState;
     field protected java.util.ArrayList mThermalSensors;

@@ -26,12 +26,13 @@ public class ThermalEvent {
      public int eventType;
      public int thermalLevel;
      public int zoneTemp;
-
-     ThermalEvent(int zone, int type, int state, int temp) {
+     public String zoneName;
+     ThermalEvent(int zone, int type, int state, int temp, String name) {
              zoneID = zone;
              eventType = type;
              thermalLevel = state;
              zoneTemp = temp;
+             zoneName = name;
     }
 }
 
