@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+/*
+ * Portions contributed by: Intel Corporation
+ */
+
 package com.android.server.display;
 
 import com.android.internal.R;
@@ -41,6 +45,7 @@ import android.provider.Settings;
 import android.util.Slog;
 import android.view.Display;
 import android.view.Surface;
+import android.widget.Toast;
 
 import java.io.PrintWriter;
 import java.util.Arrays;
@@ -92,6 +97,8 @@ final class WifiDisplayAdapter extends DisplayAdapter {
 
     private boolean mPendingStatusChangeBroadcast;
     private boolean mPendingNotificationUpdate;
+
+    private String mLastConnectedAdapterName;
 
     // Called with SyncRoot lock held.
     public WifiDisplayAdapter(DisplayManagerService.SyncRoot syncRoot,
@@ -150,6 +157,22 @@ final class WifiDisplayAdapter extends DisplayAdapter {
         });
     }
 
+    public void notifyConnectionLost() {
+        if (DEBUG) {
+            Slog.d(TAG, "notify Connection with the adapter was lost!");
+        }
+
+        getHandler().post(new Runnable() {
+            @Override
+            public void run() {
+                Context context = getContext();
+                String msg = context.getString(R.string.wifi_display_notification_disconnect);
+                msg += " " + mLastConnectedAdapterName;
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
     public void requestScanLocked() {
         if (DEBUG) {
             Slog.d(TAG, "requestScanLocked");
@@ -203,7 +226,7 @@ final class WifiDisplayAdapter extends DisplayAdapter {
         if (DEBUG) {
             Slog.d(TAG, "requestDisconnectedLocked");
         }
-
+        mActiveDisplayState = WifiDisplayStatus.DISPLAY_STATE_DISCONNECTING;
         getHandler().post(new Runnable() {
             @Override
             public void run() {
@@ -344,8 +367,13 @@ final class WifiDisplayAdapter extends DisplayAdapter {
         if (mDisplayDevice != null) {
             mDisplayDevice.clearSurfaceLocked();
             sendDisplayDeviceEventLocked(mDisplayDevice, DISPLAY_DEVICE_EVENT_REMOVED);
-            mDisplayDevice = null;
 
+            if (mActiveDisplayState != WifiDisplayStatus.DISPLAY_STATE_DISCONNECTING) {
+                mLastConnectedAdapterName = mDisplayDevice.mName;
+                notifyConnectionLost();
+                requestScanLocked();
+            }
+            mDisplayDevice = null;
             scheduleUpdateNotificationLocked();
         }
     }
