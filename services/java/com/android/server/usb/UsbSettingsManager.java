@@ -615,13 +615,13 @@ class UsbSettingsManager {
             // Launch our default activity directly, if we have one.
             // Otherwise we will start the UsbResolverActivity to allow the user to choose.
             defaultPackage = mDevicePreferenceMap.get(new DeviceFilter(device));
+            // Send broadcast to running activity with registered intent
+            mUserContext.sendBroadcast(intent);
+            if (DEBUG) Slog.d(TAG, "usbDeviceAdded, sending " + intent);
+            // Start activity with registered intent
+            resolveActivity(intent, matches, defaultPackage, device, null);
         }
 
-        // Send broadcast to running activity with registered intent
-        mUserContext.sendBroadcast(intent);
-
-        // Start activity with registered intent
-        resolveActivity(intent, matches, defaultPackage, device, null);
     }
 
     public void deviceDetached(UsbDevice device) {
