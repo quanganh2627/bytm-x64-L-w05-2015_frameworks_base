@@ -80,6 +80,9 @@ public class HTML5VideoView implements MediaPlayer.OnPreparedListener {
 
     // common Video control FUNCTIONS:
     public void start() {
+        if (mProxy == null)
+            return;
+
         if (mCurrentState == STATE_PREPARED) {
             // When replaying the same video, there is no onPrepared call.
             // Therefore, the timer should be set up here.
