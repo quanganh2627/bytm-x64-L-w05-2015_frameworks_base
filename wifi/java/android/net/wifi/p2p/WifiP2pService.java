@@ -1353,7 +1353,8 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                         // invocation was succeeded.
                         // wait P2P_GROUP_STARTED_EVENT.
                         break;
-                    } else if (status == P2pStatus.UNKNOWN_P2P_GROUP) {
+                    } else if ((status == P2pStatus.UNKNOWN_P2P_GROUP) ||
+                               (status == P2pStatus.INFORMATION_IS_CURRENTLY_UNAVAILABLE)) {
                         // target device has already removed the credential.
                         // So, remove this credential accordingly.
                         int netId = mSavedPeerConfig.netId;
