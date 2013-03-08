@@ -1467,10 +1467,6 @@ public class ListView extends AbsListView {
             return;
         }
 
-        if (!mIsAttached) {
-           return;
-        }
-
         try {
             super.layoutChildren();
 
