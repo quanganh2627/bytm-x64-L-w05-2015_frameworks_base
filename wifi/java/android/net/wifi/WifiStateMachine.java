@@ -1972,10 +1972,14 @@ public class WifiStateMachine extends StateMachine {
             if (configs.size() != 0) {
                 mWifiNative.enableBackgroundScan(true);
             } else {
-                // No remembered SSID, turn off Wifi immediately
-                Slog.d(TAG, "No remembered SSID, turn off wifi");
-                mContext.sendBroadcast(new Intent(SHUT_DOWN_WIFI_ACTION));
                 mEnableBackgroundScan = false;
+                if (!mP2pConnected.get()) {
+                    // No remembered SSID, turn off Wifi immediately
+                    Slog.d(TAG, "No remembered SSID, turn wifi OFF");
+                    mContext.sendBroadcast(new Intent(SHUT_DOWN_WIFI_ACTION));
+                } else {
+                    Slog.d(TAG, "No remembered SSID, but P2P Connected. Do not turn WiFi OFF");
+                }
             }
         } else {
             Log.e(TAG, "Impossible to get the configured networks when considering PNO enabling");
