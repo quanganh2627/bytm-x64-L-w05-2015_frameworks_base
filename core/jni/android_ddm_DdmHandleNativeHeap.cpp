@@ -29,7 +29,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#if defined(__arm__)
+#if defined(__arm__) || defined(__i386__)
 extern "C" void get_malloc_leak_info(uint8_t** info, size_t* overallSize, 
         size_t* infoSize, size_t* totalMemory, size_t* backtraceSize);
         
@@ -55,7 +55,7 @@ namespace android {
  */
 static jbyteArray getLeakInfo(JNIEnv *env, jobject clazz)
 {
-#if defined(__arm__)
+#if defined(__arm__) || defined(__i386__)
     // get the info in /proc/[pid]/map
     Header header;
     memset(&header, 0, sizeof(header));

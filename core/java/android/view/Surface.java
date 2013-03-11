@@ -225,6 +225,9 @@ public class Surface implements Parcelable {
     // non compatibility mode.
     private Matrix mCompatibleMatrix;
 
+    private int mWidth;
+    private int mHeight;
+
     private native void nativeCreate(SurfaceSession session, String name,
             int w, int h, int format, int flags)
             throws OutOfResourcesException;
@@ -243,6 +246,9 @@ public class Surface implements Parcelable {
     private static native Bitmap nativeScreenshot(IBinder displayToken,
             int width, int height, int minLayer, int maxLayer, boolean allLayers);
 
+    private static native boolean nativeIsAnimationPermitted();
+    private static native void nativeSetTransition(boolean on);
+    private static native void nativeSetOrientationEnd(boolean end);
     private static native void nativeOpenTransaction();
     private static native void nativeCloseTransaction();
     private static native void nativeSetAnimationTransaction();
@@ -330,6 +336,8 @@ public class Surface implements Parcelable {
         checkHeadless();
 
         mName = name;
+        mWidth = w;
+        mHeight = h;
         nativeCreate(session, name, w, h, format, flags);
 
         mCloseGuard.open("release");
@@ -511,6 +519,25 @@ public class Surface implements Parcelable {
         return nativeScreenshot(displayToken, width, height, minLayer, maxLayer, false);
     }
 
+    /**
+     * Whether rotation animation is permitted;
+     * isAnimationPermitted() returns false for protected content surface.
+     * @hide
+     */
+    public static boolean isAnimationPermitted() {
+        return nativeIsAnimationPermitted();
+    }
+
+    /** set animation scale @hide */
+    public static void setTransition(boolean on) {
+        nativeSetTransition(on);
+    }
+
+    /** set orientation end @hide */
+    public static void setOrientationEnd(boolean end) {
+        nativeSetOrientationEnd(end);
+    }
+
     /*
      * set surface parameters.
      * needs to be inside open/closeTransaction block
@@ -538,7 +565,7 @@ public class Surface implements Parcelable {
 
     /** @hide */
     public void setPosition(int x, int y) {
-        nativeSetPosition((float)x, (float)y);
+        nativeSetPosition(x, y);
     }
 
     /** @hide */
@@ -548,7 +575,19 @@ public class Surface implements Parcelable {
 
     /** @hide */
     public void setSize(int w, int h) {
+        mWidth = w;
+        mHeight = h;
         nativeSetSize(w, h);
+    }
+
+    /** @hide */
+    public int getWidth() {
+        return mWidth;
+    }
+
+    /** @hide */
+    public int getHeight() {
+        return mHeight;
     }
 
     /** @hide */

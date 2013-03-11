@@ -31,7 +31,7 @@ class DisplayListLogBuffer: public Singleton<DisplayListLogBuffer> {
     friend class Singleton<DisplayListLogBuffer>;
 
 public:
-    void writeCommand(int level, int op);
+    void writeCommand(int level, int op, int du);
     void writeInt(int value);
     void outputCommands(FILE *file, const char* opNames[]);
 

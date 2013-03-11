@@ -953,7 +953,12 @@ public class Dialog implements DialogInterface, Window.Callback,
         final ComponentName appName = getAssociatedActivity();
         if (appName != null && searchManager.getSearchableInfo(appName) != null) {
             searchManager.startSearch(null, false, appName, null, false);
-            dismiss();
+            if (mCancelable) {
+                //here should cancel the dialog, if not, if it is an alertdialog, it will block thread always.
+                cancel();
+            } else {
+                dismiss();
+            }
             return true;
         } else {
             return false;

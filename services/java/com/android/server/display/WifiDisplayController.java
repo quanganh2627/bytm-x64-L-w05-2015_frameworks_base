@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+/*
+* Portions contributed by: Intel Corporation
+*/
+
 package com.android.server.display;
 
 import com.android.internal.util.DumpUtils;
@@ -30,6 +34,7 @@ import android.media.AudioManager;
 import android.media.RemoteDisplay;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pDeviceList;
@@ -44,6 +49,10 @@ import android.os.Handler;
 import android.provider.Settings;
 import android.util.Slog;
 import android.view.Surface;
+import android.os.HandlerThread;
+import android.os.Looper;
+import android.os.UserHandle;
+import android.app.ActivityManagerNative;
 
 import java.io.PrintWriter;
 import java.net.Inet4Address;
@@ -120,6 +129,12 @@ final class WifiDisplayController implements DumpUtils.Dump {
     // or are not trying to connect.
     private WifiP2pDevice mConnectingDevice;
 
+    // The device from which we are currently disconnecting.
+    private WifiP2pDevice mDisconnectingDevice;
+
+    // The device to which we were previously trying to connect and are now canceling.
+    private WifiP2pDevice mCancelingDevice;
+
     // The device to which we are currently connected, which means we have an active P2P group.
     private WifiP2pDevice mConnectedDevice;
 
@@ -149,6 +164,10 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private int mAdvertisedDisplayHeight;
     private int mAdvertisedDisplayFlags;
 
+    private WidiHandler mWidiHandler;
+    private boolean mAudioRoutingEnabled = false;
+    private boolean mServiceCreated = false;
+
     public WifiDisplayController(Context context, Handler handler, Listener listener) {
         mContext = context;
         mHandler = handler;
@@ -176,6 +195,17 @@ final class WifiDisplayController implements DumpUtils.Dump {
         resolver.registerContentObserver(Settings.Global.getUriFor(
                 Settings.Global.WIFI_DISPLAY_ON), false, settingsObserver);
         updateSettings();
+
+        HandlerThread widiThread = new HandlerThread("WidiService");
+        widiThread.start();
+        Looper looper = widiThread.getLooper();
+        if (looper == null) {
+            Slog.e(TAG, "looper is null");
+            mServiceCreated = false;
+        } else {
+            mWidiHandler = new WidiHandler(looper);
+            mServiceCreated = true;
+        }
     }
 
     private void updateSettings() {
@@ -186,6 +216,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
         updateWfdEnableState();
     }
 
+    @Override
     public void dump(PrintWriter pw) {
         pw.println("mWifiDisplayOnSetting=" + mWifiDisplayOnSetting);
         pw.println("mWifiP2pEnabled=" + mWifiP2pEnabled);
@@ -196,6 +227,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
         pw.println("mDiscoverPeersRetriesLeft=" + mDiscoverPeersRetriesLeft);
         pw.println("mDesiredDevice=" + describeWifiP2pDevice(mDesiredDevice));
         pw.println("mConnectingDisplay=" + describeWifiP2pDevice(mConnectingDevice));
+        pw.println("mDisconnectingDisplay=" + describeWifiP2pDevice(mDisconnectingDevice));
+        pw.println("mCancelingDisplay=" + describeWifiP2pDevice(mCancelingDevice));
         pw.println("mConnectedDevice=" + describeWifiP2pDevice(mConnectedDevice));
         pw.println("mConnectionRetriesLeft=" + mConnectionRetriesLeft);
         pw.println("mRemoteDisplay=" + mRemoteDisplay);
@@ -384,7 +417,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
         final int count = mAvailableWifiDisplayPeers.size();
         final WifiDisplay[] displays = WifiDisplay.CREATOR.newArray(count);
         for (int i = 0; i < count; i++) {
-            displays[i] = createWifiDisplay(mAvailableWifiDisplayPeers.get(i));
+            WifiP2pDevice device = mAvailableWifiDisplayPeers.get(i);
+            displays[i] = createWifiDisplay(device);
+            updateDesiredDevice(device);
         }
 
         mHandler.post(new Runnable() {
@@ -393,6 +428,23 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 mListener.onScanFinished(displays);
             }
         });
+    }
+
+    private void updateDesiredDevice(WifiP2pDevice device) {
+        // Handle the case where the device to which we are connecting or connected
+        // may have been renamed or reported different properties in the latest scan.
+        final String address = device.deviceAddress;
+        if (mDesiredDevice != null && mDesiredDevice.deviceAddress.equals(address)) {
+            if (DEBUG) {
+                Slog.d(TAG, "updateDesiredDevice: new information "
+                        + describeWifiP2pDevice(device));
+            }
+            mDesiredDevice.update(device);
+            if (mAdvertisedDisplay != null
+                    && mAdvertisedDisplay.getDeviceAddress().equals(address)) {
+                readvertiseDisplay(createWifiDisplay(mDesiredDevice));
+            }
+        }
     }
 
     private void connect(final WifiP2pDevice device) {
@@ -459,12 +511,17 @@ final class WifiDisplayController implements DumpUtils.Dump {
         }
 
         // Step 2. Before we try to connect to a new device, disconnect from the old one.
+        if (mDisconnectingDevice != null) {
+            return; // wait for asynchronous callback
+        }
         if (mConnectedDevice != null && mConnectedDevice != mDesiredDevice) {
             Slog.i(TAG, "Disconnecting from Wifi display: " + mConnectedDevice.deviceName);
+            mDisconnectingDevice = mConnectedDevice;
+            mConnectedDevice = null;
 
             unadvertiseDisplay();
 
-            final WifiP2pDevice oldDevice = mConnectedDevice;
+            final WifiP2pDevice oldDevice = mDisconnectingDevice;
             mWifiP2pManager.removeGroup(mWifiP2pChannel, new ActionListener() {
                 @Override
                 public void onSuccess() {
@@ -480,8 +537,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 }
 
                 private void next() {
-                    if (mConnectedDevice == oldDevice) {
-                        mConnectedDevice = null;
+                    if (mDisconnectingDevice == oldDevice) {
+                        mDisconnectingDevice = null;
                         updateConnection();
                     }
                 }
@@ -491,13 +548,18 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
         // Step 3. Before we try to connect to a new device, stop trying to connect
         // to the old one.
+        if (mCancelingDevice != null) {
+            return; // wait for asynchronous callback
+        }
         if (mConnectingDevice != null && mConnectingDevice != mDesiredDevice) {
             Slog.i(TAG, "Canceling connection to Wifi display: " + mConnectingDevice.deviceName);
+            mCancelingDevice = mConnectingDevice;
+            mConnectingDevice = null;
 
             unadvertiseDisplay();
             mHandler.removeCallbacks(mConnectionTimeout);
 
-            final WifiP2pDevice oldDevice = mConnectingDevice;
+            final WifiP2pDevice oldDevice = mCancelingDevice;
             mWifiP2pManager.cancelConnect(mWifiP2pChannel, new ActionListener() {
                 @Override
                 public void onSuccess() {
@@ -513,8 +575,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 }
 
                 private void next() {
-                    if (mConnectingDevice == oldDevice) {
-                        mConnectingDevice = null;
+                    if (mCancelingDevice == oldDevice) {
+                        mCancelingDevice = null;
                         updateConnection();
                     }
                 }
@@ -534,6 +596,16 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
             mConnectingDevice = mDesiredDevice;
             WifiP2pConfig config = new WifiP2pConfig();
+            WpsInfo wps = new WpsInfo();
+            if (mConnectingDevice.wpsPbcSupported()) {
+                wps.setup = WpsInfo.PBC;
+            } else if (mConnectingDevice.wpsDisplaySupported()) {
+                // We do keypad if peer does display
+                wps.setup = WpsInfo.KEYPAD;
+            } else {
+                wps.setup = WpsInfo.DISPLAY;
+            }
+            config.wps = wps;
             config.deviceAddress = mConnectingDevice.deviceAddress;
             // Helps with STA & P2P concurrency
             config.groupOwnerIntent = WifiP2pConfig.MIN_GROUP_OWNER_INTENT;
@@ -630,6 +702,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
         if (mRemoteSubmixOn != on) {
             mRemoteSubmixOn = on;
             mAudioManager.setRemoteSubmixOn(on, REMOTE_SUBMIX_ADDRESS);
+
+            if (mServiceCreated)
+                enableAudioRouting(on);
         }
     }
 
@@ -763,13 +838,17 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 public void run() {
                     if (oldSurface != null && surface != oldSurface) {
                         mListener.onDisplayDisconnected();
-                    } else if (oldDisplay != null && !Objects.equal(display, oldDisplay)) {
+                    } else if (oldDisplay != null && !oldDisplay.hasSameAddress(display)) {
                         mListener.onDisplayConnectionFailed();
                     }
 
                     if (display != null) {
-                        if (!Objects.equal(display, oldDisplay)) {
+                        if (!display.hasSameAddress(oldDisplay)) {
                             mListener.onDisplayConnecting(display);
+                        } else if (!display.equals(oldDisplay)) {
+                            // The address is the same but some other property such as the
+                            // name must have changed.
+                            mListener.onDisplayChanged(display);
                         }
                         if (surface != null && surface != oldSurface) {
                             mListener.onDisplayConnected(display, surface, width, height, flags);
@@ -782,6 +861,12 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
     private void unadvertiseDisplay() {
         advertiseDisplay(null, null, 0, 0, 0);
+    }
+
+    private void readvertiseDisplay(WifiDisplay display) {
+        advertiseDisplay(display, mAdvertisedDisplaySurface,
+                mAdvertisedDisplayWidth, mAdvertisedDisplayHeight,
+                mAdvertisedDisplayFlags);
     }
 
     private static Inet4Address getInterfaceAddress(WifiP2pGroup info) {
@@ -885,8 +970,60 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
         void onDisplayConnecting(WifiDisplay display);
         void onDisplayConnectionFailed();
+        void onDisplayChanged(WifiDisplay display);
         void onDisplayConnected(WifiDisplay display,
                 Surface surface, int width, int height, int flags);
         void onDisplayDisconnected();
+    }
+
+    private Runnable sendAudioIntent = new Runnable() {
+        @Override
+        public void run() {
+            // send an intent to notify Widi streaming is being turned on/off
+            Intent intent = new Intent(Intent.ACTION_WIDI_TURNED);
+            intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY);
+            intent.putExtra("state", mAudioRoutingEnabled ? 1 : 0);
+            Slog.i(TAG, "Setting audio routing to " + mAudioRoutingEnabled);
+            ActivityManagerNative.broadcastStickyIntent(intent, null, UserHandle.myUserId());
+        }
+    };
+
+    public void enableAudioRouting(boolean enable)
+    {
+        // If we're turning off audio routing, send ACTION_AUDIO_BECOMING_NOISY by default
+        enableAudioRouting(enable, !enable);
+    }
+
+    private void enableAudioRouting(boolean enable, boolean sendBecomingNoisy)
+    {
+        mAudioRoutingEnabled = enable;
+        mWidiHandler.removeCallbacks(sendAudioIntent);
+        if (sendBecomingNoisy) {
+            // First send an intent to alert the applications (e.g music player) that
+            // audio is becoming noisy due to audio output device change.
+            Intent audioNoisyIntent = new Intent(AudioManager.ACTION_AUDIO_BECOMING_NOISY);
+            Slog.i(TAG, "Sending ACTION_AUDIO_BECOMING_NOISY");
+            ActivityManagerNative.broadcastStickyIntent(audioNoisyIntent, null, UserHandle.myUserId());
+
+            // It can take hundreds of ms to flush the audio pipeline after
+            // apps pause audio playback, but audio route changes are immediate.
+            // The delay between the above intent is sent and the audio pipeline end
+            // is ~250ms from the logcat logs. so delay the route change by 300ms to be safe.
+            mWidiHandler.postDelayed(sendAudioIntent, 300);
+        }
+        else {
+            // If we're not sending ACTION_AUDIO_BECOMING_NOISY, then
+            // trigger the routing change immediately
+            sendAudioIntent.run();
+        }
+    }
+
+     /**
+     * Handler that allows posting to the WifiThread.
+     */
+    private class WidiHandler extends Handler {
+        public WidiHandler(Looper looper) {
+            super(looper);
+        }
     }
 }

@@ -148,6 +148,7 @@ import android.view.KeyCharacterMap.FallbackAction;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.hardware.input.InputManager;
 
 import java.io.File;
 import java.io.FileReader;
@@ -181,6 +182,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     static final int LONG_PRESS_HOME_NOTHING = 0;
     static final int LONG_PRESS_HOME_RECENT_DIALOG = 1;
     static final int LONG_PRESS_HOME_RECENT_SYSTEM_UI = 2;
+    static final int LONG_PRESS_HOME_SEARCH = 3;
 
     static final int APPLICATION_MEDIA_SUBLAYER = -2;
     static final int APPLICATION_MEDIA_OVERLAY_SUBLAYER = -1;
@@ -199,6 +201,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
      */
     static final int SYSTEM_UI_CHANGING_LAYOUT =
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN;
+    // private lock for thread sync
+    private Object lock = new Object();
+
+    // length of vibration before shutting down is started on long power key press
+    private static final int SHUTDOWN_VIBRATE_MS = 500;
 
     /* Table of Application Launch keys.  Maps from key codes to intent categories.
      *
@@ -412,6 +419,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     boolean mForceStatusBar;
     boolean mForceStatusBarFromKeyguard;
     boolean mHideLockScreen;
+    boolean mForcingShowNavBar;
+    int mForcingShowNavBarLayer;
 
     // States of keyguard dismiss.
     private static final int DISMISS_KEYGUARD_NONE = 0; // Keyguard not being dismissed.
@@ -439,6 +448,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     boolean mAllowLockscreenWhenOn;
     int mLockScreenTimeout;
     boolean mLockScreenTimerActive;
+
+    // Measure timeout before action corresponding to power key press is triggered.
+    long mPowerKeyTimeout;
 
     // Behavior of ENDCALL Button.  (See Settings.System.END_BUTTON_BEHAVIOR.)
     int mEndcallBehavior;
@@ -651,23 +663,44 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
     }
 
-    private void interceptPowerKeyDown(boolean handled) {
+    private void interceptPowerKeyDown(boolean handled, boolean longLongPressCandidate) {
         mPowerKeyHandled = handled;
         if (!handled) {
-            mHandler.postDelayed(mPowerLongPress, ViewConfiguration.getGlobalActionKeyTimeout());
+            mPowerKeyTimeout = ViewConfiguration.getGlobalActionKeyTimeout();
+            Log.i(TAG, String.format("interceptPowerKeyDown: key down event: not handled: set timeout to %d ms", mPowerKeyTimeout));
+            // Ask mPowerLongPress to be run when specified amount of time elapses.
+            mHandler.postDelayed(mPowerLongPress, mPowerKeyTimeout);
+        } else {
+            // only for calls from POWER BUTTON handling can start longLongPress timer
+            if (longLongPressCandidate) {
+                mPowerKeyTimeout = ViewConfiguration.getGlobalActionKeyShutdownTimeout() + ViewConfiguration.getGlobalActionKeyTimeout();
+                Log.i(TAG, String.format("interceptPowerKeyDown: key down event: handled: set timeout to %d ms", mPowerKeyTimeout));
+                // Ask mPowerLongLongPress to be run when specified amount of time elapses.
+                mHandler.postDelayed(mPowerLongLongPress, mPowerKeyTimeout);
+            }
         }
     }
 
     private boolean interceptPowerKeyUp(boolean canceled) {
+        synchronized(lock) {
         if (!mPowerKeyHandled) {
+            // Cancel pending action scheduled in interceptPowerKeyDown
+            Log.i(TAG, "interceptPowerKeyUp: key up event: remove pending callbacks for long press");
             mHandler.removeCallbacks(mPowerLongPress);
+            lock.notify();
             return !canceled;
         }
+        // Cancel pending action scheduled in interceptPowerKeyDown
+        Log.i(TAG, "interceptPowerKeyUp: key up event: remove pending callbacks for very long press");
+        lock.notify();
+        mHandler.removeCallbacks(mPowerLongLongPress);
         return false;
+       }
     }
 
     private void cancelPendingPowerKeyAction() {
         if (!mPowerKeyHandled) {
+            // Cancel pending action scheduled in interceptPowerKeyDown
             mHandler.removeCallbacks(mPowerLongPress);
         }
         if (mPowerKeyTriggered) {
@@ -703,9 +736,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mHandler.removeCallbacks(mScreenshotChordLongPress);
     }
 
+    // Action associated to the timer triggered in interceptPowerKeyDown. Run once the timer expires.
     private final Runnable mPowerLongPress = new Runnable() {
         @Override
         public void run() {
+            synchronized(lock) {
             // The context isn't read
             if (mLongPressOnPowerBehavior < 0) {
                 mLongPressOnPowerBehavior = mContext.getResources().getInteger(
@@ -718,8 +753,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
             switch (resolvedBehavior) {
             case LONG_PRESS_POWER_NOTHING:
+                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: nothing to do", mPowerKeyTimeout));
                 break;
             case LONG_PRESS_POWER_GLOBAL_ACTIONS:
+                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: display close dialog", mPowerKeyTimeout));
                 mPowerKeyHandled = true;
                 if (!performHapticFeedbackLw(null, HapticFeedbackConstants.LONG_PRESS, false)) {
                     performAuditoryFeedbackForAccessibilityIfNeed();
@@ -729,12 +766,33 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 break;
             case LONG_PRESS_POWER_SHUT_OFF:
             case LONG_PRESS_POWER_SHUT_OFF_NO_CONFIRM:
+                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: run shutdown", mPowerKeyTimeout));
                 mPowerKeyHandled = true;
                 performHapticFeedbackLw(null, HapticFeedbackConstants.LONG_PRESS, false);
                 sendCloseSystemWindows(SYSTEM_DIALOG_REASON_GLOBAL_ACTIONS);
                 mWindowManagerFuncs.shutdown(resolvedBehavior == LONG_PRESS_POWER_SHUT_OFF);
                 break;
             }
+           lock.notify();
+          }
+            mHandler.postDelayed(mPowerLongLongPress, ViewConfiguration.getGlobalActionKeyShutdownTimeout());
+        }
+    };
+
+    // Action associated to the timer triggered in interceptPowerKeyDown. Run once the timer expires.
+    private final Runnable mPowerLongLongPress = new Runnable() {
+        public void run() {
+            Log.i(TAG, String.format("LongLongPressOnPower: force shutdown requested : vibrate %d ms and run shutdown",
+                                       SHUTDOWN_VIBRATE_MS));
+            // vibrate to indicate shutdown is started
+            try {
+                mVibrator.vibrate(SHUTDOWN_VIBRATE_MS);
+            } catch (Exception e) {
+                // Failure to vibrate shouldn't interrupt SW shutdown. Just log it.
+                Log.w(TAG, "Failed to vibrate on long powerkey press.", e);
+            }
+            SystemProperties.set("sys.property_forcedshutdown", "1");
+            mWindowManagerFuncs.shutdown(false);
         }
     };
 
@@ -768,7 +826,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             mLongPressOnHomeBehavior
                     = mContext.getResources().getInteger(R.integer.config_longPressOnHomeBehavior);
             if (mLongPressOnHomeBehavior < LONG_PRESS_HOME_NOTHING ||
-                    mLongPressOnHomeBehavior > LONG_PRESS_HOME_RECENT_SYSTEM_UI) {
+                    mLongPressOnHomeBehavior > LONG_PRESS_HOME_SEARCH) {
                 mLongPressOnHomeBehavior = LONG_PRESS_HOME_NOTHING;
             }
         }
@@ -786,6 +844,16 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             showOrHideRecentAppsDialog(RECENT_APPS_BEHAVIOR_SHOW_OR_DISMISS);
         } else if (mLongPressOnHomeBehavior == LONG_PRESS_HOME_RECENT_SYSTEM_UI) {
             try {
+                ITelephony telephonyService = getTelephonyService();
+                if (telephonyService != null) {
+                    if(telephonyService.isRinging())
+                    return;
+                }
+            } catch (RemoteException ex) {
+                Log.w(TAG, "RemoteException from getPhoneInterface()", ex);
+            }
+
+            try {
                 IStatusBarService statusbar = getStatusBarService();
                 if (statusbar != null) {
                     statusbar.toggleRecentApps();
@@ -795,6 +863,23 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 // re-acquire status bar service next time it is needed.
                 mStatusBarService = null;
             }
+        } else if (mLongPressOnHomeBehavior == LONG_PRESS_HOME_SEARCH) {
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        long now = SystemClock.uptimeMillis();
+                        InputManager.getInstance().injectInputEvent(new KeyEvent(now, now,
+                                KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SEARCH, 0),
+                                InputManager.INJECT_INPUT_EVENT_MODE_ASYNC);
+                        InputManager.getInstance().injectInputEvent(new KeyEvent(now, now,
+                                KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SEARCH, 0),
+                                InputManager.INJECT_INPUT_EVENT_MODE_ASYNC);
+                    } catch (Exception e) {
+                        Slog.e(TAG, "Exception when launch search", e);
+                    }
+                }
+            });
         }
     }
 
@@ -1952,7 +2037,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             return 0;
         } else if (keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
             if (down && repeatCount == 0 && !keyguardOn) {
-                showOrHideRecentAppsDialog(RECENT_APPS_BEHAVIOR_SHOW_OR_DISMISS);
+                try {
+                    mStatusBarService.toggleRecentApps();
+                } catch (RemoteException e) {
+                    Slog.e(TAG, "RemoteException when showing recent apps", e);
+                }
             }
             return -1;
         } else if (keyCode == KeyEvent.KEYCODE_ASSIST) {
@@ -2936,6 +3025,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mTopFullscreenOpaqueWindowState = null;
         mForceStatusBar = false;
         mForceStatusBarFromKeyguard = false;
+        mForcingShowNavBar = false;
+        mForcingShowNavBarLayer = -1;
         
         mHideLockScreen = false;
         mAllowLockscreenWhenOn = false;
@@ -2950,6 +3041,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                                 WindowManager.LayoutParams attrs) {
         if (DEBUG_LAYOUT) Slog.i(TAG, "Win " + win + ": isVisibleOrBehindKeyguardLw="
                 + win.isVisibleOrBehindKeyguardLw());
+        if (mTopFullscreenOpaqueWindowState == null && (win.getAttrs().privateFlags
+                &WindowManager.LayoutParams.PRIVATE_FLAG_FORCE_SHOW_NAV_BAR) != 0) {
+            if (mForcingShowNavBarLayer < 0) {
+                mForcingShowNavBar = true;
+                mForcingShowNavBarLayer = win.getSurfaceLayer();
+            }
+        }
         if (mTopFullscreenOpaqueWindowState == null &&
                 win.isVisibleOrBehindKeyguardLw() && !win.isGoneForLayoutLw()) {
             if ((attrs.flags & FLAG_FORCE_NOT_FULLSCREEN) != 0) {
@@ -3235,6 +3333,18 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     /**
+     * @return Whether FM is being used right now.
+     */
+    int GetFmRxMode() {
+        final AudioManager am = (AudioManager)mContext.getSystemService(Context.AUDIO_SERVICE);
+        if (am == null) {
+            Log.w(TAG, "GetFmRxMode: couldn't get AudioManager reference");
+            return -1;
+        }
+        return am.getFmRxMode();
+    }
+
+    /**
      * Tell the audio service to adjust the volume appropriate to the event.
      * @param keycode
      */
@@ -3471,6 +3581,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         handleVolumeKey(AudioManager.STREAM_MUSIC, keyCode);
                         break;
                     }
+                    if (GetFmRxMode() == AudioManager.MODE_FM_ON && !isScreenOn) {
+                        // If FM is ON, we pass the key to Audio Service,
+                        // handle the volume change here.
+                        Log.w(TAG, "Key input catched in FM Rx mode");
+                        handleVolumeKey(AudioManager.STREAM_MUSIC, keyCode);
+                    }
                 }
                 break;
             }
@@ -3487,7 +3603,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                             Log.w(TAG, "ITelephony threw RemoteException", ex);
                         }
                     }
-                    interceptPowerKeyDown(!isScreenOn || hungUp);
+                    interceptPowerKeyDown(!isScreenOn || hungUp, false);
                 } else {
                     if (interceptPowerKeyUp(canceled)) {
                         if ((mEndcallBehavior
@@ -3535,7 +3651,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         }
                     }
                     interceptPowerKeyDown(!isScreenOn || hungUp
-                            || mVolumeDownKeyTriggered || mVolumeUpKeyTriggered);
+                            || mVolumeDownKeyTriggered || mVolumeUpKeyTriggered, true);
                 } else {
                     mPowerKeyTriggered = false;
                     cancelPendingScreenshotChordAction();
@@ -3756,12 +3872,21 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 // and then updates our own bookkeeping based on the now-
                 // current user.
                 mSettingsObserver.onChange(false);
+
+                // force a re-application of focused window sysui visibility.
+                // the window may never have been shown for this user
+                // e.g. the keyguard when going through the new-user setup flow
+                synchronized(mLock) {
+                    mLastSystemUiFlags = 0;
+                    updateSystemUiVisibilityLw();
+                }
             }
         }
     };
 
     @Override
     public void screenTurnedOff(int why) {
+        Log.i(TAG, "Screen turned off...");
         EventLog.writeEvent(70000, 0);
         synchronized (mLock) {
             mScreenOnEarly = false;
@@ -3778,11 +3903,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     @Override
     public void screenTurningOn(final ScreenOnListener screenOnListener) {
+        Log.i(TAG, "Screen turning on...");
         EventLog.writeEvent(70000, 1);
         if (false) {
             RuntimeException here = new RuntimeException("here");
             here.fillInStackTrace();
-            Slog.i(TAG, "Screen turning on...", here);
+            Slog.i(TAG, "RuntimeException screen turning on...", here);
         }
 
         synchronized (mLock) {
@@ -4470,9 +4596,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             // will quickly lose focus once it correctly gets hidden.
             return 0;
         }
-        final int visibility = mFocusedWindow.getSystemUiVisibility()
+        int tmpVisibility = mFocusedWindow.getSystemUiVisibility()
                 & ~mResettingSystemUiFlags
                 & ~mForceClearedSystemUiFlags;
+        if (mForcingShowNavBar && mFocusedWindow.getSurfaceLayer() < mForcingShowNavBarLayer) {
+            tmpVisibility &= ~View.SYSTEM_UI_CLEARABLE_FLAGS;
+        }
+        final int visibility = tmpVisibility;
         int diff = visibility ^ mLastSystemUiFlags;
         final boolean needsMenu = mFocusedWindow.getNeedsMenuLw(mTopFullscreenOpaqueWindowState);
         if (diff == 0 && mLastFocusNeedsMenu == needsMenu
@@ -4658,6 +4788,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (mTopFullscreenOpaqueWindowState != null) {
             pw.print(prefix); pw.print("mTopFullscreenOpaqueWindowState=");
                     pw.println(mTopFullscreenOpaqueWindowState);
+        }
+        if (mForcingShowNavBar) {
+            pw.print(prefix); pw.print("mForcingShowNavBar=");
+                    pw.println(mForcingShowNavBar); pw.print( "mForcingShowNavBarLayer=");
+                    pw.println(mForcingShowNavBarLayer);
         }
         pw.print(prefix); pw.print("mTopIsFullscreen="); pw.print(mTopIsFullscreen);
                 pw.print(" mHideLockScreen="); pw.println(mHideLockScreen);

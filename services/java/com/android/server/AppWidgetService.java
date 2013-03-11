@@ -26,12 +26,17 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Binder;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.util.Slog;
 import android.util.SparseArray;
 import android.widget.RemoteViews;
+import android.util.Log;
+import android.os.ServiceManager;
+import android.os.Parcel;
 
 import com.android.internal.appwidget.IAppWidgetHost;
 import com.android.internal.appwidget.IAppWidgetService;
@@ -54,14 +59,111 @@ class AppWidgetService extends IAppWidgetService.Stub
     Locale mLocale;
     PackageManager mPackageManager;
     boolean mSafeMode;
+    private final Handler mSaveStateHandler;
 
     private final SparseArray<AppWidgetServiceImpl> mAppWidgetServices;
 
     AppWidgetService(Context context) {
         mContext = context;
+
+        HandlerThread handlerThread = new HandlerThread("AppWidgetService -- Save state");
+        handlerThread.start();
+        mSaveStateHandler = new Handler(handlerThread.getLooper());
+
         mAppWidgetServices = new SparseArray<AppWidgetServiceImpl>(5);
-        AppWidgetServiceImpl primary = new AppWidgetServiceImpl(context, 0);
+        AppWidgetServiceImpl primary = new AppWidgetServiceImpl(context, 0, mSaveStateHandler);
         mAppWidgetServices.append(0, primary);
+    }
+    class FrameCountReceiver extends BroadcastReceiver {
+        public void onReceive(Context context, Intent intent) {
+            Bundle b=intent.getExtras();
+            if (b != null) {
+               Object[] lstName=b.keySet().toArray();
+               String cmd = b.getString("cmd");
+               if (cmd != null) {
+                  if (cmd.equals("on"))
+                      resetFrameCount();
+
+                  if (cmd.equals("start"))
+                      startFrameCount();
+
+                  if (cmd.equals("off"))
+                      offFrameCount();
+               }
+            }
+        }
+    }
+
+    private FrameCountReceiver mCountReceiver = new FrameCountReceiver();
+    private int mDebugFrameCountFlag;
+    private int mDebugFrameCountXCoordinate;
+    private int mDebugFrameCountYCoordinate;
+    private void resetFrameCount() {
+        getFlingerFrameCountOptions();
+        try {
+            IBinder flinger = ServiceManager.getService("SurfaceFlinger");
+            if (flinger != null) {
+                Parcel data = Parcel.obtain();
+                data.writeInterfaceToken("android.ui.ISurfaceComposer");
+                data.writeInt(1);
+                data.writeInt(mDebugFrameCountXCoordinate);
+                data.writeInt(mDebugFrameCountYCoordinate);
+                flinger.transact(1011, data, null, 0);
+                data.recycle();
+            }
+        } catch (RemoteException ex) {
+            Log.e(TAG, "RemoteException in resetFrameCount()", ex);
+        }
+    }
+
+    private void startFrameCount() {
+        try {
+            IBinder flinger = ServiceManager.getService("SurfaceFlinger");
+            if (flinger != null) {
+                Parcel data = Parcel.obtain();
+                data.writeInterfaceToken("android.ui.ISurfaceComposer");
+                data.writeInt(1);
+                flinger.transact(1016, data, null, 0);
+                data.recycle();
+            }
+        } catch (RemoteException ex) {
+            Log.e(TAG, "RemoteException in startFrameCount()", ex);
+        }
+    }
+
+    private void offFrameCount() {
+        try {
+            IBinder flinger = ServiceManager.getService("SurfaceFlinger");
+            if (flinger != null) {
+                Parcel data = Parcel.obtain();
+                data.writeInterfaceToken("android.ui.ISurfaceComposer");
+                data.writeInt(0);
+                data.writeInt(mDebugFrameCountXCoordinate);
+                data.writeInt(mDebugFrameCountYCoordinate);
+                flinger.transact(1011, data, null, 0);
+                data.recycle();
+            }
+        } catch (RemoteException ex) {
+            Log.e(TAG, "RemoteException in offFrameCount()", ex);
+        }
+    }
+
+   private void getFlingerFrameCountOptions() {
+        try {
+            IBinder flinger = ServiceManager.getService("SurfaceFlinger");
+            if (flinger != null) {
+                Parcel data = Parcel.obtain();
+                Parcel reply = Parcel.obtain();
+                data.writeInterfaceToken("android.ui.ISurfaceComposer");
+                flinger.transact(1012, data, reply, 0);
+                mDebugFrameCountFlag = reply.readInt();
+                mDebugFrameCountXCoordinate = reply.readInt();
+                mDebugFrameCountYCoordinate = reply.readInt();
+                data.recycle();
+            }
+        } catch (RemoteException ex) {
+            Log.e(TAG, "RemoteException in getFlingerFrameCountOptions()", ex);
+        }
     }
 
     public void systemReady(boolean safeMode) {
@@ -111,6 +213,8 @@ class AppWidgetService extends IAppWidgetService.Stub
                 }
             }
         }, userFilter);
+        IntentFilter cFilter = new IntentFilter("framecount");
+        mContext.registerReceiver(mCountReceiver, cFilter);
     }
 
     /**
@@ -137,6 +241,11 @@ class AppWidgetService extends IAppWidgetService.Stub
     public int allocateAppWidgetId(String packageName, int hostId) throws RemoteException {
         return getImplForUser(getCallingOrCurrentUserId()).allocateAppWidgetId(
                 packageName, hostId);
+    }
+
+    @Override
+    public int[] getAppWidgetIdsForHost(int hostId) throws RemoteException {
+        return getImplForUser(getCallingOrCurrentUserId()).getAppWidgetIdsForHost(hostId);
     }
     
     @Override
@@ -183,9 +292,14 @@ class AppWidgetService extends IAppWidgetService.Stub
     }
 
     @Override
-    public void bindRemoteViewsService(int appWidgetId, Intent intent, IBinder connection)
-            throws RemoteException {
-        getImplForUser(getCallingOrCurrentUserId()).bindRemoteViewsService(
+    public void bindRemoteViewsService(int appWidgetId, Intent intent, IBinder connection,
+            int userId) throws RemoteException {
+        if (Binder.getCallingPid() != android.os.Process.myPid()
+                && userId != UserHandle.getCallingUserId()) {
+            throw new SecurityException("Call from non-system process. Calling uid = "
+                    + Binder.getCallingUid());
+        }
+        getImplForUser(userId).bindRemoteViewsService(
                 appWidgetId, intent, connection);
     }
 
@@ -194,6 +308,17 @@ class AppWidgetService extends IAppWidgetService.Stub
             List<RemoteViews> updatedViews) throws RemoteException {
         return getImplForUser(getCallingOrCurrentUserId()).startListening(host,
                 packageName, hostId, updatedViews);
+    }
+
+    @Override
+    public int[] startListeningAsUser(IAppWidgetHost host, String packageName, int hostId,
+            List<RemoteViews> updatedViews, int userId) throws RemoteException {
+        if (Binder.getCallingPid() != android.os.Process.myPid()
+                && userId != UserHandle.getCallingUserId()) {
+            throw new SecurityException("Call from non-system process. Calling uid = "
+                    + Binder.getCallingUid());
+        }
+        return getImplForUser(userId).startListening(host, packageName, hostId, updatedViews);
     }
 
     public void onUserRemoved(int userId) {
@@ -229,7 +354,7 @@ class AppWidgetService extends IAppWidgetService.Stub
             if (service == null) {
                 Slog.i(TAG, "Unable to find AppWidgetServiceImpl for user " + userId + ", adding");
                 // TODO: Verify that it's a valid user
-                service = new AppWidgetServiceImpl(mContext, userId);
+                service = new AppWidgetServiceImpl(mContext, userId, mSaveStateHandler);
                 service.systemReady(mSafeMode);
                 // Assume that BOOT_COMPLETED was received, as this is a non-primary user.
                 mAppWidgetServices.append(userId, service);
@@ -268,8 +393,9 @@ class AppWidgetService extends IAppWidgetService.Stub
     }
 
     @Override
-    public List<AppWidgetProviderInfo> getInstalledProviders() throws RemoteException {
-        return getImplForUser(getCallingOrCurrentUserId()).getInstalledProviders();
+    public List<AppWidgetProviderInfo> getInstalledProviders(int categoryFilter)
+            throws RemoteException {
+        return getImplForUser(getCallingOrCurrentUserId()).getInstalledProviders(categoryFilter);
     }
 
     @Override
@@ -292,8 +418,24 @@ class AppWidgetService extends IAppWidgetService.Stub
     }
 
     @Override
-    public void unbindRemoteViewsService(int appWidgetId, Intent intent) throws RemoteException {
-        getImplForUser(getCallingOrCurrentUserId()).unbindRemoteViewsService(
+    public void stopListeningAsUser(int hostId, int userId) throws RemoteException {
+        if (Binder.getCallingPid() != android.os.Process.myPid()
+                && userId != UserHandle.getCallingUserId()) {
+            throw new SecurityException("Call from non-system process. Calling uid = "
+                    + Binder.getCallingUid());
+        }
+        getImplForUser(userId).stopListening(hostId);
+    }
+
+    @Override
+    public void unbindRemoteViewsService(int appWidgetId, Intent intent, int userId)
+            throws RemoteException {
+        if (Binder.getCallingPid() != android.os.Process.myPid()
+                && userId != UserHandle.getCallingUserId()) {
+            throw new SecurityException("Call from non-system process. Calling uid = "
+                    + Binder.getCallingUid());
+        }
+        getImplForUser(userId).unbindRemoteViewsService(
                 appWidgetId, intent);
     }
 

@@ -18,8 +18,8 @@
 
 // BUFFER_SIZE size must be one more than a multiple of COMMAND_SIZE to ensure
 // that mStart always points at the next command, not just the next item
-#define COMMAND_SIZE 2
-#define NUM_COMMANDS 50
+#define COMMAND_SIZE 3
+#define NUM_COMMANDS 300
 #define BUFFER_SIZE ((NUM_COMMANDS * COMMAND_SIZE) + 1)
 
 /**
@@ -86,19 +86,24 @@ void DisplayListLogBuffer::outputCommands(FILE *file, const char* opNames[])
         if (tmpBufferPtr > mBufferLast) {
             tmpBufferPtr = mBufferFirst;
         }
+        int du = *tmpBufferPtr++;
+        if (tmpBufferPtr > mBufferLast) {
+            tmpBufferPtr = mBufferFirst;
+        }
         uint32_t count = (level + 1) * 2;
         char indent[count + 1];
         for (uint32_t i = 0; i < count; i++) {
             indent[i] = ' ';
         }
         indent[count] = '\0';
-        fprintf(file, "%s%s\n", indent, opNames[op]);
+        fprintf(file, "%s%s %dus\n", indent, opNames[op], du);
     }
 }
 
-void DisplayListLogBuffer::writeCommand(int level, int op) {
+void DisplayListLogBuffer::writeCommand(int level, int op, int duration) {
     writeInt(level);
     writeInt(op);
+    writeInt(duration);
 }
 
 /**

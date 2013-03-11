@@ -29,7 +29,7 @@ import libcore.util.Objects;
  *
  * @hide
  */
-public final class WifiDisplay implements Parcelable {
+public final class WifiDisplay implements Parcelable, Comparable<WifiDisplay> {
     private final String mDeviceAddress;
     private final String mDeviceName;
     private final String mDeviceAlias;
@@ -107,6 +107,15 @@ public final class WifiDisplay implements Parcelable {
                 && Objects.equal(mDeviceAlias, other.mDeviceAlias);
     }
 
+    /**
+     * Returns true if the other display is not null and has the same address as this one.
+     * Can be used to perform identity comparisons on displays ignoring properties
+     * that might change during a connection such as the name or alias.
+     */
+    public boolean hasSameAddress(WifiDisplay other) {
+        return other != null && mDeviceAddress.equals(other.mDeviceAddress);
+    }
+
     @Override
     public int hashCode() {
         // The address on its own should be sufficiently unique for hashing purposes.
@@ -133,5 +142,13 @@ public final class WifiDisplay implements Parcelable {
             result += ", alias " + mDeviceAlias;
         }
         return result;
+    }
+
+    @Override
+    public int compareTo(WifiDisplay other) {
+        if (mDeviceAlias == null || other.mDeviceAlias == null)
+            return mDeviceName.compareTo(other.mDeviceName);
+        else
+            return mDeviceAlias.compareTo(other.mDeviceAlias);
     }
 }

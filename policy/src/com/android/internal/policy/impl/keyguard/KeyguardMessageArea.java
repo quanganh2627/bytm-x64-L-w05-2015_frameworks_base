@@ -63,6 +63,7 @@ class KeyguardMessageArea extends TextView {
 
     // Shadowed text values
     protected boolean mBatteryCharged;
+    protected boolean mBatteryCharging;
     protected boolean mBatteryIsLow;
 
     private Handler mHandler;
@@ -137,6 +138,7 @@ class KeyguardMessageArea extends TextView {
             mPluggedIn = status.isPluggedIn();
             mBatteryLevel = status.level;
             mBatteryCharged = status.isCharged();
+            mBatteryCharging = status.isCharging();
             mBatteryIsLow = status.isBatteryLow();
             update();
         }
@@ -225,9 +227,13 @@ class KeyguardMessageArea extends TextView {
             // Battery status
             if (mPluggedIn) {
                 // Charging, charged or waiting to charge.
-                string = getContext().getString(mBatteryCharged ?
+                if (mBatteryCharging) {
+                    string = getContext().getString(com.android.internal.R.string.lockscreen_plugged_in, mBatteryLevel);
+                } else {
+                    string = getContext().getString(mBatteryCharged ?
                         com.android.internal.R.string.lockscreen_charged
-                        :com.android.internal.R.string.lockscreen_plugged_in, mBatteryLevel);
+                        :com.android.internal.R.string.lockscreen_not_charging);
+                }
                 icon.value = CHARGING_ICON;
             } else if (mBatteryIsLow) {
                 // Battery is low

@@ -100,6 +100,10 @@ public final class BridgeWindow implements IWindow {
     }
 
     @Override
+    public void dumpANRInfo() {
+    }
+
+    @Override
     public IBinder asBinder() {
         // pass for now.
         return null;

@@ -28,6 +28,7 @@ import android.content.pm.IPackageManager;
 import android.content.res.Configuration;
 import android.media.AudioService;
 import android.net.wifi.p2p.WifiP2pService;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
@@ -42,6 +43,7 @@ import android.server.search.SearchManagerService;
 import android.service.dreams.DreamService;
 import android.util.DisplayMetrics;
 import android.util.EventLog;
+import android.util.LocalLog;
 import android.util.Log;
 import android.util.Slog;
 import android.view.WindowManager;
@@ -64,6 +66,8 @@ import com.android.server.power.PowerManagerService;
 import com.android.server.power.ShutdownThread;
 import com.android.server.usb.UsbService;
 import com.android.server.wm.WindowManagerService;
+import com.android.server.SmartcardSystemService;
+import com.intel.multidisplay.DisplayObserver;
 
 import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
@@ -76,6 +80,7 @@ class ServerThread extends Thread {
     private static final String TAG = "SystemServer";
     private static final String ENCRYPTING_STATE = "trigger_restart_min_framework";
     private static final String ENCRYPTED_STATE = "1";
+    private static final boolean IS_USER_BUILD = "user".equals(Build.TYPE);
 
     ContentResolver mContentResolver;
 
@@ -127,6 +132,7 @@ class ServerThread extends Thread {
         PowerManagerService power = null;
         DisplayManagerService display = null;
         BatteryService battery = null;
+        CurrentMgmtService current = null;
         VibratorService vibrator = null;
         AlarmManagerService alarm = null;
         MountService mountService = null;
@@ -149,6 +155,7 @@ class ServerThread extends Thread {
         RecognitionManagerService recognition = null;
         ThrottleService throttle = null;
         NetworkTimeUpdateService networkTimeUpdater = null;
+        ThermalService thermalservice = null;
         CommonTimeManagementService commonTimeMgmtService = null;
         InputManagerService inputManager = null;
         TelephonyRegistry telephonyRegistry = null;
@@ -166,6 +173,9 @@ class ServerThread extends Thread {
             public void run() {
                 //Looper.myLooper().setMessageLogging(new LogPrinter(
                 //        Log.VERBOSE, "WindowManagerPolicy", Log.LOG_ID_SYSTEM));
+                if (!IS_USER_BUILD) {
+                    Looper.myLooper().setMessageLogging(new LocalLog(128));
+                }
                 android.os.Process.setThreadPriority(
                         android.os.Process.THREAD_PRIORITY_FOREGROUND);
                 android.os.Process.setCanSelfBackground(false);
@@ -186,6 +196,9 @@ class ServerThread extends Thread {
             public void run() {
                 //Looper.myLooper().setMessageLogging(new LogPrinter(
                 //        android.util.Log.DEBUG, TAG, android.util.Log.LOG_ID_SYSTEM));
+                if (!IS_USER_BUILD) {
+                    Looper.myLooper().setMessageLogging(new LocalLog(128));
+                }
                 android.os.Process.setThreadPriority(
                         android.os.Process.THREAD_PRIORITY_DISPLAY);
                 android.os.Process.setCanSelfBackground(false);
@@ -284,9 +297,22 @@ class ServerThread extends Thread {
             Slog.i(TAG, "Lights Service");
             lights = new LightsService(context);
 
+            //THERMAL
+            if ("1".equals(SystemProperties.get("persist.service.thermal", "0"))) {
+               Slog.i(TAG, "Thermal Service enabled");
+               thermalservice = new ThermalService(context);
+               ServiceManager.addService("thermalservice", thermalservice);
+            } else {
+               Log.i(TAG, "Thermal Service disabled");
+            }
+
             Slog.i(TAG, "Battery Service");
             battery = new BatteryService(context, lights);
             ServiceManager.addService("battery", battery);
+
+            Slog.i(TAG, "Current Mgmt Service");
+            current = new CurrentMgmtService(context);
+            ServiceManager.addService("current", current);
 
             Slog.i(TAG, "Vibrator Service");
             vibrator = new VibratorService(context);
@@ -534,7 +560,8 @@ class ServerThread extends Thread {
              * AppWidget Provider. Make sure MountService is completely started
              * first before continuing.
              */
-            if (mountService != null) {
+            if (mountService != null &&
+                   !ENCRYPTING_STATE.equals(SystemProperties.get("vold.decrypt"))) {
                 mountService.waitForAsecScan();
             }
 
@@ -624,6 +651,14 @@ class ServerThread extends Thread {
             }
 
             try {
+                Slog.i(TAG, "Intel Display Observer");
+                // Listen for display changes
+                DisplayObserver dso = new DisplayObserver(context);
+            } catch (Throwable e) {
+                reportWtf("starting Intel DisplayObserver", e);
+            }
+
+            try {
                 Slog.i(TAG, "Dock Observer");
                 // Listen for dock station changes
                 dock = new DockObserver(context);
@@ -694,6 +729,15 @@ class ServerThread extends Thread {
                 recognition = new RecognitionManagerService(context);
             } catch (Throwable e) {
                 reportWtf("starting Recognition Service", e);
+            }
+
+            if (!"0".equals(SystemProperties.get("startsmartcardservice"))) {
+                try {
+                    Slog.i(TAG, "Smartcard System Service");
+                    ServiceManager.addService("smartcardservice", new SmartcardSystemService(context));
+                } catch (Throwable e) {
+                    reportWtf("starting Smartcard System Service", e);
+                }
             }
 
             try {

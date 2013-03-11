@@ -70,7 +70,7 @@ public class DhcpStateMachine extends StateMachine {
     private static final String ACTION_DHCP_RENEW = "android.net.wifi.DHCP_RENEW";
 
     //Used for sanity check on setting up renewal
-    private static final int MIN_RENEWAL_TIME_SECS = 5 * 60;  // 5 minutes
+    private static final int MIN_RENEWAL_TIME_SECS = 30; //30 seconds
 
     private enum DhcpAction {
         START,
@@ -351,6 +351,8 @@ public class DhcpStateMachine extends StateMachine {
         DhcpInfoInternal dhcpInfoInternal = new DhcpInfoInternal();
 
         if (dhcpAction == DhcpAction.START) {
+            /* Stop any existing DHCP daemon before starting new */
+            NetworkUtils.stopDhcp(mInterfaceName);
             if (DBG) Log.d(TAG, "DHCP request on " + mInterfaceName);
             success = NetworkUtils.runDhcp(mInterfaceName, dhcpInfoInternal);
             mDhcpInfo = dhcpInfoInternal;

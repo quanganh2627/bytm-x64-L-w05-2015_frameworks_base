@@ -53,6 +53,7 @@ import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.RemoteException;
@@ -799,6 +800,14 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
      * @param event The key event.
      */
     public final void onKeyUpPanel(int featureId, KeyEvent event) {
+        View decor = peekDecorView();
+        if (decor != null){
+           IBinder token = (IBinder)decor.getWindowToken();
+           if(token == null){
+             Log.w(TAG,"the token is null, don't show the panel!");
+             return;
+           }
+        }
         // The panel key was released, so clear the chording key
         if (mPanelChordingKey != 0) {
             mPanelChordingKey = 0;

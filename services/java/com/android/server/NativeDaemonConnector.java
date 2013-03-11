@@ -25,6 +25,7 @@ import android.os.SystemClock;
 import android.util.LocalLog;
 import android.util.Slog;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.google.android.collect.Lists;
 
 import java.nio.charset.Charsets;
@@ -222,6 +223,11 @@ final class NativeDaemonConnector implements Runnable, Handler.Callback, Watchdo
             builder.append(' ');
             appendEscaped(builder, argString);
         }
+
+        // FrameworkListener's data buffer length is 255, so we cannot exceed it.
+        if (builder.toString().length() > 254) {
+            throw new IllegalArgumentException("command too long: " + builder.toString());
+        }
     }
 
     /**
@@ -400,7 +406,7 @@ final class NativeDaemonConnector implements Runnable, Handler.Callback, Watchdo
      * Append the given argument to {@link StringBuilder}, escaping as needed,
      * and surrounding with quotes when it contains spaces.
      */
-    // @VisibleForTesting
+    @VisibleForTesting
     static void appendEscaped(StringBuilder builder, String arg) {
         final boolean hasSpaces = arg.indexOf(' ') >= 0;
         if (hasSpaces) {

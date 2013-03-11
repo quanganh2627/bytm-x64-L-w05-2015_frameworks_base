@@ -1907,7 +1907,7 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
                 // dispatched to it.  Cancel touch targets if necessary.
                 TouchTarget predecessor = null;
                 TouchTarget target = mFirstTouchTarget;
-                while (target != null) {
+                while (target != null && mFirstTouchTarget != null) {
                     final TouchTarget next = target.next;
                     if (alreadyDispatchedToNewTouchTarget && target == newTouchTarget) {
                         handled = true;
@@ -3619,8 +3619,6 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
         if (view.hasTransientState()) {
             childHasTransientStateChanged(view, false);
         }
-
-        view.resetRtlProperties();
 
         onViewRemoved(view);
 
@@ -5365,21 +5363,6 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
         for (int i = 0; i < count; i++) {
             final View child = getChildAt(i);
             child.resolveLayoutParams();
-        }
-    }
-
-    /**
-     * @hide
-     */
-    @Override
-    public void resetRtlProperties() {
-        super.resetRtlProperties();
-        int count = getChildCount();
-        for (int i = 0; i < count; i++) {
-            final View child = getChildAt(i);
-            if (child.isLayoutDirectionInherited()) {
-                child.resetRtlProperties();
-            }
         }
     }
 

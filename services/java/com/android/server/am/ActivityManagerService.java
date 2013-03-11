@@ -161,6 +161,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import   java.text.SimpleDateFormat;
+
 public final class ActivityManagerService extends ActivityManagerNative
         implements Watchdog.Monitor, BatteryStatsImpl.BatteryCallback {
     private static final String USER_DATA_DIR = "/data/user/";
@@ -1332,7 +1334,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                         }
                         dropBuilder.append(catSw.toString());
                         addErrorToDropBox("lowmem", null, "system_server", null,
-                                null, tag.toString(), dropBuilder.toString(), null, null);
+                                null, tag.toString(), dropBuilder.toString(), null, null, null);
                         Slog.i(TAG, logBuilder.toString());
                         synchronized (ActivityManagerService.this) {
                             long now = SystemClock.uptimeMillis();
@@ -2085,6 +2087,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                     }
                 } catch (PackageManager.NameNotFoundException e) {
                     Slog.w(TAG, "Unable to retrieve gids", e);
+                    return;
                 }
 
                 /*
@@ -3094,6 +3097,9 @@ public final class ActivityManagerService extends ActivityManagerNative
             return null;
         }
 
+        // Try to add the error to the dropbox, but assuming that the ActivityManager
+        // itself may be deadlocked.  (which has happened, causing this statement to
+        // deadlock and the watchdog as a whole to be ineffective)
         dumpStackTraces(tracesPath, firstPids, processStats, lastPids, nativeProcs);
         return tracesFile;
     }
@@ -3344,14 +3350,40 @@ public final class ActivityManagerService extends ActivityManagerNative
 
         info.append(processStats.printCurrentState(anrTime));
 
+        String buildtype = SystemProperties.get("ro.build.type", null);
+        String stackname = null;
+        if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
+            final String dropboxTag = processClass(app) + "_anr";
+            final DropBoxManager dbox = (DropBoxManager)
+                    mContext.getSystemService(Context.DROPBOX_SERVICE);
+            if (dbox != null && dbox.isTagEnabled(dropboxTag) && !dbox.isFull()) {
+                String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
+                String subString = tracesPath.substring(0,10);
+                SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
+                stackname = subString + sDateFormat.format(new java.util.Date()) + ".txt";
+                DebugAnr da = new DebugAnr();
+                da.logToFile(stackname);
+           }
+        }
+
         Slog.e(TAG, info.toString());
+
+        if (!IS_USER_BUILD && app.thread != null) {
+            try {
+                app.thread.dumpANRInfo();
+            } catch (RemoteException e) {
+                Slog.e(ActivityManagerService.TAG, "Exception in dumpANRInfo", e);
+            }
+        }
+
+        // Please add DebugAnr after dumpANRInfo
+
         if (tracesFile == null) {
             // There is no trace file, so dump (only) the alleged culprit's threads to the log
             Process.sendSignal(app.pid, Process.SIGNAL_QUIT);
         }
-
         addErrorToDropBox("anr", app, app.processName, activity, parent, annotation,
-                cpuInfo, tracesFile, null);
+            cpuInfo, tracesFile, null, stackname);
 
         if (mController != null) {
             try {
@@ -3870,7 +3902,7 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
 
         boolean didSomething = killPackageProcessesLocked(name, appId, userId,
-                -100, callerWillRestart, false, doit, evenPersistent,
+                -100, callerWillRestart, true, doit, evenPersistent,
                 name == null ? ("force stop user " + userId) : ("force stop " + name));
         
         TaskRecord lastTask = null;
@@ -4762,6 +4794,18 @@ public final class ActivityManagerService extends ActivityManagerNative
         } catch (ClassCastException e) {
         }
         return false;
+    }
+
+    public Intent getIntentForIntentSender(IIntentSender pendingResult) {
+        if (!(pendingResult instanceof PendingIntentRecord)) {
+            return null;
+        }
+        try {
+            PendingIntentRecord res = (PendingIntentRecord)pendingResult;
+            return res.key.requestIntent != null ? new Intent(res.key.requestIntent) : null;
+        } catch (ClassCastException e) {
+        }
+        return null;
     }
 
     public void setProcessLimit(int max) {
@@ -8163,7 +8207,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                 crashInfo.throwFileName,
                 crashInfo.throwLineNumber);
 
-        addErrorToDropBox("crash", r, processName, null, null, null, null, null, crashInfo);
+        addErrorToDropBox("crash", r, processName, null, null, null, null, null, crashInfo, null);
 
         crashApplication(r, crashInfo);
     }
@@ -8360,7 +8404,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                 r == null ? -1 : r.info.flags,
                 tag, crashInfo.exceptionMessage);
 
-        addErrorToDropBox("wtf", r, processName, null, null, tag, null, null, crashInfo);
+        addErrorToDropBox("wtf", r, processName, null, null, tag, null, null, crashInfo, null);
 
         if (r != null && r.pid != Process.myPid() &&
                 Settings.Global.getInt(mContext.getContentResolver(),
@@ -8466,7 +8510,7 @@ public final class ActivityManagerService extends ActivityManagerNative
             ProcessRecord process, String processName, ActivityRecord activity,
             ActivityRecord parent, String subject,
             final String report, final File logFile,
-            final ApplicationErrorReport.CrashInfo crashInfo) {
+            final ApplicationErrorReport.CrashInfo crashInfo, final String stackname) {
         // NOTE -- this must never acquire the ActivityManagerService lock,
         // otherwise the watchdog may be prevented from resetting the system.
 
@@ -8478,6 +8522,9 @@ public final class ActivityManagerService extends ActivityManagerNative
         if (dbox == null || !dbox.isTagEnabled(dropboxTag)) return;
 
         final StringBuilder sb = new StringBuilder(1024);
+        if (stackname != null) {
+            sb.append("Trace file:" + stackname).append("\n");
+        }
         appendDropBoxProcessHeaders(process, processName, sb);
         if (activity != null) {
             sb.append("Activity: ").append(activity.shortComponentName).append("\n");
@@ -8507,9 +8554,20 @@ public final class ActivityManagerService extends ActivityManagerNative
                 }
                 if (logFile != null) {
                     try {
-                        sb.append(FileUtils.readTextFile(logFile, 128 * 1024, "\n\n[[TRUNCATED]]"));
+                        sb.append(FileUtils.readTextFile(logFile, 256 * 1024, "\n\n[[TRUNCATED]]"));
                     } catch (IOException e) {
                         Slog.e(TAG, "Error reading " + logFile, e);
+                    }
+                    // When Dropbox is full, the DropBoxManager only produces zero-length log files.
+                    // So in case of ANR or System_Server_Watchdog, we dump here the stack traces file
+                    // content (if not null) to the System log to keep some debug data before losing them
+                    String buildtype = SystemProperties.get("ro.build.type", null);
+                    if ( "userdebug".equals(buildtype) || "eng".equals(buildtype) ) {
+                        if ( ( dropboxTag.contains("anr") || dropboxTag.contains("system_server_watchdog") ) && dbox.isFull() ) {
+                            Slog.i(TAG, "---- DropBox full: Begin dumping dropbox logfile " + dropboxTag + " ----");
+                            Slog.i(TAG, sb.toString());
+                            Slog.i(TAG, "---- End dumping dropbox logfile " + dropboxTag + " ----");
+                        }
                     }
                 }
                 if (crashInfo != null && crashInfo.stackTrace != null) {
@@ -8543,6 +8601,18 @@ public final class ActivityManagerService extends ActivityManagerNative
                 }
 
                 dbox.addText(dropboxTag, sb.toString());
+
+                if (dbox.isFull() == true) {
+                    try {
+                        File file = new File(stackname);
+                        if (file.exists() && file.isFile()) {
+                            file.delete();
+                            Slog.d(TAG, "DropBox is full, so remove the stack trace file.");
+                        }
+                    } catch(Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
             }
         };
 
@@ -12316,7 +12386,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                 }
                 newConfig.seq = mConfigurationSeq;
                 mConfiguration = newConfig;
-                Slog.i(TAG, "Config changed: " + newConfig);
+                Slog.i(TAG, "Config changes=" + Integer.toHexString(changes) + " " + newConfig);
 
                 final Configuration configCopy = new Configuration(mConfiguration);
                 
@@ -14120,7 +14190,7 @@ public final class ActivityManagerService extends ActivityManagerNative
     // Multi-user methods
 
     @Override
-    public boolean switchUser(int userId) {
+    public boolean switchUser(final int userId) {
         if (checkCallingPermission(android.Manifest.permission.INTERACT_ACROSS_USERS_FULL)
                 != PackageManager.PERMISSION_GRANTED) {
             String msg = "Permission Denial: switchUser() from pid="
@@ -14168,7 +14238,7 @@ public final class ActivityManagerService extends ActivityManagerNative
 
                 // Once the internal notion of the active user has switched, we lock the device
                 // with the option to show the user switcher on the keyguard.
-                mWindowManager.lockNow(LockPatternUtils.USER_SWITCH_LOCK_OPTIONS);
+                mWindowManager.lockNow(null);
 
                 final UserStartedState uss = mStartedUsers.get(userId);
 
@@ -14214,7 +14284,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                                     public void performReceive(Intent intent, int resultCode,
                                             String data, Bundle extras, boolean ordered,
                                             boolean sticky, int sendingUser) {
-                                        userInitialized(uss);
+                                        userInitialized(uss, userId);
                                     }
                                 }, 0, null, null, null, true, false, MY_PID, Process.SYSTEM_UID,
                                 userId);
@@ -14229,6 +14299,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                     startHomeActivityLocked(userId);
                 }
 
+                EventLogTags.writeAmSwitchUser(userId);
                 getUserManagerLocked().userForeground(userId);
                 sendUserSwitchBroadcastsLocked(oldUserId, userId);
                 if (needStart) {
@@ -14340,32 +14411,39 @@ public final class ActivityManagerService extends ActivityManagerNative
                 oldUserId, newUserId, uss));
     }
 
-    void userInitialized(UserStartedState uss) {
-        synchronized (ActivityManagerService.this) {
-            getUserManagerLocked().makeInitialized(uss.mHandle.getIdentifier());
-            uss.initializing = false;
-            completeSwitchAndInitalizeLocked(uss);
-        }
+    void userInitialized(UserStartedState uss, int newUserId) {
+        completeSwitchAndInitalize(uss, newUserId, true, false);
     }
 
     void continueUserSwitch(UserStartedState uss, int oldUserId, int newUserId) {
-        final int N = mUserSwitchObservers.beginBroadcast();
-        for (int i=0; i<N; i++) {
-            try {
-                mUserSwitchObservers.getBroadcastItem(i).onUserSwitchComplete(newUserId);
-            } catch (RemoteException e) {
-            }
-        }
-        mUserSwitchObservers.finishBroadcast();
-        synchronized (this) {
-            uss.switching = false;
-            completeSwitchAndInitalizeLocked(uss);
-        }
+        completeSwitchAndInitalize(uss, newUserId, false, true);
     }
 
-    void completeSwitchAndInitalizeLocked(UserStartedState uss) {
-        if (!uss.switching && !uss.initializing) {
-            mWindowManager.stopFreezingScreen();
+    void completeSwitchAndInitalize(UserStartedState uss, int newUserId,
+            boolean clearInitializing, boolean clearSwitching) {
+        boolean unfrozen = false;
+        synchronized (this) {
+            if (clearInitializing) {
+                uss.initializing = false;
+                getUserManagerLocked().makeInitialized(uss.mHandle.getIdentifier());
+            }
+            if (clearSwitching) {
+                uss.switching = false;
+            }
+            if (!uss.switching && !uss.initializing) {
+                mWindowManager.stopFreezingScreen();
+                unfrozen = true;
+            }
+        }
+        if (unfrozen) {
+            final int N = mUserSwitchObservers.beginBroadcast();
+            for (int i=0; i<N; i++) {
+                try {
+                    mUserSwitchObservers.getBroadcastItem(i).onUserSwitchComplete(newUserId);
+                } catch (RemoteException e) {
+                }
+            }
+            mUserSwitchObservers.finishBroadcast();
         }
     }
 
@@ -14532,6 +14610,10 @@ public final class ActivityManagerService extends ActivityManagerNative
                 // Clean up all state and processes associated with the user.
                 // Kill all the processes for the user.
                 forceStopUserLocked(userId);
+                AttributeCache ac = AttributeCache.instance();
+                if (ac != null) {
+                    ac.removeUser(userId);
+                }
             }
         }
 

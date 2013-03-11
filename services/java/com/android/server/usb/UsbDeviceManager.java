@@ -36,6 +36,8 @@ import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
 import android.os.ParcelFileDescriptor;
+import android.os.PowerManager;
+import android.os.PowerManager.WakeLock;
 import android.os.Process;
 import android.os.SystemClock;
 import android.os.SystemProperties;
@@ -47,12 +49,16 @@ import android.provider.Settings;
 import android.util.Pair;
 import android.util.Slog;
 
+import com.android.internal.annotations.GuardedBy;
+
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.HashMap;
+import java.io.BufferedOutputStream;
+import java.io.FileOutputStream;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +72,10 @@ public class UsbDeviceManager {
     private static final String TAG = UsbDeviceManager.class.getSimpleName();
     private static final boolean DEBUG = false;
 
+    private static final String USB_SUBSYSTEM_MATCH =
+            "SUBSYSTEM=usb";
+    private static final String USB_OTG_CTRL_MATCH =
+            "DRIVER=penwell_otg";
     private static final String USB_STATE_MATCH =
             "DEVPATH=/devices/virtual/android_usb/android0";
     private static final String ACCESSORY_START_MATCH =
@@ -87,6 +97,7 @@ public class UsbDeviceManager {
     private static final int MSG_SYSTEM_READY = 3;
     private static final int MSG_BOOT_COMPLETED = 4;
     private static final int MSG_USER_SWITCHED = 5;
+    private static final int MSG_USB_WARNING = 6;
 
     private static final int AUDIO_MODE_NONE = 0;
     private static final int AUDIO_MODE_SOURCE = 1;
@@ -98,6 +109,7 @@ public class UsbDeviceManager {
 
     private static final String BOOT_MODE_PROPERTY = "ro.bootmode";
 
+    private Handler mLockHandler;
     private UsbHandler mHandler;
     private boolean mBootCompleted;
 
@@ -105,8 +117,10 @@ public class UsbDeviceManager {
 
     private final Context mContext;
     private final ContentResolver mContentResolver;
-    // @GuardedBy("mLock")
+    @GuardedBy("mLock")
     private UsbSettingsManager mCurrentSettings;
+    private final PowerManager mPowerManager;
+    private final PowerManager.WakeLock mWakeLock;
     private NotificationManager mNotificationManager;
     private final boolean mHasUsbAccessory;
     private boolean mUseUsbNotification;
@@ -138,11 +152,30 @@ public class UsbDeviceManager {
 
             String state = event.get("USB_STATE");
             String accessory = event.get("ACCESSORY");
+            String warning = event.get("USB_WARNING");
+            String intr = event.get("USB_INTR");
+
             if (state != null) {
                 mHandler.updateState(state);
             } else if ("START".equals(accessory)) {
                 if (DEBUG) Slog.d(TAG, "got accessory start");
                 startAccessoryMode();
+            }
+            if (warning != null) {
+                if (DEBUG) Slog.d(TAG, "receive USB warning");
+                mHandler.showUsbWarning(warning);
+            }
+            if (intr != null) {
+                if (DEBUG) Slog.d(TAG, "got BOGUS USB INTR event");
+                File usbBogusTrigger = new File("/logs/stats/USBBOGUS_trigger");
+                try {
+                    BufferedOutputStream write = new BufferedOutputStream(new FileOutputStream(usbBogusTrigger));
+                    write.close();
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
     };
@@ -152,9 +185,14 @@ public class UsbDeviceManager {
         mContentResolver = context.getContentResolver();
         PackageManager pm = mContext.getPackageManager();
         mHasUsbAccessory = pm.hasSystemFeature(PackageManager.FEATURE_USB_ACCESSORY);
+        mPowerManager = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
+        mWakeLock = mPowerManager.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, "usb_lock");
+        mWakeLock.setReferenceCounted(false);
         initRndisAddress();
 
         readOemUsbOverrideConfig();
+
+        mLockHandler = new Handler();
 
         // create a thread for our Handler
         HandlerThread thread = new HandlerThread("UsbDeviceManager",
@@ -366,6 +404,8 @@ public class UsbDeviceManager {
                 // Watch for USB configuration changes
                 mUEventObserver.startObserving(USB_STATE_MATCH);
                 mUEventObserver.startObserving(ACCESSORY_START_MATCH);
+                mUEventObserver.startObserving(USB_SUBSYSTEM_MATCH);
+                mUEventObserver.startObserving(USB_OTG_CTRL_MATCH);
 
                 mContext.registerReceiver(
                         mBootCompletedReceiver, new IntentFilter(Intent.ACTION_BOOT_COMPLETED));
@@ -420,6 +460,30 @@ public class UsbDeviceManager {
             msg.arg2 = configured;
             // debounce disconnects to avoid problems bringing up USB tethering
             sendMessageDelayed(msg, (connected == 0) ? UPDATE_DELAY : 0);
+        }
+
+        public void showUsbWarning(String warning) {
+            int id;
+
+            if ("DEVICE_NOT_SUPPORT".equals(warning)) {
+                id = com.android.internal.R.string.usb_warn_device_not_support;
+            } else if ("DEVICE_NOT_RESPONDING".equals(warning)) {
+                id = com.android.internal.R.string.usb_warn_device_not_responding;
+            } else if ("VBUS_INVALID".equals(warning)) {
+                id = com.android.internal.R.string.usb_warn_device_vbus_invalid_title;
+            } else if ("HUB_MAX_TIER".equals(warning)) {
+                id = com.android.internal.R.string.usb_warn_hub_max_tier;
+            } else if ("INSUFF_POWER".equals(warning)) {
+                id = com.android.internal.R.string.usb_warn_insufficient_power_title;
+            } else {
+                Slog.e(TAG, "unknown warning " + warning);
+                return;
+            }
+            removeMessages(MSG_USB_WARNING);
+            Message msg = Message.obtain(this, MSG_USB_WARNING);
+            msg.arg1 = id;
+            msg.arg2 = 1;
+            sendMessageDelayed(msg, 500);
         }
 
         private boolean waitForState(String state) {
@@ -607,7 +671,14 @@ public class UsbDeviceManager {
                     }
                     if (mBootCompleted) {
                         updateUsbState();
-                        updateAudioSourceFunction();
+                        // update audio status when disconnected or configured
+                        if (mConnected == mConfigured)
+                            updateAudioSourceFunction();
+                    }
+                    if (mConnected && mConfigured) {
+                        mLockHandler.removeCallbacks(usbConLCDTask);
+                        mWakeLock.acquire();
+                        mLockHandler.postDelayed(usbConLCDTask, 10000);
                     }
                     break;
                 case MSG_ENABLE_ADB:
@@ -626,6 +697,9 @@ public class UsbDeviceManager {
                     break;
                 case MSG_BOOT_COMPLETED:
                     mBootCompleted = true;
+                    updateUsbState();
+                    if (mConnected == mConfigured)
+                        updateAudioSourceFunction();
                     if (mCurrentAccessory != null) {
                         getCurrentSettings().accessoryAttached(mCurrentAccessory);
                     }
@@ -645,6 +719,9 @@ public class UsbDeviceManager {
                     mCurrentUser = msg.arg1;
                     break;
                 }
+                case MSG_USB_WARNING:
+                    updateWarnNotification(msg.arg1, msg.arg2);
+                    break;
             }
         }
 
@@ -743,6 +820,51 @@ public class UsbDeviceManager {
             } else if (mAdbNotificationShown) {
                 mAdbNotificationShown = false;
                 mNotificationManager.cancelAsUser(null, id, UserHandle.ALL);
+            }
+        }
+
+        private void updateWarnNotification(int id, int enable) {
+            if (mNotificationManager == null) return;
+
+            if (enable > 0) {
+                if (DEBUG) Slog.d(TAG, "update USB Warning notification");
+                Resources r = mContext.getResources();
+                CharSequence title = r.getText(id);
+                int idmsg;
+
+                if (id == com.android.internal.R.string.usb_warn_device_vbus_invalid_title)
+                        idmsg = com.android.internal.R.string.usb_warn_device_vbus_invalid_message;
+                else if (id == com.android.internal.R.string.usb_warn_insufficient_power_title)
+                        idmsg = com.android.internal.R.string.usb_warn_insufficient_power_message;
+                else
+                        idmsg = id;
+
+                CharSequence message = r.getText(idmsg);
+
+                Notification notification = new Notification();
+                notification.icon = com.android.internal.R.drawable.stat_sys_adb;
+                notification.when = 0;
+                notification.flags = Notification.FLAG_AUTO_CANCEL;
+                notification.tickerText = title;
+                notification.defaults = 0; // please be quiet
+                notification.sound = null;
+                notification.vibrate = null;
+
+                Intent intent = new Intent();
+                PendingIntent pi = PendingIntent.getActivity(mContext, 0,
+                        intent, PendingIntent.FLAG_UPDATE_CURRENT);
+                notification.setLatestEventInfo(mContext, title, message, pi);
+                mNotificationManager.notify(id, notification);
+
+                // Cancel Notification automatically after few seconds
+                removeMessages(MSG_USB_WARNING);
+                Message msg = Message.obtain(this, MSG_USB_WARNING);
+                msg.arg1 = id;
+                msg.arg2 = 0;
+                sendMessageDelayed(msg, 30000);
+            } else {
+                if (DEBUG) Slog.d(TAG, "cancel USB Warning notification");
+                mNotificationManager.cancel(id);
             }
         }
 
@@ -859,6 +981,13 @@ public class UsbDeviceManager {
             mDebuggingManager.denyUsbDebugging();
         }
     }
+
+    private Runnable usbConLCDTask = new Runnable() {
+        public void run() {
+            if (mWakeLock.isHeld())
+                mWakeLock.release();
+        }
+    };
 
     public void dump(FileDescriptor fd, PrintWriter pw) {
         if (mHandler != null) {

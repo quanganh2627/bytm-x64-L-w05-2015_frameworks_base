@@ -274,7 +274,8 @@ public final class PendingIntent implements Parcelable {
         String resolvedType = intent != null ? intent.resolveTypeIfNeeded(
                 context.getContentResolver()) : null;
         try {
-            intent.setAllowFds(false);
+            if(intent != null)
+                intent.setAllowFds(false);
             IIntentSender target =
                 ActivityManagerNative.getDefault().getIntentSender(
                     ActivityManager.INTENT_SENDER_ACTIVITY, packageName,
@@ -786,6 +787,20 @@ public final class PendingIntent implements Parcelable {
         } catch (RemoteException e) {
             // Should never happen.
             return false;
+        }
+    }
+
+    /**
+     * @hide
+     * Return the Intent of this PendingIntent.
+     */
+    public Intent getIntent() {
+        try {
+            return ActivityManagerNative.getDefault()
+                .getIntentForIntentSender(mTarget);
+        } catch (RemoteException e) {
+            // Should never happen.
+            return null;
         }
     }
 

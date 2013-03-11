@@ -508,6 +508,74 @@ public class WifiManager {
     private Messenger mWifiServiceMessenger;
     private final CountDownLatch mConnected = new CountDownLatch(1);
 
+    private static Object sThreadRefLock = new Object();
+    private static int sThreadRefCount;
+    private static HandlerThread sHandlerThread;
+
+    /**
+     * Wifi_Hotspot: The name of the Intent when new station is connected/disconnected.
+     * @hide
+     */
+    public static final String WIFI_AP_STA_NOTIFICATION_ACTION =
+    "android.net.wifi.WIFI_AP_STA_NOTIFICATION";
+
+    /**
+     * Wifi_Hotspot: The event of WIFI_AP_STA_NOTIFICATION_ACTION can be
+     * WIFI_AP_STA_CONNECT or WIFI_AP_STA_DISCONNECT
+     * @hide
+     */
+    public static final String EXTRA_WIFI_AP_STA_EVENT = "wifi_ap_sta_event";
+
+     /**
+     * Wifi_Hotspot: This indicates the mac address of connected station.
+     * @hide
+     */
+    public static final String EXTRA_WIFI_AP_DEVICE_ADDRESS = "device_address";
+
+    /**
+     * Wifi_Hotspot: This indicates that a station is connected.
+     * @hide
+     */
+    public static final int WIFI_AP_STA_CONNECT = 20;
+
+    /**
+     * Wifi_Hotspot: This indicates that a station is disconned.
+     * @hide
+     */
+    public static final int WIFI_AP_STA_DISCONNECT = 21;
+
+    /**
+     * Wifi_Hotspot: This is the initial value.
+     * @hide
+     */
+    public static final int WIFI_AP_STA_UNKNOWN = 22;
+
+    /**
+     * Wifi_Hotspot: This intent comes from dnsmaq daemon when tethering is done
+     * to deliver IP address and device name in real time.
+     * @hide
+     */
+    public static final String WIFI_AP_STA_TETHER_CONNECT_ACTION =
+    "android.net.wifi.WIFI_AP_STA_TETHER_CONNECT";
+
+    /**
+     * Wifi_Hotspot: This is the human readable name of connected station.
+     * @hide
+     */
+    public static final String EXTRA_WIFI_AP_HOST_NAME = "host_name";
+
+    /**
+     * Wifi_Hotspot: This is IP address of connected station.
+     * @hide
+     */
+    public static final String EXTRA_WIFI_AP_IP_ADDRESS = "ip_address";
+
+    /**
+     * Wifi_Hotspot: This is the timestamp of connected station.
+     * @hide
+     */
+    public static final String EXTRA_WIFI_AP_TIMESTAMP = "time_stamp";
+
     /**
      * Create a new WifiManager instance.
      * Applications will almost always want to use
@@ -1106,6 +1174,20 @@ public class WifiManager {
         }
     }
 
+    /**
+     * Wifi_Hotspot: Request the list of connected stations in Wifi_Hotspot mode
+     * @return {@code List} if the operation succeeds, {@code null} otherwise
+     *
+     * @hide
+     */
+    public List<WifiApConnectedDevice> getWifiApConnectedList() {
+        try {
+            return mService.getWifiApConnectedList();
+        } catch (RemoteException e) {
+            return null;
+        }
+    }
+
     /* TODO: deprecate synchronous API and open up the following API */
 
     private static final int BASE = Protocol.BASE_WIFI_MANAGER;
@@ -1365,9 +1447,14 @@ public class WifiManager {
             return;
         }
 
-        HandlerThread t = new HandlerThread("WifiManager");
-        t.start();
-        mHandler = new ServiceHandler(t.getLooper());
+        synchronized (sThreadRefLock) {
+            if (++sThreadRefCount == 1) {
+                sHandlerThread = new HandlerThread("WifiManager");
+                sHandlerThread.start();
+            }
+        }
+
+        mHandler = new ServiceHandler(sHandlerThread.getLooper());
         mAsyncChannel.connect(mContext, mHandler, mWifiServiceMessenger);
         try {
             mConnected.await();
@@ -1983,8 +2070,10 @@ public class WifiManager {
 
     protected void finalize() throws Throwable {
         try {
-            if (mHandler != null && mHandler.getLooper() != null) {
-                mHandler.getLooper().quit();
+            synchronized (sThreadRefLock) {
+                if (--sThreadRefCount == 0 && sHandlerThread != null) {
+                    sHandlerThread.getLooper().quit();
+                }
             }
         } finally {
             super.finalize();

@@ -25,6 +25,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.ContentObserver;
 import static android.os.BatteryManager.BATTERY_STATUS_FULL;
+import static android.os.BatteryManager.BATTERY_STATUS_CHARGING;
 import static android.os.BatteryManager.BATTERY_STATUS_UNKNOWN;
 import static android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN;
 import static android.os.BatteryManager.EXTRA_STATUS;
@@ -37,6 +38,7 @@ import android.os.Handler;
 import android.os.IRemoteCallback;
 import android.os.Message;
 import android.os.RemoteException;
+import android.os.UserHandle;
 import android.provider.Settings;
 
 import com.android.internal.telephony.IccCardConstants;
@@ -113,9 +115,29 @@ public class KeyguardUpdateMonitor {
 
     private final ArrayList<WeakReference<KeyguardUpdateMonitorCallback>>
             mCallbacks = Lists.newArrayList();
-    private ContentObserver mContentObserver;
+    private ContentObserver mDeviceProvisionedObserver;
 
     private final Handler mHandler = new Handler() {
+        @Override
+        public String getMessageName(Message msg) {
+            switch (msg.what) {
+                case MSG_TIME_UPDATE: return "MSG_TIME_UPDATE";
+                case MSG_BATTERY_UPDATE: return "MSG_BATTERY_UPDATE";
+                case MSG_CARRIER_INFO_UPDATE: return "MSG_CARRIER_INFO_UPDATE";
+                case MSG_SIM_STATE_CHANGE: return "MSG_SIM_STATE_CHANGE";
+                case MSG_RINGER_MODE_CHANGED: return "MSG_RINGER_MODE_CHANGED";
+                case MSG_PHONE_STATE_CHANGED: return "MSG_PHONE_STATE_CHANGED";
+                case MSG_CLOCK_VISIBILITY_CHANGED: return "MSG_CLOCK_VISIBILITY_CHANGED";
+                case MSG_DEVICE_PROVISIONED: return "MSG_DEVICE_PROVISIONED";
+                case MSG_DPM_STATE_CHANGED: return "MSG_DPM_STATE_CHANGED";
+                case MSG_USER_SWITCHED: return "MSG_USER_SWITCHED";
+                case MSG_USER_REMOVED: return "MSG_USER_REMOVED";
+                case MSG_KEYGUARD_VISIBILITY_CHANGED: return "MSG_KEYGUARD_VISIBILITY_CHANGED";
+                case MSG_BOOT_COMPLETED: return "MSG_BOOT_COMPLETED";
+            }
+            return super.getMessageName(msg);
+        }
+
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
@@ -254,6 +276,8 @@ public class KeyguardUpdateMonitor {
                 }
             } else if (IccCardConstants.INTENT_VALUE_LOCKED_NETWORK.equals(stateExtra)) {
                 state = IccCardConstants.State.NETWORK_LOCKED;
+            } else if (IccCardConstants.INTENT_VALUE_LOCKED_NETWORK_PUK.equals(stateExtra)) {
+                state = IccCardConstants.State.NETWORK_LOCKED_PUK;
             } else if (IccCardConstants.INTENT_VALUE_ICC_LOADED.equals(stateExtra)
                         || IccCardConstants.INTENT_VALUE_ICC_IMSI.equals(stateExtra)) {
                 // This is required because telephony doesn't return to "READY" after
@@ -303,6 +327,14 @@ public class KeyguardUpdateMonitor {
         }
 
         /**
+         * Whether battery is charging.
+         * @return true if battery is charging
+         */
+        public boolean isCharging() {
+            return status == BATTERY_STATUS_CHARGING;
+        }
+
+        /**
          * Whether battery is low and needs to be charged.
          * @return true if battery is low
          */
@@ -322,9 +354,7 @@ public class KeyguardUpdateMonitor {
     private KeyguardUpdateMonitor(Context context) {
         mContext = context;
 
-        mDeviceProvisioned = Settings.Global.getInt(
-                mContext.getContentResolver(), Settings.Global.DEVICE_PROVISIONED, 0) != 0;
-
+        mDeviceProvisioned = isDeviceProvisionedInSettingsDb();
         // Since device can't be un-provisioned, we only need to register a content observer
         // to update mDeviceProvisioned when we are...
         if (!mDeviceProvisioned) {
@@ -373,13 +403,17 @@ public class KeyguardUpdateMonitor {
         }
     }
 
+    private boolean isDeviceProvisionedInSettingsDb() {
+        return Settings.Global.getInt(mContext.getContentResolver(),
+                Settings.Global.DEVICE_PROVISIONED, 0) != 0;
+    }
+
     private void watchForDeviceProvisioning() {
-        mContentObserver = new ContentObserver(mHandler) {
+        mDeviceProvisionedObserver = new ContentObserver(mHandler) {
             @Override
             public void onChange(boolean selfChange) {
                 super.onChange(selfChange);
-                mDeviceProvisioned = Settings.Global.getInt(mContext.getContentResolver(),
-                    Settings.Global.DEVICE_PROVISIONED, 0) != 0;
+                mDeviceProvisioned = isDeviceProvisionedInSettingsDb();
                 if (mDeviceProvisioned) {
                     mHandler.sendMessage(mHandler.obtainMessage(MSG_DEVICE_PROVISIONED));
                 }
@@ -389,12 +423,11 @@ public class KeyguardUpdateMonitor {
 
         mContext.getContentResolver().registerContentObserver(
                 Settings.Global.getUriFor(Settings.Global.DEVICE_PROVISIONED),
-                false, mContentObserver);
+                false, mDeviceProvisionedObserver);
 
         // prevent a race condition between where we check the flag and where we register the
         // observer by grabbing the value once again...
-        boolean provisioned = Settings.Global.getInt(mContext.getContentResolver(),
-            Settings.Global.DEVICE_PROVISIONED, 0) != 0;
+        boolean provisioned = isDeviceProvisionedInSettingsDb();
         if (provisioned != mDeviceProvisioned) {
             mDeviceProvisioned = provisioned;
             if (mDeviceProvisioned) {
@@ -475,10 +508,10 @@ public class KeyguardUpdateMonitor {
                 cb.onDeviceProvisioned();
             }
         }
-        if (mContentObserver != null) {
+        if (mDeviceProvisionedObserver != null) {
             // We don't need the observer anymore...
-            mContext.getContentResolver().unregisterContentObserver(mContentObserver);
-            mContentObserver = null;
+            mContext.getContentResolver().unregisterContentObserver(mDeviceProvisionedObserver);
+            mDeviceProvisionedObserver = null;
         }
     }
 
@@ -805,7 +838,8 @@ public class KeyguardUpdateMonitor {
     public static boolean isSimLocked(IccCardConstants.State state) {
         return state == IccCardConstants.State.PIN_REQUIRED
         || state == IccCardConstants.State.PUK_REQUIRED
-        || state == IccCardConstants.State.PERM_DISABLED;
+        || state == IccCardConstants.State.PERM_DISABLED
+        || state == IccCardConstants.State.NETWORK_LOCKED_PUK;
     }
 
     public boolean isSimPinSecure() {

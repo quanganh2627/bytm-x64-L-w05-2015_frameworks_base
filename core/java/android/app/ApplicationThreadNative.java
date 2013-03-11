@@ -587,6 +587,13 @@ public abstract class ApplicationThreadNative extends Binder
             reply.writeNoException();
             return true;
         }
+
+        case DUMP_ANR_INFO_TRANSACTION:
+        {
+            data.enforceInterface(IApplicationThread.descriptor);
+            dumpANRInfo();
+            return true;
+        }
         }
 
         return super.onTransact(code, data, reply, flags);
@@ -1183,6 +1190,14 @@ class ApplicationThreadProxy implements IApplicationThread {
         data.writeInterfaceToken(IApplicationThread.descriptor);
         data.writeStrongBinder(provider);
         mRemote.transact(UNSTABLE_PROVIDER_DIED_TRANSACTION, data, null, IBinder.FLAG_ONEWAY);
+        data.recycle();
+    }
+
+    public final void dumpANRInfo() throws RemoteException {
+        Parcel data = Parcel.obtain();
+        data.writeInterfaceToken(IApplicationThread.descriptor);
+        mRemote.transact(DUMP_ANR_INFO_TRANSACTION, data, null,
+                IBinder.FLAG_ONEWAY);
         data.recycle();
     }
 }

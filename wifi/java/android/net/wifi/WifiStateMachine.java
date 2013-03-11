@@ -74,6 +74,7 @@ import android.provider.Settings;
 import android.util.EventLog;
 import android.util.Log;
 import android.util.LruCache;
+import android.util.Slog;
 
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
@@ -88,6 +89,12 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
+/* Wifi_Hotspot */
+import java.io.File;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import android.net.wifi.WifiApConnectedDevice;
+
 
 /**
  * Track the state of Wifi connectivity. All event handling is done here,
@@ -147,6 +154,7 @@ public class WifiStateMachine extends StateMachine {
     private AtomicBoolean mScreenBroadcastReceived = new AtomicBoolean(false);
 
     private boolean mBluetoothConnectionActive = false;
+    private boolean mBGscan_learn_ongoing = false;
 
     private PowerManager.WakeLock mSuspendWakeLock;
 
@@ -175,6 +183,16 @@ public class WifiStateMachine extends StateMachine {
      */
     private static final int TETHER_NOTIFICATION_TIME_OUT_MSECS = 5000;
 
+    /**
+     * Intel Background Scan notification time out
+     */
+    private static final int BGSCAN_LEARN_TIME_OUT_MSECS = 2500;
+
+    /**
+     * Intel Roaming notification time out
+     */
+    private static final int ROAMING_TIME_OUT_MSECS = 500;
+
     /* Tracks sequence number on a tether notification time out */
     private int mTetherToken = 0;
 
@@ -193,6 +211,9 @@ public class WifiStateMachine extends StateMachine {
 
     // Wakelock held during wifi start/stop and driver load/unload
     private PowerManager.WakeLock mWakeLock;
+
+    // Wakelock held during Intel Background Scan in Connected state
+    private PowerManager.WakeLock mBGscanWakeLock;
 
     private Context mContext;
 
@@ -224,6 +245,8 @@ public class WifiStateMachine extends StateMachine {
     private static final int EVENTLOG_WIFI_STATE_CHANGED        = 50021;
     private static final int EVENTLOG_WIFI_EVENT_HANDLED        = 50022;
     private static final int EVENTLOG_SUPPLICANT_STATE_CHANGED  = 50023;
+    public static final String SHUT_DOWN_WIFI_ACTION =
+            "android.net.wifi.SET_DEVICE_IDLE_AND_UPDATE";
 
     /* The base for wifi message types */
     static final int BASE = Protocol.BASE_WIFI;
@@ -545,6 +568,9 @@ public class WifiStateMachine extends StateMachine {
     private static final String ACTION_DELAYED_DRIVER_STOP =
         "com.android.server.WifiManager.action.DELAYED_DRIVER_STOP";
 
+    /* Wifi_Hotspot: The location of dnsmasq.leases file */
+    private static final String DNSMASQ_FILE_NAME = "/data/misc/dhcp/dnsmasq.leases";
+
     /**
      * Keep track of whether WIFI is running.
      */
@@ -683,6 +709,7 @@ public class WifiStateMachine extends StateMachine {
 
         PowerManager powerManager = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
         mWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
+        mBGscanWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
 
         mSuspendWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WifiSuspend");
         mSuspendWakeLock.setReferenceCounted(false);
@@ -1041,14 +1068,14 @@ public class WifiStateMachine extends StateMachine {
     }
 
     /**
-     * Start filtering Multicast v4 packets
+     * Start filtering Multicast v6 packets
      */
     public void startFilteringMulticastV6Packets() {
         sendMessage(obtainMessage(CMD_START_PACKET_FILTERING, MULTICAST_V6, 0));
     }
 
     /**
-     * Stop filtering Multicast v4 packets
+     * Stop filtering Multicast v6 packets
      */
     public void stopFilteringMulticastV6Packets() {
         sendMessage(obtainMessage(CMD_STOP_PACKET_FILTERING, MULTICAST_V6, 0));
@@ -1159,6 +1186,55 @@ public class WifiStateMachine extends StateMachine {
                 mWakeLock.setWorkSource(newSource);
             } catch (RemoteException ignore) {
             }
+        }
+    }
+
+    /* Wifi_Hotspot */
+    public List<WifiApConnectedDevice> getWifiApConnectedList() {
+        String ListStr = mWifiNative.getWifiApStationList();
+
+        if (ListStr == null)
+          return null;
+
+        List<WifiApConnectedDevice> DeviceList = new ArrayList<WifiApConnectedDevice>();
+
+        String[] tokens = ListStr.split(" ");
+
+        for (int i=0; i < tokens.length; i++) {
+           getConnectedDeviceInfo(tokens[i], DeviceList);
+        }
+        return DeviceList;
+    }
+
+   /* Wifi_Hotspot */
+    public void getConnectedDeviceInfo(String macAddress,
+                List<WifiApConnectedDevice> DeviceList) {
+        File file = new File(DNSMASQ_FILE_NAME);
+
+        try {
+            if (DBG) Log.d(TAG, "Parsing file:" + file + " mac address:" + macAddress);
+            if (file.isFile()) {
+                BufferedReader br = new BufferedReader(new FileReader(file));
+                String line;
+
+                while ((line = br.readLine()) != null) {
+                    if (DBG) Log.d(TAG, " Searching line:" + line);
+
+                    String[] columns = line.split(" ");
+
+                    if ((columns.length >= 3) && (columns[1].equals(macAddress))) {
+                        if (DBG) Log.d(TAG, " Timestamp: " + columns[0] + " Found mac:" + columns[1] +
+                                            " ip:" + columns[2] + " name:" + columns[3]);
+                        AddNewDevice(line, DeviceList);
+                        break;
+                    }
+                }
+                br.close();
+            } else {
+                Log.e(TAG,  "File is not found in " + DNSMASQ_FILE_NAME);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Exception:" + e);
         }
     }
 
@@ -1647,6 +1723,7 @@ public class WifiStateMachine extends StateMachine {
             intent.putExtra(WifiManager.EXTRA_BSSID, bssid);
         if (mNetworkInfo.getDetailedState() == DetailedState.VERIFYING_POOR_LINK ||
                 mNetworkInfo.getDetailedState() == DetailedState.CONNECTED) {
+            intent.putExtra(WifiManager.EXTRA_NEW_RSSI, mWifiInfo.getRssi());
             intent.putExtra(WifiManager.EXTRA_WIFI_INFO, new WifiInfo(mWifiInfo));
         }
         mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
@@ -1700,6 +1777,10 @@ public class WifiStateMachine extends StateMachine {
             mWifiInfo.setNetworkId(stateChangeResult.networkId);
         } else {
             mWifiInfo.setNetworkId(WifiConfiguration.INVALID_NETWORK_ID);
+        }
+        // Update RSSI value once associated to the AP
+        if (state == SupplicantState.ASSOCIATED) {
+            fetchRssiAndLinkSpeedNative();
         }
 
         mWifiInfo.setBSSID(stateChangeResult.BSSID);
@@ -1885,6 +1966,47 @@ public class WifiStateMachine extends StateMachine {
         }).start();
     }
 
+    private void enableBackgroundScanOrTurnOffWifi() {
+        List<WifiConfiguration> configs = mWifiConfigStore.getConfiguredNetworks();
+        if (configs != null) {
+            if (configs.size() != 0) {
+                mWifiNative.enableBackgroundScan(true);
+            } else {
+                // No remembered SSID, turn off Wifi immediately
+                Slog.d(TAG, "No remembered SSID, turn off wifi");
+                mContext.sendBroadcast(new Intent(SHUT_DOWN_WIFI_ACTION));
+                mEnableBackgroundScan = false;
+            }
+        } else {
+            Log.e(TAG, "Impossible to get the configured networks when considering PNO enabling");
+        }
+    }
+
+   /* Wifi_Hotspot: dnsmasq.leases file need to be deleted in order to avoid
+     * the unnecessary old event from dnsmasq daemon when tethering starts and ends.
+     */
+    private void DeleteDnsmasqLease(String filename) {
+        File file = null;
+        try {
+            file = new File(filename);
+            if (file.isFile()) {
+                file.delete();
+            } else {
+                log("Wifi_Hotspot: dnsmasq.lease doesn't exist");
+            }
+        } catch (Exception e) {
+            loge("Exception:" + e);
+        }
+    }
+
+    /* Wifi_Hotspot */
+    private void AddNewDevice(String lineToParse, List<WifiApConnectedDevice> DeviceList) {
+        String[] tokens = lineToParse.split(" ");
+
+        WifiApConnectedDevice newDevice = new WifiApConnectedDevice(Integer.parseInt(tokens[0]), tokens[1], tokens[2], tokens[3]);
+        DeviceList.add(newDevice);
+    }
+
     /********************************************************
      * HSM states
      *******************************************************/
@@ -1944,6 +2066,7 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_STOP_DRIVER:
                 case CMD_DELAYED_STOP_DRIVER:
                 case CMD_DRIVER_START_TIMED_OUT:
+                case CMD_CAPTIVE_CHECK_COMPLETE:
                 case CMD_START_AP:
                 case CMD_START_AP_SUCCESS:
                 case CMD_START_AP_FAILURE:
@@ -1959,6 +2082,7 @@ public class WifiStateMachine extends StateMachine {
                 case WifiMonitor.NETWORK_CONNECTION_EVENT:
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
                 case WifiMonitor.SCAN_RESULTS_EVENT:
+                case WifiMonitor.BGSCAN_LEARN_EVENT:
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                 case WifiMonitor.WPS_OVERLAP_EVENT:
@@ -2189,6 +2313,13 @@ public class WifiStateMachine extends StateMachine {
                         loge("Unable to change interface settings: " + ie);
                     }
 
+                    /* Stop a running supplicant after a runtime restart
+                     * Avoids issues with drivers that do not handle interface down
+                     * on a running supplicant properly.
+                     */
+                    if (DBG) log("Kill any running supplicant");
+                    mWifiNative.killSupplicant(mP2pSupported);
+
                     if(mWifiNative.startSupplicant(mP2pSupported)) {
                         if (DBG) log("Supplicant start successful");
                         mWifiMonitor.startMonitoring();
@@ -2384,7 +2515,7 @@ public class WifiStateMachine extends StateMachine {
                 case WifiMonitor.SUP_DISCONNECTION_EVENT:
                     if (++mSupplicantRestartCount <= SUPPLICANT_RESTART_TRIES) {
                         loge("Failed to setup control channel, restart supplicant");
-                        mWifiNative.killSupplicant();
+                        mWifiNative.killSupplicant(mP2pSupported);
                         transitionTo(mDriverLoadedState);
                         sendMessageDelayed(CMD_START_SUPPLICANT, SUPPLICANT_RESTART_INTERVAL_MSECS);
                     } else {
@@ -2451,7 +2582,7 @@ public class WifiStateMachine extends StateMachine {
                     break;
                 case WifiMonitor.SUP_DISCONNECTION_EVENT:  /* Supplicant connection lost */
                     loge("Connection lost, restart supplicant");
-                    mWifiNative.killSupplicant();
+                    mWifiNative.killSupplicant(mP2pSupported);
                     mWifiNative.closeSupplicantConnection();
                     mNetworkInfo.setIsAvailable(false);
                     handleNetworkDisconnect();
@@ -2605,14 +2736,14 @@ public class WifiStateMachine extends StateMachine {
                     /* Socket connection can be lost when we do a graceful shutdown
                      * or when the driver is hung. Ensure supplicant is stopped here.
                      */
-                    mWifiNative.killSupplicant();
+                    mWifiNative.killSupplicant(mP2pSupported);
                     mWifiNative.closeSupplicantConnection();
                     transitionTo(mDriverLoadedState);
                     break;
                 case CMD_STOP_SUPPLICANT_FAILED:
                     if (message.arg1 == mSupplicantStopFailureToken) {
                         loge("Timed out on a supplicant stop, kill and proceed");
-                        mWifiNative.killSupplicant();
+                        mWifiNative.killSupplicant(mP2pSupported);
                         mWifiNative.closeSupplicantConnection();
                         transitionTo(mDriverLoadedState);
                     }
@@ -2732,8 +2863,8 @@ public class WifiStateMachine extends StateMachine {
             /* initialize network state */
             setNetworkDetailedState(DetailedState.DISCONNECTED);
 
-            /* Remove any filtering on Multicast v6 at start */
-            mWifiNative.stopFilteringMulticastV6Packets();
+            /* Start filtering Multicast v6 packets */
+            mWifiNative.startFilteringMulticastV6Packets();
 
             /* Reset Multicast v4 filtering state */
             if (mFilteringMulticastV4Packets.get()) {
@@ -2769,6 +2900,10 @@ public class WifiStateMachine extends StateMachine {
             mWifiNative.setPowerSave(true);
 
             if (mP2pSupported) mWifiP2pChannel.sendMessage(WifiStateMachine.CMD_ENABLE_P2P);
+            else {
+                /* Disable P2P feature in supplicant (remove P2P IE from management frames) */
+                mWifiNative.p2pSetDisabled(true);
+            }
         }
         @Override
         public boolean processMessage(Message message) {
@@ -3333,6 +3468,43 @@ public class WifiStateMachine extends StateMachine {
                     fetchPktcntNative(info);
                     replyToMessage(message, WifiManager.RSSI_PKTCNT_FETCH_SUCCEEDED, info);
                     break;
+                case WifiMonitor.BGSCAN_LEARN_EVENT:
+                    /* When the network is connected, re-scanning can trigger
+                     * a reconnection only if ap_scan=1. ap_scan=1 is required to
+                     * roam in case a better AP candidate will be found thanks to
+                     * a BG scan.
+                     * Force ap_scan=1 before every scan_results issued by a BG scan
+                     */
+                    mWifiNative.setScanResultHandling(CONNECT_MODE);
+                    /*
+                     * A Background scan has been issued by wpa_supplicant. Keep Platform
+                     * waked up  while BGSCAN_LEARN_TIME_OUT_MSECS maximun =
+                     * maximal duration of a scan (2.5 seconds).
+                     */
+                    if (DBG) log("Background scan on going: Taking a wake lock");
+                    mBGscanWakeLock.acquire(BGSCAN_LEARN_TIME_OUT_MSECS);
+                    mBGscan_learn_ongoing = true;
+                    break;
+                case WifiMonitor.SCAN_RESULTS_EVENT:
+                    /* BG scan termniated : release the BG scan Wake Lock if it is held */
+                    if (mBGscanWakeLock.isHeld()) {
+                        if (DBG) log("Releasing BG scan wakelock");
+                        mBGscanWakeLock.release();
+                    }
+                    /*
+                     * Keep Platform waked up while ROAMING_TIME_OUT_MSECS maximun =
+                     * maximal duration needed for potential roaming
+                     */
+                    if (mBGscan_learn_ongoing) {
+                        mBGscan_learn_ongoing = false;
+                        if (DBG) log("Time for eventual roaming upon BG scan results: Taking a wake lock");
+                        mBGscanWakeLock.acquire(ROAMING_TIME_OUT_MSECS);
+                        break;
+                    }
+                    /*
+                    * Have the parent state handle WifiMonitor.SCAN_RESULTS_EVENT in case scan results
+                    * issued were not due to a intel wpa_supplicant BG scan
+                    */
                 default:
                     return NOT_HANDLED;
             }
@@ -3471,7 +3643,7 @@ public class WifiStateMachine extends StateMachine {
         public void enter() {
             if (DBG) log(getName() + "\n");
             EventLog.writeEvent(EVENTLOG_WIFI_STATE_CHANGED, getName());
-       }
+        }
         @Override
         public boolean processMessage(Message message) {
             if (DBG) log(getName() + message.toString() + "\n");
@@ -3587,7 +3759,7 @@ public class WifiStateMachine extends StateMachine {
                  * cleared
                  */
                 if (!mScanResultIsPending) {
-                    mWifiNative.enableBackgroundScan(true);
+                    enableBackgroundScanOrTurnOffWifi();
                 }
             } else {
                 setScanAlarm(true);
@@ -3638,7 +3810,7 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_ENABLE_BACKGROUND_SCAN:
                     mEnableBackgroundScan = (message.arg1 == 1);
                     if (mEnableBackgroundScan) {
-                        mWifiNative.enableBackgroundScan(true);
+                        enableBackgroundScanOrTurnOffWifi();
                         setScanAlarm(false);
                     } else {
                         mWifiNative.enableBackgroundScan(false);
@@ -3651,6 +3823,9 @@ public class WifiStateMachine extends StateMachine {
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                     StateChangeResult stateChangeResult = (StateChangeResult) message.obj;
                     setNetworkDetailedState(WifiInfo.getDetailedStateOf(stateChangeResult.state));
+                    if (stateChangeResult.state == SupplicantState.DISCONNECTED) {
+                        handleNetworkDisconnect();
+                    }
                     /* ConnectModeState does the rest of the handling */
                     ret = NOT_HANDLED;
                     break;
@@ -3690,6 +3865,15 @@ public class WifiStateMachine extends StateMachine {
                     // Drop a third party reconnect/reassociate if we are
                     // tempoarily disconnected for p2p
                     if (mTemporarilyDisconnectWifi) ret = NOT_HANDLED;
+                    break;
+                 case CMD_STOP_DRIVER:
+                    /*  Disable alarm to prevent scaning when in delayed stop */
+                    /*  so reduce not necessary wake up due to RTC alarm */
+                    /*  Alarm is re-enable through enter method when driver */
+                    /*  will be re-started */
+                    setScanAlarm(false);
+                    /*  DriverStartedState does the rest of the handling */
+                    ret = NOT_HANDLED;
                     break;
                 default:
                     ret = NOT_HANDLED;
@@ -3850,6 +4034,11 @@ public class WifiStateMachine extends StateMachine {
                     }
                     break;
                 case CMD_START_AP_SUCCESS:
+                    // Wifi_Hotspot: new device notification
+                    DeleteDnsmasqLease(DNSMASQ_FILE_NAME);
+                    mWifiMonitor.startMonitoring(mWifiMonitor.WIFI_AP_MODE);
+                    log("Wifi_Hotspot : mWifiMonitor.startMonitoring was called " );
+
                     setWifiApState(WIFI_AP_STATE_ENABLED);
                     transitionTo(mSoftApStartedState);
                     break;
@@ -3873,6 +4062,8 @@ public class WifiStateMachine extends StateMachine {
         @Override
         public boolean processMessage(Message message) {
             if (DBG) log(getName() + message.toString() + "\n");
+                String MacAddress;
+                final Intent intent;
             switch(message.what) {
                 case CMD_STOP_AP:
                     if (DBG) log("Stopping Soft AP");
@@ -3884,6 +4075,8 @@ public class WifiStateMachine extends StateMachine {
                     } catch(Exception e) {
                         loge("Exception in stopAccessPoint()");
                     }
+                    // Wifi_Hotspot
+                    WifiNative.closeHostapdConnection();
                     transitionTo(mDriverLoadedState);
                     break;
                 case CMD_START_AP:
@@ -3900,6 +4093,26 @@ public class WifiStateMachine extends StateMachine {
                         transitionTo(mTetheringState);
                     }
                     break;
+                case WifiMonitor.AP_STA_CONNECTED_EVENT:
+                    /* Wifi_Hotspot:
+                       This event only includes MAC address, so application will use
+                       other event from dnsmasq daemon for getting host name and ip address. */
+                    MacAddress = (String) message.obj;
+                    log("Wifi_Hotspot: WifiMonitor.AP_STA_CONNECTED_EVENT, MAC:" + MacAddress);
+                    deferMessage(message);
+                    break;
+
+                case WifiMonitor.AP_STA_DISCONNECTED_EVENT:
+                     MacAddress = (String) message.obj;
+                     log("Wifi_Hotspot: WifiMonitor.AP_STA_DISCONNECTED_EVENT, MAC:" + MacAddress);
+
+                     intent = new Intent(WifiManager.WIFI_AP_STA_NOTIFICATION_ACTION);
+                     intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
+                     intent.putExtra(WifiManager.EXTRA_WIFI_AP_STA_EVENT, WifiManager.WIFI_AP_STA_DISCONNECT);
+                     intent.putExtra(WifiManager.EXTRA_WIFI_AP_DEVICE_ADDRESS, MacAddress);
+                     mContext.sendBroadcast(intent);
+                     break;
+
                 default:
                     return NOT_HANDLED;
             }
@@ -3976,6 +4189,11 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_STOP_AP:
                     if (DBG) log("Untethering before stopping AP");
                     setWifiApState(WIFI_AP_STATE_DISABLING);
+
+                    /* Wifi_Hotspot: dnsmasq.leases file need to be deleted in order to
+                       avoid the unnecessary old event when tethering atarts and ends. */
+                    DeleteDnsmasqLease(DNSMASQ_FILE_NAME);
+
                     stopTethering();
                     transitionTo(mSoftApStoppingState);
                     break;

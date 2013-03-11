@@ -39,6 +39,13 @@ import android.util.Slog;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.TextView;
+import android.os.PowerManager;
+import android.os.PowerManager.WakeLock;
+import android.os.Vibrator;
+import android.widget.Toast;
+import android.view.LayoutInflater;
+import android.view.ViewGroup;
+import android.view.Gravity;
 
 import com.android.systemui.R;
 import com.android.systemui.SystemUI;
@@ -75,6 +82,7 @@ public class PowerUI extends SystemUI {
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_BATTERY_CHANGED);
         filter.addAction(Intent.ACTION_POWER_CONNECTED);
+        filter.addAction(Intent.ACTION_THERMAL_SHUTDOWN);
         mContext.registerReceiver(mIntentReceiver, filter, null, mHandler);
     }
 
@@ -163,11 +171,29 @@ public class PowerUI extends SystemUI {
                 } else if (mBatteryLevelTextView != null) {
                     showLowBatteryWarning();
                 }
+            } else if (action.equals(Intent.ACTION_THERMAL_SHUTDOWN)) {
+                // Display thermal shutdown message
+                showThermalShutdown();
             } else {
                 Slog.w(TAG, "unknown intent: " + intent);
             }
         }
     };
+
+    void showThermalShutdown() {
+        LayoutInflater inflater = (LayoutInflater)mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        View v = View.inflate(mContext, R.layout.thermal, null);
+        View layout = inflater.inflate(R.layout.thermal, (ViewGroup)v.findViewById(R.id.thermal_view));
+
+        TextView text = (TextView)layout.findViewById(R.id.thermal_text);
+        text.setText(mContext.getString(R.string.thermal_message));
+
+        Toast toast = new Toast(mContext);
+        toast.setGravity(Gravity.BOTTOM, 0, 0);
+        toast.setDuration(Toast.LENGTH_LONG);
+        toast.setView(layout);
+        toast.show();
+    }
 
     void dismissLowBatteryWarning() {
         if (mLowBatteryDialog != null) {
@@ -216,6 +242,15 @@ public class PowerUI extends SystemUI {
                 });
             }
 
+	    PowerManager pm = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
+            WakeLock wakeLock = pm.newWakeLock((PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP), TAG);
+            /*
+                * allow sleep after 3 sec, this will solve the problem of
+                * low battery popup when screen if off. It will forced the
+                * screen to turned on so that user can see low battery popup.
+            */
+            wakeLock.acquire(3000);
+
             AlertDialog d = b.create();
             d.setOnDismissListener(new DialogInterface.OnDismissListener() {
                     @Override
@@ -227,6 +262,12 @@ public class PowerUI extends SystemUI {
             d.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
             d.getWindow().getAttributes().privateFlags |=
                     WindowManager.LayoutParams.PRIVATE_FLAG_SHOW_FOR_ALL_USERS;
+	     Vibrator vc = (Vibrator) mContext.getSystemService(Context.VIBRATOR_SERVICE);
+            /*
+                * vibrate for 0.5 sec, this request(vibrate) come from user
+                * experience that phone must vibrate when low battery popup
+                * comes and system is in silent mode.
+            */
             d.show();
             mLowBatteryDialog = d;
         }

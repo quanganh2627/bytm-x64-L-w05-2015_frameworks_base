@@ -84,6 +84,10 @@ interface IAudioService {
 
     void setMode(int mode, IBinder cb);
 
+    int setFmRxMode(int mode);
+
+    int getFmRxMode();
+
     int getMode();
 
     oneway void playSoundEffect(int effectType);
@@ -99,6 +103,10 @@ interface IAudioService {
     void setSpeakerphoneOn(boolean on);
 
     boolean isSpeakerphoneOn();
+
+    void setSpeakerfmOn(boolean on);
+
+    boolean isSpeakerfmOn();
 
     void setBluetoothScoOn(boolean on);
 

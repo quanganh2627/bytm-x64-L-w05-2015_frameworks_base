@@ -163,6 +163,12 @@ android_media_AudioSystem_setPhoneState(JNIEnv *env, jobject thiz, jint state)
 }
 
 static int
+android_media_AudioSystem_setFmRxState(JNIEnv *env, jobject thiz, jint state)
+{
+    return check_AudioSystem_Command(AudioSystem::setFmRxState(state));
+}
+
+static int
 android_media_AudioSystem_setForceUse(JNIEnv *env, jobject thiz, jint usage, jint config)
 {
     return check_AudioSystem_Command(AudioSystem::setForceUse(static_cast <audio_policy_force_use_t>(usage),
@@ -274,6 +280,7 @@ static JNINativeMethod gMethods[] = {
     {"setDeviceConnectionState", "(IILjava/lang/String;)I", (void *)android_media_AudioSystem_setDeviceConnectionState},
     {"getDeviceConnectionState", "(ILjava/lang/String;)I",  (void *)android_media_AudioSystem_getDeviceConnectionState},
     {"setPhoneState",       "(I)I",     (void *)android_media_AudioSystem_setPhoneState},
+    {"setFmRxState",        "(I)I",     (void *)android_media_AudioSystem_setFmRxState},
     {"setForceUse",         "(II)I",    (void *)android_media_AudioSystem_setForceUse},
     {"getForceUse",         "(I)I",     (void *)android_media_AudioSystem_getForceUse},
     {"initStreamVolume",    "(III)I",   (void *)android_media_AudioSystem_initStreamVolume},

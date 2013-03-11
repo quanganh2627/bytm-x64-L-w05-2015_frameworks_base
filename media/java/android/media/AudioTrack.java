@@ -367,6 +367,7 @@ public class AudioTrack
         if( (streamType != AudioManager.STREAM_ALARM) && (streamType != AudioManager.STREAM_MUSIC)
            && (streamType != AudioManager.STREAM_RING) && (streamType != AudioManager.STREAM_SYSTEM)
            && (streamType != AudioManager.STREAM_VOICE_CALL)
+           && (streamType != AudioManager.STREAM_FM_RX)
            && (streamType != AudioManager.STREAM_NOTIFICATION)
            && (streamType != AudioManager.STREAM_BLUETOOTH_SCO)
            && (streamType != AudioManager.STREAM_DTMF)) {

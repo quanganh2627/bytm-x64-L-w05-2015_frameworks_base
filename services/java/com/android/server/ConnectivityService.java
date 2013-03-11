@@ -1662,6 +1662,40 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 "ConnectivityService");
     }
 
+
+    /**
+     * Handle a {@code SUSPENDED} event. Send out the broadcast
+     * of connection state change.
+     * @param info the {@code NetworkInfo} for the network
+     */
+    private void handleSuspended(NetworkInfo info) {
+        if (info == null)
+            return;
+
+        int netType = info.getType();
+
+        Intent intent = new Intent(ConnectivityManager.CONNECTIVITY_ACTION);
+        if (intent != null) {
+            intent.putExtra(ConnectivityManager.EXTRA_NETWORK_INFO, info);
+
+            if (info.getReason() != null) {
+                intent.putExtra(ConnectivityManager.EXTRA_REASON, info.getReason());
+            }
+
+            if (info.getExtraInfo() != null) {
+                intent.putExtra(ConnectivityManager.EXTRA_EXTRA_INFO,
+                        info.getExtraInfo());
+            }
+            sendStickyBroadcastDelayed(intent, getConnectivityChangeDelay());
+
+            final Intent immediateIntent = new Intent(intent);
+            if (immediateIntent != null) {
+                immediateIntent.setAction(CONNECTIVITY_ACTION_IMMEDIATE);
+                sendStickyBroadcast(immediateIntent);
+            }
+        }
+    }
+
     /**
      * Handle a {@code DISCONNECTED} event. If this pertains to the non-active
      * network, we ignore it. If it is for the active network, we send out a
@@ -2686,18 +2720,8 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                             state + "/" + info.getDetailedState());
                     }
 
-                    // Connectivity state changed:
-                    // [31-14] Reserved for future use
-                    // [13-10] Network subtype (for mobile network, as defined
-                    //         by TelephonyManager)
-                    // [9-4] Detailed state ordinal (as defined by
-                    //         NetworkInfo.DetailedState)
-                    // [3-0] Network type (as defined by ConnectivityManager)
-                    int eventLogParam = (info.getType() & 0xf) |
-                            ((info.getDetailedState().ordinal() & 0x3f) << 4) |
-                            (info.getSubtype() << 10);
-                    EventLog.writeEvent(EventLogTags.CONNECTIVITY_STATE_CHANGED,
-                            eventLogParam);
+                    EventLogTags.writeConnectivityStateChanged(
+                            info.getType(), info.getSubtype(), info.getDetailedState().ordinal());
 
                     if (info.getDetailedState() ==
                             NetworkInfo.DetailedState.FAILED) {
@@ -2708,14 +2732,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                     } else if (state == NetworkInfo.State.DISCONNECTED) {
                         handleDisconnect(info);
                     } else if (state == NetworkInfo.State.SUSPENDED) {
-                        // TODO: need to think this over.
-                        // the logic here is, handle SUSPENDED the same as
-                        // DISCONNECTED. The only difference being we are
-                        // broadcasting an intent with NetworkInfo that's
-                        // suspended. This allows the applications an
-                        // opportunity to handle DISCONNECTED and SUSPENDED
-                        // differently, or not.
-                        handleDisconnect(info);
+                        handleSuspended(info);
                     } else if (state == NetworkInfo.State.CONNECTED) {
                         handleConnect(info);
                     }
@@ -3199,6 +3216,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 usedNetworkType = ConnectivityManager.TYPE_MOBILE_IMS;
             } else if (TextUtils.equals(feature, Phone.FEATURE_ENABLE_CBS)) {
                 usedNetworkType = ConnectivityManager.TYPE_MOBILE_CBS;
+            } else if (TextUtils.equals(feature, Phone.FEATURE_ENABLE_BIP_GPRS1)) {
+                usedNetworkType = ConnectivityManager.TYPE_MOBILE_BIP_GPRS1;
+            } else if (TextUtils.equals(feature, Phone.FEATURE_ENABLE_BIP_GPRS2)) {
+                usedNetworkType = ConnectivityManager.TYPE_MOBILE_BIP_GPRS2;
             } else {
                 Slog.e(TAG, "Can't match any mobile netTracker!");
             }

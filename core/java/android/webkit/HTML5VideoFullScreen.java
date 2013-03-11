@@ -28,14 +28,14 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.MediaController;
 import android.widget.MediaController.MediaPlayerControl;
-
+import android.view.KeyEvent;
 
 /**
  * @hide This is only used by the browser
  */
 public class HTML5VideoFullScreen extends HTML5VideoView
     implements MediaPlayerControl, MediaPlayer.OnPreparedListener,
-    View.OnTouchListener {
+    View.OnTouchListener, View.OnKeyListener {
 
     // Add this sub-class to handle the resizing when rotating screen.
     private class VideoSurfaceView extends SurfaceView {
@@ -197,6 +197,7 @@ public class HTML5VideoFullScreen extends HTML5VideoView
         super.onPrepared(mp);
 
         mVideoSurfaceView.setOnTouchListener(this);
+        mVideoSurfaceView.setOnKeyListener(this);
         // Get the capabilities of the player for this stream
         Metadata data = mp.getMetadata(MediaPlayer.METADATA_ALL,
                 MediaPlayer.BYPASS_METADATA_FILTER);
@@ -279,7 +280,6 @@ public class HTML5VideoFullScreen extends HTML5VideoView
         mVideoSurfaceView.setFocusable(true);
         mVideoSurfaceView.setFocusableInTouchMode(true);
         mVideoSurfaceView.requestFocus();
-        mVideoSurfaceView.setOnKeyListener(mProxy);
         // Create a FrameLayout that will contain the VideoView and the
         // progress view (if any).
         mLayout = new FrameLayout(mProxy.getContext());
@@ -314,6 +314,14 @@ public class HTML5VideoFullScreen extends HTML5VideoView
     @Override
     public boolean isFullScreenMode() {
         return true;
+    }
+
+    public void setMediaControllerHided() {
+         if (mPlayer != null && mMediaController != null
+                  && mCurrentState == STATE_PREPARED
+                  && mMediaController.isShowing()) {
+             mMediaController.hide();
+         }
     }
 
     // MediaController FUNCTIONS:
@@ -361,6 +369,33 @@ public class HTML5VideoFullScreen extends HTML5VideoView
         if (mFullScreenMode >= FULLSCREEN_SURFACECREATED
                 && mMediaController != null) {
             toggleMediaControlsVisiblity();
+        }
+        return false;
+    }
+
+    @Override
+    public boolean onKey(View v, int keyCode, KeyEvent event) {
+        // Media control key should be dispatched to MediaController to handle.
+        if (mFullScreenMode >= FULLSCREEN_SURFACECREATED
+                && mMediaController != null
+                && (keyCode == KeyEvent.KEYCODE_HEADSETHOOK
+                || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
+                || keyCode == KeyEvent.KEYCODE_SPACE
+                || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY
+                || keyCode == KeyEvent.KEYCODE_MEDIA_STOP
+                || keyCode == KeyEvent.KEYCODE_MEDIA_PAUSE)) {
+            return mMediaController.dispatchKeyEvent(event);
+        }
+        // Handle back key to exit full screen
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                return true;
+            } else if (event.getAction() == KeyEvent.ACTION_UP
+                           && !event.isCanceled()
+                           && mProxy != null) {
+                mProxy.exitFullScreenVideo();
+                return true;
+            }
         }
         return false;
     }

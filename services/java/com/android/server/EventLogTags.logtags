@@ -5,7 +5,7 @@ option java_package com.android.server
 # ---------------------------
 # BatteryService.java
 # ---------------------------
-2722 battery_level (level|1|6),(voltage|1|1),(temperature|1|1)
+2722 battery_level (level|1|6),(voltage|1|1),(temperature|1|1),(current|1|1)
 2723 battery_status (status|1|5),(health|1|5),(present|1|5),(plugged|1|5),(technology|3)
 # This is logged when battery goes from discharging to charging.
 # It lets us count the total amount of time between charges and the discharge level
@@ -135,12 +135,8 @@ option java_package com.android.server
 # ---------------------------
 # ConnectivityService.java
 # ---------------------------
-# Connectivity state changed:
-# [31-14] Reserved for future use
-# [13-10] Network subtype (for mobile network, as defined by TelephonyManager)
-# [ 9- 4] Detailed state ordinal (as defined by NetworkInfo.DetailedState)
-# [ 3- 0] Network type (as defined by ConnectivityManager)
-50020 connectivity_state_changed (custom|1|5)
+# Connectivity state changed
+50020 connectivity_state_changed (type|1),(subtype|1),(state|1)
 
 
 # ---------------------------

@@ -386,6 +386,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
     private Locale mLastSystemLocale;
     private final MyPackageMonitor mMyPackageMonitor = new MyPackageMonitor();
     private final IPackageManager mIPackageManager;
+    private boolean mInputBoundToKeyguard;
 
     class SettingsObserver extends ContentObserver {
         SettingsObserver(Handler handler) {
@@ -428,8 +429,12 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 setImeWindowVisibilityStatusHiddenLocked();
                 updateActive();
                 return;
-            } else if (Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(action)) {
+            } else if (Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(action) || intent.getAction().equals(Intent.ACTION_CAMERA_BUTTON)) {
                 hideInputMethodMenu();
+                if (mCurToken != null) {
+                    mInputShown = true;
+                    hideMySoftInput(mCurToken, 0);
+                }
                 // No need to updateActive
                 return;
             } else {
@@ -443,7 +448,9 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
             final int userId = getChangingUserId();
             final boolean retval = userId == mSettings.getCurrentUserId();
             if (DEBUG) {
-                Slog.d(TAG, "--- ignore this call back from a background user: " + userId);
+                if (!retval) {
+                    Slog.d(TAG, "--- ignore this call back from a background user: " + userId);
+                }
             }
             return retval;
         }
@@ -657,7 +664,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
         } catch (RemoteException e) {
             Slog.w(TAG, "Couldn't get current user ID; guessing it's 0", e);
         }
-        mMyPackageMonitor.register(mContext, null, true);
+        mMyPackageMonitor.register(mContext, null, UserHandle.ALL, true);
 
         // mSettings should be created before buildInputMethodListLocked
         mSettings = new InputMethodSettings(
@@ -877,10 +884,12 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
         final boolean hardKeyShown = haveHardKeyboard
                 && conf.hardKeyboardHidden
                         != Configuration.HARDKEYBOARDHIDDEN_YES;
-        final boolean isScreenLocked = mKeyguardManager != null
-                && mKeyguardManager.isKeyguardLocked()
-                && mKeyguardManager.isKeyguardSecure();
-        mImeWindowVis = (!isScreenLocked && (mInputShown || hardKeyShown)) ?
+        final boolean isScreenLocked =
+                mKeyguardManager != null && mKeyguardManager.isKeyguardLocked();
+        final boolean isScreenSecurelyLocked =
+                isScreenLocked && mKeyguardManager.isKeyguardSecure();
+        final boolean inputShown = mInputShown && (!isScreenLocked || mInputBoundToKeyguard);
+        mImeWindowVis = (!isScreenSecurelyLocked && inputShown) ?
                 (InputMethodService.IME_ACTIVE | InputMethodService.IME_VISIBLE) : 0;
         updateImeWindowStatusLocked();
     }
@@ -1124,6 +1133,13 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
             return mNoBinding;
         }
 
+        if (mCurClient == null) {
+            mInputBoundToKeyguard = mKeyguardManager != null && mKeyguardManager.isKeyguardLocked();
+            if (DEBUG) {
+                Slog.v(TAG, "New bind. keyguard = " +  mInputBoundToKeyguard);
+            }
+        }
+
         if (mCurClient != cs) {
             // If the client is changing, we need to switch over to the new
             // one.
@@ -1201,7 +1217,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
             throw new IllegalArgumentException("Unknown id: " + mCurMethodId);
         }
 
-        unbindCurrentMethodLocked(false, true);
+        unbindCurrentMethodLocked(false, false);
 
         mCurIntent = new Intent(InputMethod.SERVICE_INTERFACE);
         mCurIntent.setComponent(info.getComponent());
@@ -1248,6 +1264,9 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
 
     @Override
     public void finishInput(IInputMethodClient client) {
+        synchronized (mMethodMap) {
+            hideInputMethodMenuLocked();
+        }
     }
 
     @Override
@@ -1814,9 +1833,9 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
     public InputBindResult windowGainedFocus(IInputMethodClient client, IBinder windowToken,
             int controlFlags, int softInputMode, int windowFlags,
             EditorInfo attribute, IInputContext inputContext) {
-        if (!calledFromValidUser()) {
-            return null;
-        }
+        // Needs to check the validity before clearing calling identity
+        final boolean calledFromValidUser = calledFromValidUser();
+
         InputBindResult res = null;
         long ident = Binder.clearCallingIdentity();
         try {
@@ -1844,6 +1863,14 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                         return null;
                     }
                 } catch (RemoteException e) {
+                }
+
+                if (!calledFromValidUser) {
+                    Slog.w(TAG, "A background user is requesting window. Hiding IME.");
+                    Slog.w(TAG, "If you want to interect with IME, you need "
+                            + "android.permission.INTERACT_ACROSS_USERS_FULL");
+                    hideCurrentInputLocked(0, null);
+                    return null;
                 }
 
                 if (mCurFocusedWindow == windowToken) {
@@ -2486,10 +2513,8 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 map.put(id, p);
 
                 // Valid system default IMEs and IMEs that have English subtypes are enabled
-                // by default, unless there's a hard keyboard and the system IME was explicitly
-                // disabled
-                if ((isValidSystemDefaultIme(p, mContext) || isSystemImeThatHasEnglishSubtype(p))
-                        && (!haveHardKeyboard || disabledSysImes.indexOf(id) < 0)) {
+                // by default
+                if ((isValidSystemDefaultIme(p, mContext) || isSystemImeThatHasEnglishSubtype(p))) {
                     setInputMethodEnabledLocked(id, true);
                 }
 

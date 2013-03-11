@@ -9,9 +9,11 @@ LOCAL_SRC_FILES := \
 	    com/android/server/EventLogTags.logtags \
 	    com/android/server/am/EventLogTags.logtags
 
+LOCAL_STATIC_JAVA_LIBRARIES := CwsMMGRService
+
 LOCAL_MODULE:= services
 
-LOCAL_JAVA_LIBRARIES := android.policy telephony-common
+LOCAL_JAVA_LIBRARIES := android.policy telephony-common com.intel.multidisplay
 
 include $(BUILD_JAVA_LIBRARY)
 
