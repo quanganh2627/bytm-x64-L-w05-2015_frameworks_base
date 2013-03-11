@@ -41,7 +41,6 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
-import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
@@ -118,11 +117,6 @@ class MountService extends IMountService.Stub
 
     /** Maximum number of ASEC containers allowed to be mounted. */
     private static final int MAX_CONTAINERS = 250;
-
-    /* power manager wake lock to wake up screen */
-    private final PowerManager mPowerManager;
-    private final PowerManager.WakeLock mWakeLock;
-    private final Handler mWakeLockHandler;
 
     /*
      * Internal vold volume state constants
@@ -591,8 +585,6 @@ class MountService extends IMountService.Stub
                         removeVolumeLocked(volume);
                     }
                 }
-            } else if (action.equals(Intent.ACTION_LOCALE_CHANGED)) {
-                readStorageListLocked();
             }
         }
     };
@@ -641,14 +633,15 @@ class MountService extends IMountService.Stub
         final String oldState;
         synchronized (mVolumesLock) {
             oldState = mVolumeStates.put(path, state);
-            if (state.equals(oldState)) {
-                Slog.w(TAG, String.format("Duplicate state transition (%s -> %s) for %s",
-                        state, state, path));
-                return;
-            }
-
-            Slog.d(TAG, "volume state changed for " + path + " (" + oldState + " -> " + state + ")");
         }
+
+        if (state.equals(oldState)) {
+            Slog.w(TAG, String.format("Duplicate state transition (%s -> %s) for %s",
+                    state, state, path));
+            return;
+        }
+
+        Slog.d(TAG, "volume state changed for " + path + " (" + oldState + " -> " + state + ")");
 
         // Tell PackageManager about changes to primary volume state, but only
         // when not emulated.
@@ -793,10 +786,6 @@ class MountService extends IMountService.Stub
             final String path = cooked[3];
             int major = -1;
             int minor = -1;
-
-            mWakeLockHandler.removeCallbacks(DiskScreenCtrl);
-            mWakeLock.acquire();
-            mWakeLockHandler.postDelayed(DiskScreenCtrl, 10000);
 
             try {
                 String devComp = cooked[6].substring(1, cooked[6].length() -1);
@@ -960,25 +949,6 @@ class MountService extends IMountService.Stub
                 /*
                  * Media is blank or does not contain a supported filesystem
                  */
-                String oldState;
-                int loop = 50;
-                do {
-                    synchronized(mVolumeStates) {
-                        oldState = mVolumeStates.get(path);
-                        if (oldState == null)
-                            break;
-                    }
-                    /*
-                     * wait for 200ms first to give a chance for MountService
-                     * to handle other events from vold service first
-                     */
-                    try {
-                        Thread.sleep(10);
-                    } catch (InterruptedException error) {
-                        Slog.i(TAG, "Exception during sleep");
-                    }
-                    loop--;
-                } while (!oldState.equals(Environment.MEDIA_UNMOUNTED) || loop == 0);
                 updatePublicVolumeState(volume, Environment.MEDIA_NOFS);
                 action = Intent.ACTION_MEDIA_NOFS;
                 rc = StorageResultCode.OperationFailedMediaBlank;
@@ -1326,7 +1296,6 @@ class MountService extends IMountService.Stub
         final IntentFilter userFilter = new IntentFilter();
         userFilter.addAction(Intent.ACTION_USER_ADDED);
         userFilter.addAction(Intent.ACTION_USER_REMOVED);
-        userFilter.addAction(Intent.ACTION_LOCALE_CHANGED);
         mContext.registerReceiver(mUserReceiver, userFilter, null, mHandler);
 
         // Watch for USB changes on primary volume
@@ -1338,15 +1307,6 @@ class MountService extends IMountService.Stub
 
         // Add OBB Action Handler to MountService thread.
         mObbActionHandler = new ObbActionHandler(mHandlerThread.getLooper());
-
-        /*
-         * get the msg from vold and handle it with wakelock
-         */
-        mPowerManager = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
-        mWakeLock = mPowerManager.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
-                    PowerManager.ACQUIRE_CAUSES_WAKEUP, "sd_screen_lock");
-        mWakeLock.setReferenceCounted(false);
-        mWakeLockHandler = new Handler();
 
         /*
          * Create the connection to vold with a maximum queue of twice the
@@ -2716,11 +2676,4 @@ class MountService extends IMountService.Stub
             mConnector.monitor();
         }
     }
-
-    private Runnable DiskScreenCtrl = new Runnable() {
-        public void run() {
-            if (mWakeLock.isHeld())
-                mWakeLock.release();
-        }
-    };
 }

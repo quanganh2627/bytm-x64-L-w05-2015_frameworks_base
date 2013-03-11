@@ -32,7 +32,6 @@ import android.net.wifi.WifiConfiguration.ProxySettings;
 import android.net.wifi.WifiConfiguration.Status;
 import android.net.wifi.NetworkUpdateResult;
 import static android.net.wifi.WifiConfiguration.INVALID_NETWORK_ID;
-import static android.net.wifi.WifiConfiguration.DEFAULT_BACKGROUND_SCAN;
 import android.os.Environment;
 import android.os.Message;
 import android.os.Handler;
@@ -239,37 +238,6 @@ class WifiConfigStore {
         return true;
     }
 
-    /**
-     * Updates the specified network configuration. This involves
-     * updating the priority of all the networks and saving the new conf
-     *
-     * @param netId network to select for connection
-     * @return false if the network id is invalid
-     */
-    boolean updateNetwork(int netId) {
-        if (netId == INVALID_NETWORK_ID) return false;
-
-        // Reset the priority of each network at start or if it goes too high.
-        if (mLastPriority == -1 || mLastPriority > 1000000) {
-            for (WifiConfiguration config : mConfiguredNetworks.values()) {
-                if (config.networkId != INVALID_NETWORK_ID) {
-                    config.priority = 0;
-                    addOrUpdateNetworkNative(config);
-                }
-            }
-            mLastPriority = 0;
-        }
-
-        // Set to the highest priority and save the configuration.
-        WifiConfiguration config = new WifiConfiguration();
-        config.networkId = netId;
-        config.priority = ++mLastPriority;
-
-        addOrUpdateNetworkNative(config);
-        mWifiNative.saveConfig();
-
-        return true;
-    }
     /**
      * Add/update the specified configuration and save config
      *
@@ -568,8 +536,6 @@ class WifiConfigStore {
      * set IP configuration for a given network id
      */
     void setIpConfiguration(int netId, DhcpInfoInternal dhcpInfo) {
-        Log.e(TAG, "netId=" + netId + " / dhcpInfo=" + dhcpInfo);
-
         LinkProperties linkProperties = dhcpInfo.makeLinkProperties();
 
         WifiConfiguration config = mConfiguredNetworks.get(netId);
@@ -671,11 +637,9 @@ class WifiConfigStore {
                 continue;
             }
             if (result.length > 3) {
-                if (result[3].indexOf("[CURRENT]") != -1) {
+                if (result[3].indexOf("[CURRENT]") != -1)
                     config.status = WifiConfiguration.Status.CURRENT;
-                    if (config.priority == 0)
-                            updateNetwork(config.networkId);
-               } else if (result[3].indexOf("[DISABLED]") != -1)
+                else if (result[3].indexOf("[DISABLED]") != -1)
                     config.status = WifiConfiguration.Status.DISABLED;
                 else
                     config.status = WifiConfiguration.Status.ENABLED;
@@ -1037,15 +1001,6 @@ class WifiConfigStore {
                         WifiConfiguration.bssidVarName,
                         config.BSSID)) {
                 loge("failed to set BSSID: "+config.BSSID);
-                break setVariables;
-            }
-
-            if (config.bgscan != null &&
-                    !mWifiNative.setNetworkVariable(
-                        netId,
-                        WifiConfiguration.backgroundscanVarName,
-                        config.bgscan)) {
-                loge("failed to set Background Scan: "+config.bgscan);
                 break setVariables;
             }
 

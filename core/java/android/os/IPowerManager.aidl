@@ -51,6 +51,4 @@ interface IPowerManager
 
     // sets the attention light (used by phone app only)
     void setAttentionLight(boolean on, int color);
-    // Thermal Management Specific apis
-    void setThermalBrightnessLimit(int newBrightness, boolean immediate);
 }

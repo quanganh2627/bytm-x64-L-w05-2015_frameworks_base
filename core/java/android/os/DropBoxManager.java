@@ -260,15 +260,6 @@ public class DropBoxManager {
      */
     protected DropBoxManager() { mService = null; }
 
-   /**
-     * Check if the dropbox is full.
-     */
-    public boolean isFull() {
-        boolean isDropBoxFull = false;
-        try { isDropBoxFull = mService.isFull(); } catch (RemoteException e) {}
-        return isDropBoxFull;
-    }
-
     /**
      * Stores human-readable text.  The data may be discarded eventually (or even
      * immediately) if space is limited, or ignored entirely if the tag has been

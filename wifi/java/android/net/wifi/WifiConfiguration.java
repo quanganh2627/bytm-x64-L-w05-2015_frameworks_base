@@ -78,8 +78,6 @@ public class WifiConfiguration implements Parcelable {
     public static final String hiddenSSIDVarName = "scan_ssid";
     /** {@hide} */
     public static final int INVALID_NETWORK_ID = -1;
-    /** {@hide} */
-    public static final String backgroundscanVarName = "bgscan";
 
     /** {@hide} */
     public class EnterpriseField {
@@ -124,13 +122,11 @@ public class WifiConfiguration implements Parcelable {
     public EnterpriseField key_id = new EnterpriseField("key_id");
     /** {@hide} */
     public EnterpriseField ca_cert = new EnterpriseField("ca_cert");
-    /** {@hide} */
-    public EnterpriseField pcsc = new EnterpriseField("pcsc");
 
     /** {@hide} */
     public EnterpriseField[] enterpriseFields = {
             eap, phase2, identity, anonymous_identity, password, client_cert,
-            engine, engine_id, key_id, ca_cert, pcsc };
+            engine, engine_id, key_id, ca_cert };
 
     /**
      * Recognized key management schemes.
@@ -260,8 +256,6 @@ public class WifiConfiguration implements Parcelable {
     public static final int DISABLED_DHCP_FAILURE                           = 2;
     /** @hide */
     public static final int DISABLED_AUTH_FAILURE                           = 3;
-    /** @hide */
-    public static final String DEFAULT_BACKGROUND_SCAN = "\"learn:10:-74:60\"";
 
     /**
      * The ID number that the supplicant uses to identify this
@@ -363,15 +357,6 @@ public class WifiConfiguration implements Parcelable {
      * Defaults to CCMP TKIP WEP104 WEP40.
      */
     public BitSet allowedGroupCiphers;
-    /**
-     * @hide
-     * Background scan algorithm  for a Network configuration
-     * Defaults to Learn algorithm with:
-     * -short interval : 10 s.
-     * -Threshold : -74 dBm
-     * -long interval : 60 s.
-     */
-    public String bgscan;
 
     /**
      * @hide
@@ -435,7 +420,6 @@ public class WifiConfiguration implements Parcelable {
         ipAssignment = IpAssignment.UNASSIGNED;
         proxySettings = ProxySettings.UNASSIGNED;
         linkProperties = new LinkProperties();
-        bgscan = DEFAULT_BACKGROUND_SCAN;
     }
 
     @Override
@@ -514,7 +498,7 @@ public class WifiConfiguration implements Parcelable {
 
         for (EnterpriseField field : enterpriseFields) {
             sbuf.append('\n').append(" " + field.varName() + ": ");
-            String value = field.varName().equals(password.varName()) ? "*" : field.value();
+            String value = field.value();
             if (value != null) sbuf.append(value);
         }
         sbuf.append('\n');
@@ -607,7 +591,6 @@ public class WifiConfiguration implements Parcelable {
             disableReason = source.disableReason;
             SSID = source.SSID;
             BSSID = source.BSSID;
-            bgscan = source.bgscan;
             preSharedKey = source.preSharedKey;
 
             wepKeys = new String[4];
@@ -639,7 +622,6 @@ public class WifiConfiguration implements Parcelable {
         dest.writeInt(disableReason);
         dest.writeString(SSID);
         dest.writeString(BSSID);
-        dest.writeString(bgscan);
         dest.writeString(preSharedKey);
         for (String wepKey : wepKeys)
             dest.writeString(wepKey);
@@ -671,7 +653,6 @@ public class WifiConfiguration implements Parcelable {
                 config.disableReason = in.readInt();
                 config.SSID = in.readString();
                 config.BSSID = in.readString();
-                config.bgscan = in.readString();
                 config.preSharedKey = in.readString();
                 for (int i = 0; i < config.wepKeys.length; i++)
                     config.wepKeys[i] = in.readString();

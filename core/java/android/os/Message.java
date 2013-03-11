@@ -441,12 +441,6 @@ public final class Message implements Parcelable {
         b.append(" when=");
         TimeUtils.formatDuration(when-now, b);
 
-        if (target != null) {
-            b.append(" target=");
-            b.append(target);
-            b.append(" name=" + target.getMessageName(this));
-        }
-
         if (arg1 != 0) {
             b.append(" arg1=");
             b.append(arg1);

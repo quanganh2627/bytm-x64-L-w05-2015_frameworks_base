@@ -24,7 +24,6 @@ import android.nfc.TechListParcel;
 import android.nfc.INdefPushCallback;
 import android.nfc.INfcAdapterExtras;
 import android.nfc.INfcTag;
-import android.nfc.INfcSecureElement;
 
 /**
  * @hide
@@ -32,14 +31,11 @@ import android.nfc.INfcSecureElement;
 interface INfcAdapter
 {
     INfcTag getNfcTagInterface();
-
     INfcAdapterExtras getNfcAdapterExtrasInterface(in String pkg);
-    INfcSecureElement getNfcSecureElementInterface();
 
     int getState();
     boolean disable(boolean saveState);
     boolean enable();
-
     boolean enableNdefPush();
     boolean disableNdefPush();
     boolean isNdefPushEnabled();
@@ -51,12 +47,4 @@ interface INfcAdapter
     void dispatch(in Tag tag);
 
     void setP2pModes(int initatorModes, int targetModes);
-
-    int[] getSecureElementList();
-    int getSelectedSecureElement();
-    int selectSecureElement(int seId);
-    int activeSwp();
-    int deselectSecureElement();
-    void setSecureElementState(boolean state);
-    void storeSePreference(int seId);
 }

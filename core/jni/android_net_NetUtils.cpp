@@ -127,16 +127,9 @@ static jboolean android_net_utils_runDhcpCommon(JNIEnv* env, jobject clazz, jstr
     if (renew) {
         result = ::dhcp_do_request_renew(nameStr, ipaddr, gateway, &prefixLength,
                 dns1, dns2, server, &lease, vendorInfo);
-        LOGD("android_net_utils_runDhcpCommon dhcp_do_request_renew return"
-               " ip=[%d.%d.%d.%d] and prefixlength=%d, result=%d\n",
-               ipaddr[0], ipaddr[1], ipaddr[2], ipaddr[3], prefixLength, result);
-
     } else {
         result = ::dhcp_do_request(nameStr, ipaddr, gateway, &prefixLength,
                 dns1, dns2, server, &lease, vendorInfo);
-        LOGD("android_net_utils_runDhcpCommon dhcp_do_request return"
-               " ip=[%d.%d.%d.%d] and prefixlength=%d , result=%d\n",
-               ipaddr[0], ipaddr[1], ipaddr[2], ipaddr[3], prefixLength, result);
     }
 
     env->ReleaseStringUTFChars(ifname, nameStr);

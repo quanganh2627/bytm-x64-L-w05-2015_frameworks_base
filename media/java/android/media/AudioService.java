@@ -179,8 +179,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     // protects mRingerMode
     private final Object mSettingsLock = new Object();
 
-    private int mFmRxMode;
-
     private boolean mMediaServerOk;
 
     private SoundPool mSoundPool;
@@ -230,8 +228,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         15, // STREAM_BLUETOOTH_SCO
         7,  // STREAM_SYSTEM_ENFORCED
         15, // STREAM_DTMF
-        15,  // STREAM_TTS
-        15  // STREAM_FM_RX
+        15  // STREAM_TTS
     };
     /* mStreamVolumeAlias[] indicates for each stream if it uses the volume settings
      * of another stream: This avoids multiplying the volume settings for hidden
@@ -251,8 +248,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         AudioSystem.STREAM_BLUETOOTH_SCO,   // STREAM_BLUETOOTH_SCO
         AudioSystem.STREAM_RING,            // STREAM_SYSTEM_ENFORCED
         AudioSystem.STREAM_RING,            // STREAM_DTMF
-        AudioSystem.STREAM_MUSIC,           // STREAM_TTS
-        AudioSystem.STREAM_MUSIC            // STREAM_FM_RX
+        AudioSystem.STREAM_MUSIC            // STREAM_TTS
     };
     private final int[] STREAM_VOLUME_ALIAS_NON_VOICE = new int[] {
         AudioSystem.STREAM_VOICE_CALL,      // STREAM_VOICE_CALL
@@ -264,8 +260,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         AudioSystem.STREAM_BLUETOOTH_SCO,   // STREAM_BLUETOOTH_SCO
         AudioSystem.STREAM_MUSIC,           // STREAM_SYSTEM_ENFORCED
         AudioSystem.STREAM_MUSIC,           // STREAM_DTMF
-        AudioSystem.STREAM_MUSIC,           // STREAM_TTS
-        AudioSystem.STREAM_MUSIC            // STREAM_FM_RX
+        AudioSystem.STREAM_MUSIC            // STREAM_TTS
     };
     private int[] mStreamVolumeAlias;
 
@@ -280,8 +275,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
             "STREAM_BLUETOOTH_SCO",
             "STREAM_SYSTEM_ENFORCED",
             "STREAM_DTMF",
-            "STREAM_TTS",
-            "STREAM_FM_RX"
+            "STREAM_TTS"
     };
 
     private final AudioSystem.ErrorCallback mAudioSystemCallback = new AudioSystem.ErrorCallback() {
@@ -346,16 +340,10 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     // Forced device usage for communications
     private int mForcedUseForComm;
 
-    // Forced device usage for FM radio
-    private int mForcedUseForFM;
-
     // True if we have master volume support
     private final boolean mUseMasterVolume;
 
     private final int[] mMasterVolumeRamp;
-
-    // Forced device usage for media
-    private int mForcedUseForMedia;
 
     // List of binder death handlers for setMode() client processes.
     // The last process to have called setMode() is at the top of the list.
@@ -388,10 +376,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     // Deactivation request for all SCO connections (initiated by audio mode change)
     // waiting for headset service to connect
     private static final int SCO_STATE_DEACTIVATE_EXT_REQ = 4;
-    // state of HDMI Device Enable set from HDMI settings application
-    private static int mHdmiEnable = 1;
-    // state of HDMI Audio hot plug
-    private static int mState = 0;
 
     // Current connection state indicated by bluetooth headset
     private int mScoConnectionState;
@@ -480,8 +464,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         mVolumePanel = new VolumePanel(context, this);
         mMode = AudioSystem.MODE_NORMAL;
         mForcedUseForComm = AudioSystem.FORCE_NONE;
-        mForcedUseForMedia = AudioSystem.FORCE_NONE;
-        mForcedUseForFM = AudioSystem.FORCE_NONE;
+
         createAudioSystemThread();
 
         boolean cameraSoundForced = mContext.getResources().getBoolean(
@@ -517,10 +500,8 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                 new IntentFilter(BluetoothHeadset.ACTION_AUDIO_STATE_CHANGED);
         intentFilter.addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(Intent.ACTION_DOCK_EVENT);
-        intentFilter.addAction(Intent.ACTION_HDMI_AUDIO_PLUG);
         intentFilter.addAction(Intent.ACTION_USB_AUDIO_ACCESSORY_PLUG);
         intentFilter.addAction(Intent.ACTION_USB_AUDIO_DEVICE_PLUG);
-        intentFilter.addAction(Intent.ACTION_WIDI_TURNED);
         intentFilter.addAction(Intent.ACTION_BOOT_COMPLETED);
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);
         intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
@@ -784,7 +765,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         if (DEBUG_VOL) Log.d(TAG, "adjustLocalOrRemoteStreamVolume(dir="+direction+")");
         if (checkUpdateRemoteStateIfActive(AudioSystem.STREAM_MUSIC)) {
             adjustRemoteVolume(AudioSystem.STREAM_MUSIC, direction, 0);
-        } else if (AudioSystem.isStreamActive(AudioSystem.STREAM_MUSIC, 0)  || isFmRxActive() ) {
+        } else if (AudioSystem.isStreamActive(AudioSystem.STREAM_MUSIC, 0)) {
             adjustStreamVolume(AudioSystem.STREAM_MUSIC, direction, 0);
         }
     }
@@ -954,11 +935,8 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                     (mStreamVolumeAlias[streamType] == getMasterStreamType())) {
                 int newRingerMode;
                 if (index == 0) {
-                    newRingerMode = getRingerMode();
-                    if (newRingerMode != AudioManager.RINGER_MODE_SILENT) {
-                       newRingerMode = mHasVibrator ? AudioManager.RINGER_MODE_VIBRATE
-                                                     : AudioManager.RINGER_MODE_SILENT;
-                    }
+                    newRingerMode = mHasVibrator ? AudioManager.RINGER_MODE_VIBRATE
+                                                  : AudioManager.RINGER_MODE_SILENT;
                     setStreamVolumeInt(mStreamVolumeAlias[streamType],
                                        index,
                                        device,
@@ -1581,32 +1559,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         return newModeOwnerPid;
     }
 
-    /** Set/get FM mode */
-    public int setFmRxMode(int mode) {
-        int status = AudioSystem.setFmRxState(mode);
-        if (status == AudioSystem.AUDIO_STATUS_OK) {
-            mFmRxMode = mode;
-            handleDeviceConnection(mFmRxMode == AudioManager.MODE_FM_ON, AudioSystem.DEVICE_IN_FM_RECORD,"");
-        } else {
-            Log.e(TAG, "setFmRxMode(): Cannot Set FM RX mode to " + mode);
-        }
-        return status;
-    }
-
-    public int getFmRxMode() {
-        return mFmRxMode;
-   }
-
-    /**
-     * Checks whether FM Radio is active.
-     *
-     * @hide
-     * @return true if FM Radio is active.
-     */
-    public boolean isFmRxActive() {
-        return (getFmRxMode() == AudioManager.MODE_FM_ON) ? true : false;
-    }
-
     /** @see AudioManager#getMode() */
     public int getMode() {
         return mMode;
@@ -1882,28 +1834,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     /** @see AudioManager#isSpeakerphoneOn() */
     public boolean isSpeakerphoneOn() {
         return (mForcedUseForComm == AudioSystem.FORCE_SPEAKER);
-    }
-
-    /** @see AudioManager#setSpeakerfmOn() */
-    public void setSpeakerfmOn(boolean on) {
-        if (!checkAudioSettingsPermission("setSpeakerfmOn()")) {
-            return;
-        }
-        //reset volume to avoid audio bursts when do output device switch
-        if (mFmRxMode == AudioManager.MODE_FM_ON) {
-            Intent intent = new Intent(AudioManager.VOLUME_CHANGED_ACTION);
-            mContext.sendBroadcast(intent);
-        }
-
-        mForcedUseForFM = on ? AudioSystem.FORCE_SPEAKER : AudioSystem.FORCE_NONE;
-
-        sendMsg(mAudioHandler, MSG_SET_FORCE_USE, SENDMSG_QUEUE,
-                AudioSystem.FOR_FM_RADIO, mForcedUseForFM, null, 0);
-    }
-
-    /** @see AudioManager#isSpeakerfmOn() */
-    public boolean isSpeakerfmOn() {
-        return (mForcedUseForFM == AudioSystem.FORCE_SPEAKER);
     }
 
     /** @see AudioManager#setBluetoothScoOn() */
@@ -2531,8 +2461,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                 if (DEBUG_VOL)
                     Log.v(TAG, "getActiveStreamType: Forcing STREAM_MUSIC stream active");
                 return AudioSystem.STREAM_MUSIC;
-            } else if(getFmRxMode() == AudioManager.MODE_FM_ON) {
-                return AudioSystem.STREAM_MUSIC;//for FM the type is MUSIC
             } else {
                 if (DEBUG_VOL) Log.v(TAG, "getActiveStreamType: Returning suggested type "
                         + suggestedStreamType);
@@ -2565,8 +2493,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                         Log.v(TAG, "getActiveStreamType: using STREAM_MUSIC as default");
                     return AudioSystem.STREAM_MUSIC;
                 }
-            } else if(getFmRxMode() == AudioManager.MODE_FM_ON) {
-                return AudioSystem.STREAM_MUSIC;//for FM the type is MUSIC
             } else {
                 if (DEBUG_VOL) Log.v(TAG, "getActiveStreamType: Returning suggested type "
                         + suggestedStreamType);
@@ -3372,8 +3298,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                     AudioSystem.setForceUse(AudioSystem.FOR_RECORD, mForcedUseForComm);
                     AudioSystem.setForceUse(AudioSystem.FOR_SYSTEM, mCameraSoundForced ?
                                     AudioSystem.FORCE_SYSTEM_ENFORCED : AudioSystem.FORCE_NONE);
-                    AudioSystem.setForceUse(AudioSystem.FOR_MEDIA, mForcedUseForMedia);
-                    AudioSystem.setForceUse(AudioSystem.FOR_FM_RADIO, mForcedUseForFM);
 
                     // Restore stream volumes
                     int numStreamTypes = AudioSystem.getNumStreamTypes();
@@ -3665,13 +3589,13 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
             boolean isConnected = (mConnectedDevices.containsKey(device) &&
                     (params.isEmpty() || mConnectedDevices.get(device).equals(params)));
 
-            if ((isConnected && !connected) || (mHdmiEnable == 0)) {
+            if (isConnected && !connected) {
                 AudioSystem.setDeviceConnectionState(device,
                                               AudioSystem.DEVICE_STATE_UNAVAILABLE,
                                               mConnectedDevices.get(device));
                  mConnectedDevices.remove(device);
                  return true;
-            } else if ((!isConnected && connected) && (mHdmiEnable == 1)) {
+            } else if (!isConnected && connected) {
                  AudioSystem.setDeviceConnectionState(device,
                                                       AudioSystem.DEVICE_STATE_AVAILABLE,
                                                       params);
@@ -3777,10 +3701,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         synchronized (mConnectedDevices) {
             if ((state == 0) && ((device == AudioSystem.DEVICE_OUT_WIRED_HEADSET) ||
                     (device == AudioSystem.DEVICE_OUT_WIRED_HEADPHONE))) {
-                if (!mConnectedDevices.containsKey(AudioSystem.DEVICE_OUT_WIRED_HEADSET) &&
-                    !mConnectedDevices.containsKey(AudioSystem.DEVICE_OUT_WIRED_HEADPHONE)) {
-                    setBluetoothA2dpOnInt(true);
-                }
+                setBluetoothA2dpOnInt(true);
             }
             boolean isUsb = ((device & AudioSystem.DEVICE_OUT_ALL_USB) != 0);
             handleDeviceConnection((state == 1), device, (isUsb ? name : ""));
@@ -3887,10 +3808,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                         }
                     }
                 }
-            } else if (action.equals(Intent.ACTION_HDMI_AUDIO_PLUG)) {
-                mState = intent.getIntExtra("state", 0);
-                Log.v(TAG, "Broadcast Receiver: Got ACTION_HDMI_AUDIO_PLUG, state = "+mState);
-                handleDeviceConnection((mState == 1), AudioSystem.DEVICE_OUT_AUX_DIGITAL, "");
             } else if (action.equals(Intent.ACTION_USB_AUDIO_ACCESSORY_PLUG) ||
                            action.equals(Intent.ACTION_USB_AUDIO_DEVICE_PLUG)) {
                 state = intent.getIntExtra("state", 0);
@@ -3905,30 +3822,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                               "ACTION_USB_AUDIO_ACCESSORY_PLUG" : "ACTION_USB_AUDIO_DEVICE_PLUG")
                         + ", state = " + state + ", card: " + alsaCard + ", device: " + alsaDevice);
                 setWiredDeviceConnectionState(device, state, params);
-             } else if (action.equals(Intent.ACTION_WIDI_TURNED)) {
-                 state = intent.getIntExtra("state", 0);
-                 Log.d(TAG, "Intent = ACTION_WIDI_TURNED caught: state = "+state);
-
-                 boolean isConnected = mConnectedDevices.containsKey(AudioSystem.DEVICE_OUT_WIDI);
-                 if (state == 0 && isConnected) {
-                     Log.d(TAG, "connected: calling AudioSystem.setDeviceConnectionState()");
-                     AudioSystem.setDeviceConnectionState(AudioSystem.DEVICE_OUT_WIDI,
-                             AudioSystem.DEVICE_STATE_UNAVAILABLE,
-                             "");
-                     mConnectedDevices.remove(AudioSystem.DEVICE_OUT_WIDI);
-                     AudioSystem.setForceUse(AudioSystem.FOR_MEDIA, AudioSystem.FORCE_NONE);
-                 } else if (state == 1 && !isConnected) {
-                     Log.d(TAG, "not connected: calling AudioSystem.setDeviceConnectionState()");
-                     AudioSystem.setDeviceConnectionState(AudioSystem.DEVICE_OUT_WIDI,
-                             AudioSystem.DEVICE_STATE_AVAILABLE,
-                             "");
-                     mConnectedDevices.put( new Integer(AudioSystem.DEVICE_OUT_WIDI), "");
-                     //force no use of A2DP device if WIDI is available
-                     if (AudioSystem.getDeviceConnectionState(AudioSystem.DEVICE_OUT_BLUETOOTH_A2DP,"")
-                         == AudioSystem.DEVICE_STATE_AVAILABLE) {
-                         AudioSystem.setForceUse(AudioSystem.FOR_MEDIA, AudioSystem.FORCE_NO_BT_A2DP);
-                     }
-                 }
             } else if (action.equals(BluetoothHeadset.ACTION_AUDIO_STATE_CHANGED)) {
                 boolean broadcast = false;
                 int scoAudioState = AudioManager.SCO_AUDIO_STATE_ERROR;
@@ -5902,7 +5795,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
             mBluetoothA2dpEnabled = on;
             mAudioHandler.removeMessages(MSG_SET_FORCE_BT_A2DP_USE);
             AudioSystem.setForceUse(AudioSystem.FOR_MEDIA,
-                    (mBluetoothA2dpEnabled && (AudioSystem.getDeviceConnectionState(AudioSystem.DEVICE_OUT_WIDI,"") == AudioSystem.DEVICE_STATE_UNAVAILABLE)) ? AudioSystem.FORCE_NONE : AudioSystem.FORCE_NO_BT_A2DP);
+                    mBluetoothA2dpEnabled ? AudioSystem.FORCE_NONE : AudioSystem.FORCE_NO_BT_A2DP);
         }
     }
 

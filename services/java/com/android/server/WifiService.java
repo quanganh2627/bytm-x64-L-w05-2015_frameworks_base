@@ -24,13 +24,10 @@ import android.app.PendingIntent;
 import android.app.TaskStackBuilder;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.ServiceConnection;
-import android.content.pm.ResolveInfo;
 import android.content.pm.PackageManager;
 import android.database.ContentObserver;
 import android.net.wifi.IWifiManager;
@@ -81,9 +78,6 @@ import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
 import com.android.server.am.BatteryStatsService;
 import com.android.internal.R;
-import com.android.internal.telephony.TelephonyIntents;
-import com.android.internal.telephony.IccCardConstants;
-import com.android.internal.telephony.CwsMMGRService.IMmgrService;
 
 /**
  * WifiService handles remote WiFi operation requests by implementing
@@ -98,61 +92,6 @@ import com.android.internal.telephony.CwsMMGRService.IMmgrService;
 public class WifiService extends IWifiManager.Stub {
     private static final String TAG = "WifiService";
     private static final boolean DBG = false;
-
-    private IMmgrService mModemManagerService = null;
-    private boolean modemManagerServiceIsBound = false;
-    private ServiceConnection mModemConnection = new ServiceConnection() {
-        public void onServiceConnected(ComponentName className,
-                IBinder service) {
-            // This is called when the connection with the service has been
-            // established, giving us the service object we can use to
-            // interact with the service.  We are communicating with our
-            // service through an IDL interface, so get a client-side
-            // representation of that from the raw service object.
-            mModemManagerService = IMmgrService.Stub.asInterface(service);
-            Slog.i(TAG, "Bound to modem manager service");
-            try {
-                Log.d(TAG, "Registering callback to modem manager service.");
-                mModemManagerService.registerCallback(null);
-            }
-            catch(RemoteException e) {
-                Slog.i(TAG, "Unable to register callback to modem manager service.");
-            }
-            // We want to monitor the service for as long as we are
-            // connected to it.
-        }
-        public void onServiceDisconnected(ComponentName className) {
-            mModemManagerService = null;
-            Slog.i(TAG, "Modem manager service unbound");
-        }
-    };
-
-   private void bindModemManagerService() {
-       List<ResolveInfo> list = mContext.getPackageManager().queryIntentServices(
-                        new Intent(IMmgrService.class.getName()),0);
-       if (list.size()>0) {
-           Slog.i(TAG,"The manager service is there!");
-           if (!modemManagerServiceIsBound) {
-               if (!mContext.bindService(new Intent(IMmgrService.class.getName()),mModemConnection,
-                       Context.BIND_AUTO_CREATE)) {
-                   Slog.e(TAG,"binservice failed for modem manager");
-               }
-               else {
-                   modemManagerServiceIsBound = true;
-                   Slog.i(TAG,"Bound to modem manager");
-               }
-           }
-       }
-       else {
-           Slog.i(TAG,"The manager service is NOT there!");
-       }
-   }
-   private void unbindModemManagerService() {
-       if (modemManagerServiceIsBound) {
-           mContext.unbindService(mModemConnection);
-           modemManagerServiceIsBound = false;
-       }
-   }
 
     private final WifiStateMachine mWifiStateMachine;
 
@@ -189,10 +128,6 @@ public class WifiService extends IWifiManager.Stub {
     /* Tracks last reported data activity */
     private int mDataActivity;
     private String mInterfaceName;
-
-    private String[] mUsbRegexs;
-    //true if USB tethering is enabled
-    private boolean mTetherUsbOn = false;
 
     /**
      * Interval in milliseconds between polling for traffic
@@ -493,18 +428,6 @@ public class WifiService extends IWifiManager.Stub {
                     }
                 }, filter);
 
-        mContext.registerReceiver(
-                new BroadcastReceiver() {
-                    @Override
-                    public void onReceive(Context context, Intent intent) {
-                      ArrayList<String> active = intent.getStringArrayListExtra(
-                              ConnectivityManager.EXTRA_ACTIVE_TETHER);
-                      if (active != null)
-                            updateTetherUsbState(active);
-
-                    }
-                },new IntentFilter(ConnectivityManager.ACTION_TETHER_STATE_CHANGED));
-
         HandlerThread wifiThread = new HandlerThread("WifiService");
         wifiThread.start();
         mAsyncServiceHandler = new AsyncServiceHandler(wifiThread.getLooper());
@@ -576,33 +499,6 @@ public class WifiService extends IWifiManager.Stub {
         mWifiWatchdogStateMachine = WifiWatchdogStateMachine.
                makeWifiWatchdogStateMachine(mContext);
 
-    }
-
-    private void updateTetherUsbState(ArrayList<String> tethered) {
-        /*  Set the mTetheUsbOn according with the USB tethering service status */
-        /* If USB tethering  is enabled, the Wifi sleep policy is disabled */
-
-        ConnectivityManager mCm = (ConnectivityManager)mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
-        mUsbRegexs = mCm.getTetherableUsbRegexs();
-
-        for (String intf : tethered) {
-            for (String regex : mUsbRegexs) {
-                if (intf.matches(regex)) {
-                    if (mTetherUsbOn == false) {
-                        Slog.i(TAG,"Usb tether is enabled, disable sleep policy");
-                        mAlarmManager.cancel(mIdleIntent);
-                        mTetherUsbOn = true;
-                        return;
-                    }
-                }
-            }
-        }
-
-        if (mTetherUsbOn == true){
-            Slog.i(TAG,"Usb tether is disabled, eneable sleep policy");
-            mTetherUsbOn = false;
-            return;
-        }
     }
 
     private boolean testAndClearWifiSavedState() {
@@ -727,12 +623,6 @@ public class WifiService extends IWifiManager.Stub {
      *         started or is already in the queue.
      */
     public synchronized boolean setWifiEnabled(boolean enable) {
-        if (enable) {// Code for binding modem manager
-            bindModemManagerService();
-        }
-        else {
-            unbindModemManagerService();
-        }
         enforceChangePermission();
         Slog.d(TAG, "setWifiEnabled: " + enable + " pid=" + Binder.getCallingPid()
                     + ", uid=" + Binder.getCallingUid());
@@ -1149,16 +1039,13 @@ public class WifiService extends IWifiManager.Stub {
                  * or plugged in to AC).
                  */
                 if (!shouldWifiStayAwake(stayAwakeConditions, mPluggedType)) {
-                    // Apply sleep policy only if usb tethering is disabled
-                    if (!mTetherUsbOn) {
-                        //Delayed shutdown if wifi is connected
-                        if (mNetworkInfo.getDetailedState() == DetailedState.CONNECTED) {
-                            if (DBG) Slog.d(TAG, "setting ACTION_DEVICE_IDLE: " + idleMillis + " ms");
-                            mAlarmManager.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis()
-                                    + idleMillis, mIdleIntent);
-                        } else {
-                            setDeviceIdleAndUpdateWifi(true);
-                        }
+                    //Delayed shutdown if wifi is connected
+                    if (mNetworkInfo.getDetailedState() == DetailedState.CONNECTED) {
+                        if (DBG) Slog.d(TAG, "setting ACTION_DEVICE_IDLE: " + idleMillis + " ms");
+                        mAlarmManager.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis()
+                                + idleMillis, mIdleIntent);
+                    } else {
+                        setDeviceIdleAndUpdateWifi(true);
                     }
                 }
             } else if (action.equals(ACTION_DEVICE_IDLE)) {
@@ -1178,17 +1065,10 @@ public class WifiService extends IWifiManager.Stub {
                 if (mScreenOff && shouldWifiStayAwake(stayAwakeConditions, mPluggedType) &&
                         !shouldWifiStayAwake(stayAwakeConditions, pluggedType)) {
                     long triggerTime = System.currentTimeMillis() + idleMillis;
-
-                    if (mNetworkInfo.getDetailedState() == DetailedState.CONNECTED && !mTetherUsbOn) {
-                        // Delayed sleep request if wifi is connected
-                        if (DBG) {
-                            Slog.d(TAG, "setting ACTION_DEVICE_IDLE timer for " + idleMillis + "ms");
-                        }
-                        mAlarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, mIdleIntent);
-                    } else {
-                        // Sleep now if wifi is not connected
-                        setDeviceIdleAndUpdateWifi(true);
+                    if (DBG) {
+                        Slog.d(TAG, "setting ACTION_DEVICE_IDLE timer for " + idleMillis + "ms");
                     }
+                    mAlarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, mIdleIntent);
                 }
 
                 mPluggedType = pluggedType;
@@ -1199,71 +1079,6 @@ public class WifiService extends IWifiManager.Stub {
             } else if (action.equals(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED)) {
                 mEmergencyCallbackMode = intent.getBooleanExtra("phoneinECMState", false);
                 updateWifiState();
-            } else if (action.equals(TelephonyIntents.ACTION_SIM_STATE_CHANGED)) {
-
-                String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
-                boolean eapSimOrAkaNetworkConfigurationFound = false;
-
-                if (IccCardConstants.INTENT_VALUE_ICC_READY.equals(stateExtra)) {
-                    /*
-                     * SIM card inserted
-                     */
-
-                    /* Loop through all the configured networks and enable the ones using EAP-SIM or EAP-AKA */
-                    List<WifiConfiguration> configs = getConfiguredNetworks();
-                    if (configs != null) {
-                        for (final WifiConfiguration w : configs) {
-                            if ( w.eap.value() != null &&
-                                (w.allowedKeyManagement.get(KeyMgmt.WPA_EAP) 
-                                    || w.allowedKeyManagement.get(KeyMgmt.IEEE8021X))
-                                && (w.eap.value().contains("SIM") || w.eap.value().contains("AKA")) ) {
-
-                                eapSimOrAkaNetworkConfigurationFound = true;
-                                if ( enableNetwork(w.networkId, false) != true) {
-                                    Slog.e(TAG, "SIM ready event. Failed to enable network: " + w.SSID);
-                                }
-                            }
-                        }
-                    }
-                } else if (IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra)) {
-                    /*
-                     * SIM card removed
-                     */
-
-                    WifiInfo info = getConnectionInfo();
-                    /* Loop through all the configured networks and disable the ones using EAP-SIM or EAP-AKA */
-                    List<WifiConfiguration> configs = getConfiguredNetworks();
-                    if (configs != null) {
-                        for (final WifiConfiguration w : configs) {
-                            int activeNetworkId = info.getNetworkId();
-                            if ( w.eap.value() != null &&
-                                (w.allowedKeyManagement.get(KeyMgmt.WPA_EAP)
-                                    || w.allowedKeyManagement.get(KeyMgmt.IEEE8021X))
-                                && (w.eap.value().contains("SIM") || w.eap.value().contains("AKA")) ) {
-
-                                eapSimOrAkaNetworkConfigurationFound = true;
-                                /* If the active network uses EAP-SIM or EAP-AKA then disconnect before disabling */
-                                if ( (activeNetworkId != -1) && (w.networkId == activeNetworkId) ) {
-                                    disconnect();
-                                }
-                                if ( disableNetwork(w.networkId) != true) {
-                                    Slog.e(TAG, "SIM absent event. Failed to disable network: " + w.SSID);
-                                }
-                                /* Erase the identity (IMSI number) of the SIM card used for authenticating this network */
-                                w.identity.setValue("");
-                                if (addOrUpdateNetwork(w) == -1) {
-                                    Slog.e(TAG, "SIM absent event. Failed to update network: " + w.SSID);
-                                }
-                            }
-                        }
-                    }
-                }
-                if (eapSimOrAkaNetworkConfigurationFound == true) {
-                    /* Save the current list of configurations to make the enable/disable actions persistant */
-                    saveConfiguration();
-                }
-            } else if (action.equals(WifiStateMachine.SHUT_DOWN_WIFI_ACTION)) {
-                setDeviceIdleAndUpdateWifi(true);
             }
         }
 
@@ -1377,8 +1192,6 @@ public class WifiService extends IWifiManager.Stub {
         intentFilter.addAction(ACTION_DEVICE_IDLE);
         intentFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
-        intentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
-        intentFilter.addAction(WifiStateMachine.SHUT_DOWN_WIFI_ACTION);
         mContext.registerReceiver(mReceiver, intentFilter);
     }
 

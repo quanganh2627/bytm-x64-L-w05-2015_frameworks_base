@@ -52,15 +52,13 @@ public class AudioSystem
     public static final int STREAM_DTMF = 8;
     /* @hide The audio stream for text to speech (TTS) */
     public static final int STREAM_TTS = 9;
-    /* @hide The audio stream for Fm Rx playback */
-    public static final int STREAM_FM_RX = 10;
     /**
      * @deprecated Use {@link #numStreamTypes() instead}
      */
     public static final int NUM_STREAMS = 5;
 
     // Expose only the getter method publicly so we can change it in the future
-    private static final int NUM_STREAM_TYPES = 11;
+    private static final int NUM_STREAM_TYPES = 10;
     public static final int getNumStreamTypes() { return NUM_STREAM_TYPES; }
 
     /*
@@ -88,10 +86,6 @@ public class AudioSystem
     public static final int MODE_IN_COMMUNICATION   = 3;
     public static final int NUM_MODES               = 4;
 
-    /* Mode for FM */
-    public static final int   MODE_FM_OFF           = 0;
-    public static final int   MODE_FM_ON            = 1;
-    public static final int   MODE_FM_NUM           = 2;
 
     /* Routing bits for the former setRouting/getRouting API */
     /** @deprecated */
@@ -227,7 +221,7 @@ public class AudioSystem
     public static final int DEVICE_OUT_REMOTE_SUBMIX = 0x8000;
 
     public static final int DEVICE_OUT_DEFAULT = DEVICE_BIT_DEFAULT;
-    public static final int DEVICE_OUT_WIDI = 0x1000000;
+
     public static final int DEVICE_OUT_ALL = (DEVICE_OUT_EARPIECE |
                                               DEVICE_OUT_SPEAKER |
                                               DEVICE_OUT_WIRED_HEADSET |
@@ -244,7 +238,6 @@ public class AudioSystem
                                               DEVICE_OUT_USB_ACCESSORY |
                                               DEVICE_OUT_USB_DEVICE |
                                               DEVICE_OUT_REMOTE_SUBMIX |
-                                              DEVICE_OUT_WIDI |
                                               DEVICE_OUT_DEFAULT);
     public static final int DEVICE_OUT_ALL_A2DP = (DEVICE_OUT_BLUETOOTH_A2DP |
                                                    DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES |
@@ -269,7 +262,6 @@ public class AudioSystem
     public static final int DEVICE_IN_DGTL_DOCK_HEADSET = DEVICE_BIT_IN | 0x400;
     public static final int DEVICE_IN_USB_ACCESSORY = DEVICE_BIT_IN | 0x800;
     public static final int DEVICE_IN_USB_DEVICE = DEVICE_BIT_IN | 0x1000;
-    public static final int DEVICE_IN_FM_RECORD = DEVICE_BIT_IN | 0x2000;
     public static final int DEVICE_IN_DEFAULT = DEVICE_BIT_IN | DEVICE_BIT_DEFAULT;
 
     public static final int DEVICE_IN_ALL = (DEVICE_IN_COMMUNICATION |
@@ -285,7 +277,6 @@ public class AudioSystem
                                              DEVICE_IN_DGTL_DOCK_HEADSET |
                                              DEVICE_IN_USB_ACCESSORY |
                                              DEVICE_IN_USB_DEVICE |
-                                             DEVICE_IN_FM_RECORD |
                                              DEVICE_IN_DEFAULT);
     public static final int DEVICE_IN_ALL_SCO = DEVICE_IN_BLUETOOTH_SCO_HEADSET;
 
@@ -310,7 +301,6 @@ public class AudioSystem
     public static final String DEVICE_OUT_USB_ACCESSORY_NAME = "usb_accessory";
     public static final String DEVICE_OUT_USB_DEVICE_NAME = "usb_device";
     public static final String DEVICE_OUT_REMOTE_SUBMIX_NAME = "remote_submix";
-    public static final String DEVICE_OUT_WIDI_NAME = "widi_device";
 
     public static String getDeviceName(int device)
     {
@@ -347,9 +337,7 @@ public class AudioSystem
             return DEVICE_OUT_USB_DEVICE_NAME;
         case DEVICE_OUT_REMOTE_SUBMIX:
             return DEVICE_OUT_REMOTE_SUBMIX_NAME;
-        case DEVICE_OUT_WIDI:
-            return DEVICE_OUT_WIDI_NAME;
-        case DEVICE_IN_DEFAULT:
+        case DEVICE_OUT_DEFAULT:
         default:
             return "";
         }
@@ -382,8 +370,7 @@ public class AudioSystem
     public static final int FOR_RECORD = 2;
     public static final int FOR_DOCK = 3;
     public static final int FOR_SYSTEM = 4;
-    public static final int FOR_FM_RADIO = 5;
-    private static final int NUM_FORCE_USE = 6;
+    private static final int NUM_FORCE_USE = 5;
 
     // usage for AudioRecord.startRecordingSync(), must match AudioSystem::sync_event_t
     public static final int SYNC_EVENT_NONE = 0;
@@ -392,7 +379,6 @@ public class AudioSystem
     public static native int setDeviceConnectionState(int device, int state, String device_address);
     public static native int getDeviceConnectionState(int device, String device_address);
     public static native int setPhoneState(int state);
-    public static native int setFmRxState(int state);
     public static native int setForceUse(int usage, int config);
     public static native int getForceUse(int usage);
     public static native int initStreamVolume(int stream, int indexMin, int indexMax);

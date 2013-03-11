@@ -26,10 +26,6 @@
 #include <sys/time.h>
 #include <cutils/properties.h>
 
-#ifdef TARGET_HAS_MULTIPLE_DISPLAY
-#include <MultiDisplayService.h>
-#endif
-
 using namespace android;
 
 namespace android {
@@ -66,9 +62,6 @@ extern "C" status_t system_init()
     char propBuf[PROPERTY_VALUE_MAX];
     property_get("system_init.startsurfaceflinger", propBuf, "1");
     if (strcmp(propBuf, "1") == 0) {
-#ifdef TARGET_HAS_MULTIPLE_DISPLAY
-        MultiDisplayService::instantiate();
-#endif
         // Start the SurfaceFlinger
         SurfaceFlinger::instantiate();
     }

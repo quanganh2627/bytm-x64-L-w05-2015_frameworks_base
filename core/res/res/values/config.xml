@@ -290,7 +290,7 @@
     <bool translatable="false" name="config_wifi_background_scan_support">false</bool>
 
     <!-- Integer indicating wpa_supplicant scan interval in milliseconds -->
-    <integer translatable="false" name="config_wifi_supplicant_scan_interval">40000</integer>
+    <integer translatable="false" name="config_wifi_supplicant_scan_interval">15000</integer>
 
     <!-- Integer indicating wpa_supplicant scan interval when p2p is connected in milliseconds -->
     <integer translatable="false" name="config_wifi_scan_interval_p2p_connected">60000</integer>
@@ -299,7 +299,7 @@
          where the chipset does not support background scanning (config_wifi_background_scan_suport
          is false) to set up a periodic wake up scan so that the device can connect to a new access
          point on the move. A value of 0 means no periodic scans will be used in the framework. -->
-    <integer translatable="false" name="config_wifi_framework_scan_interval">0</integer>
+    <integer translatable="false" name="config_wifi_framework_scan_interval">300000</integer>
 
     <!-- Wifi driver stop delay, in milliseconds.
          Default value is 2 minutes. -->
@@ -883,7 +883,7 @@
     <!-- Remote server that can provide NTP responses. -->
     <string translatable="false" name="config_ntpServer">2.android.pool.ntp.org</string>
     <!-- Timeout to wait for NTP server response. -->
-    <integer name="config_ntpTimeout">3000</integer>
+    <integer name="config_ntpTimeout">20000</integer>
 
     <!-- Default network policy warning threshold, in megabytes. -->
     <integer name="config_networkPolicyDefaultWarning">2048</integer>
@@ -1000,53 +1000,4 @@
          provisioning on some carriers, working around a bug (7305641)
          where if the preferred is used we don't try the others. -->
     <bool name="config_dontPreferApn">false</bool>
-
-    <!-- Vibrator pattern to be used as the default for notifications
-         that specify DEFAULT_VIBRATE.
-     -->
-    <integer-array name="config_defaultNotificationVibePattern">
-        <item>0</item>
-        <item>250</item>
-        <item>250</item>
-        <item>250</item>
-    </integer-array>
-
-    <!-- Vibrator pattern to be used as the default for notifications
-         that do not specify vibration but vibrate anyway because the device
-         is in vibrate mode.
-     -->
-    <integer-array name="config_notificationFallbackVibePattern">
-        <item>0</item>
-        <item>250</item>
-        <item>250</item>
-        <item>250</item>
-    </integer-array>
-
-    <bool name="config_button_automatic_brightness_available">false</bool>
-
-    <!-- Controls whether window orientation should use non-polling mode accelerometer.
-         set default to false to use polling mode. -->
-    <bool name="config_nonPollingWindowOrientation">false</bool>
-
-    <!-- When set to false, the call status polling is disabled -->
-    <bool name="gsm_call_status_polling_enable">true</bool>
-
-    <!-- set to true if oem hooks are supported by framework -->
-    <bool name="config_usage_oem_hooks_supported">false</bool>
-    <!-- set the oemhook data state reporting property -->
-    <string name="oemhook_datastate_property"></string>
-    <!-- set the concurrent data support property -->
-    <string name="oemhook_concurrentdata_property"></string>
-
-    <!-- Flag indicating whether the current device supports
-         CAT aka STK handling. If true, this means that the
-         device supports handling of CAT messages from UICC.
-         Set to false if the device do not want to support CAT
-         aka STK feature -->
-    <bool name="config_cat_support">true</bool>
-    <!-- Flag indicating whether the operator should be part of the unique Identifier used to track
-         requests associated with a poll. If true, this means that the operator query is part of
-         the unique identifier used to track requests associated with a poll. If false, this means
-         that the operator query is not part of the unique identifier used to track requests. -->
-    <bool name="config_track_get_operator_polling">true</bool>
 </resources>

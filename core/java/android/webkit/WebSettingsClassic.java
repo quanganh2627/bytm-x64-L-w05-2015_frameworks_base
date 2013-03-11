@@ -116,7 +116,7 @@ public class WebSettingsClassic extends WebSettings {
     private boolean         mNeedInitialFocus = true;
     private boolean         mNavDump = false;
     private boolean         mSupportZoom = true;
-    private boolean         mMediaPlaybackRequiresUserGesture = false;
+    private boolean         mMediaPlaybackRequiresUserGesture = true;
     private boolean         mBuiltInZoomControls = false;
     private boolean         mDisplayZoomControls = true;
     private boolean         mAllowFileAccess = true;
@@ -1666,14 +1666,6 @@ public class WebSettingsClassic extends WebSettings {
 
     public synchronized AutoFillProfile getAutoFillProfile() {
         return mAutoFillProfile;
-    }
-
-    /**
-     * @hide
-     * @return
-     */
-    public synchronized WebViewClassic getWebView(){
-        return mWebView;
     }
 
     int getDoubleTapToastCount() {

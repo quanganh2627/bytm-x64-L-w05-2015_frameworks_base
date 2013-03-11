@@ -37,7 +37,6 @@ public class FountainFboRS {
     private Allocation mColorBuffer;
     private ProgramFragment mProgramFragment;
     private ProgramFragment mTextureProgramFragment;
-    private float mMaxPressure = 0;
     public void init(RenderScriptGL rs, Resources res) {
       mRS = rs;
       mRes = res;
@@ -84,11 +83,10 @@ public class FountainFboRS {
         if (id >= holdingColor.length) {
             return;
         }
-        if (mMaxPressure < pressure) {
-            mMaxPressure = pressure;
+        int rate = (int)(pressure * pressure * 500.f);
+        if (rate > 500) {
+            rate = 500;
         }
-        int rate = (mMaxPressure!=0) ? (int)(pressure * pressure * 500.f / (mMaxPressure * mMaxPressure)) : 0;
-
         if (rate > 0) {
             mScript.invoke_addParticles(rate, x, y, id, !holdingColor[id]);
             holdingColor[id] = true;

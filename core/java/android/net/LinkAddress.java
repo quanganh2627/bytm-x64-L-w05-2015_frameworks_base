@@ -18,7 +18,6 @@ package android.net;
 
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.util.Log;
 
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -30,7 +29,6 @@ import java.net.UnknownHostException;
  * @hide
  */
 public class LinkAddress implements Parcelable {
-    private final static String TAG = "DBG_LinkAddress";
     /**
      * IPv4 or IPv6 address.
      */
@@ -45,8 +43,8 @@ public class LinkAddress implements Parcelable {
         if (address == null || prefixLength < 0 ||
                 ((address instanceof Inet4Address) && prefixLength > 32) ||
                 (prefixLength > 128)) {
-            throw new IllegalArgumentException("Bad LinkAddress params " + address
-                          + " " + prefixLength);
+            throw new IllegalArgumentException("Bad LinkAddress params " + address +
+                    prefixLength);
         }
         this.address = address;
         this.prefixLength = prefixLength;

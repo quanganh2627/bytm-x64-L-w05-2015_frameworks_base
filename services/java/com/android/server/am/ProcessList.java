@@ -192,7 +192,7 @@ class ProcessList {
         for (int i=0; i<mOomAdj.length; i++) {
             long low = mOomMinFreeLow[i];
             long high = mOomMinFreeHigh[i];
-            mOomMinFree[i] = 2*(long)(low + ((high-low)*scale));
+            mOomMinFree[i] = (long)(low + ((high-low)*scale));
 
             if (i > 0) {
                 adjString.append(',');

@@ -81,7 +81,6 @@ import android.graphics.RectF;
 import android.graphics.Region;
 import android.hardware.display.DisplayManager;
 import android.os.Binder;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Debug;
 import android.os.Handler;
@@ -105,7 +104,6 @@ import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.util.EventLog;
 import android.util.FloatMath;
-import android.util.LocalLog;
 import android.util.Log;
 import android.util.SparseArray;
 import android.util.Pair;
@@ -211,8 +209,6 @@ public class WindowManagerService extends IWindowManager.Stub
     static final boolean PROFILE_ORIENTATION = false;
     static final boolean localLOGV = DEBUG;
 
-    private static final boolean IS_USER_BUILD = "user".equals(Build.TYPE);
-
     /** How much to multiply the policy's type layer, to reserve room
      * for multiple windows of the same type and Z-ordering adjustment
      * with TYPE_LAYER_OFFSET. */
@@ -299,8 +295,6 @@ public class WindowManagerService extends IWindowManager.Stub
 
     private static final float THUMBNAIL_ANIMATION_DECELERATE_FACTOR = 1.5f;
 
-    private boolean mForceLandScape;
-
     final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -308,19 +302,6 @@ public class WindowManagerService extends IWindowManager.Stub
             if (DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED.equals(action)) {
                 mKeyguardDisableHandler.sendEmptyMessage(
                     KeyguardDisableHandler.KEYGUARD_POLICY_CHANGED);
-            }
-            if (Intent.ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE.equals(action)) {
-                Bundle extras = intent.getExtras();
-                if (extras == null) {
-                    Slog.d(TAG, "No extra content");
-                    return;
-                }
-                boolean forceToLandscape = extras.getBoolean(Intent.EXTRA_SET_LANDSCAPE);
-                if (forceToLandscape == mForceLandScape)
-                    return;
-
-                mForceLandScape = forceToLandscape;
-                Slog.d(TAG, forceToLandscape ? "Force to landscape." : "Screen can rotate.");
             }
         }
     };
@@ -465,8 +446,6 @@ public class WindowManagerService extends IWindowManager.Stub
     boolean mShowingBootMessages = false;
 
     String mLastANRState;
-    String mWMThreadHistory;
-    String mUiThreadHistory;
 
     /** All DisplayDontents in the world, kept here */
     private SparseArray<DisplayContent> mDisplayContents = new SparseArray<DisplayContent>();
@@ -591,7 +570,6 @@ public class WindowManagerService extends IWindowManager.Stub
 
     float mWindowAnimationScale = 1.0f;
     float mTransitionAnimationScale = 1.0f;
-    float mTransitionAnimationScaleOld = 1.0f;
     float mAnimatorDurationScale = 1.0f;
 
     final InputManagerService mInputManager;
@@ -818,8 +796,6 @@ public class WindowManagerService extends IWindowManager.Stub
         mDisplayManagerService = displayManager;
         mHeadless = displayManager.isHeadless();
 
-        mForceLandScape = false;
-
         mDisplayManager = (DisplayManager)context.getSystemService(Context.DISPLAY_SERVICE);
         mDisplayManager.registerDisplayListener(this, null);
         Display[] displays = mDisplayManager.getDisplays();
@@ -850,7 +826,6 @@ public class WindowManagerService extends IWindowManager.Stub
         // Track changes to DevicePolicyManager state so we can enable/disable keyguard.
         IntentFilter filter = new IntentFilter();
         filter.addAction(DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED);
-        filter.addAction(Intent.ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE);
         mContext.registerReceiver(mBroadcastReceiver, filter);
 
         mHoldingScreenWakeLock = pmc.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK
@@ -4022,10 +3997,6 @@ public class WindowManagerService extends IWindowManager.Stub
         if (req == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
             req = getOrientationFromAppTokensLocked();
         }
-        if (mForceLandScape &&
-                req == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
-            req = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
-        }
         return req;
     }
 
@@ -5366,12 +5337,6 @@ public class WindowManagerService extends IWindowManager.Stub
             case 2: mAnimatorDurationScale = fixScale(scale); break;
         }
 
-        if (which == 1) {
-            if (mTransitionAnimationScale > 0.0)
-                Surface.setTransition(true);
-            else
-                Surface.setTransition(false);
-        }
         // Persist setting
         mH.obtainMessage(H.PERSIST_ANIMATION_SCALE).sendToTarget();
     }
@@ -5388,10 +5353,6 @@ public class WindowManagerService extends IWindowManager.Stub
             }
             if (scales.length >= 2) {
                 mTransitionAnimationScale = fixScale(scales[1]);
-                if (mTransitionAnimationScale > 0.0)
-                    Surface.setTransition(true);
-                else
-                    Surface.setTransition(false);
             }
             if (scales.length >= 3) {
                 setAnimatorDurationScale(fixScale(scales[2]));
@@ -7219,8 +7180,7 @@ public class WindowManagerService extends IWindowManager.Stub
         }
         if (mSafeMode) {
             Log.i(TAG, "SAFE MODE ENABLED (menu=" + menuState + " s=" + sState
-                    + " dpad=" + dpadState + " trackball=" + trackballState
-                    + " voldown=" + volumeDownState + ")");
+                    + " dpad=" + dpadState + " trackball=" + trackballState + ")");
         } else {
             Log.i(TAG, "SAFE MODE not enabled");
         }
@@ -7342,39 +7302,6 @@ public class WindowManagerService extends IWindowManager.Stub
         public static final int CLEAR_PENDING_ACTIONS = ANIMATOR_WHAT_OFFSET + 2;
 
         public H() {
-        }
-
-        @Override
-        public String getMessageName(Message msg) {
-            switch (msg.what) {
-                case REPORT_FOCUS_CHANGE: return "REPORT_FOCUS_CHANGE";
-                case REPORT_LOSING_FOCUS: return "REPORT_LOSING_FOCUS";
-                case DO_TRAVERSAL: return "DO_TRAVERSAL";
-                case ADD_STARTING: return "ADD_STARTING";
-                case REMOVE_STARTING: return "REMOVE_STARTING";
-                case FINISHED_STARTING: return "FINISHED_STARTING";
-                case REPORT_APPLICATION_TOKEN_WINDOWS: return "REPORT_APPLICATION_TOKEN_WINDOWS";
-                case REPORT_APPLICATION_TOKEN_DRAWN: return "REPORT_APPLICATION_TOKEN_DRAWN";
-                case WINDOW_FREEZE_TIMEOUT: return "WINDOW_FREEZE_TIMEOUT";
-                case APP_TRANSITION_TIMEOUT: return "APP_TRANSITION_TIMEOUT";
-                case PERSIST_ANIMATION_SCALE: return "PERSIST_ANIMATION_SCALE";
-                case FORCE_GC: return "FORCE_GC";
-                case ENABLE_SCREEN: return "ENABLE_SCREEN";
-                case APP_FREEZE_TIMEOUT: return "APP_FREEZE_TIMEOUT";
-                case SEND_NEW_CONFIGURATION: return "SEND_NEW_CONFIGURATION";
-                case REPORT_WINDOWS_CHANGE: return "REPORT_WINDOWS_CHANGE";
-                case DRAG_START_TIMEOUT: return "DRAG_START_TIMEOUT";
-                case DRAG_END_TIMEOUT: return "DRAG_END_TIMEOUT";
-                case REPORT_HARD_KEYBOARD_STATUS_CHANGE:return "REPORT_HARD_KEYBOARD_STATUS_CHANGE";
-                case BOOT_TIMEOUT: return "BOOT_TIMEOUT";
-                case WAITING_FOR_DRAWN_TIMEOUT: return "WAITING_FOR_DRAWN_TIMEOUT";
-                case SHOW_STRICT_MODE_VIOLATION: return "SHOW_STRICT_MODE_VIOLATION";
-                case DO_ANIMATION_CALLBACK: return "DO_ANIMATION_CALLBACK";
-                case ANIMATOR_WHAT_OFFSET: return "ANIMATOR_WHAT_OFFSET";
-                case SET_TRANSPARENT_REGION: return "SET_TRANSPARENT_REGION";
-                case CLEAR_PENDING_ACTIONS: return "CLEAR_PENDING_ACTIONS";
-            }
-            return super.getMessageName(msg);
         }
 
         @Override
@@ -9605,12 +9532,6 @@ public class WindowManagerService extends IWindowManager.Stub
         }
 
         if (mInnerFields.mUpdateRotation) {
-            //restore mTransitionAnimationScale here
-            mTransitionAnimationScale = mTransitionAnimationScaleOld;
-            Slog.v(TAG, "restore mTransitionAnimationScale=" + mTransitionAnimationScale);
-
-            Surface.setOrientationEnd(true);
-
             if (DEBUG_ORIENTATION) Slog.d(TAG, "Performing post-rotate rotation");
             if (updateRotationUncheckedLocked(false)) {
                 mH.sendEmptyMessage(H.SEND_NEW_CONFIGURATION);
@@ -9990,19 +9911,6 @@ public class WindowManagerService extends IWindowManager.Stub
         return leakedSurface || killedApps;
     }
 
-   private void updateFocusedWindowForIMLocked() {
-        WindowState newFocus = computeFocusedWindowLocked();
-        if (mCurrentFocus != newFocus) {
-           // This check makes sure that we don't already have the focus
-           // change message pending.
-           mH.removeMessages(H.REPORT_FOCUS_CHANGE);
-           mH.sendEmptyMessage(H.REPORT_FOCUS_CHANGE);
-           if (localLOGV||DEBUG_FOCUS) Slog.v(
-               TAG, "IM Changing focus from " + mCurrentFocus + " to " + newFocus);
-               mCurrentFocus = newFocus;
-           }
-      }
-
     private boolean updateFocusedWindowLocked(int mode, boolean updateInputWindows) {
         WindowState newFocus = computeFocusedWindowLocked();
         if (mCurrentFocus != newFocus) {
@@ -10023,24 +9931,10 @@ public class WindowManagerService extends IWindowManager.Stub
             final DisplayContent displayContent = getDefaultDisplayContentLocked();
 
             final WindowState imWindow = mInputMethodWindow;
-            if (newFocus != imWindow && (oldFocus != imWindow || null == oldFocus)) {
-                WindowState oldIMTarget = mInputMethodTarget;
-                 if (moveInputMethodWindowsIfNeededLocked(
-                         mode != UPDATE_FOCUS_WILL_ASSIGN_LAYERS &&
-                         mode != UPDATE_FOCUS_WILL_PLACE_SURFACES)) {
-                    if (localLOGV||DEBUG_FOCUS) Slog.v(
-                         TAG, "oldFocus = " + oldFocus
-                         + " \n size of  mInputMethodDialogs = " + mInputMethodDialogs.size()
-                         + "\n mCurrentFocus = " + mCurrentFocus
-                         + "\n mInputMethodTarget = " + mInputMethodTarget
-                         + "\n oldIMTarget = " + oldIMTarget);
-                    if (((oldFocus != null && oldFocus.mIsImWindow) || (mInputMethodDialogs.size() > 0))
-                                           && oldIMTarget!=mInputMethodTarget && mInputMethodTarget==mCurrentFocus) {
-                      // if the mInputMethodDialogs is not null, or the old focus is mInputMethodDialogs,
-                      // it means that we should change the focus to the mInputMethodDialogs again.otherwise
-                      // the mInputMethodDialogs will show but it can't click.
-                        updateFocusedWindowForIMLocked();
-                    }
+            if (newFocus != imWindow && oldFocus != imWindow) {
+                if (moveInputMethodWindowsIfNeededLocked(
+                        mode != UPDATE_FOCUS_WILL_ASSIGN_LAYERS &&
+                        mode != UPDATE_FOCUS_WILL_PLACE_SURFACES)) {
                     displayContent.layoutNeeded = true;
                 }
                 if (mode == UPDATE_FOCUS_PLACING_SURFACES) {
@@ -10208,16 +10102,6 @@ public class WindowManagerService extends IWindowManager.Stub
                     display, mFxSession, inTransaction, displayInfo.logicalWidth,
                     displayInfo.logicalHeight, display.getRotation(),
                     exitAnim, enterAnim);
-
-            mTransitionAnimationScaleOld = mTransitionAnimationScale;
-            mTransitionAnimationScale = mForceLandScape ? 0.0f : mTransitionAnimationScaleOld;
-            Slog.v(TAG, "save mTransitionAnimationScaleOld=" + mTransitionAnimationScaleOld);
-            Surface.setOrientationEnd(false);
-            //check if screen rotation animation is allowed. if not, set animation scale to 0
-            if (!Surface.isAnimationPermitted()) {
-                mTransitionAnimationScale = 0.0f;
-            }
-
             mAnimator.setScreenRotationAnimationLocked(displayId, screenRotationAnimation);
         }
     }
@@ -10923,12 +10807,6 @@ public class WindowManagerService extends IWindowManager.Stub
             pw.println("  <no ANR has occurred since boot>");
         } else {
             pw.println(mLastANRState);
-            if (!IS_USER_BUILD) {
-                pw.println("WINDOW MANAGER Thread Dispatch History");
-                pw.println(mWMThreadHistory);
-                pw.println("UiThread (Policy,Keyguard,DisplayService) Dispatch History");
-                pw.println(mUiThreadHistory);
-            }
         }
     }
 
@@ -10954,28 +10832,6 @@ public class WindowManagerService extends IWindowManager.Stub
         dumpWindowsNoHeaderLocked(pw, true, null);
         pw.close();
         mLastANRState = sw.toString();
-        if (!IS_USER_BUILD) saveLooperHistoryLocked();
-        if (!IS_USER_BUILD && windowState != null) {
-            try {
-                windowState.mClient.dumpANRInfo();
-            } catch (RemoteException e) {
-                Slog.e(TAG, "Exception in dumpANRInfo " + windowState, e);
-            }
-        }
-    }
-
-    public void saveLooperHistoryLocked() {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        mH.getLooper().dumpHistory(FileDescriptor.out, pw, new String[0]);
-        pw.close();
-        mWMThreadHistory = sw.toString();
-
-        sw = new StringWriter();
-        pw = new PrintWriter(sw);
-        WindowManagerPolicyThread.getLooper().dumpHistory(FileDescriptor.out, pw, new String[0]);
-        pw.close();
-        mUiThreadHistory = sw.toString();
     }
 
     @Override

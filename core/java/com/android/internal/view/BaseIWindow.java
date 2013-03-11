@@ -106,7 +106,4 @@ public class BaseIWindow extends IWindow.Stub {
     @Override
     public void doneAnimating() {
     }
-
-    public void dumpANRInfo() {
-    }
 }

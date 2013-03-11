@@ -428,12 +428,8 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 setImeWindowVisibilityStatusHiddenLocked();
                 updateActive();
                 return;
-            } else if (Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(action) || intent.getAction().equals(Intent.ACTION_CAMERA_BUTTON)) {
+            } else if (Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(action)) {
                 hideInputMethodMenu();
-                if (mCurToken != null) {
-                    mInputShown = true;
-                    hideMySoftInput(mCurToken, 0);
-                }
                 // No need to updateActive
                 return;
             } else {
@@ -884,7 +880,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
         final boolean isScreenLocked = mKeyguardManager != null
                 && mKeyguardManager.isKeyguardLocked()
                 && mKeyguardManager.isKeyguardSecure();
-        mImeWindowVis = (!isScreenLocked && mInputShown) ?
+        mImeWindowVis = (!isScreenLocked && (mInputShown || hardKeyShown)) ?
                 (InputMethodService.IME_ACTIVE | InputMethodService.IME_VISIBLE) : 0;
         updateImeWindowStatusLocked();
     }
@@ -1205,7 +1201,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
             throw new IllegalArgumentException("Unknown id: " + mCurMethodId);
         }
 
-        unbindCurrentMethodLocked(false, false);
+        unbindCurrentMethodLocked(false, true);
 
         mCurIntent = new Intent(InputMethod.SERVICE_INTERFACE);
         mCurIntent.setComponent(info.getComponent());
@@ -1252,9 +1248,6 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
 
     @Override
     public void finishInput(IInputMethodClient client) {
-        synchronized (mMethodMap) {
-            hideInputMethodMenuLocked();
-        }
     }
 
     @Override
@@ -2493,9 +2486,10 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 map.put(id, p);
 
                 // Valid system default IMEs and IMEs that have English subtypes are enabled
-                // by default, unless the system IME was explicitly disabled
+                // by default, unless there's a hard keyboard and the system IME was explicitly
+                // disabled
                 if ((isValidSystemDefaultIme(p, mContext) || isSystemImeThatHasEnglishSubtype(p))
-                        && (disabledSysImes.indexOf(id) < 0)) {
+                        && (!haveHardKeyboard || disabledSysImes.indexOf(id) < 0)) {
                     setInputMethodEnabledLocked(id, true);
                 }
 

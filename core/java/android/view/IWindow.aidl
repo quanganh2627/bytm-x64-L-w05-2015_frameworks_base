@@ -85,9 +85,4 @@ oneway interface IWindow {
      * is done.
      */
     void doneAnimating();
-
-    /**
-     * Dump states upon ANR.
-     */
-    void dumpANRInfo();
 }

@@ -57,7 +57,6 @@ public class WifiMonitor {
     private static final int DRIVER_STATE = 7;
     private static final int EAP_FAILURE  = 8;
     private static final int UNKNOWN      = 9;
-    private static final int BGSCAN_LEARN = 10;
 
     /** All events coming from the supplicant start with this prefix */
     private static final String EVENT_PREFIX_STR = "CTRL-EVENT-";
@@ -67,18 +66,6 @@ public class WifiMonitor {
     private static final String WPA_EVENT_PREFIX_STR = "WPA:";
     private static final String PASSWORD_MAY_BE_INCORRECT_STR =
        "pre-shared key may be incorrect";
-    private static final String AUTH_TIMEOUT_STR =
-       "Authentication timed out";
-
-    /** All WAPI events coming from the supplicant start with this prefix */
-    private static final String WAPI_EVENT_PREFIX_STR = "WAPI:";
-    private static final String WAPI_AUTHENTICATION_FAILURE_STR =
-       "Authentication failure";
-
-    /** All SME events coming from the supplicant start with this prefix */
-    private static final String SME_EVENT_PREFIX_STR = "SME:";
-    private static final String AUTH_REQ_FAILED_STR =
-       "Authentication request to the driver failed";
 
     /* WPS events */
     private static final String WPS_SUCCESS_STR = "WPS-SUCCESS";
@@ -131,12 +118,7 @@ public class WifiMonitor {
      * </pre>
      */
     private static final String SCAN_RESULTS_STR =  "SCAN-RESULTS";
-    /**
-    * <pre>
-    * CTRL-EVENT-BGSCAN-LEARN (event raised by Intel wpa_supplicant)
-    * </pre>
-    */
-    private static final String BGSCAN_LEARN_STR =  "BGSCAN-LEARN";
+
     /**
      * <pre>
      * CTRL-EVENT-LINK-SPEED x Mb/s
@@ -345,10 +327,6 @@ public class WifiMonitor {
     /* hostap events */
     public static final int AP_STA_DISCONNECTED_EVENT            = BASE + 41;
     public static final int AP_STA_CONNECTED_EVENT               = BASE + 42;
-    /* Intel Background Scan event : raised by wpa_supplicant at every BG
-    * scan issued
-    */
-    public static final int BGSCAN_LEARN_EVENT                   = BASE + 50;
 
     /**
      * This indicates the supplicant connection for the monitor is closed
@@ -407,11 +385,6 @@ public class WifiMonitor {
                     if (eventStr.startsWith(WPA_EVENT_PREFIX_STR) &&
                             0 < eventStr.indexOf(PASSWORD_MAY_BE_INCORRECT_STR)) {
                         mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
-                    } else if (eventStr.startsWith(SME_EVENT_PREFIX_STR) &&
-                            0 < eventStr.indexOf(AUTH_REQ_FAILED_STR)) {
-                        mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
-                    } else if (0 < eventStr.indexOf(AUTH_TIMEOUT_STR)) {
-                        mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
                     } else if (eventStr.startsWith(WPS_SUCCESS_STR)) {
                         mStateMachine.sendMessage(WPS_SUCCESS_EVENT);
                     } else if (eventStr.startsWith(WPS_FAIL_STR)) {
@@ -424,9 +397,6 @@ public class WifiMonitor {
                         handleP2pEvents(eventStr);
                     } else if (eventStr.startsWith(HOST_AP_EVENT_PREFIX_STR)) {
                         handleHostApEvents(eventStr);
-                    } else if (eventStr.startsWith(WAPI_EVENT_PREFIX_STR) &&
-                            0 < eventStr.indexOf(WAPI_AUTHENTICATION_FAILURE_STR)) {
-                        mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
                     }
                     continue;
                 }
@@ -459,8 +429,6 @@ public class WifiMonitor {
                     event = DRIVER_STATE;
                 else if (eventName.equals(EAP_FAILURE_STR))
                     event = EAP_FAILURE;
-                else if (eventName.equals(BGSCAN_LEARN_STR))
-                    event = BGSCAN_LEARN;
                 else
                     event = UNKNOWN;
 
@@ -555,10 +523,6 @@ public class WifiMonitor {
 
                 case SCAN_RESULTS:
                     mStateMachine.sendMessage(SCAN_RESULTS_EVENT);
-                    break;
-
-                case BGSCAN_LEARN:
-                    mStateMachine.sendMessage(BGSCAN_LEARN_EVENT);
                     break;
 
                 case UNKNOWN:

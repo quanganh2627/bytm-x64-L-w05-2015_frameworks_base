@@ -74,7 +74,6 @@ import android.provider.Settings;
 import android.util.EventLog;
 import android.util.Log;
 import android.util.LruCache;
-import android.util.Slog;
 
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
@@ -148,7 +147,6 @@ public class WifiStateMachine extends StateMachine {
     private AtomicBoolean mScreenBroadcastReceived = new AtomicBoolean(false);
 
     private boolean mBluetoothConnectionActive = false;
-    private boolean mBGscan_learn_ongoing = false;
 
     private PowerManager.WakeLock mSuspendWakeLock;
 
@@ -177,16 +175,6 @@ public class WifiStateMachine extends StateMachine {
      */
     private static final int TETHER_NOTIFICATION_TIME_OUT_MSECS = 5000;
 
-    /**
-     * Intel Background Scan notification time out
-     */
-    private static final int BGSCAN_LEARN_TIME_OUT_MSECS = 2500;
-
-    /**
-     * Intel Roaming notification time out
-     */
-    private static final int ROAMING_TIME_OUT_MSECS = 500;
-
     /* Tracks sequence number on a tether notification time out */
     private int mTetherToken = 0;
 
@@ -205,9 +193,6 @@ public class WifiStateMachine extends StateMachine {
 
     // Wakelock held during wifi start/stop and driver load/unload
     private PowerManager.WakeLock mWakeLock;
-
-    // Wakelock held during Intel Background Scan in Connected state
-    private PowerManager.WakeLock mBGscanWakeLock;
 
     private Context mContext;
 
@@ -239,8 +224,6 @@ public class WifiStateMachine extends StateMachine {
     private static final int EVENTLOG_WIFI_STATE_CHANGED        = 50021;
     private static final int EVENTLOG_WIFI_EVENT_HANDLED        = 50022;
     private static final int EVENTLOG_SUPPLICANT_STATE_CHANGED  = 50023;
-    public static final String SHUT_DOWN_WIFI_ACTION =
-            "android.net.wifi.SET_DEVICE_IDLE_AND_UPDATE";
 
     /* The base for wifi message types */
     static final int BASE = Protocol.BASE_WIFI;
@@ -700,7 +683,6 @@ public class WifiStateMachine extends StateMachine {
 
         PowerManager powerManager = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
         mWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
-        mBGscanWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
 
         mSuspendWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WifiSuspend");
         mSuspendWakeLock.setReferenceCounted(false);
@@ -1059,14 +1041,14 @@ public class WifiStateMachine extends StateMachine {
     }
 
     /**
-     * Start filtering Multicast v6 packets
+     * Start filtering Multicast v4 packets
      */
     public void startFilteringMulticastV6Packets() {
         sendMessage(obtainMessage(CMD_START_PACKET_FILTERING, MULTICAST_V6, 0));
     }
 
     /**
-     * Stop filtering Multicast v6 packets
+     * Stop filtering Multicast v4 packets
      */
     public void stopFilteringMulticastV6Packets() {
         sendMessage(obtainMessage(CMD_STOP_PACKET_FILTERING, MULTICAST_V6, 0));
@@ -1665,7 +1647,6 @@ public class WifiStateMachine extends StateMachine {
             intent.putExtra(WifiManager.EXTRA_BSSID, bssid);
         if (mNetworkInfo.getDetailedState() == DetailedState.VERIFYING_POOR_LINK ||
                 mNetworkInfo.getDetailedState() == DetailedState.CONNECTED) {
-            intent.putExtra(WifiManager.EXTRA_NEW_RSSI, mWifiInfo.getRssi());
             intent.putExtra(WifiManager.EXTRA_WIFI_INFO, new WifiInfo(mWifiInfo));
         }
         mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
@@ -1719,10 +1700,6 @@ public class WifiStateMachine extends StateMachine {
             mWifiInfo.setNetworkId(stateChangeResult.networkId);
         } else {
             mWifiInfo.setNetworkId(WifiConfiguration.INVALID_NETWORK_ID);
-        }
-        // Update RSSI value once associated to the AP
-        if (state == SupplicantState.ASSOCIATED) {
-            fetchRssiAndLinkSpeedNative();
         }
 
         mWifiInfo.setBSSID(stateChangeResult.BSSID);
@@ -1908,22 +1885,6 @@ public class WifiStateMachine extends StateMachine {
         }).start();
     }
 
-    private void enableBackgroundScanOrTurnOffWifi() {
-        List<WifiConfiguration> configs = mWifiConfigStore.getConfiguredNetworks();
-        if (configs != null) {
-            if (configs.size() != 0) {
-                mWifiNative.enableBackgroundScan(true);
-            } else {
-                // No remembered SSID, turn off Wifi immediately
-                Slog.d(TAG, "No remembered SSID, turn off wifi");
-                mContext.sendBroadcast(new Intent(SHUT_DOWN_WIFI_ACTION));
-                mEnableBackgroundScan = false;
-            }
-        } else {
-            Log.e(TAG, "Impossible to get the configured networks when considering PNO enabling");
-        }
-    }
-
     /********************************************************
      * HSM states
      *******************************************************/
@@ -1998,7 +1959,6 @@ public class WifiStateMachine extends StateMachine {
                 case WifiMonitor.NETWORK_CONNECTION_EVENT:
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
                 case WifiMonitor.SCAN_RESULTS_EVENT:
-                case WifiMonitor.BGSCAN_LEARN_EVENT:
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                 case WifiMonitor.WPS_OVERLAP_EVENT:
@@ -2772,8 +2732,8 @@ public class WifiStateMachine extends StateMachine {
             /* initialize network state */
             setNetworkDetailedState(DetailedState.DISCONNECTED);
 
-            /* Start filtering Multicast v6 packets */
-            mWifiNative.startFilteringMulticastV6Packets();
+            /* Remove any filtering on Multicast v6 at start */
+            mWifiNative.stopFilteringMulticastV6Packets();
 
             /* Reset Multicast v4 filtering state */
             if (mFilteringMulticastV4Packets.get()) {
@@ -2809,10 +2769,6 @@ public class WifiStateMachine extends StateMachine {
             mWifiNative.setPowerSave(true);
 
             if (mP2pSupported) mWifiP2pChannel.sendMessage(WifiStateMachine.CMD_ENABLE_P2P);
-            else {
-                /* Disable P2P feature in supplicant (remove P2P IE from management frames) */
-                mWifiNative.p2pSetDisabled(true);
-            }
         }
         @Override
         public boolean processMessage(Message message) {
@@ -3377,43 +3333,6 @@ public class WifiStateMachine extends StateMachine {
                     fetchPktcntNative(info);
                     replyToMessage(message, WifiManager.RSSI_PKTCNT_FETCH_SUCCEEDED, info);
                     break;
-                case WifiMonitor.BGSCAN_LEARN_EVENT:
-                    /* When the network is connected, re-scanning can trigger
-                     * a reconnection only if ap_scan=1. ap_scan=1 is required to
-                     * roam in case a better AP candidate will be found thanks to
-                     * a BG scan.
-                     * Force ap_scan=1 before every scan_results issued by a BG scan
-                     */
-                    mWifiNative.setScanResultHandling(CONNECT_MODE);
-                    /*
-                     * A Background scan has been issued by wpa_supplicant. Keep Platform
-                     * waked up  while BGSCAN_LEARN_TIME_OUT_MSECS maximun =
-                     * maximal duration of a scan (2.5 seconds).
-                     */
-                    if (DBG) log("Background scan on going: Taking a wake lock");
-                    mBGscanWakeLock.acquire(BGSCAN_LEARN_TIME_OUT_MSECS);
-                    mBGscan_learn_ongoing = true;
-                    break;
-                case WifiMonitor.SCAN_RESULTS_EVENT:
-                    /* BG scan termniated : release the BG scan Wake Lock if it is held */
-                    if (mBGscanWakeLock.isHeld()) {
-                        if (DBG) log("Releasing BG scan wakelock");
-                        mBGscanWakeLock.release();
-                    }
-                    /*
-                     * Keep Platform waked up while ROAMING_TIME_OUT_MSECS maximun =
-                     * maximal duration needed for potential roaming
-                     */
-                    if (mBGscan_learn_ongoing) {
-                        mBGscan_learn_ongoing = false;
-                        if (DBG) log("Time for eventual roaming upon BG scan results: Taking a wake lock");
-                        mBGscanWakeLock.acquire(ROAMING_TIME_OUT_MSECS);
-                        break;
-                    }
-                    /*
-                    * Have the parent state handle WifiMonitor.SCAN_RESULTS_EVENT in case scan results
-                    * issued were not due to a intel wpa_supplicant BG scan
-                    */
                 default:
                     return NOT_HANDLED;
             }
@@ -3552,7 +3471,7 @@ public class WifiStateMachine extends StateMachine {
         public void enter() {
             if (DBG) log(getName() + "\n");
             EventLog.writeEvent(EVENTLOG_WIFI_STATE_CHANGED, getName());
-        }
+       }
         @Override
         public boolean processMessage(Message message) {
             if (DBG) log(getName() + message.toString() + "\n");
@@ -3668,7 +3587,7 @@ public class WifiStateMachine extends StateMachine {
                  * cleared
                  */
                 if (!mScanResultIsPending) {
-                    enableBackgroundScanOrTurnOffWifi();
+                    mWifiNative.enableBackgroundScan(true);
                 }
             } else {
                 setScanAlarm(true);
@@ -3719,7 +3638,7 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_ENABLE_BACKGROUND_SCAN:
                     mEnableBackgroundScan = (message.arg1 == 1);
                     if (mEnableBackgroundScan) {
-                        enableBackgroundScanOrTurnOffWifi();
+                        mWifiNative.enableBackgroundScan(true);
                         setScanAlarm(false);
                     } else {
                         mWifiNative.enableBackgroundScan(false);
@@ -3732,9 +3651,6 @@ public class WifiStateMachine extends StateMachine {
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                     StateChangeResult stateChangeResult = (StateChangeResult) message.obj;
                     setNetworkDetailedState(WifiInfo.getDetailedStateOf(stateChangeResult.state));
-                    if (stateChangeResult.state == SupplicantState.DISCONNECTED) {
-                        handleNetworkDisconnect();
-                    }
                     /* ConnectModeState does the rest of the handling */
                     ret = NOT_HANDLED;
                     break;
@@ -3774,15 +3690,6 @@ public class WifiStateMachine extends StateMachine {
                     // Drop a third party reconnect/reassociate if we are
                     // tempoarily disconnected for p2p
                     if (mTemporarilyDisconnectWifi) ret = NOT_HANDLED;
-                    break;
-                 case CMD_STOP_DRIVER:
-                    /*  Disable alarm to prevent scaning when in delayed stop */
-                    /*  so reduce not necessary wake up due to RTC alarm */
-                    /*  Alarm is re-enable through enter method when driver */
-                    /*  will be re-started */
-                    setScanAlarm(false);
-                    /*  DriverStartedState does the rest of the handling */
-                    ret = NOT_HANDLED;
                     break;
                 default:
                     ret = NOT_HANDLED;

@@ -31,12 +31,7 @@ static struct {
     { AID_MEDIA, "media.player" },
     { AID_MEDIA, "media.camera" },
     { AID_MEDIA, "media.audio_policy" },
-    { AID_MEDIA, "media.bt_service" },
-    { AID_MEDIA, "media.gti_service"},
     { AID_DRM,   "drm.drmManager" },
-#ifdef OLA_FACEDETECTION
-    { AID_MEDIA, "com.olaworks.olabuffer" },
-#endif
     { AID_NFC,   "nfc" },
     { AID_BLUETOOTH, "bluetooth" },
     { AID_RADIO, "radio.phone" },
@@ -49,7 +44,6 @@ static struct {
     { AID_RADIO, "isms" },
     { AID_RADIO, "iphonesubinfo" },
     { AID_RADIO, "simphonebook" },
-    { AID_RADIO, "oemtelephony" },
     { AID_MEDIA, "common_time.clock" },
     { AID_MEDIA, "common_time.config" },
 };

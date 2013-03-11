@@ -30,7 +30,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
-import android.content.pm.ResolveInfo;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -42,12 +41,8 @@ import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.UserHandle;
-import android.media.AudioManager;
 import android.provider.Settings;
 import android.util.Log;
-
-import com.android.internal.telephony.CwsMMGRService.IMmgrService;
-
 import java.util.ArrayList;
 import java.util.List;
 class BluetoothManagerService extends IBluetoothManager.Stub {
@@ -67,8 +62,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final int SERVICE_RESTART_TIME_MS = 200;
     //Maximum msec to delay MESSAGE_USER_SWITCHED
     private static final int USER_SWITCHED_TIME_MS = 200;
-
-    private static final String AUDIO_PARAMETER_KEY_BLUETOOTH_STATE = "bluetooth_enabled";
 
     private static final int MESSAGE_ENABLE = 1;
     private static final int MESSAGE_DISABLE = 2;
@@ -104,8 +97,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private int mState;
     private HandlerThread mThread;
     private final BluetoothHandler mHandler;
-
-    private AudioManager mAudioManager;
 
     private void registerForAirplaneMode(IntentFilter filter) {
         final ContentResolver resolver = mContext.getContentResolver();
@@ -155,42 +146,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         }
     };
 
-    // Modem manager service
-    private IMmgrService mService = null;
-
-    // Indicate wether or not we are bound to
-    // the modem manager service
-    private static boolean sIsBound = false;
-
-    /**
-     * Class for interacting with the main interface of the modem manager service.
-     */
-    private ServiceConnection mCwsMMGRConnection = new ServiceConnection() {
-        public void onServiceConnected(ComponentName className,
-                IBinder service) {
-            // This is called when the connection with the service has been
-            // established, giving us the service object we can use to
-            // interact with the service.  We are communicating with our
-            // service through an IDL interface, so get a client-side
-            // representation of that from the raw service object.
-            mService = IMmgrService.Stub.asInterface((IBinder)service);
-            Log.d(TAG, "Connected to modem manager service");
-            try {
-                Log.d(TAG, "Registering callback interface for MMGR");
-                mService.registerCallback(null);
-            } catch (RemoteException e) {
-                Log.e(TAG, "Unable to register callback for MMGR : "+e);
-            }
-        }
-
-        public void onServiceDisconnected(ComponentName className) {
-            // This is called when the connection with the service has been
-            // unexpectedly disconnected -- that is, its process crashed.
-            mService = null;
-            Log.d(TAG, "Disconnected from modem manager service");
-        }
-    };
-
     BluetoothManagerService(Context context) {
         mThread = new HandlerThread("BluetoothManager");
         mThread.start();
@@ -204,7 +159,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         mState = BluetoothAdapter.STATE_OFF;
         mAddress = null;
         mName = null;
-        mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         mContentResolver = context.getContentResolver();
         mCallbacks = new RemoteCallbackList<IBluetoothManagerCallback>();
         mStateChangeCallbacks = new RemoteCallbackList<IBluetoothStateChangeCallback>();
@@ -416,11 +370,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         Message msg = mHandler.obtainMessage(MESSAGE_DISABLE);
         msg.arg1=(persist?1:0);
         mHandler.sendMessage(msg);
-        // BT should be disabled, unbind from modem manager service if needed
-        if (sIsBound) {
-            mContext.unbindService(mCwsMMGRConnection);
-            sIsBound = false;
-        }
         return true;
     }
 
@@ -966,9 +915,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     Log.e(TAG,"Unable to call enable()",e);
                 }
             }
-
-            // Inform AudioRouteManager that bluetooth is enabled
-            mAudioManager.setParameters(AUDIO_PARAMETER_KEY_BLUETOOTH_STATE + "=true");
         }
     }
 
@@ -982,9 +928,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
             // service will be unbinded after Name and Address are saved
             if ((mBluetooth != null) && (!mConnection.isGetNameAddressOnly())) {
                 if (DBG) Log.d(TAG,"Sending off request.");
-
-                // Inform AudioRouteManager that bluetooth is disabled
-                mAudioManager.setParameters(AUDIO_PARAMETER_KEY_BLUETOOTH_STATE + "=false");
 
                 try {
                     if(!mBluetooth.disable()) {
@@ -1028,19 +971,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         msg.arg1=1; //persist
         msg.arg2=0; //No Quiet Mode
         mHandler.sendMessage(msg);
-        // BT should be enabled, bind to modem manager service if needed
-        // We first check if MMGR service is available on device
-        List<ResolveInfo> list = mContext.getPackageManager().queryIntentServices(new Intent(IMmgrService.class.getName()),0);
-        if (list.size() > 0) {
-            if (!sIsBound) {
-                sIsBound = mContext.bindService(new Intent(IMmgrService.class.getName()), mCwsMMGRConnection, Context.BIND_AUTO_CREATE);
-                if (sIsBound) {
-                    Log.e(TAG, "Failed to bind to Service : " + IMmgrService.class.getName());
-                } else {
-                    Log.d(TAG, "Bound to Service : " + IMmgrService.class.getName());
-                }
-            }
-        }
         return true;
     }
 
