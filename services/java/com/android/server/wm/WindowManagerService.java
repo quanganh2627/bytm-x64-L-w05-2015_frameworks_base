@@ -35,6 +35,7 @@ import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD;
 import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG;
 import static android.view.WindowManager.LayoutParams.TYPE_KEYGUARD;
 import static android.view.WindowManager.LayoutParams.TYPE_RECENTS_OVERLAY;
+import static android.view.WindowManager.LayoutParams.TYPE_SYSTEM_ALERT;
 import static android.view.WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG;
 import static android.view.WindowManager.LayoutParams.TYPE_SYSTEM_ERROR;
 import static android.view.WindowManager.LayoutParams.TYPE_UNIVERSE_BACKGROUND;
@@ -637,6 +638,7 @@ public class WindowManagerService extends IWindowManager.Stub
         private static final int DISPLAY_CONTENT_MIRROR = 1;
         private static final int DISPLAY_CONTENT_UNIQUE = 2;
         private int mDisplayHasContent = DISPLAY_CONTENT_UNKNOWN;
+        private boolean mDisplayHasBgPresentation;
     }
     final LayoutFields mInnerFields = new LayoutFields();
 
@@ -9071,6 +9073,10 @@ public class WindowManagerService extends IWindowManager.Stub
                         == LayoutFields.DISPLAY_CONTENT_UNKNOWN) {
                     mInnerFields.mDisplayHasContent = LayoutFields.DISPLAY_CONTENT_UNIQUE;
                 }
+                if (!w.isDefaultDisplay() && type == TYPE_SYSTEM_ALERT) {
+                    // We found a background presentation.
+                    mInnerFields.mDisplayHasBgPresentation = true;
+                }
             }
         }
 
@@ -9196,6 +9202,9 @@ public class WindowManagerService extends IWindowManager.Stub
                 if (mInnerFields.mDisplayHasContent != LayoutFields.DISPLAY_CONTENT_MIRROR) {
                     mInnerFields.mDisplayHasContent = LayoutFields.DISPLAY_CONTENT_UNKNOWN;
                 }
+
+                // Reset for each display. Will be set to true if bg presentation is found.
+                mInnerFields.mDisplayHasBgPresentation = false;
 
                 int repeats = 0;
                 do {
@@ -9402,7 +9411,7 @@ public class WindowManagerService extends IWindowManager.Stub
                     updateResizingWindows(w);
                 }
 
-                final boolean hasUniqueContent;
+                boolean hasUniqueContent;
                 switch (mInnerFields.mDisplayHasContent) {
                     case LayoutFields.DISPLAY_CONTENT_MIRROR:
                         hasUniqueContent = isDefaultDisplay;
@@ -9415,6 +9424,11 @@ public class WindowManagerService extends IWindowManager.Stub
                         hasUniqueContent = false;
                         break;
                 }
+                if (mInnerFields.mDisplayHasBgPresentation) {
+                    // We have a background presentation. Make sure it is displayed.
+                    hasUniqueContent = true;
+                }
+
                 mDisplayManagerService.setDisplayHasContent(displayId, hasUniqueContent,
                         true /* inTraversal, must call performTraversalInTrans... below */);
 

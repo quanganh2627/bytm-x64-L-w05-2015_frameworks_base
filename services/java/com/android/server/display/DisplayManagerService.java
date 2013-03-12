@@ -829,6 +829,12 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
         } else {
             boolean isBlanked = (mAllDisplayBlankStateFromPowerManager
                     == DISPLAY_BLANK_STATE_BLANKED);
+            if (isBlanked && display.hasContentLocked()
+                    && display != mLogicalDisplays.get(Display.DEFAULT_DISPLAY)) {
+                // Display has unique content, meaning there is a background
+                // presentation on this display, so override isBlanked.
+                isBlanked = false;
+            }
             display.configureDisplayInTransactionLocked(device, isBlanked);
         }
 
