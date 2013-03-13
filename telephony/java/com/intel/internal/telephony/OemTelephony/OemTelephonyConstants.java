@@ -73,16 +73,12 @@ public interface OemTelephonyConstants {
      * 0x000000D0 -> 0x000000FF : Platform Unsolicited
      */
 
-    /* OEM hook to request modem to trigger Fast Dormancy. */
-    public static final int RIL_OEM_HOOK_RAW_TRIGGER_FAST_DORMANCY = 0x000000A0;
-    /* OEM hook to set value of Fast Dormancy SCRI inhibition timer */
-    public static final int RIL_OEM_HOOK_RAW_SET_FAST_DORMANCY_TIMER = 0x000000A1;
     /* OEM hook to get the value of sensor id */
     public static final int RIL_OEM_HOOK_STRING_THERMAL_GET_SENSOR = 0x000000A2;
     /* OEM hook to set the min and max threhold of the sensor id */
     public static final int RIL_OEM_HOOK_STRING_ACTIVATE_THERMAL_SENSOR_NOTIFICATION = 0x000000A3;
     /*  OEM HOOK to set the Autonomous Fast Dormancy Mode */
-    public static final int RIL_OEM_HOOK_RAW_SET_MODEM_AUTO_FAST_DORMANCY = 0x000000A4;
+    public static final int RIL_OEM_HOOK_STRING_SET_MODEM_AUTO_FAST_DORMANCY = 0x000000A4;
     /* OEM hook to Get the Answer to reset of the current SIM card */
     public static final int RIL_OEM_HOOK_STRING_GET_ATR = 0x000000A5;
     /* OEM hook to get GPRS cell environment */
