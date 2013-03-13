@@ -210,6 +210,7 @@ final class DisplayPowerController {
 
     // Automatic button light control.
     private boolean mUseButtonAutoBrightnessConfig;
+    private boolean mUseButtonLedBrightnessConfig;
     private boolean mButtonAutoBrightnessEnabled;
     private LightsService.Light mButtonLight;
     private int[] mButtonBacklightValues;
@@ -351,6 +352,10 @@ final class DisplayPowerController {
     // Twilight changed.  We might recalculate auto-brightness values.
     private boolean mTwilightChanged;
 
+    private Handler mButtonLedHandler;
+    private boolean mButtonLedState = false;
+    private final int mButtonLedBrightness = 0x87;
+
     /**
      * Creates the display power controller.
      */
@@ -369,6 +374,8 @@ final class DisplayPowerController {
         mTwilight = twilight;
         mSensorManager = sensorManager;
         mDisplayManager = displayManager;
+
+        mButtonLedHandler = new Handler(true /*async*/);
 
         final Resources resources = context.getResources();
 
@@ -414,6 +421,10 @@ final class DisplayPowerController {
             mButtonBacklightValues = resources.getIntArray(
                     com.android.internal.R.array.config_autoBrightnessButtonBacklightValues);
             mButtonLastValue = -1;
+        }
+        mUseButtonLedBrightnessConfig = resources.getBoolean(
+                com.android.internal.R.bool.config_button_led_brightness_available);
+        if (mUseButtonAutoBrightnessConfig || mUseButtonLedBrightnessConfig) {
             mButtonLight = mLights.getLight(LightsService.LIGHT_ID_BUTTONS);
         }
 
@@ -538,6 +549,36 @@ final class DisplayPowerController {
             mHandler.sendMessage(msg);
         }
     }
+
+    public void requestButtonLedState(boolean enable) {
+        if (mUseButtonLedBrightnessConfig) {
+            if (enable) {
+                if (!mButtonLedState) {
+                    mButtonLight.setBrightness(mButtonLedBrightness);
+                    mButtonLedState = true;
+                }
+                mButtonLedHandler.removeCallbacks(mButtonLedUpdateRunnable);
+                mButtonLedHandler.postDelayed(mButtonLedUpdateRunnable, 3000);
+            }
+            else {
+                mButtonLedHandler.removeCallbacks(mButtonLedUpdateRunnable);
+                if (mButtonLedState) {
+                    mButtonLight.turnOff();
+                    mButtonLedState = false;
+                }
+            }
+        }
+    }
+
+    private final Runnable mButtonLedUpdateRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (mButtonLedState) {
+                mButtonLight.turnOff();
+                mButtonLedState = false;
+            }
+        }
+    };
 
     private void initialize() {
         mPowerState = new DisplayPowerState(
