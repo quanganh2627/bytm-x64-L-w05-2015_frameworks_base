@@ -180,8 +180,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     // protects mRingerMode
     private final Object mSettingsLock = new Object();
 
-    private int mFmRxMode;
-
     private boolean mMediaServerOk;
 
     private SoundPool mSoundPool;
@@ -231,8 +229,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         15, // STREAM_BLUETOOTH_SCO
         7,  // STREAM_SYSTEM_ENFORCED
         15, // STREAM_DTMF
-        15,  // STREAM_TTS
-        15  // STREAM_FM_RX
+        15  // STREAM_TTS
     };
     /* mStreamVolumeAlias[] indicates for each stream if it uses the volume settings
      * of another stream: This avoids multiplying the volume settings for hidden
@@ -252,8 +249,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         AudioSystem.STREAM_BLUETOOTH_SCO,   // STREAM_BLUETOOTH_SCO
         AudioSystem.STREAM_RING,            // STREAM_SYSTEM_ENFORCED
         AudioSystem.STREAM_RING,            // STREAM_DTMF
-        AudioSystem.STREAM_MUSIC,           // STREAM_TTS
-        AudioSystem.STREAM_MUSIC            // STREAM_FM_RX
+        AudioSystem.STREAM_MUSIC            // STREAM_TTS
     };
     private final int[] STREAM_VOLUME_ALIAS_NON_VOICE = new int[] {
         AudioSystem.STREAM_VOICE_CALL,      // STREAM_VOICE_CALL
@@ -265,8 +261,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         AudioSystem.STREAM_BLUETOOTH_SCO,   // STREAM_BLUETOOTH_SCO
         AudioSystem.STREAM_MUSIC,           // STREAM_SYSTEM_ENFORCED
         AudioSystem.STREAM_MUSIC,           // STREAM_DTMF
-        AudioSystem.STREAM_MUSIC,           // STREAM_TTS
-        AudioSystem.STREAM_MUSIC            // STREAM_FM_RX
+        AudioSystem.STREAM_MUSIC            // STREAM_TTS
     };
     private int[] mStreamVolumeAlias;
 
@@ -281,8 +276,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
             "STREAM_BLUETOOTH_SCO",
             "STREAM_SYSTEM_ENFORCED",
             "STREAM_DTMF",
-            "STREAM_TTS",
-            "STREAM_FM_RX"
+            "STREAM_TTS"
     };
 
     private final AudioSystem.ErrorCallback mAudioSystemCallback = new AudioSystem.ErrorCallback() {
@@ -347,16 +341,10 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     // Forced device usage for communications
     private int mForcedUseForComm;
 
-    // Forced device usage for FM radio
-    private int mForcedUseForFM;
-
     // True if we have master volume support
     private final boolean mUseMasterVolume;
 
     private final int[] mMasterVolumeRamp;
-
-    // Forced device usage for media
-    private int mForcedUseForMedia;
 
     // List of binder death handlers for setMode() client processes.
     // The last process to have called setMode() is at the top of the list.
@@ -483,8 +471,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         mVolumePanel = new VolumePanel(context, this);
         mMode = AudioSystem.MODE_NORMAL;
         mForcedUseForComm = AudioSystem.FORCE_NONE;
-        mForcedUseForMedia = AudioSystem.FORCE_NONE;
-        mForcedUseForFM = AudioSystem.FORCE_NONE;
+
         createAudioSystemThread();
 
         boolean cameraSoundForced = mContext.getResources().getBoolean(
@@ -793,7 +780,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         if (DEBUG_VOL) Log.d(TAG, "adjustLocalOrRemoteStreamVolume(dir="+direction+")");
         if (checkUpdateRemoteStateIfActive(AudioSystem.STREAM_MUSIC)) {
             adjustRemoteVolume(AudioSystem.STREAM_MUSIC, direction, 0);
-        } else if (AudioSystem.isStreamActive(AudioSystem.STREAM_MUSIC, 0)  || isFmRxActive() ) {
+        } else if (AudioSystem.isStreamActive(AudioSystem.STREAM_MUSIC, 0)) {
             adjustStreamVolume(AudioSystem.STREAM_MUSIC, direction, 0);
         }
     }
@@ -1592,32 +1579,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         return newModeOwnerPid;
     }
 
-    /** Set/get FM mode */
-    public int setFmRxMode(int mode) {
-        int status = AudioSystem.setFmRxState(mode);
-        if (status == AudioSystem.AUDIO_STATUS_OK) {
-            mFmRxMode = mode;
-            handleDeviceConnection(mFmRxMode == AudioManager.MODE_FM_ON, AudioSystem.DEVICE_IN_FM_RECORD,"");
-        } else {
-            Log.e(TAG, "setFmRxMode(): Cannot Set FM RX mode to " + mode);
-        }
-        return status;
-    }
-
-    public int getFmRxMode() {
-        return mFmRxMode;
-   }
-
-    /**
-     * Checks whether FM Radio is active.
-     *
-     * @hide
-     * @return true if FM Radio is active.
-     */
-    public boolean isFmRxActive() {
-        return (getFmRxMode() == AudioManager.MODE_FM_ON) ? true : false;
-    }
-
     /** @see AudioManager#getMode() */
     public int getMode() {
         return mMode;
@@ -1893,28 +1854,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     /** @see AudioManager#isSpeakerphoneOn() */
     public boolean isSpeakerphoneOn() {
         return (mForcedUseForComm == AudioSystem.FORCE_SPEAKER);
-    }
-
-    /** @see AudioManager#setSpeakerfmOn() */
-    public void setSpeakerfmOn(boolean on) {
-        if (!checkAudioSettingsPermission("setSpeakerfmOn()")) {
-            return;
-        }
-        //reset volume to avoid audio bursts when do output device switch
-        if (mFmRxMode == AudioManager.MODE_FM_ON) {
-            Intent intent = new Intent(AudioManager.VOLUME_CHANGED_ACTION);
-            mContext.sendBroadcast(intent);
-        }
-
-        mForcedUseForFM = on ? AudioSystem.FORCE_SPEAKER : AudioSystem.FORCE_NONE;
-
-        sendMsg(mAudioHandler, MSG_SET_FORCE_USE, SENDMSG_QUEUE,
-                AudioSystem.FOR_FM_RADIO, mForcedUseForFM, null, 0);
-    }
-
-    /** @see AudioManager#isSpeakerfmOn() */
-    public boolean isSpeakerfmOn() {
-        return (mForcedUseForFM == AudioSystem.FORCE_SPEAKER);
     }
 
     /** @see AudioManager#setBluetoothScoOn() */
@@ -2560,8 +2499,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                 if (DEBUG_VOL)
                     Log.v(TAG, "getActiveStreamType: Forcing STREAM_MUSIC stream active");
                 return AudioSystem.STREAM_MUSIC;
-            } else if(getFmRxMode() == AudioManager.MODE_FM_ON) {
-                return AudioSystem.STREAM_MUSIC;//for FM the type is MUSIC
             } else {
                 if (DEBUG_VOL) Log.v(TAG, "getActiveStreamType: Returning suggested type "
                         + suggestedStreamType);
@@ -2594,8 +2531,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                         Log.v(TAG, "getActiveStreamType: using STREAM_MUSIC as default");
                     return AudioSystem.STREAM_MUSIC;
                 }
-            } else if(getFmRxMode() == AudioManager.MODE_FM_ON) {
-                return AudioSystem.STREAM_MUSIC;//for FM the type is MUSIC
             } else {
                 if (DEBUG_VOL) Log.v(TAG, "getActiveStreamType: Returning suggested type "
                         + suggestedStreamType);
@@ -3407,8 +3342,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                     AudioSystem.setForceUse(AudioSystem.FOR_RECORD, mForcedUseForComm);
                     AudioSystem.setForceUse(AudioSystem.FOR_SYSTEM, mCameraSoundForced ?
                                     AudioSystem.FORCE_SYSTEM_ENFORCED : AudioSystem.FORCE_NONE);
-                    AudioSystem.setForceUse(AudioSystem.FOR_MEDIA, mForcedUseForMedia);
-                    AudioSystem.setForceUse(AudioSystem.FOR_FM_RADIO, mForcedUseForFM);
 
                     // Restore stream volumes
                     int numStreamTypes = AudioSystem.getNumStreamTypes();
