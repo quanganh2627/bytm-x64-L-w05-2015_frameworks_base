@@ -1001,7 +1001,12 @@ class MountService extends IMountService.Stub
              * Mount failed for some reason
              */
             String action = null;
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return StorageResultCode.OperationFailedInternalError;
+            }
             if (code == VoldResponseCode.OpFailedNoMedia) {
                 /*
                  * Attempt to mount but no media inserted
@@ -1099,7 +1104,12 @@ class MountService extends IMountService.Stub
         } catch (NativeDaemonConnectorException e) {
             // Don't worry about mismatch in PackageManager since the
             // call back will handle the status changes any way.
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return StorageResultCode.OperationFailedInternalError;
+            }
             if (code == VoldResponseCode.OpFailedVolNotMounted) {
                 return StorageResultCode.OperationFailedStorageNotMounted;
             } else if (code == VoldResponseCode.OpFailedStorageBusy) {
@@ -1115,7 +1125,12 @@ class MountService extends IMountService.Stub
             mConnector.execute("volume", "format", path);
             return StorageResultCode.OperationSucceeded;
         } catch (NativeDaemonConnectorException e) {
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return StorageResultCode.OperationFailedInternalError;
+            }
             if (code == VoldResponseCode.OpFailedNoMedia) {
                 return StorageResultCode.OperationFailedNoMedia;
             } else if (code == VoldResponseCode.OpFailedMediaCorrupt) {
@@ -1134,7 +1149,6 @@ class MountService extends IMountService.Stub
             Slog.e(TAG, "Failed to read response to volume shared " + path + " " + method);
             return false;
         }
-
         if (event.getCode() == VoldResponseCode.ShareEnabledResult) {
             return event.getMessage().endsWith("enabled");
         } else {
@@ -1783,7 +1797,12 @@ class MountService extends IMountService.Stub
             }
             mConnector.execute(cmd);
         } catch (NativeDaemonConnectorException e) {
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return StorageResultCode.OperationFailedInternalError;
+            }
             if (code == VoldResponseCode.OpFailedStorageBusy) {
                 rc = StorageResultCode.OperationFailedStorageBusy;
             } else {
@@ -1817,7 +1836,12 @@ class MountService extends IMountService.Stub
         try {
             mConnector.execute("asec", "mount", id, new SensitiveArg(key), ownerUid);
         } catch (NativeDaemonConnectorException e) {
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return StorageResultCode.OperationFailedInternalError;
+            }
             if (code != VoldResponseCode.OpFailedStorageBusy) {
                 rc = StorageResultCode.OperationFailedInternalError;
             }
@@ -1858,7 +1882,12 @@ class MountService extends IMountService.Stub
             }
             mConnector.execute(cmd);
         } catch (NativeDaemonConnectorException e) {
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return StorageResultCode.OperationFailedInternalError;
+            }
             if (code == VoldResponseCode.OpFailedStorageBusy) {
                 rc = StorageResultCode.OperationFailedStorageBusy;
             } else {
@@ -1920,7 +1949,12 @@ class MountService extends IMountService.Stub
             event.checkCode(VoldResponseCode.AsecPathResult);
             return event.getMessage();
         } catch (NativeDaemonConnectorException e) {
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return null;
+            }
             if (code == VoldResponseCode.OpFailedStorageNotFound) {
                 Slog.i(TAG, String.format("Container '%s' not found", id));
                 return null;
@@ -1941,7 +1975,12 @@ class MountService extends IMountService.Stub
             event.checkCode(VoldResponseCode.AsecPathResult);
             return event.getMessage();
         } catch (NativeDaemonConnectorException e) {
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return null;
+            }
             if (code == VoldResponseCode.OpFailedStorageNotFound) {
                 Slog.i(TAG, String.format("Container '%s' not found", id));
                 return null;
@@ -1995,7 +2034,12 @@ class MountService extends IMountService.Stub
             event.checkCode(VoldResponseCode.AsecPathResult);
             return event.getMessage();
         } catch (NativeDaemonConnectorException e) {
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return null;
+            }
             if (code == VoldResponseCode.OpFailedStorageNotFound) {
                 return null;
             } else {
@@ -2640,8 +2684,12 @@ class MountService extends IMountService.Stub
                 mConnector.execute("obb", "mount", mObbState.voldPath, new SensitiveArg(hashedKey),
                         mObbState.ownerGid);
             } catch (NativeDaemonConnectorException e) {
-                int code = e.getCode();
-                if (code != VoldResponseCode.OpFailedStorageBusy) {
+                try {
+                    int code = e.getCode();
+                    if (code != VoldResponseCode.OpFailedStorageBusy) {
+                        rc = StorageResultCode.OperationFailedInternalError;
+                    }
+                } catch(NullPointerException ex) {
                     rc = StorageResultCode.OperationFailedInternalError;
                 }
             }
@@ -2717,13 +2765,17 @@ class MountService extends IMountService.Stub
                 }
                 mConnector.execute(cmd);
             } catch (NativeDaemonConnectorException e) {
-                int code = e.getCode();
-                if (code == VoldResponseCode.OpFailedStorageBusy) {
-                    rc = StorageResultCode.OperationFailedStorageBusy;
-                } else if (code == VoldResponseCode.OpFailedStorageNotFound) {
-                    // If it's not mounted then we've already won.
-                    rc = StorageResultCode.OperationSucceeded;
-                } else {
+                try {
+                    int code = e.getCode();
+                    if (code == VoldResponseCode.OpFailedStorageBusy) {
+                        rc = StorageResultCode.OperationFailedStorageBusy;
+                    } else if (code == VoldResponseCode.OpFailedStorageNotFound) {
+                        // If it's not mounted then we've already won.
+                        rc = StorageResultCode.OperationSucceeded;
+                    } else {
+                        rc = StorageResultCode.OperationFailedInternalError;
+                    }
+                } catch(NullPointerException ex) {
                     rc = StorageResultCode.OperationFailedInternalError;
                 }
             }
