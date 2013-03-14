@@ -479,6 +479,20 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
     }
 
     @Override // Binder call
+    public void stopScanWifiDisplays() {
+        final long token = Binder.clearCallingIdentity();
+        try {
+            synchronized (mSyncRoot) {
+                if (mWifiDisplayAdapter != null) {
+                    mWifiDisplayAdapter.requestStopScanLocked();
+                }
+            }
+        } finally {
+            Binder.restoreCallingIdentity(token);
+        }
+    }
+
+    @Override // Binder call
     public void connectWifiDisplay(String address) {
         if (address == null) {
             throw new IllegalArgumentException("address must not be null");
