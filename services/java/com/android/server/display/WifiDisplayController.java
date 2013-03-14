@@ -228,6 +228,10 @@ final class WifiDisplayController implements DumpUtils.Dump {
         discoverPeers();
     }
 
+    public void requestStopScan() {
+        stopDiscoverPeers();
+    }
+
     public void requestConnect(String address) {
         for (WifiP2pDevice device : mAvailableWifiDisplayPeers) {
             if (device.deviceAddress.equals(address)) {
@@ -352,6 +356,27 @@ final class WifiDisplayController implements DumpUtils.Dump {
                         handleScanFinished();
                         mDiscoverPeersInProgress = false;
                     }
+                }
+            }
+        });
+    }
+
+    private void stopDiscoverPeers() {
+        Slog.d(TAG, "Stop Discover peers...");
+        mWifiP2pManager.stopPeerDiscovery(mWifiP2pChannel, new ActionListener() {
+            @Override
+            public void onSuccess() {
+                if (DEBUG) {
+                    Slog.d(TAG, "Stop Discover peers succeeded.");
+                }
+
+                mDiscoverPeersInProgress = false;
+            }
+
+            @Override
+            public void onFailure(int reason) {
+                if (DEBUG) {
+                    Slog.d(TAG, "Stop Discover peers failed with reason " + reason + ".");
                 }
             }
         });
