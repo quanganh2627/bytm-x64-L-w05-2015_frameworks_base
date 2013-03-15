@@ -95,6 +95,8 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
     private static final Integer HIPRI_TYPE = new Integer(ConnectivityManager.TYPE_MOBILE_HIPRI);
     private static final Integer DUN_TYPE = new Integer(ConnectivityManager.TYPE_MOBILE_DUN);
 
+    private static final String KEY_HOTSPOT_SOUND_NOTIFY = "hotspot_sound_notify";
+
     // if we have to connect to mobile, what APN type should we use?  Calculated by examining the
     // upstream type list and the DUN_REQUIRED secure-setting
     private int mPreferredUpstreamMobileApn = ConnectivityManager.TYPE_NONE;
@@ -474,12 +476,15 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
 
         Resources r = Resources.getSystem();
 
+        boolean soundEnabled = (Settings.System.getInt(mContext.getContentResolver(),
+                KEY_HOTSPOT_SOUND_NOTIFY, 1) != 0);
         Notification.Builder builder = new Notification.Builder(mContext)
                 .setSmallIcon(icon)
                 .setContentIntent(pi)
-                .setDefaults(~Notification.DEFAULT_SOUND)
                 .setWhen(0)
                 .setOngoing(true);
+        if (soundEnabled)
+            builder.setDefaults(~Notification.DEFAULT_SOUND);
 
         if ((devices != null) && (devices.size() > 0)) {
             if ((devices.size() == 1 )) {
