@@ -4272,6 +4272,7 @@ public final class ActivityManagerService extends ActivityManagerNative
         mProcessesOnHold.remove(app);
 
         boolean badApp = false;
+        String reason = "Exception occurred";
         boolean didSomething = false;
 
         // See if the top visible activity is waiting to run in this process...
@@ -4286,8 +4287,9 @@ public final class ActivityManagerService extends ActivityManagerNative
                         didSomething = true;
                     }
                 } catch (Exception e) {
-                    Slog.w(TAG, "Exception in new application when starting activity "
-                          + hr.intent.getComponent().flattenToShortString(), e);
+                    reason = "Exception in new application when starting activity "
+                           + hr.intent.getComponent().flattenToShortString();
+                    Slog.w(TAG, reason, e);
                     badApp = true;
                 }
             } else {
@@ -4300,6 +4302,7 @@ public final class ActivityManagerService extends ActivityManagerNative
             try {
                 didSomething |= mServices.attachApplicationLocked(app, processName);
             } catch (Exception e) {
+                reason = "Exception in new application when searching for attached services";
                 badApp = true;
             }
         }
@@ -4331,7 +4334,8 @@ public final class ActivityManagerService extends ActivityManagerNative
         if (badApp) {
             // todo: Also need to kill application to deal with all
             // kinds of exceptions.
-            handleAppDiedLocked(app, false, true);
+            removeProcessLocked(app, false, true, reason);
+            mMainStack.requestFinishActivityLocked(hr.appToken, Activity.RESULT_CANCELED, null, "start-failed", false);
             return false;
         }
 
