@@ -1606,14 +1606,15 @@ public class GpsLocationProvider implements LocationProviderInterface {
                     new Intent(IMmgrService.class.getName()), 0);
 
             if (list.size() > 0) {
+                if (DEBUG) Log.d(TAG, "CWS Modem Manager Service present");
                 if (!mIsBound) {
-                    Log.d(TAG, "Start Navigating - bind service IMMGR_SERVICE");
+                    if (DEBUG) Log.d(TAG, "Start Navigating - bind service IMMGR_SERVICE");
 
                     mIsBound = mContext.bindService(new Intent(IMmgrService.class.getName()),
                             mCwsMMGRConnection, Context.BIND_AUTO_CREATE);
                     if (mIsBound) {
                         try {
-                            Log.d(TAG, "Waiting on modem Up");
+                            if (DEBUG) Log.d(TAG, "Waiting on modem Up");
                             if (!waitOnModemUp.tryAcquire(60L, TimeUnit.SECONDS)) {
                                 Log.e(TAG, "Cannot start GPS");
                                 Log.e(TAG, "MODEM_UP event not received");
@@ -1637,6 +1638,10 @@ public class GpsLocationProvider implements LocationProviderInterface {
                     }
                 }
             }
+            else {
+                if (DEBUG) Log.d(TAG, "CWS Modem Manager Service absent");
+                return true;
+            }
             return false;
         }
 
@@ -1644,12 +1649,12 @@ public class GpsLocationProvider implements LocationProviderInterface {
             if (mIsBound) {
                 try {
                     if (mModemColdReset) {
-                        Log.d(TAG, "Acknowledge Modem cold reset");
+                        if (DEBUG) Log.d(TAG, "Acknowledge Modem cold reset");
                         mService.ackModemColdReset();
                         mModemColdReset = false;
                     }
                     if (mModemShutdown) {
-                        Log.d(TAG, "Acknowledge Modem shutdown");
+                        if (DEBUG) Log.d(TAG, "Acknowledge Modem shutdown");
                         mService.ackModemShutdown();
                         mModemShutdown = false;
                     }
@@ -1657,7 +1662,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
                 } catch (RemoteException e) {
                     Log.e(TAG, "Unable to disconnect cws modem manager");
                 }
-                Log.d(TAG, "unbindService");
+                if (DEBUG) Log.d(TAG, "unbindService");
                 mContext.unbindService(mCwsMMGRConnection);
                 mIsBound = false;
             }
@@ -1676,11 +1681,11 @@ public class GpsLocationProvider implements LocationProviderInterface {
                 // service through an IDL interface, so get a client-side
                 // representation of that from the raw service object.
                 mService = IMmgrService.Stub.asInterface((IBinder) service);
-                Log.d(TAG, "onServiceConnected");
+                if (DEBUG) Log.d(TAG, "onServiceConnected");
                 try {
-                    Log.d(TAG, "Registering callback interface");
+                    if (DEBUG) Log.d(TAG, "Registering callback interface");
                     mService.registerCallback(mMmgrCallbacks);
-                    Log.d(TAG, "Recover modem if Modem is Down");
+                    if (DEBUG) Log.d(TAG, "Recover modem if Modem is Down");
                     mService.checkModemDown();
                 } catch (RemoteException e) {
                     Log.e(TAG, "Unable to register callback");
@@ -1692,12 +1697,12 @@ public class GpsLocationProvider implements LocationProviderInterface {
                 // unexpectedly disconnected -- that is, its process crashed.
                 try {
                     if (mModemColdReset) {
-                        Log.d(TAG, "Acknowledge Modem cold reset");
+                        if (DEBUG) Log.d(TAG, "Acknowledge Modem cold reset");
                         mService.ackModemColdReset();
                         mModemColdReset = false;
                     }
                     if (mModemShutdown) {
-                        Log.d(TAG, "Acknowledge Modem shutdown");
+                        if (DEBUG) Log.d(TAG, "Acknowledge Modem shutdown");
                         mService.ackModemShutdown();
                         mModemShutdown = false;
                     }
@@ -1707,25 +1712,25 @@ public class GpsLocationProvider implements LocationProviderInterface {
                 }
                 mIsBound = false;
                 mService = null;
-                Log.d(TAG, "onServiceDisconnected");
+                if (DEBUG) Log.d(TAG, "onServiceDisconnected");
             }
         };
 
         private final IMmgrServiceListener.Stub mMmgrCallbacks =
                 new IMmgrServiceListener.Stub() {
                     public void modemUp() {
-                        Log.d(TAG, "Modem is going UP message received");
+                        if (DEBUG) Log.d(TAG, "Modem is going UP message received");
                         waitOnModemUp.release();
                     }
 
                     public void modemColdReset() {
-                        Log.d(TAG, "Modem is going COLD_RESET message received, STOP NAVIGATING");
+                        if (DEBUG) Log.d(TAG, "Modem is going COLD_RESET message received, STOP NAVIGATING");
                         mModemColdReset = true;
                         stopNavigating();
                     }
 
                     public void modemShutdown() {
-                        Log.d(TAG, "Modem is going SHUTDOWN message received, STOP NAVIGATING");
+                        if (DEBUG) Log.d(TAG, "Modem is going SHUTDOWN message received, STOP NAVIGATING");
                         mModemShutdown = true;
                         stopNavigating();
                     }

@@ -380,6 +380,8 @@ public class BroadcastQueue {
 
     private final void deliverToRegisteredReceiverLocked(BroadcastRecord r,
             BroadcastFilter filter, boolean ordered) {
+        long startTime = System.currentTimeMillis();
+
         boolean skip = false;
         if (filter.requiredPermission != null) {
             int perm = mService.checkComponentPermission(filter.requiredPermission,
@@ -453,6 +455,11 @@ public class BroadcastQueue {
                     }
                 }
             }
+        }
+        long uptime = System.currentTimeMillis() - startTime;
+        if (uptime > 100) {
+            Slog.d(TAG, "deliverToRegisteredReceiverLocked - Execution time: " +
+                    uptime);
         }
     }
 

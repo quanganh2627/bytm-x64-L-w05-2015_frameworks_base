@@ -1679,6 +1679,8 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     @Override
     public int getPackageUid(String packageName, int userId) {
+        long startTime = System.currentTimeMillis();
+        try {
         if (!sUserManager.exists(userId)) return -1;
         enforceCrossUserPermission(Binder.getCallingUid(), userId, false, "get package uid");
         // reader
@@ -1693,6 +1695,13 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
             p = ps.pkg;
             return p != null ? UserHandle.getUid(userId, p.applicationInfo.uid) : -1;
+        }
+        } finally {
+            long uptime = System.currentTimeMillis() - startTime;
+            if (uptime > 100) {
+                Log.d(TAG, "getPackageUid - Execution time: " +
+                        uptime + " ms");
+            }
         }
     }
 
@@ -1837,6 +1846,8 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     @Override
     public ApplicationInfo getApplicationInfo(String packageName, int flags, int userId) {
+        long startTime = System.currentTimeMillis();
+        try {
         if (!sUserManager.exists(userId)) return null;
         enforceCrossUserPermission(Binder.getCallingUid(), userId, false, "get application info");
         // writer
@@ -1860,6 +1871,13 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
         }
         return null;
+        } finally {
+            long uptime = System.currentTimeMillis() - startTime;
+            if (uptime > 100) {
+                Log.d(TAG, "getApplicationInfo - Execution time: " +
+                        uptime + " ms");
+            }
+        }
     }
 
 
@@ -1918,6 +1936,8 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     @Override
     public ActivityInfo getActivityInfo(ComponentName component, int flags, int userId) {
+        long startTime = System.currentTimeMillis();
+        try {
         if (!sUserManager.exists(userId)) return null;
         enforceCrossUserPermission(Binder.getCallingUid(), userId, false, "get activity info");
         synchronized (mPackages) {
@@ -1935,10 +1955,19 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
         }
         return null;
+        } finally {
+            long uptime = System.currentTimeMillis() - startTime;
+            if (uptime > 100) {
+                Log.d(TAG, "getActivityInfo - Execution time: " +
+                        uptime + " ms");
+            }
+        }
     }
 
     @Override
     public ActivityInfo getReceiverInfo(ComponentName component, int flags, int userId) {
+        long startTime = System.currentTimeMillis();
+        try {
         if (!sUserManager.exists(userId)) return null;
         enforceCrossUserPermission(Binder.getCallingUid(), userId, false, "get receiver info");
         synchronized (mPackages) {
@@ -1953,6 +1982,13 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
         }
         return null;
+        } finally {
+            long uptime = System.currentTimeMillis() - startTime;
+            if (uptime > 100) {
+                Log.d(TAG, "getReceiverInfo - Execution time: " +
+                        uptime + " ms");
+            }
+        }
     }
 
     @Override
@@ -2060,6 +2096,8 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     public int checkUidPermission(String permName, int uid) {
         final boolean enforcedDefault = isPermissionEnforcedDefault(permName);
+        long startTime = System.currentTimeMillis();
+        try {
         synchronized (mPackages) {
             Object obj = mSettings.getUserIdLPr(UserHandle.getAppId(uid));
             if (obj != null) {
@@ -2078,6 +2116,13 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
         }
         return PackageManager.PERMISSION_DENIED;
+        } finally {
+            long uptime = System.currentTimeMillis() - startTime;
+            if (uptime > 100) {
+                Log.d(TAG, "checkUidPermission - Execution time: " +
+                        uptime + " ms");
+            }
+        }
     }
 
     /**
@@ -2307,12 +2352,23 @@ public class PackageManagerService extends IPackageManager.Stub {
     }
 
     public boolean isProtectedBroadcast(String actionName) {
+        long startTime = System.currentTimeMillis();
+        try {
         synchronized (mPackages) {
             return mProtectedBroadcasts.contains(actionName);
+        }
+        } finally {
+            long uptime = System.currentTimeMillis() - startTime;
+            if (uptime > 100) {
+                Log.d(TAG, "isProtectedBroadcast - Execution time: " +
+                        uptime + " ms");
+            }
         }
     }
 
     public int checkSignatures(String pkg1, String pkg2) {
+        long startTime = System.currentTimeMillis();
+        try {
         synchronized (mPackages) {
             final PackageParser.Package p1 = mPackages.get(pkg1);
             final PackageParser.Package p2 = mPackages.get(pkg2);
@@ -2321,6 +2377,13 @@ public class PackageManagerService extends IPackageManager.Stub {
                 return PackageManager.SIGNATURE_UNKNOWN_PACKAGE;
             }
             return compareSignatures(p1.mSignatures, p2.mSignatures);
+        }
+        } finally {
+            long uptime = System.currentTimeMillis() - startTime;
+            if (uptime > 100) {
+                Log.d(TAG, "checkSignatures - Execution time: " +
+                        uptime + " ms");
+            }
         }
     }
 
@@ -2802,6 +2865,8 @@ public class PackageManagerService extends IPackageManager.Stub {
     @Override
     public List<ResolveInfo> queryIntentReceivers(Intent intent, String resolvedType, int flags,
             int userId) {
+        long startTime = System.currentTimeMillis();
+        try {
         if (!sUserManager.exists(userId)) return Collections.emptyList();
         ComponentName comp = intent.getComponent();
         if (comp == null) {
@@ -2833,6 +2898,13 @@ public class PackageManagerService extends IPackageManager.Stub {
                         userId);
             }
             return null;
+        }
+        } finally {
+            long uptime = System.currentTimeMillis() - startTime;
+            if (uptime > 100) {
+                Log.d(TAG, "queryIntentReceivers - Execution time: " +
+                        uptime + " ms");
+            }
         }
     }
 
@@ -3005,6 +3077,8 @@ public class PackageManagerService extends IPackageManager.Stub {
     public List<ApplicationInfo> getPersistentApplications(int flags) {
         final ArrayList<ApplicationInfo> finalList = new ArrayList<ApplicationInfo>();
 
+        long startTime = System.currentTimeMillis();
+        try {
         // reader
         synchronized (mPackages) {
             final Iterator<PackageParser.Package> i = mPackages.values().iterator();
@@ -3027,10 +3101,19 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
 
         return finalList;
+        } finally {
+            long uptime = System.currentTimeMillis() - startTime;
+            if (uptime > 100) {
+                Log.d(TAG, "getPersistentApplications - Execution time: " +
+                        uptime + " ms");
+            }
+        }
     }
 
     @Override
     public ProviderInfo resolveContentProvider(String name, int flags, int userId) {
+        long startTime = System.currentTimeMillis();
+        try {
         if (!sUserManager.exists(userId)) return null;
         // reader
         synchronized (mPackages) {
@@ -3046,6 +3129,13 @@ public class PackageManagerService extends IPackageManager.Stub {
                             ps.readUserState(userId), userId)
                     : null;
         }
+        } finally {
+            long uptime = System.currentTimeMillis() - startTime;
+            if (uptime > 100) {
+                Log.d(TAG, "resolveContentProvider - Execution time: " +
+                        uptime + " ms");
+            }
+        }
     }
 
     /**
@@ -3053,6 +3143,7 @@ public class PackageManagerService extends IPackageManager.Stub {
      */
     @Deprecated
     public void querySyncProviders(List<String> outNames, List<ProviderInfo> outInfo) {
+        long startTime = System.currentTimeMillis();
         // reader
         synchronized (mPackages) {
             final Iterator<Map.Entry<String, PackageParser.Provider>> i = mProviders.entrySet()
@@ -3075,12 +3166,18 @@ public class PackageManagerService extends IPackageManager.Stub {
                 }
             }
         }
+        long uptime = System.currentTimeMillis() - startTime;
+        if (uptime > 100) {
+            Log.d(TAG, "querySyncProviders - Execution time: " +
+                    uptime + " ms");
+        }
     }
 
     public List<ProviderInfo> queryContentProviders(String processName,
             int uid, int flags) {
         ArrayList<ProviderInfo> finalList = null;
 
+        long startTime = System.currentTimeMillis();
         // reader
         synchronized (mPackages) {
             final Iterator<PackageParser.Provider> i = mProvidersByComponent.values().iterator();
@@ -3112,15 +3209,29 @@ public class PackageManagerService extends IPackageManager.Stub {
             Collections.sort(finalList, mProviderInitOrderSorter);
         }
 
+        long uptime = System.currentTimeMillis() - startTime;
+        if (uptime > 100) {
+            Log.d(TAG, "queryContentProviders - Execution time: " +
+                    uptime + " ms");
+        }
         return finalList;
     }
 
     public InstrumentationInfo getInstrumentationInfo(ComponentName name,
             int flags) {
+        long startTime = System.currentTimeMillis();
+        try {
         // reader
         synchronized (mPackages) {
             final PackageParser.Instrumentation i = mInstrumentation.get(name);
             return PackageParser.generateInstrumentationInfo(i, flags);
+        }
+        } finally {
+            long uptime = System.currentTimeMillis() - startTime;
+            if (uptime > 100) {
+                Log.d(TAG, "getInstrumentationInfo - Execution time: " +
+                        uptime + " ms");
+            }
         }
     }
 
@@ -8935,6 +9046,8 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     public void clearPackagePreferredActivities(String packageName) {
         final int uid = Binder.getCallingUid();
+        long startTime = System.currentTimeMillis();
+        try {
         // writer
         synchronized (mPackages) {
             PackageParser.Package pkg = mPackages.get(packageName);
@@ -8955,6 +9068,13 @@ public class PackageManagerService extends IPackageManager.Stub {
 
             if (clearPackagePreferredActivitiesLPw(packageName, UserHandle.getCallingUserId())) {
                 scheduleWriteSettingsLocked();            
+            }
+        }
+        } finally {
+            long uptime = System.currentTimeMillis() - startTime;
+            if (uptime > 100) {
+                Log.d(TAG, "clearPackagePreferredActivities - Execution time: " +
+                        uptime + " ms");
             }
         }
     }
@@ -9170,6 +9290,8 @@ public class PackageManagerService extends IPackageManager.Stub {
     }
 
     public void setPackageStoppedState(String packageName, boolean stopped, int userId) {
+        long startTime = System.currentTimeMillis();
+        try {
         if (!sUserManager.exists(userId)) return;
         final int uid = Binder.getCallingUid();
         final int permission = mContext.checkCallingOrSelfPermission(
@@ -9181,6 +9303,13 @@ public class PackageManagerService extends IPackageManager.Stub {
             if (mSettings.setPackageStoppedStateLPw(packageName, stopped, allowedByPermission,
                     uid, userId)) {
                 scheduleWritePackageRestrictionsLocked(userId);
+            }
+        }
+        } finally {
+            long uptime = System.currentTimeMillis() - startTime;
+            if (uptime > 100) {
+                Log.d(TAG, "setPackageStoppedState - Execution time: " +
+                        uptime + " ms");
             }
         }
     }
