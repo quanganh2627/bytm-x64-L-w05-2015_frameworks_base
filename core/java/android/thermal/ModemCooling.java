@@ -16,7 +16,7 @@
 
 package android.thermal;
 import android.util.Log;
-import android.thermal.ThermalZone;
+import android.thermal.ThermalManager;
 
 /**
  *Modem Cooling class
@@ -29,10 +29,10 @@ public class ModemCooling {
 
     public static void throttleDevice(int tstate) {
         switch(tstate) {
-        case ThermalZone.THERMAL_STATE_NORMAL:
-        case ThermalZone.THERMAL_STATE_WARNING:
-        case ThermalZone.THERMAL_STATE_ALERT:
-        case ThermalZone.THERMAL_STATE_CRITICAL:
+        case ThermalManager.THERMAL_STATE_NORMAL:
+        case ThermalManager.THERMAL_STATE_WARNING:
+        case ThermalManager.THERMAL_STATE_ALERT:
+        case ThermalManager.THERMAL_STATE_CRITICAL:
         break;
         default:
             Log.i(TAG, "handling 'default' case in throttleDevice method, thermalState: "+ tstate);

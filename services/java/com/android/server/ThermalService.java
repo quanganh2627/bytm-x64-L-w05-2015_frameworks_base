@@ -53,8 +53,9 @@ import android.thermal.ThermalZone;
 import android.thermal.ThermalSensor;
 import android.thermal.ThermalServiceEventQueue;
 import android.thermal.ThermalEvent;
-import android.thermal.ThermalCoolingManager;
+import android.thermal.ThermalCooling;
 import android.thermal.ModemZone;
+import android.thermal.ThermalManager;
 /**
  * The ThermalService class contains strings and constants used for values
  * in the {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED} Intent.
@@ -65,24 +66,7 @@ public class ThermalService extends Binder {
     private static final String TAG = ThermalService.class.getSimpleName();
     private Context mContext;
     private Handler mHandler = new Handler();
-    private ArrayList<ThermalZone> mThermalZonesList;
-    private PlatformInfo mPlatformInfo;
-    private ThermalCoolingManager mCoolingManager;
-    private static final String SENSOR_FILE_PATH = "/system/etc/thermal_sensor_config.xml";
-    private static final String THROTTLE_FILE_PATH = "/system/etc/thermal_throttle_config.xml";
-
-    /* platform information */
-    public class PlatformInfo {
-       public int mMaxThermalStates;
-
-       public int getMaxThermalStates() {
-            return mMaxThermalStates;
-       }
-
-       public void printAttrs() {
-           Log.i(TAG, Integer.toString(mMaxThermalStates));
-       }
-    }
+    private ThermalCooling mCoolingManager;
 
     public class ThermalParser {
        // Names of the XML Tags
@@ -94,7 +78,7 @@ public class ThermalService extends Binder {
        private static final String POLLDELAY = "PollDelay";
        private boolean done = false;
 
-       private PlatformInfo mPlatformInfo;
+       private ThermalManager.PlatformInfo mPlatformInfo;
        private ThermalSensor mCurrSensor;
        private ThermalZone mCurrZone;
        private ArrayList<ThermalSensor> mCurrSensorList;
@@ -138,7 +122,7 @@ public class ThermalService extends Binder {
           }
        }
 
-       public PlatformInfo getPlatformInfo() {
+       public ThermalManager.PlatformInfo getPlatformInfo() {
           return mPlatformInfo;
        }
 
@@ -187,7 +171,7 @@ public class ThermalService extends Binder {
           String zoneName;
           try {
                if (name.equalsIgnoreCase(PINFO)) {
-                   mPlatformInfo = new PlatformInfo();
+                   mPlatformInfo = new ThermalManager.PlatformInfo();
                } else if (name.equalsIgnoreCase(SENSOR)) {
                    if (mCurrSensorList == null)
                       mCurrSensorList = new ArrayList<ThermalSensor>();
@@ -322,22 +306,15 @@ public class ThermalService extends Binder {
 
             /* Determine which THERMAL ZONE state changed
                and pack the INTENT appropriately and send */
-            statusIntent.putExtra(ThermalZone.EXTRA_NAME, event.zoneName);
-            statusIntent.putExtra(ThermalZone.EXTRA_ZONE, event.zoneID);
-            statusIntent.putExtra(ThermalZone.EXTRA_EVENT, event.eventType);
-            statusIntent.putExtra(ThermalZone.EXTRA_STATE, event.thermalLevel);
-            statusIntent.putExtra(ThermalZone.EXTRA_TEMP, event.zoneTemp);
+            statusIntent.putExtra(ThermalManager.EXTRA_NAME, event.zoneName);
+            statusIntent.putExtra(ThermalManager.EXTRA_ZONE, event.zoneID);
+            statusIntent.putExtra(ThermalManager.EXTRA_EVENT, event.eventType);
+            statusIntent.putExtra(ThermalManager.EXTRA_STATE, event.thermalLevel);
+            statusIntent.putExtra(ThermalManager.EXTRA_TEMP, event.zoneTemp);
 
             /* Send the INTENT */
             mContext.sendBroadcast(statusIntent);
         }
-    }
-
-    /* Method in initialize zone monitoring */
-    public void startMonitoringZones() {
-       for (ThermalZone zone: mThermalZonesList) {
-              zone.startMonitoring();
-       }
     }
 
     /* Register for boot complete Intent */
@@ -347,7 +324,7 @@ public class ThermalService extends Binder {
         Log.i(TAG, "Initializing Thermal Manager Service");
 
         mContext = context;
-        mCoolingManager = new ThermalCoolingManager();
+        mCoolingManager = new ThermalCooling();
 
         // Wait for the BOOT Completion
         IntentFilter filter = new IntentFilter();
@@ -362,9 +339,8 @@ public class ThermalService extends Binder {
         {
             Log.i(TAG, "Received Boot Complete message");
 
-            if (!(new File(SENSOR_FILE_PATH).exists()) || !(new File(THROTTLE_FILE_PATH).exists())) {
-               Log.i(TAG, "Exiting Thermal Management: Config files does not exist");
-               return;
+            if (!ThermalManager.configFilesExist()) {
+                Log.i(TAG, "Thermal config files dont exist, exiting Thermal service...");
             }
 
             /* Start and Initialize the Thermal Cooling Manager */
@@ -374,7 +350,7 @@ public class ThermalService extends Binder {
 
             /* Parse the thermal configuration file to determine
                sensor information/zone information */
-            ThermalParser mThermalParser = new ThermalParser(SENSOR_FILE_PATH);
+            ThermalParser mThermalParser = new ThermalParser(ThermalManager.SENSOR_FILE_PATH);
             try {
                  mThermalParser.parse();
             } catch (Exception e) {
@@ -383,24 +359,26 @@ public class ThermalService extends Binder {
             }
 
             /* Retrieve the platform information after parsing */
-            mPlatformInfo = mThermalParser.getPlatformInfo();
-            mPlatformInfo.printAttrs();
+            ThermalManager.mPlatformInfo = mThermalParser.getPlatformInfo();
+            ThermalManager.mPlatformInfo.printAttrs();
 
             /* Retrieve the Zone list after parsing */
-            mThermalZonesList = mThermalParser.getThermalZoneList();
+            ThermalManager.mThermalZonesList = mThermalParser.getThermalZoneList();
 
             /* print the parsed information */
-            for (ThermalZone tz : mThermalZonesList) {
+            for (ThermalZone tz : ThermalManager.mThermalZonesList) {
                 tz.printAttrs();
             }
+
+            /* builds a map of active sensors */
+            ThermalManager.buildSensorMap();
 
             /* initialize the thermal notifier thread */
             Notify notifier = new Notify(ThermalServiceEventQueue.eventQueue);
             new Thread(notifier, "ThermalNotifier").start();
 
             /* start monitoring the thermal zones */
-            startMonitoringZones();
-
+            ThermalManager.startMonitoringZones();
         }
     }
 }

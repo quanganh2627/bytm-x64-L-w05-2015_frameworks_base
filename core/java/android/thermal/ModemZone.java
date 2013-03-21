@@ -26,7 +26,8 @@ import com.intel.internal.telephony.OemTelephony.OemTelephonyConstants;
 import android.thermal.ThermalSensor;
 import android.thermal.ThermalServiceEventQueue;
 import android.thermal.ThermalEvent;
-import android.thermal.ThermalCoolingManager;
+import android.thermal.ThermalCooling;
+import android.thermal.ThermalManager;
 import android.util.Log;
 import java.lang.Math;
 import java.util.ArrayList;
@@ -47,7 +48,6 @@ public class ModemZone extends ThermalZone {
     private static final int FILTERED_TEMP_INDEX = 0;
     private static final int RAW_TEMP_INDEX = 1;
     private static final int MAX_TEMP_VALUES = 2;
-    private static final int INVALID_TEMP = 0xDEADBEEF;
     // lock to update and read zone attributes, zonestate and temp
     private static final Object sZoneAttribLock = new Object();
     private int mSensorIDwithMaxTemp;
@@ -73,7 +73,7 @@ public class ModemZone extends ThermalZone {
         mContext.registerReceiver(new ModemThresholdIndReceiver(), threshold_filter);
 
         // initialize zone attributes
-        updateZoneAttributes(-1, THERMAL_STATE_OFF, INVALID_TEMP);
+        updateZoneAttributes(-1, ThermalManager.THERMAL_STATE_OFF, ThermalManager.INVALID_TEMP);
 
         Log.i(TAG, "Modem thermal zone registered successfully");
     }
@@ -82,7 +82,7 @@ public class ModemZone extends ThermalZone {
     public void startMonitoring() {
         int minTemp = 0, maxTemp = 0, temp = 0;
         int currMaxSensorState, sensorState = -1;
-        int finalMaxTemp = INVALID_TEMP;
+        int finalMaxTemp = ThermalManager.INVALID_TEMP;
         int debounceInterval = 0;
 
         if (mPhoneService == null) {
@@ -95,7 +95,7 @@ public class ModemZone extends ThermalZone {
             t.UpdateSensorID();
             temp = readModemSensorTemp(t);
             finalMaxTemp = Math.max(finalMaxTemp,temp);
-            if (temp != INVALID_TEMP) {
+            if (temp != ThermalManager.INVALID_TEMP) {
                 sensorState = t.getCurrState(temp * 10);
                 t.setSensorThermalState(sensorState);
                 t.setCurrTemp(temp * 10);
@@ -106,7 +106,7 @@ public class ModemZone extends ThermalZone {
             }
         }
 
-        if (finalMaxTemp == INVALID_TEMP) {
+        if (finalMaxTemp == ThermalManager.INVALID_TEMP) {
             Log.i(TAG, "all modem sensor temp invalid!!!exiting...");
             return;
         }
@@ -164,10 +164,10 @@ public class ModemZone extends ThermalZone {
     private boolean isZoneStateChanged(int currSensorstate) {
         boolean retVal = false;
         if (currSensorstate != mCurrThermalState) {
-            mCurrEventType = (currSensorstate < mCurrThermalState) ? THERMAL_LOW_EVENT : THERMAL_HIGH_EVENT;
+            mCurrEventType = (currSensorstate < mCurrThermalState) ? ThermalManager.THERMAL_LOW_EVENT : ThermalManager.THERMAL_HIGH_EVENT;
             int currMaxSensorState = getMaxSensorState();
-            if ((mCurrEventType == THERMAL_HIGH_EVENT) ||
-            ((mCurrEventType == THERMAL_LOW_EVENT) && (currMaxSensorState < mCurrThermalState))) {
+            if ((mCurrEventType == ThermalManager.THERMAL_HIGH_EVENT) ||
+            ((mCurrEventType == ThermalManager.THERMAL_LOW_EVENT) && (currMaxSensorState < mCurrThermalState))) {
                 updateZoneAttributes(getSensorIDwithMaxTemp(), currMaxSensorState, getMaxSensorTemp());
                 retVal = true;
             }
@@ -231,7 +231,7 @@ public class ModemZone extends ThermalZone {
     public int readModemSensorTemp(ThermalSensor t) {
         String value;
         ArrayList<Integer> tempList = new ArrayList<Integer>();
-        int finalval = INVALID_TEMP;
+        int finalval = ThermalManager.INVALID_TEMP;
 
         if (mPhoneService == null) return -1;
 
@@ -239,7 +239,7 @@ public class ModemZone extends ThermalZone {
             value = mPhoneService.getThermalSensorValue(t.getSensorID());
         } catch (RemoteException e) {
             Log.i(TAG, "Remote Exception while reading temp for sensor:" + t.getSensorName());
-            return INVALID_TEMP;
+            return ThermalManager.INVALID_TEMP;
         }
 
         if (value != null && value.length() > 0) {
@@ -252,7 +252,7 @@ public class ModemZone extends ThermalZone {
             }
             finalval = tempList.get(FILTERED_TEMP_INDEX);
         }
-        if (finalval == INVALID_TEMP) {
+        if (finalval == ThermalManager.INVALID_TEMP) {
             Log.i(TAG, "readSensorTemp():finalval for sensor:"+ t.getSensorName() + " is invalid");
         } else {
             Log.i(TAG, "readSensorTemp():finalval for sensor:"+ t.getSensorName() + " is " + finalval);
@@ -273,7 +273,7 @@ public class ModemZone extends ThermalZone {
     }
 
     private int getMaxSensorTemp() {
-        int maxTemp = INVALID_TEMP;
+        int maxTemp = ThermalManager.INVALID_TEMP;
         int currTemp;
         for (ThermalSensor t : mThermalSensors) {
             currTemp = t.getCurrTemp();
@@ -285,7 +285,7 @@ public class ModemZone extends ThermalZone {
 
     private int getSensorIDwithMaxTemp() {
         int maxIndex = 0;
-        int maxTemp = INVALID_TEMP,currTemp;
+        int maxTemp = ThermalManager.INVALID_TEMP,currTemp;
         int sensorID = -1;
 
         for (ThermalSensor t : mThermalSensors) {
