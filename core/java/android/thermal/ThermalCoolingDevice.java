@@ -140,16 +140,4 @@ public class ThermalCoolingDevice {
     public int getThermalState() {
         return mCurrentThermalState;
     }
-
-    public void printAttrs() {
-        Log.i(TAG, "Device ID:" + mDeviceId);
-        Log.i(TAG, "Device Name:" + mDeviceName);
-        Log.i(TAG, "ClassPath:" + mClassPath);
-        Log.i(TAG, "CurrentThermalState:" + mCurrentThermalState);
-        if (!mZoneIdList.isEmpty()) {
-            for (Integer zoneId : mZoneIdList) {
-                Log.i(TAG, "Zone:" + zoneId + " State:" + mZoneStateList.get(mZoneIdList.indexOf(zoneId)));
-            }
-        }
-    }
 }

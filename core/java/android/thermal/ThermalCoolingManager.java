@@ -122,18 +122,6 @@ public class ThermalCoolingManager {
                 this.DeviceDethrottleMask = list;
         }
 
-        public void printAttrs() {
-            Log.i(TAG, "CoolingDeviceInfo::CoolingdevId:" + CDeviceID);
-            Log.i(TAG, "CoolingDeviceInfo::Throttle mask");
-            for (Integer i : DeviceThrottleMask) {
-                Log.i(TAG, Integer.toString(i));
-            }
-
-            Log.i(TAG, "CoolingDeviceInfo::DeThrottle mask");
-            for (Integer i : DeviceDethrottleMask) {
-                Log.i(TAG, Integer.toString(i));
-            }
-        }
     }
 
     /**
@@ -175,13 +163,6 @@ public class ThermalCoolingManager {
 
         public int getCriticalActionShutdown() {
             return mIsCriticalActionShutdown;
-        }
-
-        public void printAttrs() {
-            Log.i(TAG, "mZoneID:" + Integer.toString(mZoneID));
-            for (CoolingDeviceInfo  CdeviceInfo : mCoolingdeviceInfoList) {
-                Log.i(TAG, "cooling deviceID :" + CdeviceInfo.CDeviceID);
-            }
         }
 
         public void setCoolingdeviceInfoList(ArrayList<CoolingDeviceInfo> devinfoList) {
@@ -349,14 +330,11 @@ public class ThermalCoolingManager {
            if (name == null) return;
            if (name.equalsIgnoreCase(CDEVINFO) && mDevice != null) {
                 if (loadCoolingDevice(mDevice)) {
-                    mDevice.printAttrs();
                     listOfCoolers.put(mDevice.getDeviceId(),mDevice);
                 }
                 mDevice = null;
            } else if (name.equalsIgnoreCase(ZONETHROTINFO) && mZone != null) {
-                Log.i(TAG, "zonethrottleinfo Parsing Finished..");
                 listOfZones.put(mZone.getZoneID(),mZone);
-                mZone.printAttrs();
                 mZone = null;
            } else if ((name.equalsIgnoreCase(THROTTLEMASK) ||
                      name.equalsIgnoreCase(DETHROTTLEMASK)) && mZone != null) {
@@ -371,9 +349,7 @@ public class ThermalCoolingManager {
                 Log.i(TAG, "Parsing Finished..");
                 done = true;
            } else if (name.equalsIgnoreCase(COOLINGDEVICEINFO) && mZone != null) {
-                Log.i(TAG, "CoolingDeviceInfo Parsing Finished");
                 mZone.addCoolingDeviceToList(mZone.getLastCoolingDeviceInstance());
-                mZone.getLastCoolingDeviceInstance().printAttrs();
            }
        }
     }
@@ -446,12 +422,16 @@ public class ThermalCoolingManager {
         @Override
         public void onReceive(Context context, Intent intent) {
             // Retrieve the type of THERMAL ZONE, STATE and TYPE
+            String zoneName = intent.getStringExtra(ThermalZone.EXTRA_NAME);
             int thermZone = intent.getIntExtra(ThermalZone.EXTRA_ZONE, 0);
             int thermState = intent.getIntExtra(ThermalZone.EXTRA_STATE, 0);
             int thermEvent = intent.getIntExtra(ThermalZone.EXTRA_EVENT, 0);
             int zoneTemp = intent.getIntExtra(ThermalZone.EXTRA_TEMP, 0);
-            Log.i(TAG, " TCM received THERMAL INTENT from Zone " + thermZone +
-                        " of event type " + thermEvent + " with state " + thermState + " at temperature " + zoneTemp);
+            Log.i(TAG, "Received THERMAL INTENT:" +
+            " of event type " + thermEvent + " with state " + thermState + " at temperature " + zoneTemp +
+            " from " + zoneName + " with state " + ThermalZone.getStateAsString(thermState) +
+            " for " + ThermalZone.getEventTypeAsString(thermEvent) + " event" +
+            " at Temperature " + zoneTemp);
             if ((thermState == ThermalZone.THERMAL_STATE_CRITICAL) &&
                 (initiateShutdown(thermZone))) {
                 if (!isEmergencyCallOnGoing()) {
@@ -558,10 +538,6 @@ public class ThermalCoolingManager {
 
          ZoneCooling zone = listOfZones.get(zoneId);
          if (zone == null) return;
-
-         Log.i(TAG, "handleThermalEvent called for zone" + zoneId +
-                    "event type" +  eventType +
-                    "with thermal state" + thermalState);
 
          if (ThermalZone.THERMAL_HIGH_EVENT == eventType) {
              for (CoolingDeviceInfo CdeviceInfo : zone.getCoolingdeviceInfoList()) {

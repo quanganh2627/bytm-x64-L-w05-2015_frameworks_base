@@ -1026,6 +1026,7 @@
     <bool name="config_speed_up_audio_on_mt_calls">false</bool>
 
     <bool name="config_button_automatic_brightness_available">false</bool>
+    <bool name="config_button_led_brightness_available">false</bool>
 
     <!-- Controls whether window orientation should use non-polling mode accelerometer.
          set default to false to use polling mode. -->

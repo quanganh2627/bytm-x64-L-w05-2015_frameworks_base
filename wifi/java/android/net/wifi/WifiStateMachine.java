@@ -1972,10 +1972,14 @@ public class WifiStateMachine extends StateMachine {
             if (configs.size() != 0) {
                 mWifiNative.enableBackgroundScan(true);
             } else {
-                // No remembered SSID, turn off Wifi immediately
-                Slog.d(TAG, "No remembered SSID, turn off wifi");
-                mContext.sendBroadcast(new Intent(SHUT_DOWN_WIFI_ACTION));
                 mEnableBackgroundScan = false;
+                if (!mP2pConnected.get()) {
+                    // No remembered SSID, turn off Wifi immediately
+                    Slog.d(TAG, "No remembered SSID, turn wifi OFF");
+                    mContext.sendBroadcast(new Intent(SHUT_DOWN_WIFI_ACTION));
+                } else {
+                    Slog.d(TAG, "No remembered SSID, but P2P Connected. Do not turn WiFi OFF");
+                }
             }
         } else {
             Log.e(TAG, "Impossible to get the configured networks when considering PNO enabling");
@@ -3848,18 +3852,29 @@ public class WifiStateMachine extends StateMachine {
                 case WifiP2pService.P2P_CONNECTION_CHANGED:
                     NetworkInfo info = (NetworkInfo) message.obj;
                     mP2pConnected.set(info.isConnected());
+                    long scanIntervalMs = 0;
                     if (mP2pConnected.get()) {
                         int defaultInterval = mContext.getResources().getInteger(
                                 R.integer.config_wifi_scan_interval_p2p_connected);
-                        long scanIntervalMs = Settings.Global.getLong(mContext.getContentResolver(),
+                        scanIntervalMs = Settings.Global.getLong(mContext.getContentResolver(),
                                 Settings.Global.WIFI_SCAN_INTERVAL_WHEN_P2P_CONNECTED_MS,
                                 defaultInterval);
-                        mWifiNative.setScanInterval((int) scanIntervalMs/1000);
-                    } else if (mWifiConfigStore.getConfiguredNetworks().size() == 0) {
-                        if (DBG) log("Turn on scanning after p2p disconnected");
-                        sendMessageDelayed(obtainMessage(CMD_NO_NETWORKS_PERIODIC_SCAN,
-                                    ++mPeriodicScanToken, 0), mSupplicantScanIntervalMs);
+                        /* Remove previous PERIODIC SCAN message from queue. */
+                        removeMessages(CMD_NO_NETWORKS_PERIODIC_SCAN);
+                    } else {
+                        scanIntervalMs = mSupplicantScanIntervalMs;
+                        if (mWifiConfigStore.getConfiguredNetworks().size() == 0) {
+                            if (DBG) log("Turn on scanning after p2p disconnected");
+                            sendMessageDelayed(obtainMessage(CMD_NO_NETWORKS_PERIODIC_SCAN,
+                                        ++mPeriodicScanToken, 0), scanIntervalMs);
+                        }
                     }
+                    mWifiNative.setScanInterval((int) scanIntervalMs/1000);
+                    /* When P2P Disconnects, launch a scan in order to */
+                    /* restart supplicant from a fresh scan interval. */
+                    if (!mP2pConnected.get())
+                        sendMessage(CMD_START_SCAN);
+
                 case CMD_RECONNECT:
                 case CMD_REASSOCIATE:
                     // Drop a third party reconnect/reassociate if we are

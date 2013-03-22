@@ -33,7 +33,7 @@ import java.io.FileWriter;
  */
 class SysfsManager
 {
-    private static final String TAG = "SysfsManager";
+    private static final String TAG = "Thermal:SysfsManager";
 
     private static boolean isFileExists(String path) {
          return (new File(path)).exists();
@@ -86,7 +86,7 @@ class SysfsManager
                 bw.close();
             }
        } catch (IOException ioe) {
-           ioe.printStackTrace();
+           Log.i(TAG, "IOException caught at writeSysfs()");
        }
     }
 }

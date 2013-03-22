@@ -24,7 +24,7 @@ import java.lang.Integer;
  *@hide
  */
 public class CPUMaxFreqControl {
-    private static final String TAG = "CPUMaxFreqControl";
+    private static final String TAG = "Thermal:CPUMaxFreqControl";
 
     // Sysfs path for throttle devices
     private static final String mCPUDeviceSysfsPath = "/sys/devices/system/cpu/";
@@ -55,6 +55,7 @@ public class CPUMaxFreqControl {
         {"0000",    "any",      "any"},     // MFLD  Default case
         {"0001",    "8003",     "any"},    // MFLD  Tablet  Salitpa
         {"0002",    "any",      "any"},    // CTP   -       -
+        {"0004",    "8000",     "any"},    // MRFLD Phone    PR0/vv
     };
 
     // Each Row in this array is matched with that of the same row in mDeviceIdentifier array
@@ -68,6 +69,7 @@ public class CPUMaxFreqControl {
         {1400000,   900000,     600000},    // Default set of frequencies for MFLD platform
         {1400000,   1200000,    900000},    // MFLD  Tablet  Salitpa
         {1866000,   1333000,    933000},    // Default set of frequencies for CTP platform
+        {1200000,   1066000,    933000},    // MRFLD  Phone   PR0/vv
     };
 
     private static int findIndex(String plat, String prod, String hw) {

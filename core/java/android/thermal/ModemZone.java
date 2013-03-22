@@ -200,7 +200,7 @@ public class ModemZone extends ThermalZone {
     }
 
     private void sendThermalEvent (int eventType, int thermalState, int temp) {
-        ThermalEvent event = new ThermalEvent(mZoneID, eventType, thermalState, temp);
+        ThermalEvent event = new ThermalEvent(mZoneID, eventType, thermalState, temp, mZoneName);
         try {
             ThermalServiceEventQueue.eventQueue.put(event);
         } catch (InterruptedException ex) {
@@ -252,8 +252,11 @@ public class ModemZone extends ThermalZone {
             }
             finalval = tempList.get(FILTERED_TEMP_INDEX);
         }
-
-        Log.i(TAG, "readSensorTemp():finalval for sensor:"+ t.getSensorName() + " is " + finalval);
+        if (finalval == INVALID_TEMP) {
+            Log.i(TAG, "readSensorTemp():finalval for sensor:"+ t.getSensorName() + " is invalid");
+        } else {
+            Log.i(TAG, "readSensorTemp():finalval for sensor:"+ t.getSensorName() + " is " + finalval);
+        }
         return finalval;
     }
 

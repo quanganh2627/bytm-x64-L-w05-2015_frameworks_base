@@ -883,6 +883,7 @@ public final class PowerManagerService extends IPowerManager.Stub
     private void userActivityInternal(long eventTime, int event, int flags, int uid) {
         synchronized (mLock) {
             if (userActivityNoUpdateLocked(eventTime, event, flags, uid)) {
+                mDisplayPowerController.requestButtonLedState(true);
                 updatePowerStateLocked();
             }
         }
@@ -944,6 +945,7 @@ public final class PowerManagerService extends IPowerManager.Stub
         synchronized (mLock) {
             if (wakeUpNoUpdateLocked(eventTime)) {
                 updatePowerStateLocked();
+                mDisplayPowerController.requestButtonLedState(true);
             }
         }
     }
@@ -1007,6 +1009,7 @@ public final class PowerManagerService extends IPowerManager.Stub
         synchronized (mLock) {
             if (goToSleepNoUpdateLocked(eventTime, reason)) {
                 updatePowerStateLocked();
+                mDisplayPowerController.requestButtonLedState(false);
             }
         }
     }
