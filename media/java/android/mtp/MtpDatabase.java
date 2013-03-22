@@ -127,7 +127,7 @@ public class MtpDatabase {
     private static final int MTP_SERVER_IDLE = 0;
     private static final int MTP_SERVER_BUSY = 1;
     private MtpDatabaseHandler mHandler;
-    private static final int UPDATE_DELAY = 500;
+    private static final int UPDATE_DELAY = 5500;
 
     static {
         System.loadLibrary("media_jni");
@@ -1099,6 +1099,18 @@ public class MtpDatabase {
         if (mDatabaseModified) {
             mContext.sendBroadcast(new Intent(MediaStore.ACTION_MTP_SESSION_END));
             mDatabaseModified = false;
+        }
+    }
+
+    private void transferStarted() {
+        if (mHandler != null) {
+            mHandler.updateMtpState(MTP_SERVER_BUSY);
+        }
+    }
+
+    private void transferEnded() {
+        if (mHandler != null) {
+            mHandler.updateMtpState(MTP_SERVER_IDLE);
         }
     }
 
