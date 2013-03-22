@@ -62,6 +62,8 @@ static jmethodID method_getObjectReferences;
 static jmethodID method_setObjectReferences;
 static jmethodID method_sessionStarted;
 static jmethodID method_sessionEnded;
+static jmethodID method_transferStarted;
+static jmethodID method_transferEnded;
 
 static jfieldID field_context;
 
@@ -168,6 +170,10 @@ public:
     virtual void                    sessionStarted();
 
     virtual void                    sessionEnded();
+
+    virtual void                    transferStarted();
+
+    virtual void                    transferEnded();
 };
 
 // ----------------------------------------------------------------------------
@@ -1068,6 +1074,18 @@ void MyMtpDatabase::sessionEnded() {
     checkAndClearExceptionFromCallback(env, __FUNCTION__);
 }
 
+void MyMtpDatabase::transferStarted() {
+    JNIEnv* env = AndroidRuntime::getJNIEnv();
+    env->CallVoidMethod(mDatabase, method_transferStarted);
+    checkAndClearExceptionFromCallback(env, __FUNCTION__);
+}
+
+void MyMtpDatabase::transferEnded() {
+    JNIEnv* env = AndroidRuntime::getJNIEnv();
+    env->CallVoidMethod(mDatabase, method_transferEnded);
+    checkAndClearExceptionFromCallback(env, __FUNCTION__);
+}
+
 // ----------------------------------------------------------------------------
 
 static void
@@ -1223,6 +1241,16 @@ int register_android_mtp_MtpDatabase(JNIEnv *env)
     method_sessionEnded = env->GetMethodID(clazz, "sessionEnded", "()V");
     if (method_sessionEnded == NULL) {
         ALOGE("Can't find sessionEnded");
+        return -1;
+    }
+    method_transferStarted = env->GetMethodID(clazz, "transferStarted", "()V");
+    if (method_transferStarted == NULL) {
+        ALOGE("Can't find method_transferStarted");
+        return -1;
+    }
+    method_transferEnded = env->GetMethodID(clazz, "transferEnded", "()V");
+    if (method_transferEnded == NULL) {
+        ALOGE("Can't find method_transferEnded");
         return -1;
     }
 
