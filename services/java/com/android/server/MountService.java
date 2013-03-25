@@ -738,6 +738,12 @@ class MountService extends IMountService.Stub
                             volume = mVolumesByPath.get(path);
                         }
 
+                        /* the path may be not listed in storage_list.xml */
+                        if (volume == null) {
+                            Slog.w(TAG, "Break due to unknown volume path " + path);
+                            break;
+                        }
+
                         int st = Integer.parseInt(tok[2]);
                         if (st == VolumeState.NoMedia) {
                             state = Environment.MEDIA_REMOVED;
