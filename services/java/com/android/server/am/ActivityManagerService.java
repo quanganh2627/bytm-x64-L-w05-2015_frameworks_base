@@ -3350,9 +3350,20 @@ public final class ActivityManagerService extends ActivityManagerNative
 
         info.append(processStats.printCurrentState(anrTime));
 
-        String buildtype = SystemProperties.get("ro.build.type", null);
+        Slog.e(TAG, info.toString());
+
+        if (!IS_USER_BUILD && app.thread != null) {
+            try {
+                // This is a one-way binder call, meaning that the caller returns immediately,
+                // without waiting for a result from the callee.
+                app.thread.dumpANRInfo();
+            } catch (RemoteException e) {
+                Slog.e(ActivityManagerService.TAG, "Exception in dumpANRInfo", e);
+            }
+        }
+
         String stackname = null;
-        if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
+        if (!IS_USER_BUILD) {
             final String dropboxTag = processClass(app) + "_anr";
             final DropBoxManager dbox = (DropBoxManager)
                     mContext.getSystemService(Context.DROPBOX_SERVICE);
@@ -3365,18 +3376,6 @@ public final class ActivityManagerService extends ActivityManagerNative
                 da.logToFile(stackname);
            }
         }
-
-        Slog.e(TAG, info.toString());
-
-        if (!IS_USER_BUILD && app.thread != null) {
-            try {
-                app.thread.dumpANRInfo();
-            } catch (RemoteException e) {
-                Slog.e(ActivityManagerService.TAG, "Exception in dumpANRInfo", e);
-            }
-        }
-
-        // Please add DebugAnr after dumpANRInfo
 
         if (tracesFile == null) {
             // There is no trace file, so dump (only) the alleged culprit's threads to the log

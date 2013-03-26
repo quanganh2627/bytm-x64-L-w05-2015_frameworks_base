@@ -69,6 +69,7 @@ public class Looper {
     LocalLog mLocalLog;
     private String mDispatching;
     private long mDispatchStart;
+    private StringBuilder mStringBuilder;
     private static final long LATENCY_THRESHOLD = 500; // 500ms
 
      /** Initialize the current thread as a looper.
@@ -127,6 +128,8 @@ public class Looper {
         // and keep track of what that identity token actually is.
         Binder.clearCallingIdentity();
         final long ident = Binder.clearCallingIdentity();
+        LocalLog localLog = me.mLocalLog;
+        if (localLog != null) me.mStringBuilder = new StringBuilder();
 
         for (;;) {
             Message msg = queue.next(); // might block
@@ -141,9 +144,8 @@ public class Looper {
                 logging.println(">>>>> Dispatching to " + msg.target + " " +
                         msg.callback + ": " + msg.what);
             }
-            LocalLog localLog = me.mLocalLog;
             if (localLog != null) {
-                me.mDispatching = msg.toString(); // toString is time-sensitive
+                me.mDispatching = msg.toStringLw();
                 me.mDispatchStart = SystemClock.uptimeMillis();
             }
 
@@ -153,13 +155,19 @@ public class Looper {
                 logging.println("<<<<< Finished to " + msg.target + " " + msg.callback);
             }
             if (localLog != null) {
-                long elapsed = SystemClock.uptimeMillis() - me.mDispatchStart;
-                String duration = String.format("%02d.%03ds", (elapsed/1000), (elapsed%1000));
+                final long elapsed = SystemClock.uptimeMillis() - me.mDispatchStart;
+                final long wait = me.mDispatchStart - msg.when;
+                me.mStringBuilder.setLength(0);
                 if (elapsed >= LATENCY_THRESHOLD) {
-                    localLog.log("WARNING! " + duration + " due Message" + me.mDispatching);
-                } else {
-                    localLog.log(duration + " due Message" + me.mDispatching);
+                    me.mStringBuilder.append("WARNING! ");
                 }
+                me.mStringBuilder.append("Wait: ")
+                                 .append(wait)
+                                 .append("ms, Run: ")
+                                 .append(elapsed)
+                                 .append("ms due Message")
+                                 .append(me.mDispatching);
+                localLog.log(me.mStringBuilder.toString());
                 me.mDispatching = null;
             }
 

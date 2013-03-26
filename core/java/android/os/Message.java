@@ -89,6 +89,8 @@ public final class Message implements Parcelable {
     /*package*/ Handler target;     
     
     /*package*/ Runnable callback;   
+
+    /*package*/ String fingerPrint;
     
     // sometimes we store linked lists of these things
     /*package*/ Message next;
@@ -465,6 +467,14 @@ public final class Message implements Parcelable {
         b.append(" }");
         
         return b.toString();
+    }
+
+    // Lightweight version of toString();
+    String toStringLw() {
+        if (fingerPrint != null) {
+            return fingerPrint;
+        }
+        return toString();
     }
 
     public static final Parcelable.Creator<Message> CREATOR
