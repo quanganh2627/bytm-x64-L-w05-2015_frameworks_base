@@ -112,6 +112,14 @@ public class WifiStateMachine extends StateMachine {
     private static final String TAG = "WifiStateMachine";
     private static final String NETWORKTYPE = "WIFI";
     private static final boolean DBG = false;
+    /**
+     * @hide
+     */
+    public static final String BIND_TO_MODEM_MANGER_ACTION = "android.net.wifi.BindToMmgr";
+    /**
+     * @hide
+     */
+    public static final String EXTRA_BIND_PARAMETER = "mmgrBindParameter";
 
     private WifiMonitor mWifiMonitor;
     private WifiNative mWifiNative;
@@ -1456,8 +1464,10 @@ public class WifiStateMachine extends StateMachine {
 
         try {
             if (wifiState == WIFI_STATE_ENABLED) {
+                sendModemManagerBindBroadcast(true);
                 mBatteryStats.noteWifiOn();
             } else if (wifiState == WIFI_STATE_DISABLED) {
+                sendModemManagerBindBroadcast(false);
                 mBatteryStats.noteWifiOff();
             }
         } catch (RemoteException e) {
@@ -1480,8 +1490,10 @@ public class WifiStateMachine extends StateMachine {
 
         try {
             if (wifiApState == WIFI_AP_STATE_ENABLED) {
+                sendModemManagerBindBroadcast(true);
                 mBatteryStats.noteWifiOn();
             } else if (wifiApState == WIFI_AP_STATE_DISABLED) {
+                sendModemManagerBindBroadcast(false);
                 mBatteryStats.noteWifiOff();
             }
         } catch (RemoteException e) {
@@ -1744,6 +1756,13 @@ public class WifiStateMachine extends StateMachine {
         Intent intent = new Intent(WifiManager.SUPPLICANT_CONNECTION_CHANGE_ACTION);
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
         intent.putExtra(WifiManager.EXTRA_SUPPLICANT_CONNECTED, connected);
+        mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
+    }
+
+    private void sendModemManagerBindBroadcast(boolean bind) {
+        Intent intent = new Intent(BIND_TO_MODEM_MANGER_ACTION);
+        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
+        intent.putExtra(EXTRA_BIND_PARAMETER, bind);
         mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
     }
 
