@@ -74,7 +74,8 @@ public class NativeLibraryHelper {
 
         String abi2 = SystemProperties.get("ro.product.cpu.abi2");
         if (abi2.length() == 0) {
-            return nativeListNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi2);
+            // abi2 is not set, houdini is not enabled, don't call nativeListNativeBinaries.
+            return PackageManager.INSTALL_SUCCEEDED;
         } else {
             // abi2 is set, houdini is enabled
             int result = nativeListNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi2);
