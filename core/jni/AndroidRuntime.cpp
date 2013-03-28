@@ -390,6 +390,212 @@ static void readLocale(char* language, char* region)
     //ALOGD("language=%s region=%s\n", language, region);
 }
 
+#ifdef RETRIEVE_INGREDIENTS_VERSIONS
+/*
+ * Read IFWI version
+ */
+#define INTE_SCU_IPC_FW_REVISION_GET        0xB0
+#define INTE_SCU_IPC_FW_REVISION_EXT_GET    0xB1
+#define INTE_SCU_IPC_FW_PATH                "/dev/mid_ipc"
+
+#define INTE_SCU_FW_BUF_LENGTH              256
+#define INTE_SCU_IPC_FW_VERSION_LENGTH      16
+
+#define INTE_SCU_IPC_FW_REVISION_MAJ_REG    15
+#define INTE_SCU_IPC_FW_REVISION_MIN_REG    14
+#define INTE_SCU_IPC_SCU_RT_FW_REVISION_MAJ_REG    1
+#define INTE_SCU_IPC_SCU_RT_FW_REVISION_MIN_REG    0
+#define INTE_SCU_IPC_PUNIT_FW_REVISION_MAJ_REG     5
+#define INTE_SCU_IPC_PUNIT_FW_REVISION_MIN_REG     4
+#define INTE_SCU_IPC_IA32_FW_REVISION_MAJ_REG      7
+#define INTE_SCU_IPC_IA32_FW_REVISION_MIN_REG      6
+#define INTE_SCU_IPC_VALHOOKS_FW_REVISION_MAJ_REG  11
+#define INTE_SCU_IPC_VALHOOKS_FW_REVISION_MIN_REG  10
+
+#define INTE_SCU_IPC_SCU_BS_FW_REVISION_EXT_MIN_REG    0
+#define INTE_SCU_IPC_SCU_BS_FW_REVISION_EXT_MAJ_REG    2
+#define INTE_SCU_IPC_SCU_RT_FW_REVISION_EXT_MIN_REG    4
+#define INTE_SCU_IPC_SCU_RT_FW_REVISION_EXT_MAJ_REG    6
+#define INTE_SCU_IPC_IA32_FW_REVISION_EXT_MIN_REG      8
+#define INTE_SCU_IPC_IA32_FW_REVISION_EXT_MAJ_REG      10
+#define INTE_SCU_IPC_VALHOOKS_FW_REVISION_EXT_MIN_REG  12
+#define INTE_SCU_IPC_VALHOOKS_FW_REVISION_EXT_MAJ_REG  14
+
+#define INTE_SCU_IPC_FW_REVISION_EXT_MIN_REG           0
+#define INTE_SCU_IPC_FW_REVISION_EXT_MAJ_REG           2
+#define INTE_SCU_IPC_CHAABI_FW_REVISION_EXT_MIN_REG    4
+#define INTE_SCU_IPC_CHAABI_FW_REVISION_EXT_MAJ_REG    6
+#define INTE_SCU_IPC_MIA_FW_REVISION_EXT_MIN_REG       8
+#define INTE_SCU_IPC_MIA_FW_REVISION_EXT_MAJ_REG       10
+
+#define FORMAT_REV_4_DIGIT(ver,pos_maj,pos_min) snprintf(buf, INTE_SCU_FW_BUF_LENGTH, "%.4X.%.4X", ver.data[pos_maj+1] << 8 | ver.data[pos_maj], ver.data[pos_min+1] << 8 | ver.data[pos_min])
+#define FORMAT_REV_2_DIGIT(ver,pos_maj,pos_min) snprintf(buf, INTE_SCU_FW_BUF_LENGTH, "%.2X.%.2X", ver.data[pos_maj], ver.data[pos_min])
+
+struct scu_ipc_version {
+        unsigned int    count;    /* length of version info */
+        unsigned char   data[INTE_SCU_IPC_FW_VERSION_LENGTH]; /* version data */
+};
+
+static void readIfwiVersion()
+{
+    struct scu_ipc_version version, version_ext;
+    int devfd, ret, i;
+    char buf[INTE_SCU_FW_BUF_LENGTH];
+    char platform_value[PROPERTY_VALUE_MAX];
+    bool ifwi_rev_ext = false;
+
+    property_get("ro.board.platform", platform_value, "");
+    if (!strcmp(platform_value, "merrifield")) {
+        ifwi_rev_ext = true;
+    }
+
+    version.count = INTE_SCU_IPC_FW_VERSION_LENGTH;
+    devfd = open(INTE_SCU_IPC_FW_PATH, O_RDWR);
+    if (devfd < 0) {
+        LOGE("readIfwiVersion() open dev file error: %d",errno);
+        return;
+    }
+    ret = ioctl(devfd, INTE_SCU_IPC_FW_REVISION_GET, &version);
+    if (ret < 0) {
+        LOGE("readIfwiVersion() get version 0 error: %d",ret);
+        close(devfd);
+        return ;
+    }
+    if (ifwi_rev_ext) {
+        version_ext.count = INTE_SCU_IPC_FW_VERSION_LENGTH;
+        ret = ioctl(devfd, INTE_SCU_IPC_FW_REVISION_EXT_GET, &version_ext);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get version 1 error: %d",ret);
+            close(devfd);
+            return ;
+        }
+    }
+    close(devfd);
+
+    if (ifwi_rev_ext) {
+        FORMAT_REV_4_DIGIT(version,INTE_SCU_IPC_SCU_BS_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_SCU_BS_FW_REVISION_EXT_MIN_REG);
+        LOGI("SCU BS Version: %s", buf);
+        ret = property_set("sys.scubs.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version,INTE_SCU_IPC_SCU_RT_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_SCU_RT_FW_REVISION_EXT_MIN_REG);
+        LOGI("SCU RT Version: %s", buf);
+        ret = property_set("sys.scu.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version,INTE_SCU_IPC_IA32_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_IA32_FW_REVISION_EXT_MIN_REG);
+        LOGI("IA32FW Version: %s", buf);
+        ret = property_set("sys.ia32.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version,INTE_SCU_IPC_VALHOOKS_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_VALHOOKS_FW_REVISION_EXT_MIN_REG);
+        LOGI("ValHooks Version: %s", buf);
+        ret = property_set("sys.valhooks.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version_ext,INTE_SCU_IPC_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_FW_REVISION_EXT_MIN_REG);
+        LOGI("IFWI Version: %s", buf);
+        ret = property_set("sys.ifwi.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version_ext,INTE_SCU_IPC_CHAABI_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_CHAABI_FW_REVISION_EXT_MIN_REG);
+        LOGI("CHAABI Version: %s", buf);
+        ret = property_set("sys.chaabi.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version_ext,INTE_SCU_IPC_MIA_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_MIA_FW_REVISION_EXT_MIN_REG);
+        LOGI("mIA Version: %s", buf);
+        ret = property_set("sys.mia.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+
+    }
+    else {
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_FW_REVISION_MAJ_REG,INTE_SCU_IPC_FW_REVISION_MIN_REG);
+        LOGI("IFWI Version: %s", buf);
+        ret = property_set("sys.ifwi.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_SCU_RT_FW_REVISION_MAJ_REG,INTE_SCU_IPC_SCU_RT_FW_REVISION_MIN_REG);
+        LOGI("SCU Version: %s", buf);
+        ret = property_set("sys.scu.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_PUNIT_FW_REVISION_MAJ_REG,INTE_SCU_IPC_PUNIT_FW_REVISION_MIN_REG);
+        LOGI("PUnit Version: %s", buf);
+        ret = property_set("sys.punit.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_IA32_FW_REVISION_MAJ_REG,INTE_SCU_IPC_IA32_FW_REVISION_MIN_REG);
+        LOGI("IA32FW Version: %s", buf);
+        ret = property_set("sys.ia32.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_VALHOOKS_FW_REVISION_MAJ_REG,INTE_SCU_IPC_VALHOOKS_FW_REVISION_MIN_REG);
+        LOGI("ValHooks Version: %s", buf);
+        ret = property_set("sys.valhooks.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+    }
+    return;
+}
+
+/*
+ * Read Kernel Release version
+ */
+#define KERNEL_OSRELEASE_VERSION_PATH     "/proc/sys/kernel/osrelease"
+
+static void readKernelReleaseVersion()
+{
+    int fd, ret;
+    char buf[PROPERTY_VALUE_MAX+1];
+
+    fd = open(KERNEL_OSRELEASE_VERSION_PATH, O_RDONLY);
+    if (fd < 0) {
+        LOGE("readKernelReleaseVersion() open proc file error: %d", errno);
+        return;
+    }
+    ret = read(fd, buf, PROPERTY_VALUE_MAX);
+    close(fd);
+    if (ret > 0) {
+        buf[ret-1] = '\0';
+        LOGI("Kernel Release Version: %s", buf);
+        ret = property_set("sys.kernel.version", buf);
+        if (ret < 0) {
+            LOGE("readKernelReleaseVersion() set property error: %d", ret);
+            return;
+        }
+        return;
+    } else {
+        LOGE("readKernelReleaseVersion() read value error: %d", ret);
+        return;
+    }
+}
+#endif
 /*
  * Parse a property containing space-separated options that should be
  * passed directly to the VM, e.g. "-Xmx32m -verbose:gc -Xregenmap".
@@ -733,6 +939,11 @@ int AndroidRuntime::startVm(JavaVM** pJavaVM, JNIEnv** pEnv)
         opt.optionString = stackTraceFile;
         mOptions.add(opt);
     }
+
+#ifdef RETRIEVE_INGREDIENTS_VERSIONS
+    readIfwiVersion();
+    readKernelReleaseVersion();
+#endif
 
     /* extra options; parse this late so it overrides others */
     property_get("dalvik.vm.extra-opts", extraOptsBuf, "");
