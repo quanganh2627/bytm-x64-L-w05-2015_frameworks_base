@@ -116,6 +116,11 @@ public interface RILConstants {
     int DEACTIVATE_REASON_RADIO_OFF = 1;
     int DEACTIVATE_REASON_PDP_RESET = 2;
 
+    /* Radio power off reasons */
+    int RADIO_OFF_REASON_NONE = 0;
+    int RADIO_OFF_REASON_SHUTDOWN = 1;
+    int RADIO_OFF_REASON_AIRPLANE_MODE = 2;
+
 /*
 cat include/telephony/ril.h | \
    egrep '^#define' | \
