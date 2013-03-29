@@ -1463,4 +1463,10 @@
     <string name="enable_accessibility_canceled" msgid="3833923257966635673">"已取消辅助功能。"</string>
     <string name="user_switched" msgid="3768006783166984410">"当前用户是<xliff:g id="NAME">%1$s</xliff:g>。"</string>
     <string name="owner_name" msgid="2716755460376028154">"机主"</string>
+
+    <string name="hotspot_active">"热点已启用"</string>
+    <string name="hotspot_no_connections">"没有链接的设备"</string>
+    <string name="hotspot_multiple_devices_connected">"%d 已链接到热点"</string>
+    <string name="hotspot_device_connected">"设备已链接到热点"</string>
+    <string name="hotspot_device_disconnected">"设备已断开链接"</string>
 </resources>
