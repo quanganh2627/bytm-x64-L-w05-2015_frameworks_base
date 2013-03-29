@@ -613,6 +613,8 @@ final class WifiDisplayAdapter extends DisplayAdapter {
                         || mActiveDisplay != null) {
                     mActiveDisplayState = WifiDisplayStatus.DISPLAY_STATE_NOT_CONNECTED;
                     mActiveDisplay = null;
+                    // Initiate a p2p scan after disconnection
+                    requestScanLocked();
                     scheduleStatusChangedBroadcastLocked();
                     scheduleUpdateNotificationLocked();
                 }
