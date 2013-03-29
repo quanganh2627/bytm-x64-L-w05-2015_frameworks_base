@@ -217,6 +217,8 @@ public class MediaFile {
             addFileType("ASF", FILE_TYPE_ASF, "video/x-ms-asf");
         }
 
+        addFileType("WVM", FILE_TYPE_MP2TS, "video/wvm");
+
         addFileType("JPG", FILE_TYPE_JPEG, "image/jpeg", MtpConstants.FORMAT_EXIF_JPEG);
         addFileType("JPEG", FILE_TYPE_JPEG, "image/jpeg", MtpConstants.FORMAT_EXIF_JPEG);
         addFileType("GIF", FILE_TYPE_GIF, "image/gif", MtpConstants.FORMAT_GIF);

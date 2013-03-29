@@ -68,6 +68,7 @@ public class KeyguardViewManager {
     private KeyguardHostView mKeyguardView;
 
     private boolean mScreenOn = false;
+    private boolean mSimReady = false;
     private LockPatternUtils mLockPatternUtils;
 
     public interface ShowListener {
@@ -142,9 +143,12 @@ public class KeyguardViewManager {
                 public void run() {
                     synchronized (KeyguardViewManager.this) {
                         if (mKeyguardHost.getVisibility() == View.VISIBLE) {
-                            // only propagate configuration messages if we're currently showing
-                            // but don't contain the mcc and mnc change situation
-                            if (config.orientation==Configuration.ORIENTATION_PORTRAIT || (config.mcc == 0 || config.mnc == 0)) {
+                            if(mSimReady) {
+                                // if sim ready, don't refresh it because user may be have typed
+                                // some password in other keyguard view such as PIN View.
+                                setSimReady(false);
+                            } else {
+                                // only propagate configuration messages if we're currently showing
                                 maybeCreateKeyguardLocked(shouldEnableScreenRotation(), true, null);
                             }
                         } else {
@@ -450,5 +454,13 @@ public class KeyguardViewManager {
         if (mKeyguardView != null) {
             mKeyguardView.showAssistant();
         }
+    }
+
+    boolean isSimReady() {
+        return mSimReady;
+    }
+
+    void setSimReady(boolean simReady) {
+        mSimReady = simReady;
     }
 }

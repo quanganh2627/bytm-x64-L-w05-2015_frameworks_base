@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+/*
+ * Portions contributed by: Intel Corporation
+ */
+
 package android.net.wifi.p2p;
 
 import android.app.Activity;
@@ -141,7 +145,7 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
     private static final int DISCOVER_TIMEOUT_S = 30;
 
     /* Idle time after a peer is gone when the group is torn down */
-    private static final int GROUP_IDLE_TIME_S = 10;
+    private static final int GROUP_IDLE_TIME_S = 5;
 
     private static final int BASE = Protocol.BASE_WIFI_P2P_SERVICE;
 
@@ -1555,6 +1559,13 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                         mWifiNative.p2pGroupRemove(mGroup.getInterface());
                     }
                     break;
+                case WifiP2pManager.CANCEL_CONNECT:
+                    // In case user cancels the connection although group has
+                    // already being created by supplicant.Remove the group in
+                    // this case.
+                    // It allows to improve User experience.
+                    if (DBG) logd("cancel connection ");
+                    replyToMessage(message, WifiP2pManager.CANCEL_CONNECT_SUCCEEDED);
                 case WifiP2pManager.REMOVE_GROUP:
                     if (DBG) logd(getName() + " remove group");
                     if (mWifiNative.p2pGroupRemove(mGroup.getInterface())) {

@@ -97,6 +97,8 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     // and Airplane mode will have higher priority.
     private static final int BLUETOOTH_ON_AIRPLANE=2;
 
+    private boolean mAirplanePending = false;
+
     private final Context mContext;
 
     // Locks are not provided for mName and mAddress.
@@ -122,6 +124,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private int mState;
     private HandlerThread mThread;
     private final BluetoothHandler mHandler;
+    private BluetoothAdapter mAdapter;
 
     private AudioManager mAudioManager;
 
@@ -135,6 +138,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 airplaneModeRadios.contains(Settings.Global.RADIO_BLUETOOTH);
         if (mIsAirplaneSensitive) {
             filter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
+            filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
         }
     }
 
@@ -157,21 +161,13 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     storeNameAndAddress(newName, null);
                 }
             } else if (Intent.ACTION_AIRPLANE_MODE_CHANGED.equals(action)) {
-                synchronized(mReceiver) {
-                    if (isBluetoothPersistedStateOn()) {
-                        if (isAirplaneModeOn()) {
-                            persistBluetoothSetting(BLUETOOTH_ON_AIRPLANE);
-                        } else {
-                            persistBluetoothSetting(BLUETOOTH_ON_BLUETOOTH);
-                        }
-                    }
-                    if (isAirplaneModeOn()) {
-                        // disable without persisting the setting
-                        sendDisableMsg();
-                    } else if (mEnableExternal) {
-                        // enable without persisting the setting
-                        sendEnableMsg(mQuietEnableExternal);
-                    }
+                if (isBluetoothInStableState()) {
+                    // no need to handle an old pending airplane mode, handle the current
+                    mAirplanePending = false;
+                    handleAirplaneModeStateChange();
+                } else {
+                    // if in transition state, wait until BT is back to stable state
+                    mAirplanePending = true;
                 }
             } else if (Intent.ACTION_USER_SWITCHED.equals(action)) {
                 mHandler.sendMessage(mHandler.obtainMessage(MESSAGE_USER_SWITCHED,
@@ -189,6 +185,12 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     //Sync the Bluetooth name and address from the Bluetooth Adapter
                     if (DBG) Log.d(TAG,"Retrieving Bluetooth Adapter name and address...");
                     getNameAndAddress();
+                }
+            } else if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
+                // if in stable state then handle the pending airplane mode
+                if (mAirplanePending && isBluetoothInStableState()) {
+                    mAirplanePending = false;
+                    handleAirplaneModeStateChange();
                 }
             }
         }
@@ -230,6 +232,28 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         }
     };
 
+    private void handleAirplaneModeStateChange() {
+        synchronized(mReceiver) {
+            if (isBluetoothPersistedStateOn()) {
+                // persist the state of BT to know
+                // in what state we should be after
+                // a change in airplane mode state
+                if (isAirplaneModeOn()) {
+                    persistBluetoothSetting(BLUETOOTH_ON_AIRPLANE);
+                } else {
+                    persistBluetoothSetting(BLUETOOTH_ON_BLUETOOTH);
+                }
+            }
+            // state is persisted, we can handle
+            // the airplane mode state change
+            if (isAirplaneModeOn()) {
+                sendDisableMsg();
+            } else if (mEnableExternal) {
+                sendEnableMsg(mQuietEnableExternal);
+            }
+        }
+    }
+
     BluetoothManagerService(Context context) {
         mThread = new HandlerThread("BluetoothManager");
         mThread.start();
@@ -258,6 +282,14 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         if (isBluetoothPersistedStateOn()) {
             mEnableExternal = true;
         }
+    }
+
+    private boolean isBluetoothInStableState() {
+        if (mAdapter == null ) {
+            mAdapter = BluetoothAdapter.getDefaultAdapter();
+        }
+        return (mAdapter.getState() == BluetoothAdapter.STATE_ON ||
+                mAdapter.getState() == BluetoothAdapter.STATE_OFF);
     }
 
     /**
