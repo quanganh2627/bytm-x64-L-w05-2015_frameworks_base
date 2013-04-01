@@ -1224,6 +1224,8 @@
     <string name="usb_warn_hub_max_tier">警告: USB 集线器层数过多 </string>
     <string name="usb_warn_insufficient_power_title">警告: USB 供电能力不足</string>
     <string name="usb_warn_insufficient_power_message">警告: 请使用USB 自供电集线器供电 </string>
+    <string name="usb_warn_host_onemore_ums_device_title">警告: 连接了多个USB大容量存储设备</string>
+    <string name="usb_warn_host_onemore_ums_device_message">警告: 请仅连接一个USB大容量存储设备</string>
     <string name="select_input_method" msgid="4653387336791222978">"选择输入法"</string>
     <string name="configure_input_methods" msgid="9091652157722495116">"设置输入法"</string>
     <string name="use_physical_keyboard" msgid="6203112478095117625">"物理键盘"</string>
