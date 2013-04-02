@@ -4302,7 +4302,8 @@ public final class ActivityManagerService extends ActivityManagerNative
             try {
                 didSomething |= mServices.attachApplicationLocked(app, processName);
             } catch (Exception e) {
-                reason = "Exception in new application when searching for attached services";
+                reason = "Exception on attaching required services to application "
+                       + processName;
                 badApp = true;
             }
         }
@@ -4335,7 +4336,9 @@ public final class ActivityManagerService extends ActivityManagerNative
             // todo: Also need to kill application to deal with all
             // kinds of exceptions.
             removeProcessLocked(app, false, true, reason);
-            mMainStack.requestFinishActivityLocked(hr.appToken, Activity.RESULT_CANCELED, null, "start-failed", false);
+            if (hr != null) {
+                mMainStack.requestFinishActivityLocked(hr.appToken, Activity.RESULT_CANCELED, null, "start-failed", false);
+            }
             return false;
         }
 
