@@ -1737,7 +1737,7 @@ public class WifiStateMachine extends StateMachine {
                 if (!mP2pConnecting.get())
                     sendMessage(obtainMessage(CMD_SET_SUSPEND_OPT_ENABLED, 1, 0));
                 else
-                    log("P2P connecting ongoing discard SET_SUSPEND");
+                    logd("P2P connecting ongoing discard SET_SUSPEND");
             }
         }
         mScreenBroadcastReceived.set(true);
@@ -4189,7 +4189,7 @@ public class WifiStateMachine extends StateMachine {
                     mWifiNative.setScanInterval((int) (scanIntervalMs/1000));
                     /* When P2P Disconnects, launch a scan in order to */
                     /* restart supplicant from a fresh scan interval. */
-                    if (!mP2pConnected.get())
+                    if (!mP2pConnected.get() && !mP2pConnecting.get())
                         sendMessage(CMD_START_SCAN);
 
                 case CMD_RECONNECT:
