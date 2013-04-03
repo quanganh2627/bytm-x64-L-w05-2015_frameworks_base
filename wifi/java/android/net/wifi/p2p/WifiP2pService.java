@@ -1107,6 +1107,9 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
     class GroupCreatingState extends State {
         @Override
         public void enter() {
+            mNetworkInfo.setDetailedState(NetworkInfo.DetailedState.CONNECTING, null, null);
+            sendP2pConnectionChangedBroadcast();
+
             if (DBG) logd(getName());
             sendMessageDelayed(obtainMessage(GROUP_CREATING_TIMED_OUT,
                     ++mGroupCreatingTimeoutIndex, 0), GROUP_CREATING_WAIT_TIME_MS);
