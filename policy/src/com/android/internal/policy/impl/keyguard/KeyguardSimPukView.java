@@ -260,6 +260,9 @@ public class KeyguardSimPukView extends KeyguardAbsKeyInputView
                                 mSimUnlockProgressDialog.hide();
                             }
                             if (success) {
+                                // before closing the keyguard, report back that the sim is unlocked
+                                // so it knows right away.
+                                KeyguardUpdateMonitor.getInstance(getContext()).reportSimUnlocked();
                                 mCallback.dismiss(true);
                             } else {
                                 mStateMachine.reset();
