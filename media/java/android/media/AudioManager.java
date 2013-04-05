@@ -214,8 +214,6 @@ public class AudioManager {
     public static final int STREAM_DTMF = AudioSystem.STREAM_DTMF;
     /** @hide The audio stream for text to speech (TTS) */
     public static final int STREAM_TTS = AudioSystem.STREAM_TTS;
-    /** @hide The audio stream for FM Rx Playback */
-    public static final int STREAM_FM_RX = AudioSystem.STREAM_FM_RX;
     /** Number of audio streams */
     /**
      * @deprecated Use AudioSystem.getNumStreamTypes() instead
@@ -234,8 +232,7 @@ public class AudioManager {
         7,  // STREAM_BLUETOOTH_SCO
         7,  // STREAM_SYSTEM_ENFORCED
         11, // STREAM_DTMF
-        11, // STREAM_TTS
-        11  // STREAM_FM_RX
+        11  // STREAM_TTS
     };
 
     /**
@@ -1107,40 +1104,6 @@ public class AudioManager {
         }
      }
 
-    /**
-     * @hide Sets the speakerfm on or off.
-     * <p>
-     * This method should only be used by applications that replace the platform-wide
-     * management of audio settings or the main fm radio application.
-     *
-     * @param on set <var>true</var> to turn on speakerfm;
-     *           <var>false</var> to turn it off
-     */
-    public void setSpeakerfmOn(boolean on) {
-        IAudioService service = getService();
-        try {
-            service.setSpeakerfmOn(on);
-        } catch (RemoteException e) {
-            Log.e(TAG, "Dead object in setSpeakerfmOn", e);
-        }
-    }
-
-    /**
-     * @hide Checks whether the speakerfm is on or off.
-     *
-     * @return true if speakerfm is on, false if it's off
-     */
-    public boolean isSpeakerfmOn() {
-        IAudioService service = getService();
-        try {
-            return service.isSpeakerfmOn();
-        } catch (RemoteException e) {
-            Log.e(TAG, "Dead object in isSpeakerfmOn", e);
-            return false;
-        }
-     }
-
-
     //====================================================================
     // Bluetooth SCO control
     /**
@@ -1441,24 +1404,6 @@ public class AudioManager {
     }
 
     /**
-     * @hide Sets the audio FM mode.
-     * <p>
-     *
-     * @param mode  the requested FM mode ({@link #MODE_FM_ON}, {@link #MODE_FM_OFF},
-     *              Informs the HAL about the current FM audio state so that
-     *              it can route the audio appropriately.
-     */
-    public int setFmRxMode(int mode) {
-        IAudioService service = getService();
-        try {
-            return service.setFmRxMode(mode);
-        } catch (RemoteException e) {
-            Log.e(TAG, "Dead object in setFmRxMode", e);
-            return AudioSystem.AUDIO_STATUS_ERROR;
-        }
-    }
-
-    /**
      * Returns the current audio mode.
      *
      * @return      the current audio mode ({@link #MODE_NORMAL}, {@link #MODE_RINGTONE},
@@ -1471,22 +1416,6 @@ public class AudioManager {
             return service.getMode();
         } catch (RemoteException e) {
             Log.e(TAG, "Dead object in getMode", e);
-            return MODE_INVALID;
-        }
-    }
-
-    /**
-     * @hide Returns the current FM mode.
-     *
-     * @return      the current FM mode ({@link #MODE_FM_ON}, {@link #MODE_FM_OFF}.
-     *              Returns the current current audio state from the HAL.
-     */
-    public int getFmRxMode() {
-        IAudioService service = getService();
-        try {
-            return service.getFmRxMode();
-        } catch (RemoteException e) {
-            Log.e(TAG, "Dead object in getFmRxMode", e);
             return MODE_INVALID;
         }
     }
@@ -1519,22 +1448,6 @@ public class AudioManager {
      * In communication audio mode. An audio/video chat or VoIP call is established.
      */
     public static final int MODE_IN_COMMUNICATION   = AudioSystem.MODE_IN_COMMUNICATION;
-
-    /**
-    /* @hide Modes for FM.
-    */
-    public static final int   MODE_FM_OFF           = AudioSystem.MODE_FM_OFF;
-    /** @hide */
-    public static final int   MODE_FM_ON            = AudioSystem.MODE_FM_ON;
-    /** @hide */
-    public static final int   MODE_FM_NUM           = AudioSystem.MODE_FM_NUM;
-
-    /**
-    /* @hide Return status for setFmRxMode function.
-    */
-    public static final int   SET_FM_MODE_STATUS_OK     = AudioSystem.AUDIO_STATUS_OK;
-    /** @hide */
-    public static final int   SET_FM_MODE_STATUS_ERROR  = AudioSystem.AUDIO_STATUS_ERROR;
 
     /* Routing bits for setRouting/getRouting API */
     /**
@@ -2508,7 +2421,6 @@ public class AudioManager {
         case STREAM_ALARM:
         case STREAM_NOTIFICATION:
         case STREAM_DTMF:
-        case STREAM_FM_RX:
             return AudioSystem.getDevicesForStream(streamType);
         default:
             return 0;

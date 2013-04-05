@@ -1637,29 +1637,29 @@ public class GpsLocationProvider implements LocationProviderInterface {
                 if (!mIsBound) {
                     if (DEBUG) Log.d(TAG, "Start Navigating - bind service IMMGR_SERVICE");
 
-                    mIsBound = mContext.bindService(new Intent(IMmgrService.class.getName()),
+                    boolean bindResponse = mContext.bindService(new Intent(IMmgrService.class.getName()),
                             mCwsMMGRConnection, Context.BIND_AUTO_CREATE);
-                    if (mIsBound) {
+                    if (bindResponse) {
                         try {
                             if (DEBUG) Log.d(TAG, "Waiting on modem Up");
                             if (!waitOnModemUp.tryAcquire(60L, TimeUnit.SECONDS)) {
                                 Log.e(TAG, "Cannot start GPS");
                                 Log.e(TAG, "MODEM_UP event not received");
-                                mContext.unbindService(mCwsMMGRConnection);
+                                if (mIsBound) mContext.unbindService(mCwsMMGRConnection);
                                 mIsBound = false;
                                 return false;
                             }
                         } catch (InterruptedException e) {
                             Log.e(TAG, "Unable to wait on semaphore");
                             waitOnModemUp.release();
-                            mContext.unbindService(mCwsMMGRConnection);
+                            if (mIsBound) mContext.unbindService(mCwsMMGRConnection);
                             mIsBound = false;
                             return false;
                         }
                         return true;
                     } else {
                         Log.e(TAG, "Failed to bind Service: " + IMmgrService.class.getName());
-                        mContext.unbindService(mCwsMMGRConnection);
+                        if (mIsBound) mContext.unbindService(mCwsMMGRConnection);
                         mIsBound = false;
                         return false;
                     }
@@ -1709,6 +1709,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
                 // representation of that from the raw service object.
                 mService = IMmgrService.Stub.asInterface((IBinder) service);
                 if (DEBUG) Log.d(TAG, "onServiceConnected");
+                mIsBound = true;
                 try {
                     if (DEBUG) Log.d(TAG, "Registering callback interface");
                     mService.registerCallback(mMmgrCallbacks);
