@@ -313,5 +313,11 @@ interface ITelephony {
      * Currently only used for openIccLogicalChannel
      */
     int getLastError();
+
+    /**
+     * Returns the response APDU for a command APDU sent through SIM_IO
+     */
+    byte[] transmitIccSimIO(int fileID, int command,
+            int p1, int p2, int p3, String filePath);
 }
 
