@@ -115,6 +115,8 @@ public class WifiService extends IWifiManager.Stub {
             try {
                 Log.d(TAG, "Registering callback to modem manager service.");
                 mModemManagerService.registerCallback(null);
+                // Recover modem if Modem is Down
+                mModemManagerService.checkModemDown();
             }
             catch(RemoteException e) {
                 Slog.i(TAG, "Unable to register callback to modem manager service.");
@@ -721,6 +723,13 @@ public class WifiService extends IWifiManager.Stub {
                 "ConnectivityService");
     }
 
+    private void manageBindingModemManager(boolean bind) {
+        if (bind)
+            bindModemManagerService();
+        else
+            unbindModemManagerService();
+    }
+
     /**
      * see {@link android.net.wifi.WifiManager#setWifiEnabled(boolean)}
      * @param enable {@code true} to enable, {@code false} to disable.
@@ -728,13 +737,8 @@ public class WifiService extends IWifiManager.Stub {
      *         started or is already in the queue.
      */
     public synchronized boolean setWifiEnabled(boolean enable) {
-        if (enable) {// Code for binding modem manager
-            bindModemManagerService();
-        }
-        else {
-            unbindModemManagerService();
-        }
         enforceChangePermission();
+        manageBindingModemManager(enable);
         Slog.d(TAG, "setWifiEnabled: " + enable + " pid=" + Binder.getCallingPid()
                     + ", uid=" + Binder.getCallingUid());
         if (DBG) {
@@ -792,6 +796,7 @@ public class WifiService extends IWifiManager.Stub {
      */
     public void setWifiApEnabled(WifiConfiguration wifiConfig, boolean enabled) {
         enforceChangePermission();
+        manageBindingModemManager(enabled);
         mWifiStateMachine.setWifiApEnabled(wifiConfig, enabled);
     }
 
@@ -1053,6 +1058,7 @@ public class WifiService extends IWifiManager.Stub {
      */
     public void startWifi() {
         enforceConnectivityInternalPermission();
+        bindModemManagerService();
         /* TODO: may be add permissions for access only to connectivity service
          * TODO: if a start issued, keep wifi alive until a stop issued irrespective
          * of WifiLock & device idle status unless wifi enabled status is toggled
@@ -1073,6 +1079,7 @@ public class WifiService extends IWifiManager.Stub {
      */
     public void stopWifi() {
         enforceConnectivityInternalPermission();
+        unbindModemManagerService();
         /*
          * TODO: if a stop is issued, wifi is brought up only by startWifi
          * unless wifi enabled status is toggled
@@ -1357,12 +1364,14 @@ public class WifiService extends IWifiManager.Stub {
 
         /* Disable tethering when airplane mode is enabled */
         if (mAirplaneModeOn.get()) {
+            unbindModemManagerService();
             mWifiStateMachine.setWifiApEnabled(null, false);
         }
 
         if (shouldWifiBeEnabled()) {
             if (wifiShouldBeStarted) {
                 reportStartWorkSource();
+                bindModemManagerService();
                 mWifiStateMachine.setWifiEnabled(true);
                 mWifiStateMachine.setScanOnlyMode(
                         strongestLockMode == WifiManager.WIFI_MODE_SCAN_ONLY);
@@ -1370,9 +1379,11 @@ public class WifiService extends IWifiManager.Stub {
                 mWifiStateMachine.setHighPerfModeEnabled(strongestLockMode
                         == WifiManager.WIFI_MODE_FULL_HIGH_PERF);
             } else {
+                unbindModemManagerService();
                 mWifiStateMachine.setDriverStart(false, mEmergencyCallbackMode);
             }
         } else {
+            unbindModemManagerService();
             mWifiStateMachine.setWifiEnabled(false);
         }
     }
