@@ -48,13 +48,19 @@ struct fields_t {
     jfieldID    mouth_x;
     jfieldID    mouth_y;
     jmethodID   post_event;
-    jmethodID   point_constructor;
     jmethodID   rect_constructor;
     jmethodID   face_constructor;
+    jmethodID   point_constructor;
 };
 
 static fields_t fields;
 static Mutex sLock;
+
+// Static jclass here to have the Point class reference hidden away from the
+// JNICameraContext class, as adding another member variable will break ABI
+// compatibility
+static jclass sPointClass = NULL; // strong reference to Point class
+static int sCamContextCnt = 0;
 
 bool JNICameraContext::isRawImageCallbackBufferAvailable() const
 {
@@ -90,8 +96,14 @@ JNICameraContext::JNICameraContext(JNIEnv* env, jobject weak_this, jclass clazz,
     jclass rectClazz = env->FindClass("android/graphics/Rect");
     mRectClass = (jclass) env->NewGlobalRef(rectClazz);
 
-    jclass pointClazz = env->FindClass("android/graphics/Point");
-    mPointClass = (jclass) env->NewGlobalRef(pointClazz);
+    Mutex::Autolock _l(sLock);
+    ++sCamContextCnt;
+    ALOGV("new camera context, count: %d", sCamContextCnt);
+    if (sPointClass == NULL) {
+        ALOGV("new sPointClass at constructor, env = %p", env);
+        jclass pointClazz = env->FindClass("android/graphics/Point");
+        sPointClass = (jclass) env->NewGlobalRef(pointClazz);
+    }
 
     mManualBufferMode = false;
     mManualCameraCallbackSet = false;
@@ -119,9 +131,15 @@ void JNICameraContext::release()
         env->DeleteGlobalRef(mRectClass);
         mRectClass = NULL;
     }
-    if (mPointClass != NULL) {
-        env->DeleteGlobalRef(mPointClass);
-        mPointClass = NULL;
+
+    // Delete the static sPointClass only when ref count hits zero:
+    {
+        Mutex::Autolock _l(sLock);
+        if (sPointClass != NULL && sCamContextCnt == 0) {
+            ALOGV("deleting sPointClass at release(), env = %p", env);
+            env->DeleteGlobalRef(sPointClass);
+            sPointClass = NULL;
+        }
     }
 
     clearCallbackBuffers_l(env);
@@ -309,11 +327,15 @@ void JNICameraContext::postMetadata(JNIEnv *env, int32_t msgType, camera_frame_m
 
         env->SetObjectField(face, fields.face_rect, rect);
         env->SetIntField(face, fields.face_score, metadata->faces[i].score);
+
+        // -- Optional fields. The Android API (and CTS) expect these to be all present as a set:
         env->SetIntField(face, fields.face_id, metadata->faces[i].id);
 
-        jobject leftEye = env->NewObject(mPointClass, fields.point_constructor);
-        jobject rightEye = env->NewObject(mPointClass, fields.point_constructor);
-        jobject mouth = env->NewObject(mPointClass, fields.point_constructor);
+        jobject leftEye = NULL, rightEye = NULL, mouth = NULL;
+
+        leftEye = env->NewObject(sPointClass, fields.point_constructor);
+        rightEye = env->NewObject(sPointClass, fields.point_constructor);
+        mouth = env->NewObject(sPointClass, fields.point_constructor);
 
         env->SetIntField(leftEye, fields.leftEye_x, metadata->faces[i].left_eye[0]);
         env->SetIntField(leftEye, fields.leftEye_y, metadata->faces[i].left_eye[1]);
@@ -329,6 +351,8 @@ void JNICameraContext::postMetadata(JNIEnv *env, int32_t msgType, camera_frame_m
         env->DeleteLocalRef(leftEye);
         env->DeleteLocalRef(rightEye);
         env->DeleteLocalRef(mouth);
+        // -- end optional fields
+
         env->DeleteLocalRef(face);
         env->DeleteLocalRef(rect);
     }
@@ -472,6 +496,7 @@ static void android_hardware_Camera_native_setup(JNIEnv *env, jobject thiz,
         return;
     }
 
+
     // We use a weak reference so the Camera object can be garbage collected.
     // The reference is only used as a proxy for callbacks.
     sp<JNICameraContext> context = new JNICameraContext(env, weak_this, clazz, camera);
@@ -514,6 +539,11 @@ static void android_hardware_Camera_release(JNIEnv *env, jobject thiz)
 
         // remove context to prevent further Java access
         context->decStrong((void*)android_hardware_Camera_native_setup);
+        {
+            Mutex::Autolock _l(sLock);
+            --sCamContextCnt;
+            ALOGV("released camera context, count: %d", sCamContextCnt);
+        }
     }
 }
 
