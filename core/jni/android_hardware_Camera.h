@@ -37,6 +37,9 @@
 
 using namespace android;
 
+// WARNING! Adding another member variable or other modifications to this class
+// will break ABI compatibility!
+
 // provides persistent context for calls from native code to Java
 class JNICameraContext: public CameraListener
 {
@@ -65,7 +68,6 @@ private:
     sp<Camera>  mCamera;                // strong reference to native object
     jclass      mFaceClass;  // strong reference to Face class
     jclass      mRectClass;  // strong reference to Rect class
-    jclass      mPointClass; // strong reference to Point class
     Mutex       mLock;
 
     /*
