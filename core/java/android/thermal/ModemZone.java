@@ -21,6 +21,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.telephony.ServiceState;
+import com.android.internal.telephony.TelephonyIntents;
 import com.intel.internal.telephony.OemTelephony.IOemTelephony;
 import com.intel.internal.telephony.OemTelephony.OemTelephonyConstants;
 import android.thermal.ThermalSensor;
@@ -57,6 +59,9 @@ public class ModemZone extends ThermalZone {
     private static final int SENSOR_INDEX_RF = 1;
     private static final int SENSOR_INDEX_BB = 2;
 
+    private int mServiceState = ServiceState.STATE_POWER_OFF;
+    private boolean mIsMonitoring = false;
+
     public ModemZone(Context context) {
         super();
         mPhoneService = IOemTelephony.Stub.asInterface(ServiceManager.getService("oemtelephony"));
@@ -68,9 +73,10 @@ public class ModemZone extends ThermalZone {
         // register with the intent
         mContext = context;
 
-        IntentFilter threshold_filter = new IntentFilter();
-        threshold_filter.addAction(OemTelephonyConstants.ACTION_MODEM_SENSOR_THRESHOLD_REACHED);
-        mContext.registerReceiver(new ModemThresholdIndReceiver(), threshold_filter);
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(TelephonyIntents.ACTION_SERVICE_STATE_CHANGED);
+        filter.addAction(OemTelephonyConstants.ACTION_MODEM_SENSOR_THRESHOLD_REACHED);
+        mContext.registerReceiver(new ModemStateBroadcastReceiver(), filter);
 
         // initialize zone attributes
         updateZoneAttributes(-1, THERMAL_STATE_OFF, INVALID_TEMP);
@@ -86,8 +92,13 @@ public class ModemZone extends ThermalZone {
         int debounceInterval = 0;
 
         if (mPhoneService == null) {
-           Log.i(TAG, "IOemTelephony interface handle is null\n");
-           return;
+            Log.i(TAG, "IOemTelephony interface handle is null");
+            return;
+        }
+
+        if (mServiceState == ServiceState.STATE_POWER_OFF) {
+            Log.i(TAG, "radio not yet available");
+            return;
         }
 
         debounceInterval = getDBInterval();
@@ -108,9 +119,11 @@ public class ModemZone extends ThermalZone {
 
         if (finalMaxTemp == INVALID_TEMP) {
             Log.i(TAG, "all modem sensor temp invalid!!!exiting...");
+            mIsMonitoring = false;
             return;
         }
 
+        mIsMonitoring = true;
 
         currMaxSensorState = getMaxSensorState();
         if (isZoneStateChanged(currMaxSensorState)) {
@@ -118,45 +131,67 @@ public class ModemZone extends ThermalZone {
         }
     }
 
-    private final class ModemThresholdIndReceiver extends BroadcastReceiver {
+    private final class ModemStateBroadcastReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent)
         {
             String action = intent.getAction();
-            int currSensorstate, currZoneState;
-            int minTemp, maxTemp;
-            ThermalSensor t;
-            if (OemTelephonyConstants.ACTION_MODEM_SENSOR_THRESHOLD_REACHED.equals(action) == false ) return;
+            Log.i(TAG, "got intent with action: " + action);
 
-            synchronized (sZoneAttribLock) {
-                int sensorID = intent.getIntExtra(OemTelephonyConstants.MODEM_SENSOR_ID_KEY, 0);
-                int temperature = intent.getIntExtra(OemTelephonyConstants.MODEM_SENSOR_TEMPERATURE_KEY, 0);
-                temperature *= 10;// convert to millidegree celcius
-                t = getThermalSensorObject(sensorID);
-                if (t == null) return;
+            if (action.equals(OemTelephonyConstants.ACTION_MODEM_SENSOR_THRESHOLD_REACHED)) {
+                int currSensorstate, currZoneState;
+                int minTemp, maxTemp;
+                ThermalSensor t;
 
-                Log.i(TAG, "Got notification for Sensor:" + t.getSensorName() + " with Current Temperature " + temperature);
+                synchronized (sZoneAttribLock) {
+                    int sensorID = intent.getIntExtra(OemTelephonyConstants.MODEM_SENSOR_ID_KEY, 0);
+                    int temperature = intent.getIntExtra(
+                            OemTelephonyConstants.MODEM_SENSOR_TEMPERATURE_KEY, 0);
+                    temperature *= 10;// convert to millidegree celcius
+                    t = getThermalSensorObject(sensorID);
+                    if (t == null) return;
 
-                // this method is triggered asynchonously for any sensor that trips the threshold. The zone state,
-                // is the max of all the sensor states. If a sensor moves to a state, that the zone is already in,
-                // no action is taken. Only the upper and lower thresholds for the given state are reactivated for the
-                // respective sensor.
-                // if the sensor moves to a different state, this gets updated synchronously in zone state variables.
-                currSensorstate = t.getCurrState(temperature);
-                t.setSensorThermalState(currSensorstate);
-                t.setCurrTemp(temperature);
+                    Log.i(TAG, "Got notification for Sensor:" + t.getSensorName()
+                            + " with Current Temperature " + temperature);
 
-                if (isZoneStateChanged(currSensorstate)) {
-                    sendThermalEvent(mCurrEventType, mCurrThermalState, mZoneTemp);
+                    // this method is triggered asynchonously for any sensor that trips the
+                    // threshold. The zone state, is the max of all the sensor states. If a
+                    // sensor moves to a state, that the zone is already in, no action is taken.
+                    // Only the upper and lower thresholds for the given state are reactivated
+                    // for the respective sensor.
+                    // if the sensor moves to a different state, this gets updated synchronously
+                    // in zone state variables.
+                    currSensorstate = t.getCurrState(temperature);
+                    t.setSensorThermalState(currSensorstate);
+                    t.setCurrTemp(temperature);
+
+                    if (isZoneStateChanged(currSensorstate)) {
+                        sendThermalEvent(mCurrEventType, mCurrThermalState, mZoneTemp);
+                    }
+
+                    // reactivate thresholds
+                    minTemp = t.getLowerThresholdTemp(currSensorstate);
+                    maxTemp = t.getUpperThresholdTemp(currSensorstate);
+                    int debounceInterval = getDBInterval();
+                    minTemp -= debounceInterval;
+                    Log.i(TAG, "Threshold receiver: resetting threshold for sensor:"
+                            + t.getSensorName() + "mintemp,maxtemp:" + minTemp + "," + maxTemp
+                            + "sensorstate:" + currSensorstate);
+
+                    setModemSensorThreshold(true, t, minTemp, maxTemp);
                 }
-
-                // reactivate thresholds
-                minTemp = t.getLowerThresholdTemp(currSensorstate);
-                maxTemp = t.getUpperThresholdTemp(currSensorstate);
-                int debounceInterval = getDBInterval();
-                minTemp -= debounceInterval;
-                Log.i(TAG, "Threshold receiver: resetting threshold for sensor:" + t.getSensorName() + "mintemp,maxtemp:" + minTemp + "," + maxTemp + "sensorstate:" + currSensorstate);
-                setModemSensorThreshold(true, t, minTemp, maxTemp);
+            } else if (action.equals(TelephonyIntents.ACTION_SERVICE_STATE_CHANGED)) {
+                ServiceState ss = ServiceState.newFromBundle(intent.getExtras());
+                if (ss != null) {
+                    mServiceState = ss.getState();
+                    if (mServiceState != ServiceState.STATE_POWER_OFF) {
+                        if (mIsMonitoring == false) {
+                            startMonitoring();
+                        }
+                    } else {
+                        mIsMonitoring = false;
+                    }
+                }
             }
         }
     }
