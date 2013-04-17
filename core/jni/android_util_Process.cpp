@@ -979,6 +979,28 @@ jintArray android_os_Process_getPidsForCommands(JNIEnv* env, jobject clazz,
     return pidArray;
 }
 
+jboolean android_os_Process_startCpuAffinity(JNIEnv* env, jobject clazz)
+{
+    int tid = gettid();
+
+    if (sched_start_affinity(tid) == -1) {
+        return JNI_FALSE;
+    }
+
+    return JNI_TRUE;
+}
+
+jboolean android_os_Process_endCpuAffinity(JNIEnv* env, jobject clazz)
+{
+    int tid = gettid();
+
+    if (sched_end_affinity(tid) == -1) {
+        return JNI_FALSE;
+    }
+
+    return JNI_TRUE;
+}
+
 static const JNINativeMethod methods[] = {
     {"myPid",       "()I", (void*)android_os_Process_myPid},
     {"myTid",       "()I", (void*)android_os_Process_myTid},
@@ -1008,6 +1030,8 @@ static const JNINativeMethod methods[] = {
     {"getPss", "(I)J", (void*)android_os_Process_getPss},
     {"getPidsForCommands", "([Ljava/lang/String;)[I", (void*)android_os_Process_getPidsForCommands},
     //{"setApplicationObject", "(Landroid/os/IBinder;)V", (void*)android_os_Process_setApplicationObject},
+    {"startCpuAffinity", "()Z", (void*)android_os_Process_startCpuAffinity},
+    {"endCpuAffinity", "()Z", (void*)android_os_Process_endCpuAffinity},
 };
 
 const char* const kProcessPathName = "android/os/Process";
