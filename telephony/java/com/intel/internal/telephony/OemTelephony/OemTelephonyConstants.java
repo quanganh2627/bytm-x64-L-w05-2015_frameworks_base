@@ -37,6 +37,16 @@ public interface OemTelephonyConstants {
     public static final String MODEM_SENSOR_ID_KEY = "sensorId";
     public static final String MODEM_SENSOR_TEMPERATURE_KEY = "temperature";
 
+    /* IMS network status */
+    public static final int IMS_NW_STATUS_NOT_SUPPORTED = 0;
+    public static final int IMS_NW_STATUS_SUPPORTED = 1;
+    /* IMS registration state request */
+    public static final int IMS_STATE_REQUEST_UNREGISTER = 0;
+    public static final int IMS_STATE_REQUEST_REGISTER = 1;
+    /* IMS registration status */
+    public static final int IMS_STATUS_UNREGISTERED = 0;
+    public static final int IMS_STATUS_REGISTERED = 1;
+
     /**
      * Broadcast Action: Modem sensor has reached the set threshold temperature.
      * The intent will have the following extra values:</p>
@@ -60,6 +70,13 @@ public interface OemTelephonyConstants {
      */
     public static final String ACTION_MODEM_SENSOR_THRESHOLD_REACHED =
                                     "intel.intent.action.MODEM_SENSOR_THRESHOLD_REACHED";
+
+    public static final String IMS_STATUS_KEY = "IMSState";
+    public static final String ACTION_IMS_REGISTRATION_STATE_CHANGED =
+                                    "intel.intent.action.IMS_REGISTRATION_STATE_CHANGED";
+
+    public static final String ACTION_IMS_NW_SUPPORT_STATE_CHANGED =
+                                    "intel.intent.action.IMS_NW_SUPPORT_STATE_CHANGED";
 
     // These enumerations should be in sync with what is used in
     // ril adaptation
@@ -95,6 +112,10 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_STRING_GET_RF_POWER_CUTBACK_TABLE = 0x000000AB;
     /* OEM hook to set the RF Power table */
     public static final int RIL_OEM_HOOK_STRING_SET_RF_POWER_CUTBACK_TABLE = 0x000000AC;
+    /* OEM hook to register or unregister on IMS network */
+    public static final int RIL_OEM_HOOK_STRING_IMS_REGISTRATION = 0x000000AD;
+    /* OEM hook to set a new IMS apn */
+    public static final int RIL_OEM_HOOK_STRING_IMS_CONFIG = 0x000000AE;
     /* OEM hook specific to DSDS for swapping protocol stacks configs */
     public static final int RIL_OEM_HOOK_STRING_SWAP_PS = 0x000000B2;
     /* OEM hook to get the thermal alarm indication */
@@ -107,4 +128,8 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_RAW_UNSOL_DATA_STATUS_IND = 0x000000D3;
     /* OEM hook specific to indicate MT class */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_MT_CLASS_IND = 0x000000D4;
+    /* OEM hook specific to indicate IMS registration status */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_IMS_REG_STATUS = 0x000000D6;
+    /* OEM hook specific to indicate network IMS support status */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_IMS_SUPPORT_STATUS = 0x000000D7;
 }
