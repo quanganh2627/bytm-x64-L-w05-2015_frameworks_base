@@ -67,8 +67,6 @@ final class WiredAccessoryManager implements WiredAccessoryCallbacks {
     private static final String NAME_USB_AUDIO = "usb_audio";
     private static final String NAME_HDMI_AUDIO = "hdmi_audio";
     private static final String NAME_HDMI = "hdmi";
-    private static final String NAME_EXTCON = "extcon/h2w";
-    private static final String EXTCON_DEVPATH = "/devices/platform/extcon-mid/";
 
     private static final int MSG_NEW_DEVICE_STATE = 1;
 
@@ -335,17 +333,7 @@ final class WiredAccessoryManager implements WiredAccessoryCallbacks {
                 if (uei.checkSwitchExists()) {
                     retVal.add(uei);
                 } else {
-                    Slog.w(TAG, "This kernel does not have wired headset switch support");
-                }
-            }
-
-            // Monitor extcon h2w
-            if (!mUseDevInputEventForAudioJack) {
-                uei = new UEventInfo(NAME_EXTCON, BIT_HEADSET, BIT_HEADSET_NO_MIC);
-                if (uei.checkSwitchExists()) {
-                    retVal.add(uei);
-                } else {
-                    Slog.w(TAG, "This kernel does not have wired headset extcon support");
+                    Slog.w(TAG, "This kernel does not have wired headset support");
                 }
             }
 
@@ -386,19 +374,8 @@ final class WiredAccessoryManager implements WiredAccessoryCallbacks {
 
             try {
                 String devPath = event.get("DEVPATH");
-                String name;
-                try {
-                    name = event.get("SWITCH_NAME");
-                } catch (Exception e) {
-                    name = event.get("NAME");
-                }
-                int state;
-                try {
-                    state = Integer.parseInt(event.get("SWITCH_STATE"));
-                } catch (Exception e) {
-                    state = Integer.parseInt(event.get("STATE"));
-                }
-
+                String name = event.get("SWITCH_NAME");
+                int state = Integer.parseInt(event.get("SWITCH_STATE"));
                 synchronized (mLock) {
                     updateStateLocked(devPath, name, state);
                 }
@@ -431,16 +408,10 @@ final class WiredAccessoryManager implements WiredAccessoryCallbacks {
             public String getDevName() { return mDevName; }
 
             public String getDevPath() {
-                if (mDevName.compareTo(NAME_EXTCON) == 0) {
-                    return String.format("/devices/platform/extcon-mid/%s", mDevName);
-                }
                 return String.format("/devices/virtual/switch/%s", mDevName);
             }
 
             public String getSwitchStatePath() {
-                if (mDevName.compareTo(NAME_EXTCON) == 0) {
-                    return String.format("/sys/class/switch/%s/state", NAME_H2W);
-                }
                 return String.format("/sys/class/switch/%s/state", mDevName);
             }
 
