@@ -1762,6 +1762,23 @@ public class GpsLocationProvider implements LocationProviderInterface {
                         mModemShutdown = true;
                         stopNavigating();
                     }
+
+                    public void modemOutOfOrder() {
+                        if (DEBUG) Log.d(TAG, "Modem out of order message received");
+                        stopNavigating();
+                    }
+                    public void modemAcquireError() {
+                        Log.e(TAG, "modemCommunicationError: modemManagerAcquireAsync failure");
+                    }
+                    public void modemConnectError() {
+                        Log.e(TAG, "modemCommunicationError: modemManagerConnectAsync failure");
+                    }
+                    public void modemAckShutdownError() {
+                        Log.e(TAG, "modemCommunicationError: failure sending shutdown ack");
+                    }
+                    public void modemAckResetError() {
+                        Log.e(TAG, "modemCommunicationError: failure sending cold reset ack");
+                    }
                 };
     }
 
