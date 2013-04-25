@@ -3392,6 +3392,10 @@
     <string name="usb_warn_insufficient_power_message">Please use USB self power hub to avoid this issue</string>
     <string name="usb_warn_host_onemore_ums_device_title">Warning: One more MSC devices attached</string>
     <string name="usb_warn_host_onemore_ums_device_message">Warning: only one USB Mass Storage device can be used</string>
+    <string name="usb_warn_usb_not_work_title">Warning: Insufficient battery for plugged USB device</string>
+    <string name="usb_warn_usb_not_work_message">Please charge the device to high battery level and try again</string>
+    <string name="usb_warn_usb_vbus_warn_title">Warning: Shorten battery life</string>
+    <string name="usb_warn_usb_vbus_warn_message">Plugged USB device will Shorten battery life</string>
 
     <!-- Used to replace %s in urls retreived from the signin server with locales.  For Some        -->
     <!-- devices we don't support all the locales we ship to and need to replace the '%s' with a    -->
