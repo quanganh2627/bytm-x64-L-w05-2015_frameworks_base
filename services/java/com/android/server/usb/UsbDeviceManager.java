@@ -199,6 +199,10 @@ public class UsbDeviceManager {
 
         mHandler = new UsbHandler(FgThread.get().getLooper());
 
+        final IntentFilter powerFilter = new IntentFilter();
+        powerFilter.addAction(UsbManager.ACTION_USB_HOST_VBUS);
+        mContext.registerReceiver(mPowerReceiver, powerFilter, null, null);
+
         if (nativeIsStartRequested()) {
             if (DEBUG) Slog.d(TAG, "accessory attached at boot");
             startAccessoryMode();
@@ -210,6 +214,39 @@ public class UsbDeviceManager {
             mDebuggingManager = new UsbDebuggingManager(context);
         }
     }
+
+    private BroadcastReceiver mPowerReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            int status = intent.getIntExtra(UsbManager.EXTRA_HOST_VBUS,
+                    UsbManager.USB_HOST_VBUS_NORMAL);
+            String prop = "sys.usb.vbus";
+            String normal = "normal";
+            String warning = "warning";
+            String critical = "critical";
+
+            switch (status) {
+                case UsbManager.USB_HOST_VBUS_NORMAL:
+                    Slog.i(TAG, "USB vBus changed to Normal");
+                    SystemProperties.set(prop, normal);
+                    break;
+                case UsbManager.USB_HOST_VBUS_WARNING:
+                    Slog.i(TAG, "USB vBus changed to Warning");
+                    SystemProperties.set(prop, warning);
+                    mHandler.showUsbWarning("VBUS_WARNING");
+                    break;
+                case UsbManager.USB_HOST_VBUS_ALERT:
+                    Slog.i(TAG, "USB vBus changed to Alert");
+                case UsbManager.USB_HOST_VBUS_CRITICAL:
+                    Slog.i(TAG, "USB vBus changed to Alert/Critical");
+                default:
+                    Slog.w(TAG, "USB vBus changed to unknown");
+                    SystemProperties.set(prop, critical);
+                    break;
+            }
+        }
+    };
+
 
     public void setCurrentSettings(UsbSettingsManager settings) {
         synchronized (mLock) {
@@ -476,6 +513,10 @@ public class UsbDeviceManager {
                 id = com.android.internal.R.string.usb_warn_hub_max_tier;
             } else if ("INSUFF_POWER".equals(warning)) {
                 id = com.android.internal.R.string.usb_warn_insufficient_power_title;
+            } else if ("VBUS_WARNING".equals(warning)) {
+                id = com.android.internal.R.string.usb_warn_usb_vbus_warn_title;
+            } else if ("HOST_NOT_WORK".equals(warning)) {
+                id = com.android.internal.R.string.usb_warn_usb_not_work_title;
             } else {
                 Slog.e(TAG, "unknown warning " + warning);
                 return;
@@ -844,6 +885,10 @@ public class UsbDeviceManager {
                     idmsg = com.android.internal.R.string.usb_warn_device_vbus_invalid_message;
                 else if (id == com.android.internal.R.string.usb_warn_insufficient_power_title)
                     idmsg = com.android.internal.R.string.usb_warn_insufficient_power_message;
+                else if (id == com.android.internal.R.string.usb_warn_usb_vbus_warn_title)
+                    idmsg = com.android.internal.R.string.usb_warn_usb_vbus_warn_message;
+                else if (id == com.android.internal.R.string.usb_warn_usb_not_work_title)
+                    idmsg = com.android.internal.R.string.usb_warn_usb_not_work_message;
                 else
                     idmsg = id;
 
