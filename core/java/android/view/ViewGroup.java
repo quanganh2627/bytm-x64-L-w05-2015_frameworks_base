@@ -2427,10 +2427,6 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
         for (int i = 0; i < count; i++) {
             children[i].dispatchStartTemporaryDetach();
         }
-        ViewRootImpl viewAncestor = getViewRootImpl();
-        if (viewAncestor != null) {
-            viewAncestor.getView().getDisplayList();
-        }
     }
 
     /**
