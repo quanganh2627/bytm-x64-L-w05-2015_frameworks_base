@@ -124,6 +124,49 @@ public class UsbManager {
             "android.hardware.usb.action.USB_ACCESSORY_DETACHED";
 
     /**
+     * Broadcast Action: A sticky broadcast for USB Host Power state event when
+     * in host mode.
+     *
+     * This is a sticky broadcast for USB Service that will notice user and
+     * enable/disable USB Host mode.
+     * <ul>
+     * <li> {@link #EXTRA_HOST_VBUS} containing the detailed status for current
+     * USB Host vBus
+     * </ul>
+     * {@hide}
+     */
+    public static final String ACTION_USB_HOST_VBUS =
+            "android.hardware.usb.action.USB_HOST_VBUS";
+
+    /**
+     * Name of extra for {@link #ACTION_USB_HOST_VBUS} broadcasts containing the
+     * detailed USB Host vBus status.
+     * {@hide}
+     */
+    public static final String EXTRA_HOST_VBUS = "status";
+
+    /**
+     *values for "status" field in the ACTION_USB_HOST_VBUS Intent
+     * {@hide}
+     */
+    public static final int USB_HOST_VBUS_NORMAL = 1;
+
+    /**
+     * {@hide}
+     */
+    public static final int USB_HOST_VBUS_WARNING = 2;
+
+    /**
+     * {@hide}
+     */
+    public static final int USB_HOST_VBUS_ALERT = 3;
+
+    /**
+     * {@hide}
+     */
+    public static final int USB_HOST_VBUS_CRITICAL = 4;
+
+    /**
      * Boolean extra indicating whether USB is connected or disconnected.
      * Used in extras for the {@link #ACTION_USB_STATE} broadcast.
      *
