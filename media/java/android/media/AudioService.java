@@ -425,6 +425,11 @@ public class AudioService extends IAudioService.Stub {
      */
     public final static int STREAM_REMOTE_MUSIC = -200;
 
+    /**
+     * Pseudo stream type for master volume
+     */
+    public final static int STREAM_MASTER = -100;
+
     // Devices for which the volume is fixed and VolumePanel slider should be disabled
     final int mFixedVolumeDevices = AudioSystem.DEVICE_OUT_AUX_DIGITAL |
             AudioSystem.DEVICE_OUT_DGTL_DOCK_HEADSET |
@@ -814,6 +819,8 @@ public class AudioService extends IAudioService.Stub {
             flags &= ~(AudioManager.FLAG_PLAY_SOUND|AudioManager.FLAG_FIXED_VOLUME);
             //if (DEBUG_VOL) Log.i(TAG, "Need to adjust remote volume: calling adjustRemoteVolume()");
             mMediaFocusControl.adjustRemoteVolume(AudioSystem.STREAM_MUSIC, direction, flags);
+        } else if (streamType == STREAM_MASTER) {
+            Log.i(TAG,"Adjusting master volume is not allowed");
         } else {
             adjustStreamVolume(streamType, direction, flags, callingPackage);
         }
