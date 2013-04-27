@@ -115,6 +115,8 @@ public class WifiService extends IWifiManager.Stub {
             try {
                 Log.d(TAG, "Registering callback to modem manager service.");
                 mModemManagerService.registerCallback(null);
+                // Recover modem if Modem is Down
+                mModemManagerService.checkModemDown();
             }
             catch(RemoteException e) {
                 Slog.i(TAG, "Unable to register callback to modem manager service.");
@@ -142,6 +144,8 @@ public class WifiService extends IWifiManager.Stub {
                    modemManagerServiceIsBound = true;
                    Slog.i(TAG,"Bound to modem manager");
                }
+           } else {
+               Slog.i(TAG,"Modem manager already bound");
            }
        }
        else {
@@ -152,6 +156,8 @@ public class WifiService extends IWifiManager.Stub {
        if (modemManagerServiceIsBound) {
            mContext.unbindService(mModemConnection);
            modemManagerServiceIsBound = false;
+       } else {
+           Slog.i(TAG,"Modem manager already unbound");
        }
    }
 
@@ -460,6 +466,7 @@ public class WifiService extends IWifiManager.Stub {
         filter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
         filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         filter.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
+        filter.addAction(WifiStateMachine.BIND_TO_MODEM_MANGER_ACTION);
 
         mContext.registerReceiver(
                 new BroadcastReceiver() {
@@ -470,7 +477,6 @@ public class WifiService extends IWifiManager.Stub {
                                     WifiManager.WIFI_STATE_DISABLED);
 
                             mWifiEnabled = (wifiState == WifiManager.WIFI_STATE_ENABLED);
-
                            // reset & clear notification on any wifi state change
                             resetNotification();
                         } else if (intent.getAction().equals(
@@ -490,6 +496,11 @@ public class WifiService extends IWifiManager.Stub {
                                 WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)) {
                             noteScanEnd();
                             checkAndSetNotification();
+                        } else if (intent.getAction().equals(
+                                WifiStateMachine.BIND_TO_MODEM_MANGER_ACTION)) {
+                            boolean bind = intent.getBooleanExtra(WifiStateMachine.EXTRA_BIND_PARAMETER, false);
+                            Log.i(TAG, "Received bind to modem manager intent: bind = "+bind);
+                            manageBindingModemManager(bind);
                         }
                     }
                 }, filter);
@@ -721,6 +732,16 @@ public class WifiService extends IWifiManager.Stub {
                 "ConnectivityService");
     }
 
+    private void manageBindingModemManager(boolean bind) {
+        if (bind) {
+            Log.i(TAG, "Binding modem manager");
+            bindModemManagerService();
+        } else {
+            Log.i(TAG,"Unbinding modem manager");
+            unbindModemManagerService();
+        }
+    }
+
     /**
      * see {@link android.net.wifi.WifiManager#setWifiEnabled(boolean)}
      * @param enable {@code true} to enable, {@code false} to disable.
@@ -728,12 +749,6 @@ public class WifiService extends IWifiManager.Stub {
      *         started or is already in the queue.
      */
     public synchronized boolean setWifiEnabled(boolean enable) {
-        if (enable) {// Code for binding modem manager
-            bindModemManagerService();
-        }
-        else {
-            unbindModemManagerService();
-        }
         enforceChangePermission();
         Slog.d(TAG, "setWifiEnabled: " + enable + " pid=" + Binder.getCallingPid()
                     + ", uid=" + Binder.getCallingUid());
