@@ -31,11 +31,11 @@ import java.io.FileWriter;
  * in the {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED} Intent.
  *@hide
  */
-public class SysfsManager
+class SysfsManager
 {
     private static final String TAG = "Thermal:SysfsManager";
 
-    public static boolean isFileExists(String path) {
+    private static boolean isFileExists(String path) {
          return (new File(path)).exists();
     }
 
@@ -54,7 +54,9 @@ public class SysfsManager
               br.close();
           }
        } catch (IOException ioe) {
-            Log.i(TAG, "caught IOException in readSysfs() for file:" + path);
+            Log.i(TAG, "caught IOException in readSysfs()");
+       } catch (Exception e) {
+            Log.i(TAG, "caught Exception in readSysfs()");
        }
        return val;
     }
@@ -67,7 +69,7 @@ public class SysfsManager
                 val = Integer.parseInt(tempStr.trim());
             }
         } catch (NumberFormatException e) {
-            Log.i(TAG, "NumberFormatException in readSysfsAsInt() for file:" + path);
+            Log.i(TAG, "NumberFormatException in readSysfsAsInt()");
         }
         return val;
     }
@@ -84,7 +86,7 @@ public class SysfsManager
                 bw.close();
             }
        } catch (IOException ioe) {
-           Log.i(TAG, "IOException caught at writeSysfs() for file:" + path);
+           Log.i(TAG, "IOException caught at writeSysfs()");
        }
     }
 }
