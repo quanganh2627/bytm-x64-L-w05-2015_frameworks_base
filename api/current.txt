@@ -23079,6 +23079,98 @@ package android.text.util {
 
 package android.thermal {
 
+  public class ThermalCoolingDevice {
+    ctor public ThermalCoolingDevice();
+    method public java.lang.String getClassPath();
+    method public java.lang.Class getDeviceClass();
+    method public int getDeviceId();
+    method public java.lang.String getDeviceName();
+    method public int getThermalState();
+    method public java.lang.reflect.Method getThrottleMethod();
+    method public java.lang.String getThrottlePath();
+    method public java.util.ArrayList<java.lang.Integer> getZoneIdList();
+    method public java.util.ArrayList<java.lang.Integer> getZoneStateList();
+    method public void setClassPath(java.lang.String);
+    method public void setDeviceClass(java.lang.Class);
+    method public void setDeviceId(int);
+    method public void setDeviceName(java.lang.String);
+    method public void setThrottleMethod(java.lang.reflect.Method);
+    method public void setThrottlePath(java.lang.String);
+    method public void updateZoneState(int, int);
+  }
+
+  public class ThermalManager {
+    ctor public ThermalManager();
+    method public static void buildSensorMap();
+    method public static boolean configFilesExist();
+    method public java.util.ArrayList<android.thermal.ThermalZone> getThermalZoneList();
+    method public static void programSensorThresholds(android.thermal.ThermalSensor);
+    method public static void registerUevent(android.thermal.ThermalZone);
+    method public static void startMonitoringZones();
+    field public static final int DETHROTTLE_MASK_ENABLE = 1; // 0x1
+    field public static final java.lang.String EXTRA_EVENT = "event";
+    field public static final java.lang.String EXTRA_NAME = "name";
+    field public static final java.lang.String EXTRA_STATE = "state";
+    field public static final java.lang.String EXTRA_TEMP = "temp";
+    field public static final java.lang.String EXTRA_ZONE = "zone";
+    field public static final int INVALID_TEMP = -559038737; // 0xdeadbeef
+    field public static final java.lang.String SENSOR_FILE_PATH = "/system/etc/thermal_sensor_config.xml";
+    field public static final java.lang.String[] STATE_NAMES;
+    field public static final int THERMAL_HIGH_EVENT = 1; // 0x1
+    field public static final int THERMAL_LOW_EVENT = 0; // 0x0
+    field public static final int THERMAL_STATE_ALERT = 2; // 0x2
+    field public static final int THERMAL_STATE_CRITICAL = 3; // 0x3
+    field public static final int THERMAL_STATE_NORMAL = 0; // 0x0
+    field public static final int THERMAL_STATE_OFF = -1; // 0xffffffff
+    field public static final int THERMAL_STATE_WARNING = 1; // 0x1
+    field public static final java.lang.String THROTTLE_FILE_PATH = "/system/etc/thermal_throttle_config.xml";
+    field public static final int THROTTLE_MASK_ENABLE = 1; // 0x1
+    field public static java.util.Hashtable listOfCoolers;
+    field public static java.util.Hashtable listOfZones;
+    field public static android.thermal.ThermalManager.PlatformInfo mPlatformInfo;
+    field public static final java.lang.String mSysfsSensorBasePath = "/sys/class/thermal/thermal_zone";
+    field public static final java.lang.String mSysfsSensorType = "/type";
+    field public static java.util.ArrayList mThermalZonesList;
+    field public static java.util.Hashtable sensorMap;
+    field public static java.util.Hashtable sensorZoneMap;
+    field public static java.util.ArrayList sensorsRegisteredToObserver;
+    field public static java.lang.String uEventDevPath;
+  }
+
+  public static class ThermalManager.PlatformInfo {
+    ctor public ThermalManager.PlatformInfo();
+    method public int getMaxThermalStates();
+    method public void printAttrs();
+    field public int mMaxThermalStates;
+  }
+
+  public static class ThermalManager.ZoneCoolerBindingInfo {
+    ctor public ThermalManager.ZoneCoolerBindingInfo();
+    method public void addCoolingDeviceToList(android.thermal.ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo);
+    method public void createNewCoolingDeviceInstance();
+    method public java.util.ArrayList<android.thermal.ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo> getCoolingDeviceInfoList();
+    method public int getCriticalActionShutdown();
+    method public android.thermal.ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo getLastCoolingDeviceInstance();
+    method public int getZoneID();
+    method public void initializeCoolingDeviceInfoList();
+    method public void setCDeviceInfoMaskList(java.util.ArrayList<android.thermal.ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo>);
+    method public void setCoolingDeviceInfoList(java.util.ArrayList<android.thermal.ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo>);
+    method public void setCriticalActionShutdown(int);
+    method public void setZoneID(int);
+  }
+
+  public class ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo {
+    ctor public ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo();
+    method public void createDeThrottleStateMask(java.lang.String);
+    method public void createThrottleStateMask(java.lang.String);
+    method public int getCoolingDeviceId();
+    method public java.util.ArrayList<java.lang.Integer> getDeThrottleMaskList();
+    method public java.util.ArrayList<java.lang.Integer> getThrottleMaskList();
+    method public void setCoolingDeviceId(int);
+    method public void setDeThrottleMaskList(java.util.ArrayList<java.lang.Integer>);
+    method public void setThrottleMaskList(java.util.ArrayList<java.lang.Integer>);
+  }
+
   public class ThermalSensor {
     ctor public ThermalSensor();
     method public void UpdateSensorID();
@@ -23087,14 +23179,17 @@ package android.thermal {
     method public int getCurrState(int);
     method public int getCurrTemp();
     method public int getLowerThresholdTemp(int);
+    method public boolean getSensorActiveStatus();
     method public java.lang.String getSensorHighTempPath();
     method public int getSensorID();
     method public java.lang.String getSensorInputTempPath();
     method public java.lang.String getSensorLowTempPath();
     method public java.lang.String getSensorName();
     method public java.lang.String getSensorPath();
+    method public java.lang.String getSensorSysfsPath();
     method public int getSensorThermalState();
     method public int getThermalThreshold(int);
+    method public java.lang.String getUEventDevPath();
     method public int getUpperThresholdTemp(int);
     method public void printAttrs();
     method public void setCurrTemp(int);
@@ -23108,6 +23203,7 @@ package android.thermal {
     method public void setThermalThresholds(java.util.ArrayList<java.lang.Integer>);
     method public void setUEventDevPath(java.lang.String);
     method public void updateSensorAttributes(int);
+    method public void updateSensorAttributes(int, int);
     method public void updateSensorTemp();
   }
 
@@ -23125,6 +23221,7 @@ package android.thermal {
     method public java.lang.String getZoneName();
     method public boolean isUEventSupported();
     method public boolean isZoneStateChanged();
+    method public boolean isZoneStateChanged(android.thermal.ThermalSensor, int);
     method public void printAttrs();
     method public void setCurrThermalState(int);
     method public void setDBInterval(int);
@@ -23136,19 +23233,6 @@ package android.thermal {
     method public void setZoneName(java.lang.String);
     method public void startMonitoring();
     method public void update();
-    field public static final java.lang.String EXTRA_EVENT = "event";
-    field public static final java.lang.String EXTRA_NAME = "name";
-    field public static final java.lang.String EXTRA_STATE = "state";
-    field public static final java.lang.String EXTRA_TEMP = "temp";
-    field public static final java.lang.String EXTRA_ZONE = "zone";
-    field public static final java.lang.String[] STATE_NAMES;
-    field public static final int THERMAL_HIGH_EVENT = 2; // 0x2
-    field public static final int THERMAL_LOW_EVENT = 1; // 0x1
-    field public static final int THERMAL_STATE_ALERT = 2; // 0x2
-    field public static final int THERMAL_STATE_CRITICAL = 3; // 0x3
-    field public static final int THERMAL_STATE_NORMAL = 0; // 0x0
-    field public static final int THERMAL_STATE_OFF = -1; // 0xffffffff
-    field public static final int THERMAL_STATE_WARNING = 1; // 0x1
     field protected int mCurrEventType;
     field protected int mCurrThermalState;
     field protected java.util.ArrayList mThermalSensors;

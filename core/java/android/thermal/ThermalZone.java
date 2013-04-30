@@ -28,12 +28,13 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.BufferedReader;
 import java.io.IOException;
-import android.thermal.ThermalSensor;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.lang.reflect.*;
 import android.thermal.ThermalServiceEventQueue;
 import android.thermal.ThermalEvent;
+import android.thermal.ThermalSensor;
+import android.thermal.ThermalManager;
 
 /**
  * The ThermalZone class contains strings and constants used for values
@@ -43,44 +44,7 @@ import android.thermal.ThermalEvent;
 public class ThermalZone {
 
     private static final String TAG = "ThermalZone";
-    /**
-     * Extra for {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED}:
-     * integer containing the thermal zone.
-     */
-    public static final String EXTRA_ZONE = "zone";
-    /**
-     * Extra for {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED}:
-     * integer containing the thermal state of the zone.
-     */
-    public static final String EXTRA_STATE = "state";
-    /**
-     * Extra for {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED}:
-     * integer containing the thermal event type for the zone.
-     */
-    public static final String EXTRA_EVENT = "event";
-    /**
-     * Extra for {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED}:
-     * integer containing the temperature of the zone.
-     */
-    public static final String EXTRA_TEMP = "temp";
-    /**
-     * Extra for {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED}:
-     * String containing the name of the zone.
-     */
-    public static final String EXTRA_NAME = "name";
 
-    /* values for "STATE" field in the THERMAL_STATE_CHANGED Intent */
-    public static final int THERMAL_STATE_OFF = -1;
-    public static final int THERMAL_STATE_NORMAL = 0;
-    public static final int THERMAL_STATE_WARNING = 1;
-    public static final int THERMAL_STATE_ALERT = 2;
-    public static final int THERMAL_STATE_CRITICAL = 3;
-
-    public static final String STATE_NAMES[] = {"OFF", "NORMAL", "WARNING", "ALERT", "CRITICAL"};
-    /* values of the "EVENT" field in the THERMAL_STATE_CHANGED intent */
-    /* Indicates type of event */
-    public static final int THERMAL_LOW_EVENT = 1;
-    public static final int THERMAL_HIGH_EVENT = 2;
     /* Thermal Zone related members */
     protected int mZoneID;               /* ID of the Thermal zone */
     protected int mCurrThermalState;     /* Current thermal state of the zone */
@@ -93,7 +57,6 @@ public class ThermalZone {
     private int mPollDelayList[];          /* Delay between sucessive polls */
     private boolean mSupportsUEvent;   /* Determines if Sensor supports Uvevents */
     private boolean mSensorLogic;      /* AND or OR logic to be used to determine thermal state of zone */
-    private static final int INVALID_TEMP = 0xDEADBEEF;
 
     public void printAttrs() {
         Log.i(TAG, "mZoneID:" + Integer.toString(mZoneID));
@@ -111,20 +74,19 @@ public class ThermalZone {
 
     public ThermalZone() {
         Log.i(TAG, "ThermalZone constructor called");
-        mCurrThermalState = THERMAL_STATE_OFF;
-        mZoneTemp = INVALID_TEMP;
+        mCurrThermalState = ThermalManager.THERMAL_STATE_OFF;
+        mZoneTemp = ThermalManager.INVALID_TEMP;
     }
 
     public static String getStateAsString(int index) {
-        index++;
         if (index < -1 || index > 3)
            return "Invalid";
-
-        return STATE_NAMES[index];
+        index++;
+        return ThermalManager.STATE_NAMES[index];
     }
 
     public static String getEventTypeAsString(int type) {
-        return type == 1 ? "LOW" : "HIGH";
+        return type == 0 ? "LOW" : "HIGH";
     }
 
     public void setSensorList(ArrayList<ThermalSensor> ThermalSensors) {
@@ -212,10 +174,11 @@ public class ThermalZone {
        Hence we add 1 while querying poll delay */
     public int getPollDelay(int index) {
         index ++;
+
         /* if polldelay is requested for an invalid state,
            donot return invalid number like -1, return the delay corresponding
            to normal state */
-        if (index < 0 || index >= mPollDelayList.length) index = THERMAL_STATE_NORMAL + 1;
+        if (index < 0 || index >= mPollDelayList.length) index = ThermalManager.THERMAL_STATE_NORMAL + 1;
 
         return mPollDelayList[index];
     }
@@ -259,38 +222,68 @@ public class ThermalZone {
         }
     }
 
-    private UEventObserver mThermalZoneObserver = new UEventObserver() {
-        @Override
-        public void onUEvent(UEventObserver.UEvent event) {
-               Log.i(TAG, "UEvent received ");
-               if (isZoneStateChanged()) {
-                   update();
-               }
-        }
-    };
-
     public void startMonitoring() {
-        if (!mSupportsUEvent) {
-            new monitorThermalZone();
-        }
-        else {
-            mThermalZoneObserver.startObserving("SUBSYSTEM=thermal");
-        }
+        new monitorThermalZone();
     }
 
     public boolean isZoneStateChanged() {
         int newMaxSensorState = -1;
         int tempSensorState = -1;
-        int currMaxTemp = INVALID_TEMP;
+        int currMaxTemp = ThermalManager.INVALID_TEMP;
         int oldZoneState = mCurrThermalState;
 
         /* browse through all sensors and update sensor states, and record the max
         sensor state and max sensor temp */
         for (ThermalSensor ts : mThermalSensors) {
-            /* updateSensorAttributes updates sensor state.Debaounce Interval is passed
-            as input, so that for LOWEVENT, if decrease in sensor temp is less than debounce
-            interval, sensor state change is ignored and original state is maintained */
-            ts.updateSensorAttributes(mDebounceInterval);
+            /**
+            * updateSensorAttributes updates sensor state.Debaounce Interval is passed
+            * as input, so that for LOWEVENT, if decrease in sensor temp is less than debounce
+            * interval, sensor state change is ignored and original state is maintained
+            */
+            if (ts.getSensorActiveStatus()) {
+                ts.updateSensorAttributes(mDebounceInterval);
+                tempSensorState = ts.getSensorThermalState();
+                if (tempSensorState > newMaxSensorState) {
+                    newMaxSensorState = tempSensorState;
+                    currMaxTemp = ts.getCurrTemp();
+                }
+            }
+        }
+
+        /*if final max temp is invalid, it means all sensors returned invalid temp */
+        if (currMaxTemp == ThermalManager.INVALID_TEMP) return false;
+        /**
+        * zone state is always max of sensor states. newMaxSensorState is
+        * supposed to be new zone state. But if zone is already in that state,
+        * no intent needs to be sent, hence return false
+        */
+        if (newMaxSensorState == oldZoneState) return false;
+
+        /* else update the current zone state, zone temp*/
+        mCurrThermalState = newMaxSensorState;
+        /* set the Event type */
+        mCurrEventType = mCurrThermalState > oldZoneState ? ThermalManager.THERMAL_HIGH_EVENT : ThermalManager.THERMAL_LOW_EVENT;
+        /* set zone temp equal to the max sensor temp */
+        mZoneTemp = currMaxTemp;
+
+        return true;
+    }
+
+    /* overloaded fucniton */
+    public boolean isZoneStateChanged(ThermalSensor s, int temp) {
+        int newMaxSensorState = -1;
+        int tempSensorState = -1;
+        int currMaxTemp = ThermalManager.INVALID_TEMP;
+        int oldZoneState = mCurrThermalState;
+        /**
+        * update sensor state, and record the max
+        * sensor state and max sensor temp. This overloaded
+        * fucntion updateSensorAttributes() doesnot do a sysfs read,
+        * but only updates temp
+        */
+        s.updateSensorAttributes(mDebounceInterval,temp);
+
+        for (ThermalSensor ts : mThermalSensors) {
             tempSensorState = ts.getSensorThermalState();
             if (tempSensorState > newMaxSensorState) {
                 newMaxSensorState = tempSensorState;
@@ -298,19 +291,21 @@ public class ThermalZone {
             }
         }
 
-        /* zone state is always max of sensor states. newMaxSensorState is
-        supposed to be new zone state. But if zone is already in that state,
-        no intent needs to be sent, hence return false */
+        /**
+        * zone state is always max of sensor states. newMaxSensorState is
+        * supposed to be new zone state. But if zone is already in that state,
+        * no intent needs to be sent, hence return false
+        */
         if (newMaxSensorState == oldZoneState) return false;
 
         /* else update the current zone state, zone temp*/
         mCurrThermalState = newMaxSensorState;
         /* set the Event type */
-        mCurrEventType = mCurrThermalState > oldZoneState ? THERMAL_HIGH_EVENT : THERMAL_LOW_EVENT;
+        mCurrEventType = mCurrThermalState > oldZoneState ? ThermalManager.THERMAL_HIGH_EVENT : ThermalManager.THERMAL_LOW_EVENT;
         /* set zone temp equal to the max sensor temp */
         mZoneTemp = currMaxTemp;
 
         return true;
-
     }
+
 }
