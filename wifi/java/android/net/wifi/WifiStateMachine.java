@@ -2007,6 +2007,7 @@ public class WifiStateMachine extends StateMachine {
                 if (mBackgroundScanAutoTurnOffEnabled) {
                     // No remembered SSID, and auto turn off authorized, request to turn off Wifi
                     Slog.d(TAG, "No remembered SSID & turn wifi OFF");
+                    mContext.sendBroadcast(new Intent(SHUT_DOWN_WIFI_ACTION));
                 }
            }
         } else
