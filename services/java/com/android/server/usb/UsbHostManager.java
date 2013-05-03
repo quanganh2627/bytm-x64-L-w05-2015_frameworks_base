@@ -203,12 +203,14 @@ public class UsbHostManager {
         synchronized (mLock) {
             for (String name : mDevices.keySet()) {
                 UsbDevice device = mDevices.get(name);
-                int interfaces = device.getInterfaceCount();
-                for (int i = 0; i < interfaces; i++) {
-                    if (device.getInterface(i).getInterfaceClass() == 0x08)
-                         umsDevices++;
+                if ( device != null) {
+                    int interfaces = device.getInterfaceCount();
+                    for (int i = 0; i < interfaces; i++) {
+                        if (device.getInterface(i).getInterfaceClass() == 0x08)
+                            umsDevices++;
                     }
                 }
+            }
         }
         if (umsDevices > 1)
             return true;
