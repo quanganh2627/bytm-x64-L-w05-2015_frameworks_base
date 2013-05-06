@@ -43,6 +43,8 @@ import android.location.LocationRequest;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.BatteryStats;
 import android.os.Binder;
@@ -62,6 +64,7 @@ import android.provider.Telephony.Carriers;
 import android.provider.Telephony.Sms.Intents;
 import android.telephony.CellLocation;
 import android.telephony.PhoneStateListener;
+import android.telephony.CellInfo;
 import android.telephony.SmsMessage;
 import android.telephony.TelephonyManager;
 import android.telephony.gsm.GsmCellLocation;
@@ -185,13 +188,14 @@ public class GpsLocationProvider implements LocationProviderInterface {
     private static final int AGPS_RIL_REQUEST_SETID_MSISDN = 2;
 
     // Request ref location
-    private static final int AGPS_RIL_REQUEST_REFLOC_CELLID = 1;
-    private static final int AGPS_RIL_REQUEST_REFLOC_MAC = 2;
+    private static final int AGPS_REQUEST_REFLOC_CELLID = 1;
+    private static final int AGPS_REQUEST_REFLOC_MAC = 2;
 
     // ref. location info
+    private static final int AGPS_REF_LOCATION_END = 0;
     private static final int AGPS_REF_LOCATION_TYPE_GSM_CELLID = 1;
     private static final int AGPS_REF_LOCATION_TYPE_UMTS_CELLID = 2;
-    private static final int AGPS_REG_LOCATION_TYPE_MAC        = 3;
+    private static final int AGPS_REF_LOCATION_TYPE_MAC = 3;
 
     // set id info
     private static final int AGPS_SETID_TYPE_NONE = 0;
@@ -222,6 +226,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
     }
 
     private Object mLock = new Object();
+    private Object mCellLocationLock = new Object();
 
     private int mLocationFlags = LOCATION_INVALID;
 
@@ -314,6 +319,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
     // Handler for processing events
     private Handler mHandler;
+    private Handler mRefLocHandler;
 
     private String mAGpsApn;
     private int mAGpsDataConnectionState;
@@ -546,6 +552,50 @@ public class GpsLocationProvider implements LocationProviderInterface {
                         mHandler.getLooper());
             }
         });
+
+        // create new thread for reference location handler
+        new Thread(new Runnable() {
+            public void run() {
+                Looper.prepare();
+                mRefLocHandler = new Handler() {
+                    public void handleMessage(Message msg) {
+                        int flags = (int)msg.what;
+
+                        try {
+                            if ((flags & AGPS_REQUEST_REFLOC_CELLID) == AGPS_REQUEST_REFLOC_CELLID) {
+                                if (mTelephonyManager.getPhoneType() == TelephonyManager.PHONE_TYPE_GSM) {
+                                    mRefLocationRequested = true;
+                                    CellLocation.requestLocationUpdate();
+                                    synchronized(mCellLocationLock) {
+                                        try {
+                                            mCellLocationLock.wait(5000);
+                                        } catch (InterruptedException ie) {
+                                            // restore the interrupted status
+                                            Thread.currentThread().interrupt();
+                                        }
+                                    }
+                                } else {
+                                    Log.e(TAG, "Cell location info is not supported for this phone type.");
+                                }
+                            }
+
+                            if ((flags & AGPS_REQUEST_REFLOC_MAC) == AGPS_REQUEST_REFLOC_MAC) {
+                                WifiManager wifi = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
+                                WifiInfo info = wifi.getConnectionInfo();
+                                String bssid = info.getBSSID();
+
+                                if (bssid != null)
+                                    native_agps_set_ref_location(new String(String.valueOf(AGPS_REF_LOCATION_TYPE_MAC)
+                                                                        + ":" + bssid));
+                            }
+                        } finally {
+                            native_agps_set_ref_location(new String(String.valueOf(AGPS_REF_LOCATION_END) + ":"));
+                        }
+                    }
+                };
+                Looper.loop();
+            }
+        }).start();
     }
 
     private void listenForBroadcasts() {
@@ -1739,12 +1789,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
      */
 
     private void requestRefLocation(int flags) {
-        if (mTelephonyManager.getPhoneType() == TelephonyManager.PHONE_TYPE_GSM) {
-            mRefLocationRequested = true;
-            CellLocation.requestLocationUpdate();
-        } else {
-            Log.e(TAG,"Cell location info is not supported for this phone type.");
-        }
+        mRefLocHandler.obtainMessage(flags).sendToTarget();
     }
 
     private final void updateCellLocation(CellLocation location) {
@@ -1768,10 +1813,13 @@ public class GpsLocationProvider implements LocationProviderInterface {
                     type = AGPS_REF_LOCATION_TYPE_GSM_CELLID;
                 }
 
-                native_agps_set_ref_location_cellid(type, mcc, mnc,
-                        gsm_cell.getLac(), gsm_cell.getCid());
+                native_agps_set_ref_location(new String(String.valueOf(type) + ":" + mcc + ":"
+                                + mnc + ":" + gsm_cell.getLac() + ":" + gsm_cell.getCid()));
             } else {
-                Log.e(TAG, "Error getting network operators");
+                Log.i(TAG, "no network operators");
+            }
+            synchronized(mCellLocationLock) {
+                mCellLocationLock.notify();
             }
         }
     }
@@ -1936,8 +1984,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
     private native void native_send_ni_response(int notificationId, int userResponse);
 
     // AGPS ril suport
-    private native void native_agps_set_ref_location_cellid(int type, int mcc, int mnc,
-            int lac, int cid);
+    private native void native_agps_set_ref_location(String reflocation);
+
     private native void native_agps_set_id(int type, String setid);
 
     private native void native_update_network_state(boolean connected, int type,
