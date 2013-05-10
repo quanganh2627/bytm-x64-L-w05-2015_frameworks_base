@@ -140,6 +140,10 @@ public class LockPatternUtils {
 
     protected final static String PASSWORD_HISTORY_KEY = "lockscreen.passwordhistory";
 
+    protected final static String LOCKSCREEN_BIOMETRIC_WEAK_OPTION = "lockscreen.biometric_weak_option";
+    public final static int BIOMETRIC_WEAK_OPTION_FACE  = 0;
+    public final static int BIOMETRIC_WEAK_OPTION_VOICE = 1;
+
     private final Context mContext;
     private final ContentResolver mContentResolver;
     private DevicePolicyManager mDevicePolicyManager;
@@ -492,6 +496,16 @@ public class LockPatternUtils {
      * @param isFallback Specifies if this is a fallback to biometric weak
      */
     public void saveLockPattern(List<LockPatternView.Cell> pattern, boolean isFallback) {
+        saveLockPattern(pattern, isFallback, BIOMETRIC_WEAK_OPTION_FACE);
+    }
+
+    /**
+     * Save a lock pattern.
+     * @param pattern The new pattern to save.
+     * @param isFallback Specifies if this is a fallback to biometric weak
+     * @param option The option of lock
+     */
+    public void saveLockPattern(List<LockPatternView.Cell> pattern, boolean isFallback, int option) {
         // Compute the hash
         final byte[] hash = LockPatternUtils.patternToHash(pattern);
         try {
@@ -510,7 +524,8 @@ public class LockPatternUtils {
                     setLong(PASSWORD_TYPE_KEY, DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_WEAK);
                     setLong(PASSWORD_TYPE_ALTERNATE_KEY,
                             DevicePolicyManager.PASSWORD_QUALITY_SOMETHING);
-                    finishBiometricWeak();
+                    setLong(LOCKSCREEN_BIOMETRIC_WEAK_OPTION, option);
+                    finishBiometricWeak(option);
                     dpm.setActivePasswordState(DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_WEAK,
                             0, 0, 0, 0, 0, 0, 0, getCurrentOrCallingUserId());
                 }
@@ -524,6 +539,13 @@ public class LockPatternUtils {
         } catch (RemoteException re) {
             Log.e(TAG, "Couldn't save lock pattern " + re);
         }
+    }
+
+    /**
+     * Get the option of weak biometric lock
+     */
+    public int getBiometricWeakOption() {
+        return (int)getLong(LOCKSCREEN_BIOMETRIC_WEAK_OPTION, BIOMETRIC_WEAK_OPTION_FACE);
     }
 
     /**
@@ -608,6 +630,20 @@ public class LockPatternUtils {
      * @param userHandle The userId of the user to change the password for
      */
     public void saveLockPassword(String password, int quality, boolean isFallback, int userHandle) {
+        saveLockPassword(password, quality, isFallback, userHandle, BIOMETRIC_WEAK_OPTION_FACE);
+    }
+
+    /**
+     * Save a lock password.  Does not ensure that the password is as good
+     * as the requested mode, but will adjust the mode to be as good as the
+     * pattern.
+     * @param password The password to save
+     * @param quality {@see DevicePolicyManager#getPasswordQuality(android.content.ComponentName)}
+     * @param isFallback Specifies if this is a fallback to biometric weak
+     * @param userHandle The userId of the user to change the password for
+     * @param option The option of lock
+     */
+    public void saveLockPassword(String password, int quality, boolean isFallback, int userHandle, int option) {
         // Compute the hash
         final byte[] hash = passwordToHash(password);
         try {
@@ -665,7 +701,8 @@ public class LockPatternUtils {
                             userHandle);
                     setLong(PASSWORD_TYPE_ALTERNATE_KEY, Math.max(quality, computedQuality),
                             userHandle);
-                    finishBiometricWeak();
+                    setLong(LOCKSCREEN_BIOMETRIC_WEAK_OPTION, option);
+                    finishBiometricWeak(option);
                     dpm.setActivePasswordState(DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_WEAK,
                             0, 0, 0, 0, 0, 0, 0, userHandle);
                 }
@@ -1304,15 +1341,20 @@ public class LockPatternUtils {
         return false;
     }
 
-    private void finishBiometricWeak() {
+    private void finishBiometricWeak(int option) {
         setBoolean(BIOMETRIC_WEAK_EVER_CHOSEN_KEY, true);
 
         // Launch intent to show final screen, this also
         // moves the temporary gallery to the actual gallery
-        Intent intent = new Intent();
-        intent.setClassName("com.android.facelock",
-                "com.android.facelock.SetupEndScreen");
-        mContext.startActivity(intent);
+        if (option == BIOMETRIC_WEAK_OPTION_FACE) {
+            Intent intent = new Intent();
+            intent.setClassName("com.android.facelock",
+                    "com.android.facelock.SetupEndScreen");
+            mContext.startActivity(intent);
+        } else if (option == BIOMETRIC_WEAK_OPTION_VOICE) {
+            // TODO: Currently no need for an "SetupEndScreen"
+            // for VoiceLock
+        }
     }
 
     public void setPowerButtonInstantlyLocks(boolean enabled) {
