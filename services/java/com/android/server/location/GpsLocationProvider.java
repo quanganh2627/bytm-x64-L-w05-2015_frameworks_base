@@ -843,6 +843,26 @@ public class GpsLocationProvider implements LocationProviderInterface {
         }
     }
 
+    /* Function to log crashtool events*/
+    private void logCrashTool(String type) {
+        Intent msg = new Intent();
+        Log.d(TAG, "Sending Crashtool Broadcast " + type);
+        msg.setAction("intel.intent.action.phonedoctor.REPORT_INFO");
+        msg.putExtra("intel.intent.extra.phonedoctor.TYPE", "CWS.GPS."+ type);
+        mContext.sendBroadcast(msg);
+        return;
+    }
+
+    private void logCrashTool(String type, String data0) {
+        Intent msg = new Intent();
+        Log.d(TAG, "Sending Crashtool Broadcast " + type);
+        msg.setAction("intel.intent.action.phonedoctor.REPORT_INFO");
+        msg.putExtra("intel.intent.extra.phonedoctor.TYPE", "CWS.GPS."+ type);
+        msg.putExtra("intel.intent.extra.phonedoctor.DATA0", data0);
+        mContext.sendBroadcast(msg);
+        return;
+    }
+
     /**
      * Enables this provider.  When enabled, calls to getStatus()
      * must be handled.  Hardware may be started up
