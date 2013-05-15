@@ -339,7 +339,7 @@ public class BroadcastQueue {
         }
         r.receiver = null;
         r.intent.setComponent(null);
-        if (r.curApp != null) {
+        if (r.curApp != null && r.curApp.curReceiver == r) {
             r.curApp.curReceiver = null;
         }
         if (r.curFilter != null) {
