@@ -420,6 +420,8 @@ public class ThermalCooling {
          ThermalManager.ZoneCoolerBindingInfo zoneCoolerBindInfo = ThermalManager.listOfZones.get(zoneId);
          if (zoneCoolerBindInfo == null) return;
 
+         if (zoneCoolerBindInfo.getCoolingDeviceInfoList() == null) return;
+
          if (ThermalManager.THERMAL_HIGH_EVENT == eventType) {
              for (ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo CdeviceInfo : zoneCoolerBindInfo.getCoolingDeviceInfoList()) {
 

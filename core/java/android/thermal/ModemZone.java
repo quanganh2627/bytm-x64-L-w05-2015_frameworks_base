@@ -19,6 +19,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Bundle;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.telephony.ServiceState;
@@ -181,7 +182,12 @@ public class ModemZone extends ThermalZone {
                     setModemSensorThreshold(true, t, minTemp, maxTemp);
                 }
             } else if (action.equals(TelephonyIntents.ACTION_SERVICE_STATE_CHANGED)) {
-                ServiceState ss = ServiceState.newFromBundle(intent.getExtras());
+                Bundle extras = intent.getExtras();
+                if (extras == null) {
+                    return;
+                }
+
+                ServiceState ss = ServiceState.newFromBundle(extras);
                 if (ss != null) {
                     mServiceState = ss.getState();
                     if (mServiceState != ServiceState.STATE_POWER_OFF) {
