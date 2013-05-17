@@ -201,6 +201,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+// ASF imports
+import com.intel.asf.AsfAosp;
+
 public final class ActivityManagerService extends ActivityManagerNative
         implements Watchdog.Monitor, BatteryStatsImpl.BatteryCallback {
     private static final String USER_DATA_DIR = "/data/user/";
@@ -2765,6 +2768,13 @@ public final class ActivityManagerService extends ActivityManagerNative
                 debugFlags |= Zygote.DEBUG_ENABLE_ASSERT;
             }
 
+            // ASF HOOK: application start event
+            if (AsfAosp.ENABLE) {
+                if (!AsfAosp.sendAppStartEvent(app.info, app.userId)) {
+                    throw new SecurityException("process start is disallowed by policy.");
+                }
+            }
+
             // Start the process.  It will either succeed and return a result containing
             // the PID of the new process, or else throw a RuntimeException.
             Process.ProcessStartResult startResult = Process.start("android.app.ActivityThread",
@@ -3624,6 +3634,11 @@ public final class ActivityManagerService extends ActivityManagerNative
             Bundle info = new Bundle();
             info.putString("shortMsg", "Process crashed.");
             finishInstrumentationLocked(app, Activity.RESULT_CANCELED, info);
+        }
+
+        // ASF HOOK: application stop event
+        if (AsfAosp.ENABLE) {
+            AsfAosp.sendAppStopEvent(app.info, app.userId, app.pid);
         }
 
         if (!restarting) {
@@ -9219,7 +9234,87 @@ public final class ActivityManagerService extends ActivityManagerNative
             }
         }
     }
-    
+
+    // ASF launch timeout.  The system will ungracefully timeout at 20 seconds.
+    // To avoid this ungraceful timeout, we impose our own 15 second timeout
+    // for ASF launch.  (The ASF security manager service will itself impose a
+    // timeout of 10 seconds for ASF client launch.)
+    private static final long ONE_SECOND_MS = 1000;
+    private static final long ASF_LAUNCH_TIMEOUT = 15 * ONE_SECOND_MS;
+
+    /**
+     * Launch ASF by using a broadcast intent to launch the security
+     * manager service, which will in turn launch any ASF clients.  This
+     * method will block until the ASF launch has completed.
+     */
+    private void launchAsf() {
+        if (AsfAosp.ENABLE) {
+            // A class is needed to contain this variable, so that the
+            // object can be final (and accessible from the callback inner
+            // class) but the value be mutable.  We need a real
+            // java.lang.Object to use for locking, besides.
+            class CompletionCondition {
+                public boolean finished = false;
+            };
+            final CompletionCondition completionCondition =
+                new CompletionCondition();
+
+            // Launch the ASF security manager service.
+            Log.i(TAG, "Preparing to launch ASF security manager.");
+            Intent intent = AsfAosp.getLaunchIntent(new Runnable() {
+                public void run() {
+                    // When the security manager service signals readiness,
+                    // allow the activity manager to continue where we
+                    // block, below.
+                    synchronized(completionCondition) {
+                        completionCondition.finished = true;
+                        completionCondition.notify();
+                    }
+                }
+            });
+            if (intent == null) {
+                Log.e(TAG, "Unable to create 'ASF Launch' intent for launching "
+                        + "ASF security manager service.");
+                return;
+            }
+            // Send the broadcast intent.
+            synchronized (this) {
+                broadcastIntentLocked(
+                                      null, null, intent, null,
+                                      null, 0, null, null,
+                                      AsfAosp.LAUNCH_SECURITY_MANAGER_PERMISSION,
+                                      AppOpsManager.OP_NONE,
+                                      true, false,
+                                      MY_PID, Process.SYSTEM_UID, UserHandle.USER_ALL
+                                      );
+            }
+
+            // Flush the broadcast queue so our intent is delivered
+            // immediately.  (Otherwise, ASF launch will be delayed during
+            // first boot.)
+            mFgBroadcastQueue.processNextBroadcast(true);
+
+            // Block until the ASF security manager service signals
+            // readiness.
+            synchronized(completionCondition) {
+                if (!completionCondition.finished) {
+                    try {
+                        completionCondition.wait(ASF_LAUNCH_TIMEOUT);
+                    } catch (InterruptedException e) {
+                        Log.e(TAG,
+                                "Interruption while waiting for completion of ASF launch.",
+                                e );
+                    }
+                }
+                if (!completionCondition.finished) {
+                    Log.e(TAG, "Timeout while launching ASF security manager.");
+                } else {
+                    Log.i(TAG, "Finished launching ASF security manager.");
+                }
+            }
+        }
+    }
+
     public void systemReady(final Runnable goingCallback) {
         synchronized(this) {
             if (mSystemReady) {
@@ -9385,6 +9480,13 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
 
         retrieveSettings();
+
+        // Launch the ASF security manager service and any client apps.
+        // This should happen before calling the goingCallback, so ASF
+        // can monitor the apps launched from the callback, and so the
+        // activity manager "storm" resulting from the callback will not
+        // adversely impact our synchronous launch scheme.
+        launchAsf();
 
         synchronized (this) {
             readGrantedUriPermissionsLocked();
