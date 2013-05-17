@@ -163,6 +163,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import   java.text.SimpleDateFormat;
 
+// ASF imports
+import com.intel.security.AsfAosp;
+
 public final class ActivityManagerService extends ActivityManagerNative
         implements Watchdog.Monitor, BatteryStatsImpl.BatteryCallback {
     private static final String USER_DATA_DIR = "/data/user/";
@@ -2136,6 +2139,11 @@ public final class ActivityManagerService extends ActivityManagerNative
                 debugFlags |= Zygote.DEBUG_ENABLE_ASSERT;
             }
 
+            // ASF HOOK: application start event
+            if (! AsfAosp.sendAppStartEvent(app.info, app.userId)) {
+                throw new SecurityException("process start is disallowed by policy.");
+            }
+
             // Start the process.  It will either succeed and return a result containing
             // the PID of the new process, or else throw a RuntimeException.
             Process.ProcessStartResult startResult = Process.start("android.app.ActivityThread",
@@ -2951,6 +2959,9 @@ public final class ActivityManagerService extends ActivityManagerNative
             info.putString("shortMsg", "Process crashed.");
             finishInstrumentationLocked(app, Activity.RESULT_CANCELED, info);
         }
+
+        // ASF HOOK: application stop event
+        AsfAosp.sendAppStopEvent(app.info, app.userId);
 
         if (!restarting) {
             if (!mMainStack.resumeTopActivityLocked(null)) {
