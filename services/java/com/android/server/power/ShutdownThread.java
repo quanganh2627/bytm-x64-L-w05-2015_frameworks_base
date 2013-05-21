@@ -42,6 +42,8 @@ import android.os.Vibrator;
 import android.os.SystemVibrator;
 import android.os.storage.IMountService;
 import android.os.storage.IMountShutdownObserver;
+import android.os.BatteryManager;
+import android.os.SystemProperties;
 
 import com.android.internal.telephony.ITelephony;
 
@@ -382,6 +384,16 @@ public final class ShutdownThread extends Thread {
                 }
             }
         }
+
+	String sReboot = SystemProperties.get("ro.rebootchargermode","");
+	if (sReboot == "true") {
+		// Reboot in COS if charger plugged and shutdown requested
+		if ((mReboot == false) && (BatteryManager.BATTERY_PLUGGED_ANY != 0)) {
+			mReboot = true;
+			mRebootReason = "charging";
+		}
+	}
+
         Log.i(TAG, "[SHTDWN] run, "
             + (mReboot ? "reboot" : "shutdown") + " requested "
             + "reason=" + (mRebootReason != null ? mRebootReason : "null"));
