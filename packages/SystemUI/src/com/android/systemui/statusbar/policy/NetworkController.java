@@ -594,6 +594,8 @@ public class NetworkController extends BroadcastReceiver {
             mQSDataTypeIconId = R.drawable.ic_qs_signal_4g;
             mContentDescriptionDataType = mContext.getString(
                     R.string.accessibility_data_connection_4g);
+        } else if (!hasService() || mDataState != TelephonyManager.DATA_CONNECTED) {
+            mDataTypeIconId = 0;
         } else {
             switch (mDataNetType) {
                 case TelephonyManager.NETWORK_TYPE_UNKNOWN:
