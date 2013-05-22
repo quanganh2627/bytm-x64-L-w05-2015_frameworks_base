@@ -86,7 +86,10 @@ public class ThermalManager {
     public static final int INVALID_TEMP = 0xDEADBEEF;
     /* base sysfs path for sensors */
     public static final String mSysfsSensorBasePath = "/sys/class/thermal/thermal_zone";
+    public static final String mCoolingDeviceBasePath = "/sys/class/thermal/cooling_device";
+    public static final String mCoolingDeviceType = "/type";
     public static final String mSysfsSensorType = "/type";
+    public static final String mCoolingDeviceState = "/cur_state";
     public static final int THROTTLE_MASK_ENABLE = 1;
     public static final int DETHROTTLE_MASK_ENABLE = 1;
 

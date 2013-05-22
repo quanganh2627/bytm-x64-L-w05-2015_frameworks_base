@@ -23127,6 +23127,9 @@ package android.thermal {
     field public static final int THROTTLE_MASK_ENABLE = 1; // 0x1
     field public static java.util.Hashtable listOfCoolers;
     field public static java.util.Hashtable listOfZones;
+    field public static final java.lang.String mCoolingDeviceBasePath = "/sys/class/thermal/cooling_device";
+    field public static final java.lang.String mCoolingDeviceState = "/cur_state";
+    field public static final java.lang.String mCoolingDeviceType = "/type";
     field public static android.thermal.ThermalManager.PlatformInfo mPlatformInfo;
     field public static final java.lang.String mSysfsSensorBasePath = "/sys/class/thermal/thermal_zone";
     field public static final java.lang.String mSysfsSensorType = "/type";
