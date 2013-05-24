@@ -23,21 +23,15 @@ package android.thermal;
  */
 public class BatteryChargeCurrentControl {
     private static final String TAG = "Thermal:BatteryChargeCurrentControl";
-    /* Maximum four levels of Throttling for Charger available */
-    private static final int mMaxChargeRate = 4;
     private static String mThrottlePath;
 
     public static void throttleDevice(int tstate) {
         /*
-         * Charging rate can be controlled in four levels 1 to 4, with
-         * 4 being highest rate of charging and 1 being the lowest. The
-         * thermal states are numbered as 0 to 3, with 0 being Normal,
-         * and 3 being critical. So, set the rate of charging to
-         * 'mMaxChargeRate - tstate'.
+         * Charging rate can be controlled in four levels 0 to 3, with
+         * 0 being highest rate of charging and 3 being the lowest.
          */
-        int newChargeRate = mMaxChargeRate - tstate;
-        SysfsManager.writeSysfs(mThrottlePath, newChargeRate);
-        android.util.Log.d(TAG, "New throttled charge rate: " + newChargeRate);
+        SysfsManager.writeSysfs(mThrottlePath, tstate);
+        android.util.Log.d(TAG, "New throttled charge rate: " + tstate);
     }
 
     public static void init(String path) {
