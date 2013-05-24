@@ -168,9 +168,9 @@ public class SpellCheckerSession {
     public void close() {
         mIsUsed = false;
         try {
-            mSpellCheckerSessionListener = null;
             mSpellCheckerSessionListenerImpl.close();
             mTextServicesManager.finishSpellCheckerService(mSpellCheckerSessionListenerImpl);
+            mSpellCheckerSessionListener = null;
         } catch (RemoteException e) {
             // do nothing
         }
