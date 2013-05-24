@@ -39,7 +39,8 @@ public class CPUMaxFreqControl {
 
     // CPU related data
     private static int mProcessorCount;
-    private static int mAvailFreq[];
+    private static int mMaxFreqCount = 10;
+    private static int mAvailFreq[] = new int[mMaxFreqCount];
     private static int mAvailFreqCount;
     private static boolean mNoCPUMaxScalingFreqs = false;
     private static int mMaxScalingFreq[] = new int[4];
@@ -158,17 +159,11 @@ public class CPUMaxFreqControl {
         String line = SysfsManager.readSysfs(mCPUAvailFreqsPath);
         if (line == null) return;
 
-        // Find the number of tokens
-        int size = (line.split(" ")).length;
-        Log.i(TAG, "Total Number of Available Frequencies: " + size);
-        mAvailFreq = new int[size];
         for (String token : line.split(" ")) {
             try {
                 mAvailFreq[mAvailFreqCount++] = Integer.parseInt(token);
             } catch (NumberFormatException ex) {
                 Log.i(TAG, token + " is not a number");
-            } catch (Exception e) {
-                Log.i(TAG, token + "Exception in tokenizing");
             }
         }
     }
@@ -206,14 +201,10 @@ public class CPUMaxFreqControl {
     }
 
     public static void init(String path) {
-       try {
-           readAvailFreq();
-           getNumberOfProcessors();
-           computeCpuMaxScalingFreqs();
-           printAttrs();
-       } catch (Exception e) {
-           Log.i(TAG, "Exception in init method of CPUMaxFreqControl");
-       }
+       readAvailFreq();
+       getNumberOfProcessors();
+       computeCpuMaxScalingFreqs();
+       printAttrs();
     }
 }
 
