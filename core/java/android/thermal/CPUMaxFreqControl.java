@@ -52,31 +52,31 @@ public class CPUMaxFreqControl {
         {"0000",    "8004",     "0004"},    // MFLD  LEX  -
         {"0000",    "8004",     "0000"},    // MFLD  LEX YB
         {"0000",    "any",      "any"},     // MFLD  Default case
-        {"0001",    "8003",     "any"},    // MFLD  Tablet  Salitpa
-        {"0002",    "8000",     "any"},    // CTP   RHB       -
-        {"0002",    "8001",     "any"},    // CTP   VB        -
-        {"0002",    "any",      "any"},    // CTP     -       -
-        {"0004",    "8000",     "any"},    // MRFLD Phone    PR0/vv
-        {"0007",    "8000",     "any"},    // BYT Tablet FFRD10 PR1.1
-        {"0007",    "any",      "any"},    // BYT     -       -
+        {"0001",    "8003",     "any"},     // MFLD  Tablet  Salitpa
+        {"0002",    "8000",     "any"},     // CTP   RHB       -
+        {"0002",    "8001",     "any"},     // CTP   VB        -
+        {"0002",    "any",      "any"},     // CTP     -       -
+        {"0007",    "8000",     "any"},     // BYT Tablet FFRD10 PR1.1
+        {"0007",    "any",      "any"},     // BYT     -       -
+        {"0004",    "any",     "any"},      // MRFLD Phone   -
     };
 
     // Each Row in this array is matched with that of the same row in mDeviceIdentifier array
     private static final int mThrottleFreq[][] = {
         // Warning   Alert       Critical
-        {1400000,   900000,     600000},     // MFLD  PRx     PR4
-        {1200000,   900000,     600000},     // MFLD  PR3.3   PR3.3
-        {1200000,   900000,     600000},     // MFLD  PR3.1   PR3.1
-        {1200000,   900000,     600000},     // MFLD  LEX  -
-        {1200000,   900000,     600000},     // MFLD  LEX YB
+        {1400000,   900000,     600000},    // MFLD  PRx     PR4
+        {1200000,   900000,     600000},    // MFLD  PR3.3   PR3.3
+        {1200000,   900000,     600000},    // MFLD  PR3.1   PR3.1
+        {1200000,   900000,     600000},    // MFLD  LEX  -
+        {1200000,   900000,     600000},    // MFLD  LEX YB
         {1400000,   900000,     600000},    // Default set of frequencies for MFLD platform
         {1400000,   1200000,    900000},    // MFLD  Tablet  Salitpa
         {1600000,   1333000,    933000},    // CTP   RHB frequencies
         {1866000,   1333000,    933000},    // CTP   VB  frequencies
         {1866000,   1333000,    933000},    // CTP   default frequencies
-        {1200000,   1066000,    933000},    // MRFLD  Phone   PR0/vv
         {1100000,   1000000,    900000},    // BYT    Tablet  FFRD10 PR1.1
         {1100000,   1000000,    900000},    // BYT default frequencies
+        {1200000,   1066000,    800000},    // MRFLD  Phone
     };
 
     private static int findIndex(String plat, String prod, String hw) {
