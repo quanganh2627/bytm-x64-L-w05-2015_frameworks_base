@@ -73,18 +73,27 @@ public class SysfsManager
     }
 
     public static void writeSysfs(String path, int value) {
+       BufferedWriter bw = null;
+       FileWriter fw = null;
+
        if (!isFileExists(path)) {
            Log.i(TAG, "writeSysfs failed:"+ path + "does not exist");
            return;
        }
        try {
-            BufferedWriter bw = new BufferedWriter(new FileWriter(path));
-            if (bw != null) {
-                bw.write(Integer.toString(value));
-                bw.close();
-            }
+            fw = new FileWriter(path);
+            bw = new BufferedWriter(fw);
+            bw.write(Integer.toString(value));
        } catch (IOException ioe) {
            Log.i(TAG, "IOException caught at writeSysfs() for file:" + path);
+       } finally {
+           try {
+               if (bw != null) bw.close();
+               if (fw != null) fw.close();
+           } catch (IOException ioe) {
+               Log.i(TAG, "IOException caught at finally block in writeSysfs");
+               ioe.printStackTrace();
+           }
        }
     }
 }
