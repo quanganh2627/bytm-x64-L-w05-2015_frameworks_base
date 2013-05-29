@@ -162,5 +162,6 @@ interface IOemTelephony {
      * {@hide}
      */
     void powerOffModem();
+    String sendAtCommand(String command);
 }
 
