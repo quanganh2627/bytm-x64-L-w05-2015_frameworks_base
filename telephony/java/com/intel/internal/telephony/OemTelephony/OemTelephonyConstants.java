@@ -127,6 +127,8 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_STRING_POWEROFF_MODEM = 0x000000B0;
     /* OEM hook specific to DSDS for swapping protocol stacks configs */
     public static final int RIL_OEM_HOOK_STRING_SWAP_PS = 0x000000B2;
+    /* OEM hook used to send direct AT commands to modem */
+    public static final int RIL_OEM_HOOK_STRING_SEND_AT = 0x000000B3;
     /* OEM hook to get the thermal alarm indication */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_THERMAL_ALARM_IND = 0x000000D0;
     /* OEM hook specific to DSDS for catching out of service URC */
