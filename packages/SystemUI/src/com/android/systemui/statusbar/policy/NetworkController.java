@@ -1072,7 +1072,9 @@ public class NetworkController extends BroadcastReceiver {
                 combinedSignalIconId = mDataSignalIconId; // set by updateDataIcon()
                 mContentDescriptionCombinedSignal = mContentDescriptionDataType;
             } else {
-                mMobileActivityIconId = 0;
+                mMobileActivityIconId = (IccCardConstants.State.ABSENT == mSimState) ?
+                        R.drawable.stat_sys_no_sim : 0;
+                combinedActivityIconId = mMobileActivityIconId;
             }
         }
 
