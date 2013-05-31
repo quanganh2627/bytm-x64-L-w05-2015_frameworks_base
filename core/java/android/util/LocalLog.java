@@ -19,39 +19,78 @@ package android.util;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.Calendar;
 
 /**
  * @hide
  */
 public final class LocalLog {
 
-    private LinkedList<String> mLog;
-    private int mMaxLines;
-    private final static Date sDate = new Date();
-    private final static SimpleDateFormat sFormatter =
-            new SimpleDateFormat("HH:mm:ss.SSS");
+    private final String[] mLog;
+    private final String[] mLogCopy;
+    private final long[] mTimestamp;
+    private final long[] mTimestampCopy;
+    private final int mMaxLines;
+    private int mHead;
+    private int mTail;
+    private int mSize;
+    private final Calendar mCalendar;
+    private final StringBuilder mBuilder;
 
     public LocalLog(int maxLines) {
-        mLog = new LinkedList<String>();
         mMaxLines = maxLines;
+        mLog = new String[maxLines];
+        mLogCopy = new String[maxLines];
+        mTimestamp = new long[maxLines];
+        mTimestampCopy = new long[maxLines];
+        mHead = mTail = mSize = 0;
+        mCalendar = Calendar.getInstance();
+        mBuilder = new StringBuilder();
     }
 
-    public synchronized void log(String msg) {
-        if (mMaxLines > 0) {
-            sDate.setTime(System.currentTimeMillis());
-            mLog.add(sFormatter.format(sDate) + " - " + msg);
-            while (mLog.size() > mMaxLines) mLog.remove();
+    public void log(String msg) {
+        final long t = System.currentTimeMillis();
+        synchronized (this) {
+            if (mMaxLines > 0) {
+                mLog[mTail] = msg;
+                mTimestamp[mTail] = t;
+                if (mSize == mMaxLines) {
+                    mHead = (mHead + 1) % mMaxLines;
+                    mTail = mHead;
+                } else {
+                    mSize++;
+                    mTail = (mTail + 1) % mMaxLines;
+                }
+            }
         }
     }
 
-    public synchronized void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        Iterator<String> itr = mLog.listIterator(0);
-        while (itr.hasNext()) {
-            pw.println(itr.next());
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        synchronized (mLogCopy) {
+            final int size, head, tail;
+            synchronized (this) {
+                size = mSize;
+                head = mHead;
+                tail = mTail;
+                System.arraycopy(mLog, 0, mLogCopy, 0, mMaxLines);
+                System.arraycopy(mTimestamp, 0, mTimestampCopy, 0, mMaxLines);
+            }
+
+            for (int i = 0; i < size; i++) {
+                final int pos = (head + i) % mMaxLines;
+                mBuilder.setLength(0);
+                mCalendar.setTimeInMillis(mTimestamp[pos]);
+                mBuilder.append(mCalendar.get(Calendar.HOUR))
+                        .append(":")
+                        .append(mCalendar.get(Calendar.MINUTE))
+                        .append(":")
+                        .append(mCalendar.get(Calendar.SECOND))
+                        .append(":")
+                        .append(mCalendar.get(Calendar.MILLISECOND))
+                        .append(" - ")
+                        .append(mLogCopy[pos]);
+                pw.println(mBuilder.toString());
+            }
         }
     }
 }

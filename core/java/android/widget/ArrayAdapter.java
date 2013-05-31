@@ -390,7 +390,7 @@ public class ArrayAdapter<T> extends BaseAdapter implements Filterable {
         T item = getItem(position);
         if (item instanceof CharSequence) {
             text.setText((CharSequence)item);
-        } else {
+        } else if (item != null) {
             text.setText(item.toString());
         }
 

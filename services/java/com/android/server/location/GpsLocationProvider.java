@@ -719,7 +719,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
         Intent msg = new Intent();
         Log.d(TAG, "Sending Crashtool Broadcast " + type);
         msg.setAction("intel.intent.action.phonedoctor.REPORT_INFO");
-        msg.putExtra("intel.intent.extra.phonedoctor.TYPE", "CWS_GPS: "+ type);
+        msg.putExtra("intel.intent.extra.phonedoctor.TYPE", "CWS.GPS."+ type);
         mContext.sendBroadcast(msg);
         return;
     }
@@ -728,7 +728,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
         Intent msg = new Intent();
         Log.d(TAG, "Sending Crashtool Broadcast " + type);
         msg.setAction("intel.intent.action.phonedoctor.REPORT_INFO");
-        msg.putExtra("intel.intent.extra.phonedoctor.TYPE", "CWS_GPS: "+ type);
+        msg.putExtra("intel.intent.extra.phonedoctor.TYPE", "CWS.GPS."+ type);
         msg.putExtra("intel.intent.extra.phonedoctor.DATA0", data0);
         mContext.sendBroadcast(msg);
         return;

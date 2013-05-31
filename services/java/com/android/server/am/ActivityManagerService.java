@@ -163,6 +163,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import   java.text.SimpleDateFormat;
 
+// ASF imports
+import com.intel.security.AsfAosp;
+
 public final class ActivityManagerService extends ActivityManagerNative
         implements Watchdog.Monitor, BatteryStatsImpl.BatteryCallback {
     private static final String USER_DATA_DIR = "/data/user/";
@@ -2136,6 +2139,11 @@ public final class ActivityManagerService extends ActivityManagerNative
                 debugFlags |= Zygote.DEBUG_ENABLE_ASSERT;
             }
 
+            // ASF HOOK: application start event
+            if (! AsfAosp.sendAppStartEvent(app.info, app.userId)) {
+                throw new SecurityException("process start is disallowed by policy.");
+            }
+
             // Start the process.  It will either succeed and return a result containing
             // the PID of the new process, or else throw a RuntimeException.
             Process.ProcessStartResult startResult = Process.start("android.app.ActivityThread",
@@ -2952,6 +2960,9 @@ public final class ActivityManagerService extends ActivityManagerNative
             finishInstrumentationLocked(app, Activity.RESULT_CANCELED, info);
         }
 
+        // ASF HOOK: application stop event
+        AsfAosp.sendAppStopEvent(app.info, app.userId);
+
         if (!restarting) {
             if (!mMainStack.resumeTopActivityLocked(null)) {
                 // If there was nothing to resume, and we are not already
@@ -3350,9 +3361,20 @@ public final class ActivityManagerService extends ActivityManagerNative
 
         info.append(processStats.printCurrentState(anrTime));
 
-        String buildtype = SystemProperties.get("ro.build.type", null);
+        Slog.e(TAG, info.toString());
+
+        if (!IS_USER_BUILD && app.thread != null) {
+            try {
+                // This is a one-way binder call, meaning that the caller returns immediately,
+                // without waiting for a result from the callee.
+                app.thread.dumpANRInfo();
+            } catch (RemoteException e) {
+                Slog.e(ActivityManagerService.TAG, "Exception in dumpANRInfo", e);
+            }
+        }
+
         String stackname = null;
-        if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
+        if (!IS_USER_BUILD) {
             final String dropboxTag = processClass(app) + "_anr";
             final DropBoxManager dbox = (DropBoxManager)
                     mContext.getSystemService(Context.DROPBOX_SERVICE);
@@ -3365,18 +3387,6 @@ public final class ActivityManagerService extends ActivityManagerNative
                 da.logToFile(stackname);
            }
         }
-
-        Slog.e(TAG, info.toString());
-
-        if (!IS_USER_BUILD && app.thread != null) {
-            try {
-                app.thread.dumpANRInfo();
-            } catch (RemoteException e) {
-                Slog.e(ActivityManagerService.TAG, "Exception in dumpANRInfo", e);
-            }
-        }
-
-        // Please add DebugAnr after dumpANRInfo
 
         if (tracesFile == null) {
             // There is no trace file, so dump (only) the alleged culprit's threads to the log

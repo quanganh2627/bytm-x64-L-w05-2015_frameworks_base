@@ -299,6 +299,10 @@ public class MessageQueue {
             throw new AndroidRuntimeException("Message must have a target.");
         }
 
+        Looper myLooper = msg.target.mLooper;
+        if (myLooper != null && myLooper.mLocalLog != null) {
+            msg.fingerPrint = msg.toString();
+        }
         boolean needWake;
         synchronized (this) {
             if (mQuiting) {

@@ -24,6 +24,7 @@ import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.telephony.TelephonyManager;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -136,11 +137,18 @@ public class KeyguardSimPinView extends KeyguardAbsKeyInputView
         @Override
         public void run() {
             try {
-                final boolean result = ITelephony.Stub.asInterface(ServiceManager
+                boolean result = ITelephony.Stub.asInterface(ServiceManager
                         .checkService("phone")).supplyPin(mPin);
+                TelephonyManager tm = (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
+                final int state = tm.getSimState();
+                if (state == TelephonyManager.SIM_STATE_ABSENT ||
+                        state == TelephonyManager.SIM_STATE_UNKNOWN) {
+                    result = true;
+                }
+                final boolean success = result;
                 post(new Runnable() {
                     public void run() {
-                        onSimCheckResponse(result);
+                        onSimCheckResponse(success);
                     }
                 });
             } catch (RemoteException e) {

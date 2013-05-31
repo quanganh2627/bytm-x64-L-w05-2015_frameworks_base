@@ -188,6 +188,9 @@ public class MtpDatabase {
 
         thread.start();
         mHandler = new MtpDatabaseHandler(thread.getLooper());
+
+        if (mHandler != null)
+            mHandler.updateMtpState(MTP_SERVER_IDLE);
     }
 
 
@@ -211,6 +214,7 @@ public class MtpDatabase {
             switch(msg.what) {
                 case MSG_UPDATE_STATE:
                     mMtpBusy = (msg.arg1 == MTP_SERVER_BUSY );
+                    Log.d(TAG, "send update message with " + mMtpBusy);
                     sendObjectIntent(mMtpBusy);
                     break;
                 default:

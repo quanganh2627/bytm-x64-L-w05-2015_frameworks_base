@@ -16,6 +16,11 @@
 
 package android.thermal;
 
+import android.thermal.ThermalManager;
+import android.thermal.SysfsManager;
+import java.io.File;
+import android.util.Log;
+
 /**
  * The BatteryChargeCurrentControl class contains strings and constants used for values
  * in the {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED} Intent.
@@ -25,17 +30,38 @@ public class BatteryChargeCurrentControl {
     private static final String TAG = "Thermal:BatteryChargeCurrentControl";
     private static String mThrottlePath;
 
+    private static void setThrottlePath() {
+        int count = 0;
+        while (new File (ThermalManager.mCoolingDeviceBasePath + count + ThermalManager.mCoolingDeviceType).exists()) {
+           String name = SysfsManager.readSysfs(ThermalManager.mCoolingDeviceBasePath + count + ThermalManager.mCoolingDeviceType);
+           if (name != null && name.contains("_charger")) {
+              mThrottlePath = (ThermalManager.mCoolingDeviceBasePath + count + ThermalManager.mCoolingDeviceState);
+              break;
+           }
+           count++;
+        }
+    }
+
     public static void throttleDevice(int tstate) {
         /*
          * Charging rate can be controlled in four levels 0 to 3, with
          * 0 being highest rate of charging and 3 being the lowest.
          */
-        SysfsManager.writeSysfs(mThrottlePath, tstate);
-        android.util.Log.d(TAG, "New throttled charge rate: " + tstate);
+        if (mThrottlePath != null) {
+          SysfsManager.writeSysfs(mThrottlePath, tstate);
+          Log.d(TAG, "New throttled charge rate: " + tstate);
+        }
     }
 
     public static void init(String path) {
-       mThrottlePath = path;
+         if (path != null) {
+            if (path.equalsIgnoreCase("auto")) {
+               setThrottlePath();
+            } else {
+               mThrottlePath = path;
+            }
+         } else {
+         Log.i(TAG, "Throttle path is null");
+         }
     }
 }
-

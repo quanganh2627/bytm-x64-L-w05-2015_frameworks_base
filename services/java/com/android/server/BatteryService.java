@@ -40,6 +40,7 @@ import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.EventLog;
 import android.util.Slog;
+import android.os.SystemProperties;
 
 import com.android.internal.telephony.TelephonyIntents;
 
@@ -321,7 +322,9 @@ public final class BatteryService extends Binder {
 
     public void writeStats() {
        try {
-           if (mBatteryHealth == BatteryManager.BATTERY_HEALTH_DEAD) {
+           // Do not write stats to the file in USER builds... for userdebug and eng build, continue writing to the file.
+           String buildtype = SystemProperties.get("ro.build.type", null);
+           if ((mBatteryHealth == BatteryManager.BATTERY_HEALTH_DEAD) && ((buildtype != null) && (buildtype.equals("userdebug") || buildtype.equals("eng")))) {
               PrintWriter pw = new PrintWriter(new FileWriter("/logs/stats/lowbatt_trigger"));
               pw.println("Status:" + mBatteryStatus);
               pw.println("Prev capacity:" + mLastBatteryLevel);

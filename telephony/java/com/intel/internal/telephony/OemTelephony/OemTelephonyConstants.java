@@ -128,6 +128,8 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_RAW_UNSOL_DATA_STATUS_IND = 0x000000D3;
     /* OEM hook specific to indicate MT class */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_MT_CLASS_IND = 0x000000D4;
+    /* OEM hook specific to report events to crashtool */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_CRASHTOOL_EVENT_IND = 0x000000D5;
     /* OEM hook specific to indicate IMS registration status */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_IMS_REG_STATUS = 0x000000D6;
     /* OEM hook specific to indicate network IMS support status */

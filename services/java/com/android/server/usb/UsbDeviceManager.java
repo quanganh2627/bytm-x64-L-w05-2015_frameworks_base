@@ -405,7 +405,12 @@ public class UsbDeviceManager {
                 mUEventObserver.startObserving(USB_STATE_MATCH);
                 mUEventObserver.startObserving(ACCESSORY_START_MATCH);
                 mUEventObserver.startObserving(USB_SUBSYSTEM_MATCH);
-                mUEventObserver.startObserving(USB_OTG_CTRL_MATCH);
+
+                // Do not observe it in USER builds. Only do it in userdebug/eng builds
+                String buildtype = SystemProperties.get("ro.build.type", null);
+                if ((buildtype != null) && (buildtype.equals("userdebug") || buildtype.equals("eng"))) {
+                    mUEventObserver.startObserving(USB_OTG_CTRL_MATCH);
+                }
 
                 mContext.registerReceiver(
                         mBootCompletedReceiver, new IntentFilter(Intent.ACTION_BOOT_COMPLETED));
