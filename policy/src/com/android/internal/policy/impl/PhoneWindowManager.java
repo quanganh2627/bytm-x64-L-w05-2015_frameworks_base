@@ -330,6 +330,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     // The last window we were told about in focusChanged.
     WindowState mFocusedWindow;
     IApplicationToken mFocusedApp;
+    static public final int MODE_IN_COMMUNICATION   = 3;
 
     private static final class PointerLocationInputEventReceiver extends InputEventReceiver {
         private final PointerLocationView mView;
@@ -3333,6 +3334,18 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     /**
+     * @return Whether sip  is being used right now.
+    */
+    int GetMode() {
+        final AudioManager am = (AudioManager)mContext.getSystemService(Context.AUDIO_SERVICE);
+        if (am == null) {
+            Log.w(TAG, "GetMode: couldn't get AudioManager reference");
+            return -1;
+        }
+        return am.getMode();
+    }
+
+    /**
      * Tell the audio service to adjust the volume appropriate to the event.
      * @param keycode
      */
@@ -3568,6 +3581,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         // application, handle the volume change here.
                         handleVolumeKey(AudioManager.STREAM_MUSIC, keyCode);
                         break;
+                    }
+                    if (GetMode() == MODE_IN_COMMUNICATION && !isScreenOn) {
+                        // If voip is in calling,and screen is off but we decided not to pass the key to the
+                        // application, handle the volume change here.
+                        Log.w(TAG, "Key input catched in mode in communication");
+                        handleVolumeKey(AudioManager.STREAM_VOICE_CALL, keyCode);
                     }
                 }
                 break;
