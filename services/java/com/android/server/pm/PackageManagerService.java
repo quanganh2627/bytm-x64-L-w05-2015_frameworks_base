@@ -158,6 +158,9 @@ import libcore.io.Libcore;
 import libcore.io.OsConstants;
 import libcore.io.StructStat;
 
+// ASF
+import com.intel.security.AsfAosp;
+
 /**
  * Keep track of all those .apks everywhere.
  * 
@@ -4109,7 +4112,24 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
 
         final String pkgName = pkg.packageName;
-        
+
+        // ASF HOOK: package installation event
+        if (AsfAosp.ENABLE) {
+            if ((scanMode & SCAN_NEW_INSTALL) != 0) {
+                if (! AsfAosp.sendPackageInstallEvent(
+                        pkg,
+                        generatePackageInfo(
+                                pkg,
+                                AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
+                                (user != null) ? UserHandle.getUserId(user.getIdentifier()) : 0
+                        ),
+                        (scanMode & SCAN_UPDATE_TIME)!=0)
+                ) {
+                    return null;
+                }
+            }
+        }
+
         final long scanFileTime = scanFile.lastModified();
         final boolean forceDex = (scanMode&SCAN_FORCE_DEX) != 0;
         pkg.applicationInfo.processName = fixProcessName(
@@ -8573,6 +8593,21 @@ public class PackageManagerService extends IPackageManager.Stub {
         boolean dataOnly = false;
         int removeUser = -1;
         int appId = -1;
+
+        // ASF HOOK: package deletion event
+        if (AsfAosp.ENABLE) {
+            if (! AsfAosp.sendPackageDeleteEvent(
+                    packageName,
+                    getPackageInfo(
+                            packageName,
+                            AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
+                            (user != null) ? UserHandle.getUserId(user.getIdentifier()) : 0
+                    )
+            )) {
+                return false;
+            }
+        }
+
         synchronized (mPackages) {
             ps = mSettings.mPackages.get(packageName);
             if (ps == null) {

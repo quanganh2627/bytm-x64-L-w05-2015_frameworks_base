@@ -496,15 +496,6 @@ public class NetworkController extends BroadcastReceiver {
         } else {
             mSimState = IccCardConstants.State.UNKNOWN;
         }
-
-        if (mSimState == IccCardConstants.State.ABSENT) {
-            mPhoneSignalIconId = R.drawable.stat_sys_no_sim;
-            mDataSignalIconId = R.drawable.stat_sys_no_sim;
-        } else if (!hasService()) {
-            mPhoneSignalIconId = R.drawable.stat_sys_signal_null;
-            mQSPhoneSignalIconId = R.drawable.ic_qs_signal_no_signal;
-            mDataSignalIconId = R.drawable.stat_sys_signal_null;
-        }
     }
 
     private boolean isCdma() {
@@ -533,15 +524,9 @@ public class NetworkController extends BroadcastReceiver {
     private final void updateTelephonySignalStrength() {
         if (!hasService()) {
             if (CHATTY) Slog.d(TAG, "updateTelephonySignalStrength: !hasService()");
-
-            if (mSimState == IccCardConstants.State.ABSENT) {
-                mPhoneSignalIconId = R.drawable.stat_sys_no_sim;
-                mDataSignalIconId = R.drawable.stat_sys_no_sim;
-            } else {
-                mPhoneSignalIconId = R.drawable.stat_sys_signal_null;
-                mQSPhoneSignalIconId = R.drawable.ic_qs_signal_no_signal;
-                mDataSignalIconId = R.drawable.stat_sys_signal_null;
-            }
+            mPhoneSignalIconId = R.drawable.stat_sys_signal_null;
+            mQSPhoneSignalIconId = R.drawable.ic_qs_signal_no_signal;
+            mDataSignalIconId = R.drawable.stat_sys_signal_null;
         } else {
             if (mSignalStrength == null) {
                 if (CHATTY) Slog.d(TAG, "updateTelephonySignalStrength: mSignalStrength == null");
@@ -594,6 +579,8 @@ public class NetworkController extends BroadcastReceiver {
             mQSDataTypeIconId = R.drawable.ic_qs_signal_4g;
             mContentDescriptionDataType = mContext.getString(
                     R.string.accessibility_data_connection_4g);
+        } else if (!hasService() || mDataState != TelephonyManager.DATA_CONNECTED) {
+            mDataTypeIconId = 0;
         } else {
             switch (mDataNetType) {
                 case TelephonyManager.NETWORK_TYPE_UNKNOWN:
@@ -1072,7 +1059,9 @@ public class NetworkController extends BroadcastReceiver {
                 combinedSignalIconId = mDataSignalIconId; // set by updateDataIcon()
                 mContentDescriptionCombinedSignal = mContentDescriptionDataType;
             } else {
-                mMobileActivityIconId = 0;
+                mMobileActivityIconId = (IccCardConstants.State.ABSENT == mSimState) ?
+                        R.drawable.stat_sys_no_sim : 0;
+                combinedActivityIconId = mMobileActivityIconId;
             }
         }
 

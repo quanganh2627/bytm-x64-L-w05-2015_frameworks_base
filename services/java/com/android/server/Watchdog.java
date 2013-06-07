@@ -96,6 +96,7 @@ public class Watchdog extends Thread {
     Monitor mCurrentMonitor;
     long mTimings[][];
     int mCurrentTiming = 0;
+    long lastStart = 0;
 
     int mPhonePid;
 
@@ -137,13 +138,13 @@ public class Watchdog extends Thread {
                     }
 
                     final int size = mMonitors.size();
-                    long start, stop = SystemClock.uptimeMillis();
+                    long stop = SystemClock.uptimeMillis();
                     for (int i = 0 ; i < size ; i++) {
                         mCurrentMonitor = mMonitors.get(i);
-                        start = stop;
+                        lastStart = stop;
                         mCurrentMonitor.monitor();
                         stop = SystemClock.uptimeMillis();
-                        mTimings[i][mCurrentTiming] = (stop - start);
+                        mTimings[i][mCurrentTiming] = (stop - lastStart);
                     }
                     mCurrentTiming++;
                     if (mCurrentTiming >= NB_TIMINGS) mCurrentTiming = 0;
@@ -432,6 +433,7 @@ public class Watchdog extends Thread {
                 }
             }
 
+            final long lastMonitoringDuration = SystemClock.uptimeMillis() - lastStart;
             final String name = (mCurrentMonitor != null) ?
                     mCurrentMonitor.getClass().getName() : "null";
             EventLog.writeEvent(EventLogTags.WATCHDOG, name);
@@ -439,6 +441,7 @@ public class Watchdog extends Thread {
             // Prints out the timings of the last NB_TIMINGS checks so that
             // it can help understanding which component took too much time
             // but finally returned
+            Log.i(TAG, name + " monitoring not terminated after " + lastMonitoringDuration + "ms");
             for (int i = 0 ; i < mMonitors.size() ; i++) {
                 Monitor monitor = mMonitors.get(i);
                 String sMonitor = "Unkown monitor: ";
@@ -507,6 +510,10 @@ public class Watchdog extends Thread {
             try {
                 dropboxThread.join(2000);  // wait up to 2 seconds for it to return.
             } catch (InterruptedException ignored) {}
+
+            if (!name.equals("null") && mCurrentMonitor == null) {
+                Log.i(TAG, "Monitor " + name + "terminated during the debugging information collection");
+            }
 
             // Only kill the process if the debugger is not attached.
             if (!Debug.isDebuggerConnected()) {
