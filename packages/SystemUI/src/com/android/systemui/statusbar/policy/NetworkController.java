@@ -496,6 +496,15 @@ public class NetworkController extends BroadcastReceiver {
         } else {
             mSimState = IccCardConstants.State.UNKNOWN;
         }
+
+        if (mSimState == IccCardConstants.State.ABSENT) {
+            mPhoneSignalIconId = R.drawable.stat_sys_no_sim;
+            mDataSignalIconId = R.drawable.stat_sys_no_sim;
+        } else if (!hasService()) {
+            mPhoneSignalIconId = R.drawable.stat_sys_signal_null;
+            mQSPhoneSignalIconId = R.drawable.ic_qs_signal_no_signal;
+            mDataSignalIconId = R.drawable.stat_sys_signal_null;
+        }
     }
 
     private boolean isCdma() {
@@ -524,9 +533,15 @@ public class NetworkController extends BroadcastReceiver {
     private final void updateTelephonySignalStrength() {
         if (!hasService()) {
             if (CHATTY) Slog.d(TAG, "updateTelephonySignalStrength: !hasService()");
-            mPhoneSignalIconId = R.drawable.stat_sys_signal_null;
-            mQSPhoneSignalIconId = R.drawable.ic_qs_signal_no_signal;
-            mDataSignalIconId = R.drawable.stat_sys_signal_null;
+
+            if (mSimState == IccCardConstants.State.ABSENT) {
+                mPhoneSignalIconId = R.drawable.stat_sys_no_sim;
+                mDataSignalIconId = R.drawable.stat_sys_no_sim;
+            } else {
+                mPhoneSignalIconId = R.drawable.stat_sys_signal_null;
+                mQSPhoneSignalIconId = R.drawable.ic_qs_signal_no_signal;
+                mDataSignalIconId = R.drawable.stat_sys_signal_null;
+            }
         } else {
             if (mSignalStrength == null) {
                 if (CHATTY) Slog.d(TAG, "updateTelephonySignalStrength: mSignalStrength == null");
@@ -1057,9 +1072,7 @@ public class NetworkController extends BroadcastReceiver {
                 combinedSignalIconId = mDataSignalIconId; // set by updateDataIcon()
                 mContentDescriptionCombinedSignal = mContentDescriptionDataType;
             } else {
-                mMobileActivityIconId = (IccCardConstants.State.ABSENT == mSimState) ?
-                        R.drawable.stat_sys_no_sim : 0;
-                combinedActivityIconId = mMobileActivityIconId;
+                mMobileActivityIconId = 0;
             }
         }
 
