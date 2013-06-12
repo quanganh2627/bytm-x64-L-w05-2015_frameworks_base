@@ -20771,6 +20771,10 @@ package android.telephony {
     field public static final android.os.Parcelable.Creator CREATOR;
     field public static final int UNKNOWN_CID = -1; // 0xffffffff
     field public static final int UNKNOWN_RSSI = 99; // 0x63
+    field public static final int CELL_INFO_TYPE_GSM = 1; // 0x01
+    field public static final int CELL_INFO_TYPE_CDMA = 2; // 0x02
+    field public static final int CELL_INFO_TYPE_LTE = 3; // 0x03
+    field public static final int CELL_INFO_TYPE_WCDMA = 4; // 0x04
   }
 
   public class PhoneNumberFormattingTextWatcher implements android.text.TextWatcher {
