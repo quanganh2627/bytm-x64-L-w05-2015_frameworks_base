@@ -22,6 +22,7 @@ package com.android.server.display;
 
 import com.android.internal.util.DumpUtils;
 
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -34,6 +35,8 @@ import android.media.AudioManager;
 import android.media.RemoteDisplay;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiManager;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pDevice;
@@ -62,6 +65,7 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.List;
 
 import libcore.util.Objects;
 
@@ -101,6 +105,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private final Handler mHandler;
     private final Listener mListener;
 
+    private final WifiManager mWifiManager;
     private final WifiP2pManager mWifiP2pManager;
     private final Channel mWifiP2pChannel;
 
@@ -174,6 +179,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
         mHandler = handler;
         mListener = listener;
 
+        mWifiManager = (WifiManager)context.getSystemService(Context.WIFI_SERVICE);
         mWifiP2pManager = (WifiP2pManager)context.getSystemService(Context.WIFI_P2P_SERVICE);
         mWifiP2pChannel = mWifiP2pManager.initialize(context, handler.getLooper(), null);
 
@@ -183,6 +189,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
+        intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         context.registerReceiver(mWifiP2pReceiver, intentFilter, null, mHandler);
 
         ContentObserver settingsObserver = new ContentObserver(mHandler) {
@@ -1000,6 +1007,32 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 }
 
                 handleConnectionChanged(networkInfo);
+            } else if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
+                NetworkInfo networkInfo = (NetworkInfo)intent.getParcelableExtra(
+                        WifiManager.EXTRA_NETWORK_INFO);
+                if (networkInfo.isConnected() && mRemoteDisplayConnected) {
+                    final List<ScanResult> results = mWifiManager.getScanResults();
+                    if (results != null && results.size() > 0) {
+                        for (ScanResult result : results) {
+                            if (result.BSSID != null && result.BSSID.length() > 0 &&
+                                result.BSSID.equals(mWifiManager.getConnectionInfo().getBSSID()) &&
+                                mConnectedDeviceGroupInfo != null) {
+                                if (result.frequency != mConnectedDeviceGroupInfo.getFrequency()) {
+                                    try {
+                                        Intent intentWifiDisplay = new Intent(Settings.ACTION_WIFI_DISPLAY_SETTINGS);
+                                        intentWifiDisplay.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                                                | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+                                                | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                                        intentWifiDisplay.putExtra(WifiP2pManager.EXTRA_RECONNECT_WIFI_DISPLAY, true);
+                                        mContext.startActivity(intentWifiDisplay);
+                                    } catch (ActivityNotFoundException e) {
+                                        Slog.e(TAG, "Cannot open Wifi Display Settings");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     };
