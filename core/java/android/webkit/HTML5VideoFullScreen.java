@@ -91,6 +91,7 @@ public class HTML5VideoFullScreen extends HTML5VideoView
     private int mVideoWidth;
     private int mVideoHeight;
     private boolean mPlayingWhenDestroyed = false;
+    private int mLastSystemUiVis = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION;
     SurfaceHolder.Callback mSHCallback = new SurfaceHolder.Callback()
     {
         @Override
@@ -102,8 +103,8 @@ public class HTML5VideoFullScreen extends HTML5VideoView
                 if (mMediaController.isShowing()) {
                     // ensure the controller will get repositioned later
                     mMediaController.hide();
+                    mMediaController.show();
                 }
-                mMediaController.show();
             }
         }
 
@@ -198,6 +199,20 @@ public class HTML5VideoFullScreen extends HTML5VideoView
 
         mVideoSurfaceView.setOnTouchListener(this);
         mVideoSurfaceView.setOnKeyListener(this);
+
+        mVideoSurfaceView.setOnSystemUiVisibilityChangeListener(
+                new View.OnSystemUiVisibilityChangeListener() {
+            @Override
+            public void onSystemUiVisibilityChange(int visibility) {
+                int diff = mLastSystemUiVis ^ visibility;
+                mLastSystemUiVis = visibility;
+                if ((diff & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) != 0
+                        && (visibility & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0) {
+                    mMediaController.show();
+                }
+            }
+        });
+
         // Get the capabilities of the player for this stream
         Metadata data = mp.getMetadata(MediaPlayer.METADATA_ALL,
                 MediaPlayer.BYPASS_METADATA_FILTER);
@@ -435,11 +450,12 @@ public class HTML5VideoFullScreen extends HTML5VideoView
 
         @Override
         public void hide() {
+            super.hide();
+            int flag = View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
             if (mVideoView != null) {
-                mVideoView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LOW_PROFILE
+                mVideoView.setSystemUiVisibility(flag | View.SYSTEM_UI_FLAG_LOW_PROFILE
                         | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION);
             }
-            super.hide();
         }
 
     }
