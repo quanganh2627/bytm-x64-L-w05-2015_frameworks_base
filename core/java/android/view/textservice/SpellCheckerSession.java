@@ -215,11 +215,15 @@ public class SpellCheckerSession {
     }
 
     private void handleOnGetSuggestionsMultiple(SuggestionsInfo[] suggestionInfos) {
-        mSpellCheckerSessionListener.onGetSuggestions(suggestionInfos);
+        if (mIsUsed) {
+            mSpellCheckerSessionListener.onGetSuggestions(suggestionInfos);
+        }
     }
 
     private void handleOnGetSentenceSuggestionsMultiple(SentenceSuggestionsInfo[] suggestionInfos) {
-        mSpellCheckerSessionListener.onGetSentenceSuggestions(suggestionInfos);
+        if (mIsUsed) {
+            mSpellCheckerSessionListener.onGetSentenceSuggestions(suggestionInfos);
+        }
     }
 
     private static class SpellCheckerSessionListenerImpl extends ISpellCheckerSessionListener.Stub {
