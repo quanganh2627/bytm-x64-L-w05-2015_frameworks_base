@@ -32,6 +32,7 @@ import javax.microedition.khronos.opengles.GL10;
 import android.content.Context;
 import android.content.pm.ConfigurationInfo;
 import android.os.SystemProperties;
+import android.os.Process;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.SurfaceHolder;
@@ -1284,6 +1285,7 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
                 int w = 0;
                 int h = 0;
                 Runnable event = null;
+                boolean hasAffinity = false;
 
                 while (true) {
                     synchronized (sGLThreadManager) {
@@ -1513,10 +1515,20 @@ public class GLSurfaceView extends SurfaceView implements SurfaceHolder.Callback
                     {
                         GLSurfaceView view = mGLSurfaceViewWeakRef.get();
                         if (view != null) {
+                            // Set cpu affinity for the GLThread for
+                            // the execution of onDrawFrame and eglSwapBuffer.
+                            // In case of core task switch there may be  a freq
+                            // penalty that leads to UI jerk
+                            hasAffinity = Process.startCpuAffinity();
                             view.mRenderer.onDrawFrame(gl);
                         }
                     }
                     int swapError = mEglHelper.swap();
+                    // end cpu affinity
+                    if (hasAffinity) {
+                        Process.endCpuAffinity();
+                        hasAffinity = false;
+                    }
                     switch (swapError) {
                         case EGL10.EGL_SUCCESS:
                             break;

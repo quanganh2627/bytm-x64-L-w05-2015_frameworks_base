@@ -362,6 +362,9 @@
     <!-- Content description of the TeleTypewriter(TTY) enabled icon in the notification panel for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
     <string name="accessibility_tty_enabled">TeleTypewriter enabled.</string>
 
+    <!-- Content description of the IMS icon in the notification panel for IMS registration status (not shown on the screen). [CHAR LIMIT=NONE] -->
+    <string name="accessibility_ims_enabled">IMS enabled</string>
+
     <!-- Content description of the ringer vibrate icon in the notification panel for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
     <string name="accessibility_ringer_vibrate">Ringer vibrate.</string>
 

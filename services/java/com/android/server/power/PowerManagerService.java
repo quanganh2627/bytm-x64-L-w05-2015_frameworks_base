@@ -884,8 +884,11 @@ public final class PowerManagerService extends IPowerManager.Stub
     private void userActivityInternal(long eventTime, int event, int flags, int uid) {
         synchronized (mLock) {
             if (userActivityNoUpdateLocked(eventTime, event, flags, uid)) {
-                mDisplayPowerController.requestButtonLedState(true);
                 updatePowerStateLocked();
+                int newScreenState = getDesiredScreenPowerStateLocked();
+                if (newScreenState == DisplayPowerRequest.SCREEN_STATE_DIM
+                    || newScreenState == DisplayPowerRequest.SCREEN_STATE_BRIGHT)
+                    mDisplayPowerController.requestButtonLedState(true);
             }
         }
     }
@@ -946,7 +949,10 @@ public final class PowerManagerService extends IPowerManager.Stub
         synchronized (mLock) {
             if (wakeUpNoUpdateLocked(eventTime)) {
                 updatePowerStateLocked();
-                mDisplayPowerController.requestButtonLedState(true);
+                int newScreenState = getDesiredScreenPowerStateLocked();
+                if (newScreenState == DisplayPowerRequest.SCREEN_STATE_DIM
+                    || newScreenState == DisplayPowerRequest.SCREEN_STATE_BRIGHT)
+                    mDisplayPowerController.requestButtonLedState(true);
             }
         }
     }
@@ -1008,9 +1014,11 @@ public final class PowerManagerService extends IPowerManager.Stub
 
     private void goToSleepInternal(long eventTime, int reason) {
         synchronized (mLock) {
-            if (goToSleepNoUpdateLocked(eventTime, reason)) {
+            if (mProximityPositive == false && goToSleepNoUpdateLocked(eventTime, reason)) {
                 updatePowerStateLocked();
-                mDisplayPowerController.requestButtonLedState(false);
+                int newScreenState = getDesiredScreenPowerStateLocked();
+                if (newScreenState == DisplayPowerRequest.SCREEN_STATE_OFF)
+                    mDisplayPowerController.requestButtonLedState(false);
             }
         }
     }

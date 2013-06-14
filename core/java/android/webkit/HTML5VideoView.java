@@ -184,6 +184,12 @@ public class HTML5VideoView implements MediaPlayer.OnPreparedListener {
     }
 
     public int getLastSaveTime () {
+        if (mLastSaveTime == 0) {
+            // using seek time instead of save time before save time be updated
+            // FIXME: If now playback time is 0 while mLastSaveTime is just updated to 0
+            // this fix has problem
+            return mSaveSeekTime;
+        }
         return mLastSaveTime;
     }
 

@@ -666,11 +666,9 @@ final class DisplayPowerController {
                     mScreenOffBecauseOfProximity = true;
                     sendOnProximityPositive();
                     setScreenOn(false);
+                    requestButtonLedState(false);
                 }
-            } else if (mWaitingForNegativeProximity
-                    && mScreenOffBecauseOfProximity
-                    && mProximity == PROXIMITY_POSITIVE
-                    && mPowerRequest.screenState != DisplayPowerRequest.SCREEN_STATE_OFF) {
+            } else if (mProximity == PROXIMITY_POSITIVE) {
                 setProximitySensorEnabled(true);
             } else {
                 setProximitySensorEnabled(false);
@@ -739,6 +737,7 @@ final class DisplayPowerController {
                     // be visible if the electron beam has not been dismissed because
                     // its last frame of animation is solid black.
                     setScreenOn(true);
+                    requestButtonLedState(true);
 
                     if (mPowerRequest.blockScreenOn
                             && mPowerState.getElectronBeamLevel() == 0.0f) {

@@ -2055,7 +2055,9 @@ public class PhoneStatusBar extends BaseStatusBar {
             mGestureRec.dump(fd, pw, args);
         }
 
-        mNetworkController.dump(fd, pw, args);
+        if(mNetworkController != null){
+            mNetworkController.dump(fd, pw, args);
+        }
     }
 
     @Override
