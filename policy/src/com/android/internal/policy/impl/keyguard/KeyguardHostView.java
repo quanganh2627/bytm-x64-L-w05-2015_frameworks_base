@@ -839,10 +839,8 @@ public class KeyguardHostView extends KeyguardViewBase {
             oldView.setKeyguardCallback(mNullCallback); // ignore requests from old view
         }
 
-        if (newView.getVisibility() != View.VISIBLE) {
-            newView.onResume(KeyguardSecurityView.VIEW_REVEALED);
-            newView.setKeyguardCallback(mCallback);
-        }
+        newView.onResume(KeyguardSecurityView.VIEW_REVEALED);
+        newView.setKeyguardCallback(mCallback);
 
         final boolean needsInput = newView.needsInput();
         if (mViewMediatorCallback != null) {
