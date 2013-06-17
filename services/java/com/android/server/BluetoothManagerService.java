@@ -491,9 +491,9 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
             if (!sIsBound) {
                 sIsBound = mContext.bindService(new Intent(IMmgrService.class.getName()), mCwsMMGRConnection, Context.BIND_AUTO_CREATE);
                 if (sIsBound) {
-                    Log.e(TAG, "Bound to service : " + IMmgrService.class.getName());
+                    Log.i(TAG, "Bound to service : " + IMmgrService.class.getName());
                 } else {
-                    Log.d(TAG, "Failure to bind to service : " + IMmgrService.class.getName());
+                    Log.e(TAG, "Failure to bind to service : " + IMmgrService.class.getName());
                 }
             }
         }
@@ -529,7 +529,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         if (sIsBound) {
             mContext.unbindService(mCwsMMGRConnection);
             sIsBound = false;
-            Log.e(TAG, "Unbound from service : " + IMmgrService.class.getName());
+            Log.i(TAG, "Unbound from service : " + IMmgrService.class.getName());
         }
         return true;
     }
