@@ -1082,7 +1082,9 @@ public class LocationManagerService extends ILocationManager.Stub implements Run
         Receiver receiver = mReceivers.get(binder);
         if (receiver == null) {
             receiver = new Receiver(listener, null, pid, uid, packageName);
-            mReceivers.put(binder, receiver);
+            synchronized (mLock) {
+                mReceivers.put(binder, receiver);
+            }
 
             try {
                 receiver.getListener().asBinder().linkToDeath(receiver, 0);
@@ -1098,7 +1100,9 @@ public class LocationManagerService extends ILocationManager.Stub implements Run
         Receiver receiver = mReceivers.get(intent);
         if (receiver == null) {
             receiver = new Receiver(null, intent, pid, uid, packageName);
-            mReceivers.put(intent, receiver);
+            synchronized (mLock) {
+                mReceivers.put(intent, receiver);
+            }
         }
         return receiver;
     }
