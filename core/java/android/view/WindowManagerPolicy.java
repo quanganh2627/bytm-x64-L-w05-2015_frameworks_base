@@ -950,7 +950,13 @@ public interface WindowManagerPolicy {
      * @param lidOpen True if the lid is now open.
      */
     public void notifyLidSwitchChanged(long whenNanos, boolean lidOpen);
-    
+
+    /**
+     * Tell the policy that the silent switch has changed state
+     * @param open
+     */
+    public void notifySilentSwitchChanged(boolean open);
+
     /**
      * Tell the policy if anyone is requesting that keyguard not come on.
      *
