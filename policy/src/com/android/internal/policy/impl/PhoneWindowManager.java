@@ -3622,6 +3622,16 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
     }
 
+    /** {@inheritDoc} */
+   public void notifySilentSwitchChanged(boolean open) {
+        AudioManager audioManager = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
+        if (open) {
+            audioManager.setRingerMode(AudioManager.RINGER_MODE_HW_SILENT);
+        } else {
+            audioManager.setRingerMode(AudioManager.RINGER_MODE_HW_NORMAL);
+        }
+   }
+
     void setHdmiPlugged(boolean plugged) {
         if (mHdmiPlugged != plugged) {
             mHdmiPlugged = plugged;
