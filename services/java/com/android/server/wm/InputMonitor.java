@@ -349,6 +349,10 @@ final class InputMonitor implements InputManagerService.WindowManagerCallbacks {
         mService.mPolicy.notifyLidSwitchChanged(whenNanos, lidOpen);
     }
 
+    public void notifySilentSwitchChanged(boolean open) {
+        mService.mPolicy.notifySilentSwitchChanged(open);
+    }
+
     /* Provides an opportunity for the window manager policy to intercept early key
      * processing as soon as the key has been read from the device. */
     @Override
