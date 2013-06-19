@@ -758,9 +758,9 @@ public class PackageManagerService extends IPackageManager.Stub {
                                 packages[i] = ent.getKey();
                                 components[i] = ent.getValue();
                                 PackageSetting ps = mSettings.mPackages.get(ent.getKey());
-                                uids[i] = (ps != null)
-                                        ? UserHandle.getUid(packageUserId, ps.appId)
-                                        : -1;
+                                // No need to send PACKAGE_CHAGED broadcast for the package which was not exist.
+                                if (ps == null) continue;
+                                uids[i] = UserHandle.getUid(packageUserId, ps.appId);
                                 i++;
                             }
                         }
