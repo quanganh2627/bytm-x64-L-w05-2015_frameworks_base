@@ -2212,8 +2212,10 @@ public final class ActivityManagerService  extends ActivityManagerNative
             }
 
             // ASF HOOK: application start event
-            if (! AsfAosp.sendAppStartEvent(app.info, app.userId)) {
-                throw new SecurityException("process start is disallowed by policy.");
+            if (AsfAosp.ENABLE) {
+                if (! AsfAosp.sendAppStartEvent(app.info, app.userId)) {
+                    throw new SecurityException("process start is disallowed by policy.");
+                }
             }
 
             // Start the process.  It will either succeed and return a result containing
@@ -3035,7 +3037,9 @@ public final class ActivityManagerService  extends ActivityManagerNative
         }
 
         // ASF HOOK: application stop event
-        AsfAosp.sendAppStopEvent(app.info, app.userId);
+        if (AsfAosp.ENABLE) {
+            AsfAosp.sendAppStopEvent(app.info, app.userId, app.pid);
+        }
 
         if (!restarting) {
             if (!mMainStack.resumeTopActivityLocked(null)) {
