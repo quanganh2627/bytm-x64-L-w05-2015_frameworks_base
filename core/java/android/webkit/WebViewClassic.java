@@ -827,6 +827,9 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     private int mCurrentScrollingLayerId;
     private Rect mScrollingLayerRect = new Rect();
 
+    private boolean mInSetNewPicture = false;
+    private boolean mDelayDestroyWebcore = false;
+
     // only trigger accelerated fling if the new velocity is at least
     // MINIMUM_VELOCITY_RATIO_FOR_ACCELERATION times of the previous velocity
     private static final float MINIMUM_VELOCITY_RATIO_FOR_ACCELERATION = 0.2f;
@@ -2130,6 +2133,25 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         }
     }
 
+    private void destroyWebCore() {
+        if (mInSetNewPicture) {
+            mDelayDestroyWebcore = true;
+            return;
+        }
+        if (mWebViewCore != null) {
+            // Tell WebViewCore to destroy itself
+            synchronized (this) {
+                WebViewCore webViewCore = mWebViewCore;
+                mWebViewCore = null; // prevent using partial webViewCore
+                webViewCore.destroy();
+                Log.d(LOGTAG, "WebViewCore destroyed");
+            }
+            // Remove any pending messages that might not be serviced yet.
+            mPrivateHandler.removeCallbacksAndMessages(null);
+        }
+        mDelayDestroyWebcore = false;
+    }
+
     private void destroyJava() {
         mCallbackProxy.blockMessages();
         if (mAccessibilityInjector != null) {
@@ -2150,17 +2172,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         // of WebView because the WebView object is destroyed already.
         setHTML5VideoViewProxy(null);
         }
-
-        if (mWebViewCore != null) {
-            // Tell WebViewCore to destroy itself
-            synchronized (this) {
-                WebViewCore webViewCore = mWebViewCore;
-                mWebViewCore = null; // prevent using partial webViewCore
-                webViewCore.destroy();
-            }
-            // Remove any pending messages that might not be serviced yet.
-            mPrivateHandler.removeCallbacksAndMessages(null);
-        }
+        destroyWebCore();
     }
 
     private void destroyNative() {
@@ -7967,6 +7979,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
             mDelaySetPicture = draw;
             return;
         }
+        mInSetNewPicture = true;
         WebViewCore.ViewState viewState = draw.mViewState;
         boolean isPictureAfterFirstLayout = viewState != null;
 
@@ -8049,6 +8062,10 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
             }
         }
 
+        mInSetNewPicture = false;
+        if (mDelayDestroyWebcore) {
+            destroyWebCore();
+        }
     }
     /**
      * Used when receiving messages for REQUEST_KEYBOARD_WITH_SELECTION_MSG_ID

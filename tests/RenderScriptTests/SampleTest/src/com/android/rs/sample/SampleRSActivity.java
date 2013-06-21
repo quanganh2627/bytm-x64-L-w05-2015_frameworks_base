@@ -61,7 +61,6 @@ public class SampleRSActivity extends Activity {
         }
 
         public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-            mOutPixelsAllocation.setSurfaceTexture(null);
             return true;
         }
     }

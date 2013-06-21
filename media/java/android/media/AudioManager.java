@@ -494,15 +494,7 @@ public class AudioManager {
                     if (mUseMasterVolume) {
                         setMasterMute(!isMasterMute());
                     } else {
-                       /* Process master mute event which is not stream specific
-                        * keeping mUserMasterVolume disabled as Master mute
-                        * and unmute only are supported in MRFLD platform
-                        */
-                       /* Note: Don't remove above check which might have side
-                        * effects if mUsemasterVolume is enabled on the system,
-                        * though the same function is called in if and else cases
-                        */
-                       setMasterMute(!isMasterMute());
+                        // TODO: Actually handle MUTE.
                     }
                 }
                 break;

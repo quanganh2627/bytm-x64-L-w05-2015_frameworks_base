@@ -76,7 +76,7 @@ public class CPUMaxFreqControl {
         {1866000,   1333000,    933000},    // CTP   default frequencies
         {1100000,   1000000,    900000},    // BYT    Tablet  FFRD10 PR1.1
         {1100000,   1000000,    900000},    // BYT default frequencies
-        {1200000,   1066000,    800000},    // MRFLD  Phone
+        {1333000,   1066000,    666000},    // MRFLD  Phone
     };
 
     private static int findIndex(String plat, String prod, String hw) {

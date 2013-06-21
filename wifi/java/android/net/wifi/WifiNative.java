@@ -645,14 +645,37 @@ public class WifiNative {
     }
 
     public boolean p2pGroupAdd(boolean persistent) {
+        List<String> args = new ArrayList<String>();
+
         if (persistent) {
-            return doBooleanCommand("P2P_GROUP_ADD persistent");
+            args.add("persistent");
         }
-        return doBooleanCommand("P2P_GROUP_ADD");
+
+        String freq = SystemProperties.get("wifi.p2p.force_freq", "");
+        if (!"".equals(freq) && !"0".equals(freq)) {
+            args.add("freq=" + freq);
+        }
+
+        String command = "P2P_GROUP_ADD ";
+        for (String s : args) command += s + " ";
+
+        return doBooleanCommand(command);
     }
 
     public boolean p2pGroupAdd(int netId) {
-        return doBooleanCommand("P2P_GROUP_ADD persistent=" + netId);
+        List<String> args = new ArrayList<String>();
+
+        args.add("persistent=" + netId);
+
+        String freq = SystemProperties.get("wifi.p2p.force_freq", "");
+        if (!"".equals(freq) && !"0".equals(freq)) {
+            args.add("freq=" + freq);
+        }
+
+        String command = "P2P_GROUP_ADD ";
+        for (String s : args) command += s + " ";
+
+        return doBooleanCommand(command);
     }
 
     public boolean p2pGroupRemove(String iface) {
