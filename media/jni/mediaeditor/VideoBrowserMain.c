@@ -507,14 +507,25 @@ M4OSA_ERR videoBrowserPrepareFrame(M4OSA_Context pContext, M4OSA_UInt32* pTime,
         return err;
     }
 
-    err = pC->m_pDecoder->m_pFctRender(
-        pC->m_pDecoderCtx, &timeMS, pC->m_outputPlane, M4OSA_TRUE);
+    if (timeMS < 0) {
+        M4OSA_TRACE2_0("videoBrowserPrepareFrame:  get a black frame for thumbnail");
+        timeMS = (M4_MediaTime)targetTime;
+        memset((void *)pC->m_outputPlane[0].pac_data,0x00,pC->m_outputPlane[0].u_stride *
+                                         pC->m_outputPlane[0].u_height);
+        memset((void *)pC->m_outputPlane[1].pac_data,128,pC->m_outputPlane[1].u_stride *
+                                         pC->m_outputPlane[1].u_height);
+        memset((void *)pC->m_outputPlane[2].pac_data,128,pC->m_outputPlane[2].u_stride *
+                                         pC->m_outputPlane[2].u_height);
+    } else {
+        err = pC->m_pDecoder->m_pFctRender(
+            pC->m_pDecoderCtx, &timeMS, pC->m_outputPlane, M4OSA_TRUE);
 
-    if (M4WAR_VIDEORENDERER_NO_NEW_FRAME == err)
-    {
-        return err;
+        if (M4WAR_VIDEORENDERER_NO_NEW_FRAME == err)
+        {
+            return err;
+        }
+        CHECK_ERR(videoBrowserPrepareFrame, err) ;
     }
-    CHECK_ERR(videoBrowserPrepareFrame, err) ;
 
     pC->m_currentCTS = (M4OSA_UInt32)timeMS;
 
