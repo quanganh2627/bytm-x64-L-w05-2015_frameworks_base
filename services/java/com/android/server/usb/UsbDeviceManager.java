@@ -753,7 +753,7 @@ public class UsbDeviceManager {
             }
             if (id != mUsbNotificationId) {
                 // clear notification if title needs changing
-                if (mUsbNotificationId != 0) {
+                if (id == 0 && mUsbNotificationId != 0) {
                     mNotificationManager.cancelAsUser(null, mUsbNotificationId,
                             UserHandle.ALL);
                     mUsbNotificationId = 0;
@@ -781,6 +781,13 @@ public class UsbDeviceManager {
                     notification.setLatestEventInfo(mContext, title, message, pi);
                     mNotificationManager.notifyAsUser(null, id, notification,
                             UserHandle.ALL);
+
+                    // clear notification if title needs changing
+                    if (mUsbNotificationId != 0) {
+                        mNotificationManager.cancelAsUser(null, mUsbNotificationId,
+                                UserHandle.ALL);
+                    }
+
                     mUsbNotificationId = id;
                 }
             }
