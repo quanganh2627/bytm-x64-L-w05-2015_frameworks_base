@@ -1430,12 +1430,10 @@ public class WifiStateMachine extends StateMachine {
     }
 
     /**
-     * Set the frequency band from the system setting value, if any.
+     * Set the frequency band to the current value.
      */
     private void setFrequencyBand() {
-        int band = Settings.Global.getInt(mContext.getContentResolver(),
-                Settings.Global.WIFI_FREQUENCY_BAND, WifiManager.WIFI_FREQUENCY_BAND_AUTO);
-        setFrequencyBand(band, false);
+        setFrequencyBand(mFrequencyBand.get(), false);
     }
 
     private void setSuspendOptimizationsNative(int reason, boolean enabled) {
@@ -2218,6 +2216,10 @@ public class WifiStateMachine extends StateMachine {
             //Connect to WifiP2pService
             mWifiP2pManager = (WifiP2pManager) mContext.getSystemService(Context.WIFI_P2P_SERVICE);
             mWifiP2pChannel.connect(mContext, getHandler(), mWifiP2pManager.getMessenger());
+
+            // Init the current frequency band value from the system setting value, if any
+            mFrequencyBand.set(Settings.Global.getInt(mContext.getContentResolver(),
+                Settings.Global.WIFI_FREQUENCY_BAND, WifiManager.WIFI_FREQUENCY_BAND_AUTO));
 
             /* IPv6 is disabled at boot time and is controlled by framework
              * to be enabled only as long as we are connected to an access point
