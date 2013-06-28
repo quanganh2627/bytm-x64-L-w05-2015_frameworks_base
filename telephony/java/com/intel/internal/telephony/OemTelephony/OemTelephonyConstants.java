@@ -78,6 +78,11 @@ public interface OemTelephonyConstants {
     public static final String ACTION_IMS_NW_SUPPORT_STATE_CHANGED =
                                     "intel.intent.action.IMS_NW_SUPPORT_STATE_CHANGED";
 
+    public static final String COEX_INFO_KEY = "CoexInfo";
+    public static final String ACTION_COEX_INFO =
+                                    "intel.intent.action.ACTION_COEX_INFO";
+
+
     // These enumerations should be in sync with what is used in
     // ril adaptation
 
@@ -136,4 +141,6 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_RAW_UNSOL_IMS_REG_STATUS = 0x000000D6;
     /* OEM hook specific to indicate network IMS support status */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_IMS_SUPPORT_STATUS = 0x000000D7;
+    /* OEM hook to indicate device diagnostic metrics and IDC CWS info, for RF Coexistence */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_COEX_INFO = 0x000000D8;
 }
