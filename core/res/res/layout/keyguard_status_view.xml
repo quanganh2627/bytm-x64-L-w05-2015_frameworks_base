@@ -39,7 +39,7 @@
                       android:layout_height="wrap_content"
                       android:layout_gravity="center_horizontal|top"
                       android:orientation="vertical"
-                      android:focusable="true">
+                      android:focusable="false">
             <com.android.internal.policy.impl.keyguard.ClockView
                 android:id="@+id/clock_view"
                 android:layout_width="wrap_content"

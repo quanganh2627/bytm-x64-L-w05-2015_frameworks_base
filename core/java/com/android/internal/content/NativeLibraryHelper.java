@@ -32,6 +32,7 @@ public class NativeLibraryHelper {
     private static final String TAG = "NativeHelper";
 
     private static final boolean DEBUG_NATIVE = false;
+    private static final boolean ENABLE_HOUDINI = Build.CPU_ABI.equals("x86") && (Build.CPU_ABI2.length()!=0);
 
     private static native long nativeSumNativeBinaries(String file, String cpuAbi, String cpuAbi2);
 
@@ -45,17 +46,15 @@ public class NativeLibraryHelper {
         final String cpuAbi = Build.CPU_ABI;
         final String cpuAbi2 = Build.CPU_ABI2;
 
-        String abi2 = SystemProperties.get("ro.product.cpu.abi2");
-        if (abi2.length() == 0) {
-            return nativeSumNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi2);
-        } else {
-            // abi2 is set, houdini is enabled
+        if (ENABLE_HOUDINI) {
             long result = nativeSumNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi2);
             if (result == 0) {
-                String abiUpgrade = SystemProperties.get("ro.product.cpu.upgradeabi", "armeabi");
+                final String abiUpgrade = SystemProperties.get("ro.product.cpu.upgradeabi", "armeabi");
                 result = nativeSumNativeBinaries(apkFile.getPath(), cpuAbi, abiUpgrade);
             }
             return result;
+        } else {
+            return nativeSumNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi2);
         }
     }
 
@@ -72,18 +71,15 @@ public class NativeLibraryHelper {
         final String cpuAbi = Build.CPU_ABI;
         final String cpuAbi2 = Build.CPU_ABI2;
 
-        String abi2 = SystemProperties.get("ro.product.cpu.abi2");
-        if (abi2.length() == 0) {
-            // abi2 is not set, houdini is not enabled, don't call nativeListNativeBinaries.
-            return PackageManager.INSTALL_SUCCEEDED;
-        } else {
-            // abi2 is set, houdini is enabled
+        if (ENABLE_HOUDINI) {
             int result = nativeListNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi2);
             if ((result != PackageManager.INSTALL_SUCCEEDED) && (result != PackageManager.INSTALL_ABI2_SUCCEEDED)) {
-                String abiUpgrade = SystemProperties.get("ro.product.cpu.upgradeabi", "armeabi");
+                final String abiUpgrade = SystemProperties.get("ro.product.cpu.upgradeabi", "armeabi");
                 result = nativeListNativeBinaries(apkFile.getPath(), cpuAbi, abiUpgrade);
             }
             return result;
+        } else {
+            return PackageManager.INSTALL_SUCCEEDED;
         }
     }
 
@@ -103,17 +99,15 @@ public class NativeLibraryHelper {
         final String cpuAbi = Build.CPU_ABI;
         final String cpuAbi2 = Build.CPU_ABI2;
 
-        String abi2 = SystemProperties.get("ro.product.cpu.abi2");
-        if (abi2.length() == 0) {
-            return nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(), cpuAbi, cpuAbi2);
-        } else {
-            // abi2 is set, houdini is enabled
+        if (ENABLE_HOUDINI) {
             int result = nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(), cpuAbi, cpuAbi2);
             if ((result != PackageManager.INSTALL_SUCCEEDED) && (result != PackageManager.INSTALL_ABI2_SUCCEEDED)) {
-                String abiUpgrade = SystemProperties.get("ro.product.cpu.upgradeabi", "armeabi");
+                final String abiUpgrade = SystemProperties.get("ro.product.cpu.upgradeabi", "armeabi");
                 result = nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(), cpuAbi, abiUpgrade);
             }
             return result;
+        } else {
+            return nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(), cpuAbi, cpuAbi2);
         }
     }
 

@@ -187,6 +187,7 @@ public class PackageManagerService extends IPackageManager.Stub {
     private static final boolean DEBUG_PACKAGE_SCANNING = false;
     private static final boolean DEBUG_APP_DIR_OBSERVER = false;
     private static final boolean DEBUG_VERIFY = false;
+    private static final boolean ENABLE_HOUDINI = Build.CPU_ABI.equals("x86") && (Build.CPU_ABI2.length()!=0);
 
     private static final int RADIO_UID = Process.PHONE_UID;
     private static final int LOG_UID = Process.LOG_UID;
@@ -672,7 +673,10 @@ public class PackageManagerService extends IPackageManager.Stub {
                             packages[i] = ent.getKey();
                             components[i] = ent.getValue();
                             PackageSetting ps = mSettings.mPackages.get(ent.getKey());
-                            uids[i] = (ps != null) ? ps.appId : -1;
+                            // No need to send PACKAGE_CHAGED broadcast for the package which was not exist.
+                            if (ps == null)
+                                continue;
+                            uids[i] = ps.appId;
                             i++;
                         }
                         size = i;
@@ -3978,9 +3982,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                         + " was transferred to another, but its .apk remains");
             }
 
-            String abi2 = SystemProperties.get("ro.product.cpu.abi2");
-            if (abi2.length() != 0) {
-                // abi2 is set, houdini is enabled
+            if (ENABLE_HOUDINI) {
                 PackageSetting p = mSettings.mPackages.get(pkg.packageName);
                 if ((p != null) && (!p.codePath.equals(destCodeFile))){
 
@@ -4317,8 +4319,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                             int copyRet = copyNativeLibrariesForInternalApp(scanFile, nativeLibraryDir);
                             Integer pkgUidInt = new Integer(pkg.applicationInfo.uid);
                             if (copyRet == PackageManager.INSTALL_SUCCEEDED) {
-                                String abi2 = SystemProperties.get("ro.product.cpu.abi2");
-                                if (abi2.length() != 0 && mPackagesMatchABI2.containsKey(pkgUidInt)) {
+                                if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(pkgUidInt)) {
                                     Slog.i(TAG, "Replace package with primary ABI Library");
                                     mPackagesMatchABI2.remove(pkgUidInt);
                                     writeAppwithABI2();
@@ -4327,7 +4328,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                                         writeAppwithABI2Neon();
                                     }
                                 }
-                            } else if (copyRet == PackageManager.INSTALL_ABI2_SUCCEEDED && !mPackagesMatchABI2.containsKey(pkgUidInt)) {
+                            } else if (ENABLE_HOUDINI && copyRet == PackageManager.INSTALL_ABI2_SUCCEEDED && !mPackagesMatchABI2.containsKey(pkgUidInt)) {
                                 ICheckExt check = new CheckExt();
                                 if(check.doCheck(pkgName, new String("filter"))) {
                                     Slog.i(TAG, "Package with second ABI is in black list: " + pkgUidInt + pkg.applicationInfo.processName);
@@ -4357,8 +4358,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                     // Need check the apk whether contains ABI2 library.
                     int result = NativeLibraryHelper.listNativeBinariesLI(scanFile);
                     if (result == PackageManager.INSTALL_SUCCEEDED) {
-                        String abi2 = SystemProperties.get("ro.product.cpu.abi2");
-                        if (abi2.length() != 0 && mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
+                        if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
                             Slog.i(TAG, "Replace package with primary ABI Library");
                             mPackagesMatchABI2.remove(pkg.applicationInfo.uid);
                             writeAppwithABI2();
@@ -4367,7 +4367,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                                 writeAppwithABI2Neon();
                             }
                         }
-                    } else if (result == PackageManager.INSTALL_ABI2_SUCCEEDED && !mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
+                    } else if (ENABLE_HOUDINI && result == PackageManager.INSTALL_ABI2_SUCCEEDED && !mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
                         ICheckExt check = new CheckExt();
                         if (check.doCheck(pkgName, new String("filter"))) {
                             Slog.i(TAG, "Package with second ABI is in black list: " + pkg.applicationInfo.uid + pkg.applicationInfo.processName);
@@ -4782,9 +4782,8 @@ public class PackageManagerService extends IPackageManager.Stub {
             if (pkg != null) {
                 cleanPackageDataStructuresLILPw(pkg, chatty);
 
-                String abi2 = SystemProperties.get("ro.product.cpu.abi2");
                 Integer pkgUidInt = new Integer(pkg.applicationInfo.uid);
-                if (abi2.length() != 0 && mPackagesMatchABI2.containsKey(pkgUidInt)) {
+                if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(pkgUidInt)) {
                     Slog.i(TAG, "Uninstall package with second ABI Library");
                     mPackagesMatchABI2.remove(pkgUidInt);
                     writeAppwithABI2();
@@ -4812,8 +4811,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
             cleanPackageDataStructuresLILPw(pkg, chatty);
 
-            String abi2 = SystemProperties.get("ro.product.cpu.abi2");
-            if (abi2.length() != 0 && mPackagesMatchABI2.containsKey(new Integer(pkg.applicationInfo.uid))) {
+            if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(new Integer(pkg.applicationInfo.uid))) {
                 Slog.i(TAG, "Uninstall package with second ABI Library");
                 mPackagesMatchABI2.remove(new Integer(pkg.applicationInfo.uid));
                 writeAppwithABI2();
@@ -7232,8 +7230,14 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
             try {
                 int copyRet = copyNativeLibrariesForInternalApp(codeFile, nativeLibraryFile);
-                if (copyRet != PackageManager.INSTALL_SUCCEEDED && copyRet != PackageManager.INSTALL_ABI2_SUCCEEDED) {
-                    return copyRet;
+                if (ENABLE_HOUDINI) {
+                    if (copyRet != PackageManager.INSTALL_SUCCEEDED && copyRet != PackageManager.INSTALL_ABI2_SUCCEEDED) {
+                        return copyRet;
+                    }
+                } else {
+                    if (copyRet != PackageManager.INSTALL_SUCCEEDED) {
+                        return copyRet;
+                    }
                 }
             } catch (IOException e) {
                 Slog.e(TAG, "Copying native libraries failed", e);
