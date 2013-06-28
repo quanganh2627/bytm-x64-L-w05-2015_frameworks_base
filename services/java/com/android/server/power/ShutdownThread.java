@@ -59,7 +59,7 @@ public final class ShutdownThread extends Thread {
     // maximum time we wait for the shutdown broadcast before going on.
     private static final int MAX_BROADCAST_TIME = 10*1000;
     private static final int MAX_SHUTDOWN_WAIT_TIME = 20*1000;
-    private static final int MAX_RADIO_WAIT_TIME = 12*1000;
+    private static final int MAX_RADIO_WAIT_TIME = 32*1000;
 
     // length of vibration before shutting down
     private static final int SHUTDOWN_VIBRATE_MS = 500;
