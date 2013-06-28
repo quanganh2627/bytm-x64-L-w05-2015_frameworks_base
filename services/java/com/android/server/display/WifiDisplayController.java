@@ -862,7 +862,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
             // to get a peer change notification with an empty list of peers.
             // Perform a fresh scan.
             if (mWfdEnabled) {
-                requestPeers();
+                discoverPeers();
             }
         }
     }
