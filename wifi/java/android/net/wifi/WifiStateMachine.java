@@ -191,7 +191,7 @@ public class WifiStateMachine extends StateMachine {
     /**
      * Tether state change notification time out
      */
-    private static final int TETHER_NOTIFICATION_TIME_OUT_MSECS = 5000;
+    private static final int TETHER_NOTIFICATION_TIME_OUT_MSECS = 10000;
 
     /**
      * Intel Background Scan notification time out
