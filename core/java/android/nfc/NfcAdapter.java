@@ -13,9 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+/******************************************************************************
+ *
+ *  The original Work has been changed by NXP Semiconductors.
+ *
+ *  Copyright (C) 2013 NXP Semiconductors
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
+ ******************************************************************************/
 package android.nfc;
-
 
 import java.util.HashMap;
 import java.io.IOException;
@@ -235,11 +252,46 @@ public final class NfcAdapter {
      */
     public static final String UICC_ID = "com.nxp.uicc.ID";
 
+    /** @hide */
+    public static final int UICC_ID_TYPE = 2;
+
     /**
      * UICC ID to be able to select it as the default Secure Element
      * @hide
      */
     public static final String SMART_MX_ID = "com.nxp.smart_mx.ID";
+
+    /** @hide */
+    public static final int SMART_MX_ID_TYPE = 1;
+    /**
+     *  ID to be able to select all Secure Elements
+     * @hide
+     */
+    public static final String ALL_SE_ID = "com.nxp.all_se.ID";
+
+    /** @hide */
+    public static final int ALL_SE_ID_TYPE = 3;
+
+    /**
+     * Intent received when the Card Emulation From Host feature detected a
+     * remote device.
+     *
+     *@hide
+     */
+    @SdkConstant(SdkConstantType.ACTIVITY_INTENT_ACTION)
+    public static final String ACTION_CEFROMHOST_LINK_STATE_CHANGED =
+                        "com.nxp.nfc_extras.action.CEFROMHOST_LINK_STATE_CHANGED";
+
+    /**
+     * Mandatory extra containing the state cefh link
+     * <p>
+     * It contains true if the host is connected to a remote reader, false
+     * otherwise
+     *
+     * @hide
+     */
+    public static final String EXTRA_CEFROMHOST_LINK_STATE =
+                        "com.nxp.nfc_extras.extra.CEFROMHOST_LINK_STATE";
 
     /**
      * Broadcast Action: a transaction with a secure element has been detected.
@@ -357,6 +409,11 @@ public final class NfcAdapter {
         public NdefMessage createNdefMessage(NfcEvent event);
     }
 
+    /** @hide */
+    private boolean isPn547Enable() {
+        return mContext.getResources().getBoolean(
+                com.android.internal.R.bool.clf_is_pn547);
+    }
 
     // TODO javadoc
     public interface CreateBeamUrisCallback {
@@ -1324,15 +1381,25 @@ public final class NfcAdapter {
         boolean seSelected = false;
 
         if (seId.equals(UICC_ID)) {
-            seID = 0xABCDF0;
+            if (!isPn547Enable()) {
+                seID = 0xABCDF0;
+            } else {
+                seID = UICC_ID_TYPE;
+            }
         } else if (seId.equals(SMART_MX_ID)) {
-            seID = 0xABCDEF;
+            if (!isPn547Enable()) {
+                seID = 0xABCDEF;
+            } else {
+                seID = SMART_MX_ID_TYPE;
+            }
+        } else if ((seId.equals(ALL_SE_ID)) && (isPn547Enable())) {
+            seID = ALL_SE_ID_TYPE;
         } else {
             Log.e(TAG, "selectDefaultSecureElement: wrong Secure Element ID");
             throw new IOException("selectDefaultSecureElement failed: Wronf Secure Element ID");
         }
 
-        /* Deselect already selected SE */
+        /* Deselect already selected SE if ALL_SE_ID is not selected*/
         try {
             if(sService.getSelectedSecureElement() != seID) {
                 sService.deselectSecureElement();
@@ -1345,10 +1412,26 @@ public final class NfcAdapter {
         /* Get the list of the detected Secure Element */
         try {
             seList = sService.getSecureElementList();
-            if (seList != null && seList.length != 0) {
-                for (int i=0; i<seList.length; i++) {
-                    if (seList[i] == seID) {
-                        /* Select the Secure Element */
+            if ((seList != null && seList.length != 0)) {
+                if (!isPn547Enable()) {
+                    for (int i = 0; i < seList.length; i++) {
+                        if (seList[i] == seID) {
+                            /* Select the Secure Element */
+                            sService.selectSecureElement(seID);
+                            seSelected = true;
+                        }
+                    }
+                } else {
+                    if (seId.compareTo(ALL_SE_ID) != 0) {
+                        for (int i = 0; i < seList.length; i++) {
+                            if (seList[i] == seID) {
+                                /* Select the Secure Element */
+                                sService.selectSecureElement(seID);
+                                seSelected = true;
+                            }
+                        }
+                    } else {
+                        /* Select all Secure Element */
                         sService.selectSecureElement(seID);
                         seSelected = true;
                     }
@@ -1362,6 +1445,9 @@ public final class NfcAdapter {
                 } else if (seId.equals(NfcAdapter.SMART_MX_ID)) {
                     sService.storeSePreference(seID);
                     throw new IOException("SMART_MX not detected");
+                } else if ((isPn547Enable()) && (seId.equals(NfcAdapter.ALL_SE_ID))) {
+                    sService.storeSePreference(seID);
+                    throw new IOException("ALL_SE not detected");
                 }
             }
         } catch (RemoteException e) {
@@ -1408,12 +1494,24 @@ public final class NfcAdapter {
         /* Get Selected Secure Element */
         try {
             seID = sService.getSelectedSecureElement();
-            if (seID == 0xABCDF0) {
-                return UICC_ID;
-            } else if (seID == 0xABCDEF) {
-                return SMART_MX_ID;
+            if (!isPn547Enable()) {
+                if (seID == 0xABCDF0) {
+                    return UICC_ID;
+                } else if (seID == 0xABCDEF) {
+                    return SMART_MX_ID;
+                } else {
+                    throw new IOException("No Secure Element selected");
+                }
             } else {
-                throw new IOException("No Secure Element selected");
+                if (seID == UICC_ID_TYPE/*0xABCDF0*/) {
+                    return UICC_ID;
+                } else if (seID == SMART_MX_ID_TYPE/*0xABCDEF*/) {
+                    return SMART_MX_ID;
+                } else if (seID == ALL_SE_ID_TYPE/*0xABCDFE*/) {
+                    return ALL_SE_ID;
+                } else {
+                    throw new IOException("No Secure Element selected");
+                }
             }
         } catch (RemoteException e) {
             Log.e(TAG, "getSelectedSecureElement failed", e);
@@ -1478,6 +1576,19 @@ public final class NfcAdapter {
             Log.e(TAG, "getSelectedSecureElement failed", e);
             throw new IOException("getSelectedSecureElement failed");
         }
+    }
+
+    /**
+     * Create an Nfc Host Card Emulation
+     * @hide
+     */
+     public NfcCEFromHost createNfcCEFromHost() {
+         try {
+             return new NfcCEFromHost(sService.getNfcCEFromHostInterface());
+         } catch (RemoteException e) {
+             Log.e(TAG, "createNfcCEFromHost failed", e);
+             return null;
+         }
     }
     /**
      * Create an Nfc Secure Element Connection
