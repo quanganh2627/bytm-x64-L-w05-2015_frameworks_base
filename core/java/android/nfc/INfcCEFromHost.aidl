@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C) 2010 The Android Open Source Project
  *
@@ -19,10 +20,13 @@ package android.nfc;
 /**
  * {@hide}
  */
-interface INfcSecureElement {
-    int openSecureElementConnection();
-    int closeSecureElementConnection(int nativeHandle);
-    byte[] exchangeAPDU(int nativeHandle, in byte[] data);
-    int[] getSecureElementTechList(int nativeHandle);
-    byte[] getSecureElementUid(int nativeHandle);
+interface INfcCEFromHost {
+
+    /* CE FROM HOST API */
+    boolean setCEFromHostTypeA(in String pkg, in byte sak,in byte[] atqa,in byte[] app_data);
+    boolean setCEFromHostTypeB(in String pkg, in byte[] atqb,in byte[] hi_layer_resp,in int afi);
+    void resetCEFromHostType(in String pkg);
+    boolean sendCEFromHost(in String pkg, in byte[] apdu);
+    byte[] receiveCEFromHost(in String pkg);
+
 }
