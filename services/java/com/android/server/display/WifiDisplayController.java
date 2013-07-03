@@ -115,6 +115,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
     // True if there is a call to discoverPeers in progress.
     private boolean mDiscoverPeersInProgress;
 
+    // True if a call to discoverPeers is scheduled.
+    private boolean mDiscoverPeersScheduled;
+
     // The device to which we want to connect, or null if we want to be disconnected.
     private WifiP2pDevice mDesiredDevice;
 
@@ -295,6 +298,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
                             Slog.d(TAG, "Successfully set WFD info.");
                         }
                         if (mWfdEnabling) {
+                            restartDiscoverPeers();
                             mWfdEnabling = false;
                             mWfdEnabled = true;
                             reportFeatureState();
@@ -428,6 +432,11 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 }
             }
         });
+    }
+
+    private void restartDiscoverPeers() {
+        mDiscoverPeersScheduled = true;
+        stopDiscoverPeers();
     }
 
     private void requestPeers() {
