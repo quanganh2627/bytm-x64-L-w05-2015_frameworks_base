@@ -111,6 +111,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
     // True if there is a call to discoverPeers in progress.
     private boolean mDiscoverPeersInProgress;
 
+    // True if a call to discoverPeers is scheduled.
+    private boolean mDiscoverPeersScheduled;
+
     // Number of discover peers retries remaining.
     private int mDiscoverPeersRetriesLeft;
 
@@ -263,6 +266,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
                             Slog.d(TAG, "Successfully set WFD info.");
                         }
                         if (mWfdEnabling) {
+                            restartDiscoverPeers();
                             mWfdEnabling = false;
                             mWfdEnabled = true;
                             reportFeatureState();
@@ -371,6 +375,10 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 }
 
                 mDiscoverPeersInProgress = false;
+                if (mDiscoverPeersScheduled) {
+                    mDiscoverPeersScheduled = false;
+                    discoverPeers();
+                }
             }
 
             @Override
@@ -380,6 +388,11 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 }
             }
         });
+    }
+
+    private void restartDiscoverPeers() {
+        mDiscoverPeersScheduled = true;
+        stopDiscoverPeers();
     }
 
     private void requestPeers() {
