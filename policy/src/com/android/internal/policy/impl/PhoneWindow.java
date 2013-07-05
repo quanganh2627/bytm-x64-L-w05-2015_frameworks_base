@@ -697,7 +697,8 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
 
         // This view is no longer shown, so null it out
         st.shownPanelView = null;
-
+        // Reset the decorView to null;
+        st.decorView = null;
         if (st.isInExpandedMode) {
             // Next time the menu opens, it should not be in expanded mode, so
             // force a refresh of the decor

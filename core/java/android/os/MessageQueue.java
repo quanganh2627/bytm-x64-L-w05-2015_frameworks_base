@@ -301,7 +301,11 @@ public class MessageQueue {
 
         Looper myLooper = msg.target.mLooper;
         if (myLooper != null && myLooper.mLocalLog != null) {
-            msg.fingerPrint = msg.toString();
+            try {
+                msg.fingerPrint = msg.toString();
+            } catch (NullPointerException e) {
+                msg.fingerPrint = "unknown";
+            }
         }
         boolean needWake;
         synchronized (this) {

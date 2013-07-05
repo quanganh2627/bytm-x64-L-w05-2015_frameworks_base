@@ -4127,6 +4127,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                         ),
                         (scanMode & SCAN_UPDATE_TIME)!=0)
                 ) {
+                    mLastScanError = PackageManager.INSTALL_FAILED_VERIFICATION_FAILURE;
                     return null;
                 }
             }

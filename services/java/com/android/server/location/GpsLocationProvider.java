@@ -69,6 +69,7 @@ import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.CwsMMGRService.IMmgrService;
 import com.android.internal.telephony.CwsMMGRService.IMmgrServiceListener;
+import com.android.internal.telephony.CwsMMGRService.ICsmGpsListener;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -196,6 +197,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
     private static final String PROPERTIES_FILE = "/etc/gps.conf";
 
+    private static final int DEFAULT_HSLP_PORT = 7275;  // default port - secure
+
     /** simpler wrapper for ProviderRequest + Worksource */
     private static class GpsRequest {
         public ProviderRequest request;
@@ -322,6 +325,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
     private int[] mClientUids = new int[0];
 
     private CwsMMGRClient mCwsMMGRClient = new CwsMMGRClient();
+
+    private String mUiccHslp = null;
 
     private final IGpsStatusProvider mGpsStatusProvider = new IGpsStatusProvider.Stub() {
         @Override
@@ -759,7 +764,9 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
         if (enabled) {
             mSupportsXtra = native_supports_xtra();
-            if (mSuplServerHost != null) {
+            if (mUiccHslp != null) {
+                native_set_agps_server(AGPS_TYPE_SUPL, mUiccHslp, DEFAULT_HSLP_PORT);
+            } else if (mSuplServerHost != null) {
                 native_set_agps_server(AGPS_TYPE_SUPL, mSuplServerHost, mSuplServerPort);
             }
             if (mC2KServerHost != null) {
@@ -1686,6 +1693,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
                         mModemShutdown = false;
                     }
                     mService.unregisterCallback(mMmgrCallbacks);
+                    mService.unregisterGpsCallback(mGpsCallbacks);
                 } catch (RemoteException e) {
                     Log.e(TAG, "Unable to disconnect cws modem manager");
                 }
@@ -1715,6 +1723,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
                     mService.registerCallback(mMmgrCallbacks);
                     if (DEBUG) Log.d(TAG, "Recover modem if Modem is Down");
                     mService.checkModemDown();
+                    if (DEBUG) Log.d(TAG, "Registering GPS callback interface");
+                    mService.registerGpsCallback(mGpsCallbacks);
                 } catch (RemoteException e) {
                     Log.e(TAG, "Unable to register callback");
                 }
@@ -1735,12 +1745,38 @@ public class GpsLocationProvider implements LocationProviderInterface {
                         mModemShutdown = false;
                     }
                     mService.unregisterCallback(mMmgrCallbacks);
+                    mService.unregisterGpsCallback(mGpsCallbacks);
                 } catch (RemoteException e) {
                     Log.e(TAG, "Unable to disconnect cws modem manager");
                 }
                 mIsBound = false;
                 mService = null;
+
                 if (DEBUG) Log.d(TAG, "onServiceDisconnected");
+            }
+        };
+
+        private final ICsmGpsListener.Stub mGpsCallbacks =
+                new ICsmGpsListener.Stub() {
+            public void updateUiccHslp(String hslpAddress) {
+                if (!hslpAddress.isEmpty()) {
+                    if (DEBUG) Log.d(TAG, "Uicc H-SLP Address received: " + hslpAddress);
+                    mUiccHslp = hslpAddress;
+                    if (mEnabled) {
+                        native_set_agps_server(AGPS_TYPE_SUPL,
+                                hslpAddress,
+                                DEFAULT_HSLP_PORT);
+                    }
+                } else {
+                    if (DEBUG) Log.d(TAG, "Empty Uicc H-SLP Address received");
+                    mUiccHslp = null;
+                    if (mEnabled && mSuplServerHost != null) {
+                        if (DEBUG) Log.d(TAG, "Using H-SLP read form the config file");
+                        native_set_agps_server(AGPS_TYPE_SUPL,
+                                mSuplServerHost,
+                                mSuplServerPort);
+                    }
+                }
             }
         };
 
