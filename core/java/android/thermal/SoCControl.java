@@ -28,9 +28,12 @@ public class SoCControl {
     private static String mSoCThrottlePath;
     private static String mGPUThrottlePath;
     private static boolean mIsGPUDeviceExists = false;
+    private static boolean mIsSoCDeviceExists = false;
 
     public static void throttleDevice(int thermalState) {
-       SysfsManager.writeSysfs(mSoCThrottlePath, thermalState);
+       if (mIsSoCDeviceExists) {
+          SysfsManager.writeSysfs(mSoCThrottlePath, thermalState);
+       }
        /* Same thermal state to be written for gpu */
        if (mIsGPUDeviceExists) {
           SysfsManager.writeSysfs(mGPUThrottlePath, thermalState);
@@ -43,13 +46,13 @@ public class SoCControl {
        String coolDeviceState = "/cur_state";
        String coolDeviceType = "/type";
        int i = 0;
-
        /* Search throttle path for gpu_burst cooling device */
        while (new File(coolDeviceThrottlePath + i + coolDeviceType).exists()) {
              String coolDeviceName = SysfsManager.readSysfs(coolDeviceThrottlePath + i + coolDeviceType);
              if (coolDeviceName != null) {
                 if (coolDeviceName.equals("SoC")) {
                    mSoCThrottlePath = coolDeviceThrottlePath + i + coolDeviceState;
+                   mIsSoCDeviceExists = true;
                 } else if (coolDeviceName.equals("gpu_burst")) {
                           mGPUThrottlePath = coolDeviceThrottlePath + i + coolDeviceState;
                           mIsGPUDeviceExists = true;
