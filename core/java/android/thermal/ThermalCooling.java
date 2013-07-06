@@ -390,16 +390,14 @@ public class ThermalCooling {
     // Method to do actual shutdown. It writes a 1 in OSIP Sysfs and
     // sends the shutdown intent
     private void doShutdown() {
+
+        /* Initialise class for message display during shutdown*/
+        new ThermalNotifier(mContext);
+
         /* sending shutdown INTENT */
         Intent statusIntent = new Intent();
         statusIntent.setAction(Intent.ACTION_THERMAL_SHUTDOWN);
         mContext.sendBroadcast(statusIntent);
-
-        SysfsManager.writeSysfs(THERMAL_SHUTDOWN_NOTIFY_PATH, 1);
-        Intent criticalIntent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
-        criticalIntent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
-        criticalIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        mContext.startActivity(criticalIntent);
     }
     /* Method to handle the thermal event based on HIGH or LOW event*/
     public static boolean initiateShutdown(int zoneID) {
