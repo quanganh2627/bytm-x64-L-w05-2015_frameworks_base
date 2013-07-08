@@ -236,4 +236,6 @@ interface IAudioService {
     AudioRoutesInfo startWatchingRoutes(in IAudioRoutesObserver observer);
 
     boolean isCameraSoundForced();
+
+    boolean isHwMuteSwitchON();
 }
