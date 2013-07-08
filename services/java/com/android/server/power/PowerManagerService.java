@@ -1208,10 +1208,10 @@ public final class PowerManagerService extends IPowerManager.Stub
                 // UsbDeviceManager acquires a wakelock on SDP/CDP insert and turns on screen.
                 // But, DCP insertion doesn't go through this flow; hence adding an
                 // additional flow to accomodate all charger-insertion to turn-on screen.
-                if (!wasPowered && mDisplayPowerRequest.screenState == DisplayPowerRequest.SCREEN_STATE_OFF) {
+                if (mDisplayPowerRequest.screenState == DisplayPowerRequest.SCREEN_STATE_OFF) {
                     PowerManager mPowerManager = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
                     PowerManager.WakeLock mChargeScreen = mPowerManager.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK
-                                                                                    | PowerManager.ACQUIRE_CAUSES_WAKEUP, "charger plug");
+                                                                                    | PowerManager.ACQUIRE_CAUSES_WAKEUP, "charger plug/unplug");
                     mChargeScreen.setReferenceCounted(false);
 
                     // Acquire short time wakelock same as keyguard
