@@ -73,6 +73,7 @@ import android.view.KeyEvent;
 import android.view.Surface;
 import android.view.VolumePanel;
 import android.view.WindowManager;
+import android.widget.Toast;
 
 import com.android.internal.telephony.ITelephony;
 import com.android.internal.util.XmlUtils;
@@ -171,6 +172,10 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     private static final int MSG_UNLOAD_SOUND_EFFECTS = 31;
     private static final int MSG_RCC_NEW_PLAYBACK_STATE = 32;
     private static final int MSG_RCC_SEEK_REQUEST = 33;
+
+    // Message of mute hw switch, only used by saltbay
+    private static final int MSG_MUTE_HW_SWITCH_TOAST = 34;
+    private static final int MSG_MUTE_HW_TOAST = 35;
 
     private static final int BTA2DP_DOCK_TIMEOUT_MILLIS = 8000;
     // Timeout for connection to bluetooth headset service
@@ -328,6 +333,9 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
 
     // Used to alter media button redirection when the phone is ringing.
     private boolean mIsRinging = false;
+
+    // Used to alter the hardware ringer button status
+    private boolean mIsHwRingerMuted = false;
 
     // Devices currently connected
     private final HashMap <Integer, String> mConnectedDevices = new HashMap <Integer, String>();
@@ -1344,8 +1352,18 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
 
     /** @see AudioManager#getRingerMode() */
     public int getRingerMode() {
-        synchronized(mSettingsLock) {
+        synchronized (mSettingsLock) {
             return mRingerMode;
+        }
+    }
+
+    /** @see isHwMuteSwitchON() */
+    public boolean isHwMuteSwitchON() {
+        synchronized (mSettingsLock) {
+            if (mIsHwRingerMuted) {
+                return true;
+            }
+            return false;
         }
     }
 
@@ -1361,6 +1379,33 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
             return;
         }
 
+        synchronized (mSettingsLock) {
+            if (mIsHwRingerMuted &&
+                (ringerMode !=  AudioManager.RINGER_MODE_HW_NORMAL) ) {
+                // HW mute switch ON and request is not for OFF of HW switch
+                sendMsg(mAudioHandler, MSG_MUTE_HW_TOAST,
+                    SENDMSG_REPLACE, 0, 0, null, PERSIST_DELAY);
+                return;
+            }
+        }
+        if (ringerMode == AudioManager.RINGER_MODE_HW_SILENT) {
+            synchronized (mSettingsLock) {
+                mIsHwRingerMuted = true;
+                ringerMode = AudioManager.RINGER_MODE_SILENT;
+            }
+            sendMsg(mAudioHandler, MSG_MUTE_HW_SWITCH_TOAST,
+                   SENDMSG_REPLACE, 0, 0, null, PERSIST_DELAY);
+        }
+        if (ringerMode == AudioManager.RINGER_MODE_HW_NORMAL) {
+            if (mRingerMode == AudioManager.RINGER_MODE_SILENT) {
+                synchronized (mSettingsLock) {
+                    ringerMode = AudioManager.RINGER_MODE_NORMAL;
+                    mIsHwRingerMuted = false;
+                }
+            }
+            sendMsg(mAudioHandler, MSG_MUTE_HW_SWITCH_TOAST,
+                    SENDMSG_REPLACE, 0, 0, null, PERSIST_DELAY);
+        }
         if ((ringerMode == AudioManager.RINGER_MODE_VIBRATE) && !mHasVibrator) {
             ringerMode = AudioManager.RINGER_MODE_SILENT;
         }
@@ -3655,6 +3700,18 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
 
                 case MSG_BROADCAST_BT_CONNECTION_STATE:
                     onBroadcastScoConnectionState(msg.arg1);
+                    break;
+                case MSG_MUTE_HW_SWITCH_TOAST:
+                    if (mIsHwRingerMuted) {
+                        Toast.makeText(mContext, "Mute HW switch to on ", Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(mContext, "Mute HW switch to off ", Toast.LENGTH_LONG).show();
+                    }
+                    break;
+                case MSG_MUTE_HW_TOAST:
+                    if (mIsHwRingerMuted) {
+                        Toast.makeText(mContext, "Mute HW is on, can't change the ringer mode ", Toast.LENGTH_LONG).show();
+                    }
                     break;
             }
         }
