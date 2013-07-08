@@ -239,4 +239,5 @@ interface IAudioService {
 
     boolean isCameraSoundForced();
 
+    boolean isHwMuteSwitchON();
 }
