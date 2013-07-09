@@ -267,7 +267,7 @@ public final class PowerManagerService extends IPowerManager.Stub
     private boolean mBootCompleted;
 
     // True if the device is plugged into a power source.
-    private boolean mIsPowered;
+    private static boolean mIsPowered;
 
     // The current plug type, such as BatteryManager.BATTERY_PLUGGED_WIRELESS.
     private int mPlugType;
@@ -2265,6 +2265,11 @@ public final class PowerManagerService extends IPowerManager.Stub
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    public static boolean isPoweredPlugged() {
+        // Return status of battery service if something is plugged.
+        return mIsPowered;
     }
 
     @Override // Watchdog.Monitor implementation
