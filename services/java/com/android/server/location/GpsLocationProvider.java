@@ -16,6 +16,8 @@
 
 package com.android.server.location;
 
+import static android.content.Intent.ACTION_SHUTDOWN;
+
 import android.app.AlarmManager;
 import android.app.AppOpsManager;
 import android.app.PendingIntent;
@@ -423,7 +425,9 @@ public class GpsLocationProvider implements LocationProviderInterface {
                  info = connManager.getNetworkInfo(info.getType());
 
                  updateNetworkState(networkState, info);
-             }
+            } else if (action.equals(ACTION_SHUTDOWN)) {
+                stopNavigating();
+            }
         }
     };
 
@@ -551,6 +555,10 @@ public class GpsLocationProvider implements LocationProviderInterface {
         intentFilter.addAction(ALARM_WAKEUP);
         intentFilter.addAction(ALARM_TIMEOUT);
         intentFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
+        mContext.registerReceiver(mBroadcastReciever, intentFilter, null, mHandler);
+
+        intentFilter = new IntentFilter();
+        intentFilter.addAction(ACTION_SHUTDOWN);
         mContext.registerReceiver(mBroadcastReciever, intentFilter, null, mHandler);
     }
 
