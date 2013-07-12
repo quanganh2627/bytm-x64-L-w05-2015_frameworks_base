@@ -181,7 +181,7 @@ public class Input {
             injectMotionEvent(inputSource, MotionEvent.ACTION_MOVE, now, lerp(x1, x2, alpha),
                     lerp(y1, y2, alpha), 1.0f);
         }
-        injectMotionEvent(inputSource, MotionEvent.ACTION_UP, now, x1, y1, 0.0f);
+        injectMotionEvent(inputSource, MotionEvent.ACTION_UP, now, x2, y2, 0.0f);
     }
 
     /**

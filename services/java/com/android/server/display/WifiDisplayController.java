@@ -36,6 +36,7 @@ import android.media.RemoteDisplay;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.net.wifi.ScanResult;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.WifiP2pConfig;
@@ -124,6 +125,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
     // True if there is a call to discoverPeers in progress.
     private boolean mDiscoverPeersInProgress;
+
+    // True if a call to discoverPeers is scheduled.
+    private boolean mDiscoverPeersScheduled;
 
     // Number of discover peers retries remaining.
     private int mDiscoverPeersRetriesLeft;
@@ -294,6 +298,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
                             Slog.d(TAG, "Successfully set WFD info.");
                         }
                         if (mWfdEnabling) {
+                            restartDiscoverPeers();
                             mWfdEnabling = false;
                             mWfdEnabled = true;
                             reportFeatureState();
@@ -402,6 +407,10 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 }
 
                 mDiscoverPeersInProgress = false;
+                if (mDiscoverPeersScheduled) {
+                    mDiscoverPeersScheduled = false;
+                    discoverPeers();
+                }
             }
 
             @Override
@@ -411,6 +420,11 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 }
             }
         });
+    }
+
+    private void restartDiscoverPeers() {
+        mDiscoverPeersScheduled = true;
+        stopDiscoverPeers();
     }
 
     private void requestPeers() {
@@ -956,7 +970,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private static boolean isWifiDisplay(WifiP2pDevice device) {
         return device.wfdInfo != null
                 && device.wfdInfo.isWfdEnabled()
-                && isPrimarySinkDeviceType(device.wfdInfo.getDeviceType());
+                && isPrimarySinkDeviceType(device.wfdInfo.getDeviceType())
+                && device.wfdInfo.isSessionAvailable();
     }
 
     private static boolean isPrimarySinkDeviceType(int deviceType) {
@@ -1010,12 +1025,13 @@ final class WifiDisplayController implements DumpUtils.Dump {
             } else if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
                 NetworkInfo networkInfo = (NetworkInfo)intent.getParcelableExtra(
                         WifiManager.EXTRA_NETWORK_INFO);
-                if (networkInfo.isConnected() && mRemoteDisplayConnected) {
+                if (networkInfo != null && networkInfo.isConnected() && mRemoteDisplayConnected) {
                     final List<ScanResult> results = mWifiManager.getScanResults();
-                    if (results != null && results.size() > 0) {
+                    WifiInfo currentInfo = mWifiManager.getConnectionInfo();
+                    if (currentInfo != null && results != null && results.size() > 0) {
                         for (ScanResult result : results) {
                             if (result.BSSID != null && result.BSSID.length() > 0 &&
-                                result.BSSID.equals(mWifiManager.getConnectionInfo().getBSSID()) &&
+                                result.BSSID.equals(currentInfo.getBSSID()) &&
                                 mConnectedDeviceGroupInfo != null) {
                                 if (result.frequency != mConnectedDeviceGroupInfo.getFrequency()) {
                                     try {

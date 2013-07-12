@@ -13029,7 +13029,14 @@ public final class ActivityManagerService extends ActivityManagerNative
                                         } else {
                                             app.pendingUiClean = true;
                                             if (adj > ProcessList.VISIBLE_APP_ADJ) {
-                                                adj = ProcessList.VISIBLE_APP_ADJ;
+                                                if (app.foregroundServices) {
+                                                    // Finally, if this process has foreground
+                                                    // services, we would like to avoid killing it
+                                                    adj = ProcessList.FOREGROUND_APP_ADJ;
+                                                    adjType = "fg-service";
+                                                } else {
+                                                    adj = ProcessList.VISIBLE_APP_ADJ;
+                                                }
                                             }
                                         }
                                         if (!client.hidden) {
@@ -13038,7 +13045,11 @@ public final class ActivityManagerService extends ActivityManagerNative
                                         if (client.keeping) {
                                             app.keeping = true;
                                         }
-                                        adjType = "service";
+                                        // If this is not a foreground service, so
+                                        // type it as a simple service
+                                        if (adjType == null) {
+                                            adjType = "service";
+                                        }
                                     }
                                 }
                                 if (adjType != null) {
