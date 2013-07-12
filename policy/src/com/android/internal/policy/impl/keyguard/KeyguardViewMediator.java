@@ -379,7 +379,7 @@ public class KeyguardViewMediator {
                             }
                         } else {
                             // device is provisioned, but SIM is removed while in SIM PIN query
-                            resetStateLocked(null);
+                            hideLocked();
                         }
                     }
                     break;
