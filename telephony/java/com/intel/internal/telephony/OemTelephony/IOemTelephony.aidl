@@ -151,5 +151,16 @@ interface IOemTelephony {
      * {@hide}
      */
     oneway void setRFPowerCutbackTable(int table);
+
+    /**
+     * Powers off the modem
+     *
+     * <p class="note">
+     * Requires the MODIFY_PHONE_STATE permission. Could be called to power off the
+     * modem only during platform shutdown. Expected to be used by ShutdownThread.
+     *
+     * {@hide}
+     */
+    void powerOffModem();
 }
 
