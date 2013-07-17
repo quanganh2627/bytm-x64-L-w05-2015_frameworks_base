@@ -123,6 +123,8 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_STRING_IMS_CONFIG = 0x000000AE;
     /* OEM hook specific to set the default APN and type. Valid only in LTE modem. */
     public static final int RIL_OEM_HOOK_STRING_SET_DEFAULT_APN = 0x00000AF;
+    /* OEM hook to power off modem */
+    public static final int RIL_OEM_HOOK_STRING_POWEROFF_MODEM = 0x000000B0;
     /* OEM hook specific to DSDS for swapping protocol stacks configs */
     public static final int RIL_OEM_HOOK_STRING_SWAP_PS = 0x000000B2;
     /* OEM hook to get the thermal alarm indication */
