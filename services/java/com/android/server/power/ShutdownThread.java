@@ -48,6 +48,7 @@ import android.os.BatteryManager;
 import android.os.SystemProperties;
 
 import com.android.internal.telephony.ITelephony;
+import com.intel.internal.telephony.OemTelephony.IOemTelephony;
 
 import android.util.Log;
 import android.view.WindowManager;
@@ -460,13 +461,25 @@ public final class ShutdownThread extends Thread {
                 }
 
                 try {
-                    radioOff = phone == null || !phone.isRadioOn();
+                    radioOff = phone == null;
                     if (!radioOff) {
                         Log.w(TAG, "Turning off radio...");
                         phone.setRadio(false);
                     }
                 } catch (RemoteException ex) {
                     Log.e(TAG, "RemoteException during radio shutdown", ex);
+                    radioOff = true;
+                }
+
+                try {
+                    IOemTelephony oemTelephonyService = IOemTelephony.Stub.asInterface(
+                            ServiceManager.getService("oemtelephony"));
+                    if (oemTelephonyService != null) {
+                        oemTelephonyService.powerOffModem();
+                        radioOff = true;
+                    }
+                } catch (RemoteException ex) {
+                    Log.e(TAG, "RemoteException during modem power off", ex);
                     radioOff = true;
                 }
 
