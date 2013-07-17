@@ -1453,7 +1453,8 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                     // route to it's gateway
                     bestRoute = RouteInfo.makeHostRoute(r.getGateway(), bestRoute.getGateway());
                 }
-                modifyRoute(ifaceName, lp, bestRoute, cycleCount+1, doAdd, toDefaultTable);
+                // Add IP route to the gateway in the default routing table
+                modifyRoute(ifaceName, lp, bestRoute, cycleCount+1, doAdd, TO_DEFAULT_TABLE);
             }
         }
         if (doAdd) {
