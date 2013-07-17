@@ -3170,9 +3170,15 @@ public class WifiStateMachine extends StateMachine {
     class VerifyingLinkState extends State {
         @Override
         public void enter() {
-            setNetworkDetailedState(DetailedState.VERIFYING_POOR_LINK);
-            mWifiConfigStore.updateStatus(mLastNetworkId, DetailedState.VERIFYING_POOR_LINK);
-            sendNetworkStateChangeBroadcast(mLastBssid);
+            if (Settings.Global.getInt(mContext.getContentResolver(),
+                    Settings.Global.WIFI_WATCHDOG_POOR_NETWORK_TEST_ENABLED,
+                    WifiWatchdogStateMachine.DEFAULT_POOR_NETWORK_AVOIDANCE_ENABLED ? 1 : 0) == 1) {
+                setNetworkDetailedState(DetailedState.VERIFYING_POOR_LINK);
+                mWifiConfigStore.updateStatus(mLastNetworkId, DetailedState.VERIFYING_POOR_LINK);
+                sendNetworkStateChangeBroadcast(mLastBssid);
+            }
+            else
+                transitionTo(mCaptivePortalCheckState);
         }
         @Override
         public boolean processMessage(Message message) {
