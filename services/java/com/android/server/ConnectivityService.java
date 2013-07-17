@@ -1664,7 +1664,8 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                                                         bestRoute.getGateway(),
                                                         ifaceName);
                 }
-                modifyRoute(lp, bestRoute, cycleCount+1, doAdd, toDefaultTable, exempt);
+                // Add IP route to the gateway in the default routing table
+                modifyRoute(lp, bestRoute, cycleCount+1, doAdd, TO_DEFAULT_TABLE, exempt);
             }
         }
         if (doAdd) {
