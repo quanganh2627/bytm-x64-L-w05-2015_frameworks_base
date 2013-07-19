@@ -109,6 +109,9 @@ public class PhoneStatusBarPolicy {
             else if (action.equals(OemTelephonyConstants.ACTION_IMS_REGISTRATION_STATE_CHANGED)) {
                 updateIMS(intent);
             }
+            else if (action.equals(Intent.ACTION_AIRPLANE_MODE_CHANGED)) {
+                updateIMSAirplaneMode(intent);
+            }
         }
     };
 
@@ -120,6 +123,7 @@ public class PhoneStatusBarPolicy {
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_ALARM_CHANGED);
         filter.addAction(Intent.ACTION_SYNC_STATE_CHANGED);
+        filter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
         filter.addAction(AudioManager.RINGER_MODE_CHANGED_ACTION);
         filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
         filter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
@@ -286,6 +290,16 @@ public class PhoneStatusBarPolicy {
         } else {
             // UE is not IMS registered
             if (false) Log.v(TAG, "updateIMS: set IMS icon off");
+            mService.setIconVisibility("ims", false);
+        }
+    }
+
+    private final void updateIMSAirplaneMode(Intent intent) {
+        final boolean airplaneModeOn = intent.getBooleanExtra("state", false);
+
+        if (false) Log.v(TAG, "updateIMS: AirplaneModeOn: " + airplaneModeOn);
+
+        if (airplaneModeOn) {
             mService.setIconVisibility("ims", false);
         }
     }
