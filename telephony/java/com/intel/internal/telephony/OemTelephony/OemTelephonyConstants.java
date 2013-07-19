@@ -78,6 +78,11 @@ public interface OemTelephonyConstants {
     public static final String ACTION_IMS_NW_SUPPORT_STATE_CHANGED =
                                     "intel.intent.action.IMS_NW_SUPPORT_STATE_CHANGED";
 
+    public static final String COEX_INFO_KEY = "CoexInfo";
+    public static final String ACTION_COEX_INFO =
+                                    "intel.intent.action.ACTION_COEX_INFO";
+
+
     // These enumerations should be in sync with what is used in
     // ril adaptation
 
@@ -116,6 +121,8 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_STRING_IMS_REGISTRATION = 0x000000AD;
     /* OEM hook to set a new IMS apn */
     public static final int RIL_OEM_HOOK_STRING_IMS_CONFIG = 0x000000AE;
+    /* OEM hook specific to set the default APN and type. Valid only in LTE modem. */
+    public static final int RIL_OEM_HOOK_STRING_SET_DEFAULT_APN = 0x00000AF;
     /* OEM hook specific to DSDS for swapping protocol stacks configs */
     public static final int RIL_OEM_HOOK_STRING_SWAP_PS = 0x000000B2;
     /* OEM hook to get the thermal alarm indication */
@@ -134,4 +141,6 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_RAW_UNSOL_IMS_REG_STATUS = 0x000000D6;
     /* OEM hook specific to indicate network IMS support status */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_IMS_SUPPORT_STATUS = 0x000000D7;
+    /* OEM hook to indicate device diagnostic metrics and IDC CWS info, for RF Coexistence */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_COEX_INFO = 0x000000D8;
 }

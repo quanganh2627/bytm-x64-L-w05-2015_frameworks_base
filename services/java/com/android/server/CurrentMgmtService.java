@@ -28,12 +28,16 @@ import android.os.IBinder;
 import android.os.ServiceManager;
 import android.util.Log;
 
+import android.os.UEventObserver;
 import java.io.DataOutputStream;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.StringTokenizer;
+import android.util.Log;
+import java.util.Timer;
+import java.util.TimerTask;
 
 
 /**
@@ -47,75 +51,130 @@ class CurrentMgmtService extends Binder {
 
     private static final String TAG = "CurrentMgmtService";
 
-    private static final String bcuPath = "/sys/devices/ipc/msic_ocd/msic_current";
-    private static final String battLevel = "/batt_level";
-    private static final String battCaps = "/avail_batt_caps";
+    /* for future implementation change this to real subsytem*/
+    private static final String devPath = "SUBSYSTEM=msic_vdd";
 
-    private int mNumBattLevels;
 
-    //Battery Levels (in percentage):
-    //This array contains the battery capacities corresponding to the
-    //warning levels. Size of this array is 'mNumBattLevels'. This array
-    //is initialized from the 'avail_batt_caps' sysfs interface.
-    private int[] mBattLevels;
+    native static void nativeSubsystemThrottle(int subsystem, int level);
+    native static void nativeInit();
+    private static int battWarnLevel1 = 15;
+    private static int battWarnLevel2 = 10;
+    private static int battWarnLevel3 = 5;
+
+    public enum Level {
+        NORMAL, WARNING, ALERT, CRITICAL;
+    }
+    Level currentLevel, prevLevel = Level.NORMAL;
+
+    private enum Flash {Enable(1), Disable(0);
+        private int numVal;
+        Flash(int numVal) {
+             this.numVal = numVal;
+        }
+        public int getVal() {
+             return numVal;
+        }
+    };
+
+    private enum Speaker {Full(0), Low(1), Stop(2);
+        private int numVal;
+        Speaker(int numVal) {
+             this.numVal = numVal;
+        }
+        public int getVal() {
+             return numVal;
+        }
+    };
+
+    private enum SubSystem {
+         BCU_SUBSYS_AUDIO(1),
+         BCU_SUBSYS_CAMERA(2),
+         BCU_SUBSYS_DISPLAY(3),
+         BCU_SUBSYS_OTG(4),
+         BCU_SUBSYS_VIBRA(5);
+         private int numVal;
+         SubSystem(int numVal) {
+              this.numVal = numVal;
+         }
+         public int getVal() {
+              return numVal;
+         }
+    };
+
+    private static int speakerStatus;
+    private static int flashStatus = 1;
 
     private final class BCUReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
             int battLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, 0);
-
-            //If the BatteryLevel is less than the required thresholds,
-            //configure the BCU to take some actions
-            for (int i = mNumBattLevels - 1; i >= 0; i--) {
-                if (battLevel <= mBattLevels[i]) {
-                   configBcu(i);
-                   return;
+            prevLevel = currentLevel;
+            //Determine the current BCU state: normal/warning/alert/critical
+            if (battLevel < battWarnLevel3) {
+                currentLevel = Level.CRITICAL;
+            } else if (battLevel < battWarnLevel2) {
+                currentLevel = Level.ALERT;
+            } else if (battLevel < battWarnLevel1) {
+                currentLevel = Level.WARNING;
+            } else {
+                currentLevel = Level.NORMAL;
+            }
+            
+            //Take actions if the BCU state has changed
+            if (currentLevel != prevLevel) {
+                switch(currentLevel) {
+                    //Currently, we take same actions for both critical and alert state
+                    case CRITICAL:
+                    case ALERT:
+                        //Same action could have been taken in an earlier state also.
+                        //So check the throttling status before proceeding.
+                        if (speakerStatus != Speaker.Stop.getVal()) {
+                            nativeSubsystemThrottle(SubSystem.BCU_SUBSYS_AUDIO.getVal(), Speaker.Stop.getVal());
+                            speakerStatus = Speaker.Stop.getVal();
+                        }
+                        if (flashStatus != Flash.Disable.getVal()) {
+                            nativeSubsystemThrottle(SubSystem.BCU_SUBSYS_CAMERA.getVal(), Flash.Disable.getVal());
+                            flashStatus = Flash.Disable.getVal();
+                        }
+                        break;
+                    case WARNING:       
+                        if (speakerStatus != Speaker.Low.getVal()) {
+                            nativeSubsystemThrottle(SubSystem.BCU_SUBSYS_AUDIO.getVal(), Speaker.Low.getVal());
+                            speakerStatus = Speaker.Low.getVal();
+                        }
+                        if (flashStatus != Flash.Disable.getVal()) {
+                            nativeSubsystemThrottle(SubSystem.BCU_SUBSYS_CAMERA.getVal(), Flash.Disable.getVal());
+                            flashStatus = Flash.Disable.getVal();
+                        }
+                        break;
+                    case NORMAL:
+                        if (speakerStatus != Speaker.Full.getVal()) {
+                            nativeSubsystemThrottle(SubSystem.BCU_SUBSYS_AUDIO.getVal(), Speaker.Full.getVal());
+                            speakerStatus = Speaker.Full.getVal();
+                        }
+                        if (flashStatus != Flash.Enable.getVal()) {
+                            nativeSubsystemThrottle(SubSystem.BCU_SUBSYS_CAMERA.getVal(), Flash.Enable.getVal());
+                            flashStatus = Flash.Enable.getVal();
+                        }
+                        break;
                 }
             }
         }
     }
 
-    public CurrentMgmtService(Context context) {
-        getAvailBattCaps();
+    /* not working as of now for future implementation */
+    private static UEventObserver mUEventObserver = new UEventObserver() {
+        public void onUEvent(UEventObserver.UEvent event) {
+        Log.v(TAG, "Uevent Called");
+        }
+    };
 
+    public CurrentMgmtService(Context context) {
+        Log.v(TAG, "CurrentMgmtService start");
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_BATTERY_CHANGED);
         context.registerReceiver(new BCUReceiver(), filter);
-    }
-
-    private final void initBattCaps(String line) {
-        int i = 0;
-        StringTokenizer st = new StringTokenizer(line);
-        //Find the number of tokens in the string. This corresponds to the
-        //number of battery levels
-        mNumBattLevels = st.countTokens();
-        mBattLevels = new int[mNumBattLevels];
-        while (st.hasMoreTokens()) {
-            mBattLevels[i] = Integer.parseInt(st.nextToken());
-            i++;
-        }
-    }
-
-    private final void getAvailBattCaps() {
-        String path = bcuPath + battCaps;
-        BufferedReader br;
-        try {
-            br = new BufferedReader(new FileReader(path));
-            initBattCaps(br.readLine());
-        } catch (IOException e) {
-           Log.i(TAG, "ReadSysfs Failed");
-        }
-    }
-
-    private final void configBcu(int level) {
-        String path = bcuPath + battLevel;
-        DataOutputStream dos;
-        try {
-            dos = new DataOutputStream(new FileOutputStream(path));
-            dos.writeBytes(Integer.toString(level));
-            dos.close();
-        } catch (IOException e) {
-           Log.i(TAG, "WriteSysfs Failed");
-        }
+        nativeInit();
+        mUEventObserver.startObserving(devPath);
     }
 }
