@@ -59,6 +59,8 @@ interface IWifiManager
 
     boolean setWifiEnabled(boolean enable);
 
+    boolean setWifiEnabledPersist(boolean enable, boolean persist);
+
     int getWifiEnabledState();
 
     void setCountryCode(String country, boolean persist);
