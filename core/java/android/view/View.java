@@ -8514,7 +8514,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                 * but the background is transparent,
                 * maybe we needn't draw the background, keep to set PFLAG_SKIP_DRAW
                 */
-                if ((mBackground != null) && (mBackground.getOpacity() != PixelFormat.TRANSPARENT)) {
+                if (mBackground != null) {
                     mPrivateFlags &= ~PFLAG_SKIP_DRAW;
                     mPrivateFlags |= PFLAG_ONLY_DRAWS_BACKGROUND;
                 } else {
