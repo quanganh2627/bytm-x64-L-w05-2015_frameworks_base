@@ -24,6 +24,8 @@ import android.app.IActivityManager;
 import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.IBluetoothManager;
+import android.net.wifi.IWifiManager;
+import android.net.wifi.WifiManager;
 import android.nfc.NfcAdapter;
 import android.nfc.INfcAdapter;
 import android.content.BroadcastReceiver;
@@ -383,6 +385,7 @@ public final class ShutdownThread extends Thread {
                 boolean nfcOff;
                 boolean bluetoothOff;
                 boolean radioOff;
+                boolean wifiOff;
 
                 final INfcAdapter nfc =
                         INfcAdapter.Stub.asInterface(ServiceManager.checkService("nfc"));
@@ -391,6 +394,9 @@ public final class ShutdownThread extends Thread {
                 final IBluetoothManager bluetooth =
                         IBluetoothManager.Stub.asInterface(ServiceManager.checkService(
                                 BluetoothAdapter.BLUETOOTH_MANAGER_SERVICE));
+                final IWifiManager wifi =
+                        IWifiManager.Stub.asInterface(ServiceManager.checkService(
+                                Context.WIFI_SERVICE));
 
                 try {
                     nfcOff = nfc == null ||
@@ -438,7 +444,19 @@ public final class ShutdownThread extends Thread {
                     radioOff = true;
                 }
 
-                Log.i(TAG, "Waiting for NFC, Bluetooth and Radio...");
+                try {
+                    wifiOff = wifi == null ||
+                            wifi.getWifiEnabledState() == WifiManager.WIFI_STATE_DISABLED;
+                    if (!wifiOff) {
+                        Log.w(TAG, "Turning off Wifi...");
+                        wifi.setWifiEnabledPersist(false, false);
+                    }
+                } catch (RemoteException ex) {
+                    Log.e(TAG, "RemoteException during wifi shutdown", ex);
+                    wifiOff = true;
+                }
+
+                Log.i(TAG, "Waiting for NFC, Bluetooth, Wifi and Radio...");
 
                 while (SystemClock.elapsedRealtime() < endTime) {
                     if (!bluetoothOff) {
@@ -474,9 +492,20 @@ public final class ShutdownThread extends Thread {
                             Log.i(TAG, "NFC turned off.");
                         }
                     }
+                    if (!wifiOff) {
+                        try {
+                            wifiOff = wifi.getWifiEnabledState() == WifiManager.WIFI_STATE_DISABLED;
+                        } catch (RemoteException ex) {
+                            Log.e(TAG, "RemoteException during Wifi shutdown", ex);
+                            wifiOff = true;
+                        }
+                        if (wifiOff) {
+                            Log.i(TAG, "Wifi turned off.");
+                        }
+                    }
 
-                    if (radioOff && bluetoothOff && nfcOff) {
-                        Log.i(TAG, "NFC, Radio and Bluetooth shutdown complete.");
+                    if (radioOff && bluetoothOff && nfcOff & wifiOff) {
+                        Log.i(TAG, "NFC, Radio, Bluetooth and Wifi shutdown complete.");
                         done[0] = true;
                         break;
                     }
@@ -491,7 +520,7 @@ public final class ShutdownThread extends Thread {
         } catch (InterruptedException ex) {
         }
         if (!done[0]) {
-            Log.w(TAG, "Timed out waiting for NFC, Radio and Bluetooth shutdown.");
+            Log.w(TAG, "Timed out waiting for NFC, Radio, Bluetooth and Wifi shutdown.");
         }
     }
 

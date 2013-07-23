@@ -588,7 +588,18 @@ public final class WifiService extends IWifiManager.Stub {
      * @return {@code true} if the enable/disable operation was
      *         started or is already in the queue.
      */
-    public synchronized boolean setWifiEnabled(boolean enable) {
+    public boolean setWifiEnabled(boolean enable) {
+        return setWifiEnabledPersist(enable, true);
+    }
+
+    /**
+     * see {@link android.net.wifi.WifiManager#setWifiEnabledPersist(boolean, boolean)}
+     * @param enable {@code true} to enable, {@code false} to disable.
+     * @param persist {@code true} if the setting should be remembered.
+     * @return {@code true} if the enable/disable operation was
+     *         started or is already in the queue.
+     */
+    public synchronized boolean setWifiEnabledPersist(boolean enable, boolean persist) {
         enforceChangePermission();
         Slog.d(TAG, "setWifiEnabled: " + enable + " pid=" + Binder.getCallingPid()
                     + ", uid=" + Binder.getCallingUid());
@@ -601,14 +612,16 @@ public final class WifiService extends IWifiManager.Stub {
         * only CHANGE_WIFI_STATE is enforced
         */
 
-        long ident = Binder.clearCallingIdentity();
-        try {
-            if (! mSettingsStore.handleWifiToggled(enable)) {
-                // Nothing to do if wifi cannot be toggled
-                return true;
+        if (persist) {
+            long ident = Binder.clearCallingIdentity();
+            try {
+                if (! mSettingsStore.handleWifiToggled(enable)) {
+                    // Nothing to do if wifi cannot be toggled
+                    return true;
+                }
+            } finally {
+                Binder.restoreCallingIdentity(ident);
             }
-        } finally {
-            Binder.restoreCallingIdentity(ident);
         }
 
         mWifiController.sendMessage(CMD_WIFI_TOGGLED);
