@@ -1,6 +1,10 @@
 /* Copyright 2008 The Android Open Source Project
  */
 
+/*
+* Portions contributed by: Intel Corporation
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -36,6 +40,9 @@ static struct {
     { AID_DRM,   "drm.drmManager" },
 #ifdef OLA_FACEDETECTION
     { AID_MEDIA, "com.olaworks.olabuffer" },
+#endif
+#ifdef INTEL_WIDI
+    { AID_MEDIA, "media.widi" },
 #endif
     { AID_NFC,   "nfc" },
     { AID_BLUETOOTH, "bluetooth" },
