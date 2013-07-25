@@ -49,6 +49,7 @@ public class BrightnessControl {
         if (sPower == null) return;
 
         switch(tstate) {
+        case ThermalManager.THERMAL_STATE_WARNING:
         case ThermalManager.THERMAL_STATE_ALERT:
         case ThermalManager.THERMAL_STATE_CRITICAL:
               try {
@@ -56,10 +57,6 @@ public class BrightnessControl {
               } catch (RemoteException e) {
                     Log.i(TAG, "remote exception for setThermalBrightnessLimit()");
               }
-        break;
-        case ThermalManager.THERMAL_STATE_WARNING:
-            // We do not throttle brightness when we reach warning from normal state
-            // We do not de-throttle, when we reach warning from Alert/critical
         break;
         case ThermalManager.THERMAL_STATE_NORMAL:
                 /* Unlock the brightness value, so that User/ALS can change it */
