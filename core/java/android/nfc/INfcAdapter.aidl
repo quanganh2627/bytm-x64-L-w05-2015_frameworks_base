@@ -20,6 +20,7 @@ import android.app.PendingIntent;
 import android.content.IntentFilter;
 import android.nfc.NdefMessage;
 import android.nfc.Tag;
+import android.nfc.MultiSERoutingInfo;
 import android.nfc.TechListParcel;
 import android.nfc.INdefPushCallback;
 import android.nfc.INfcAdapterExtras;
@@ -33,7 +34,6 @@ import android.nfc.INfcCEFromHost;
 interface INfcAdapter
 {
     INfcTag getNfcTagInterface();
-
     INfcAdapterExtras getNfcAdapterExtrasInterface(in String pkg);
     INfcSecureElement getNfcSecureElementInterface();
     INfcCEFromHost getNfcCEFromHostInterface();
@@ -41,7 +41,6 @@ interface INfcAdapter
     int getState();
     boolean disable(boolean saveState);
     boolean enable();
-
     boolean enableNdefPush();
     boolean disableNdefPush();
     boolean isNdefPushEnabled();
@@ -61,4 +60,6 @@ interface INfcAdapter
     int deselectSecureElement();
     void setSecureElementState(boolean state);
     void storeSePreference(int seId);
+
+    boolean setMultiSERoutingTable(in String pkg, in MultiSERoutingInfo[] routingInfo);
 }
