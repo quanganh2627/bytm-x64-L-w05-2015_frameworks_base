@@ -1194,6 +1194,10 @@
     <string name="usb_warn_insufficient_power_message">警告: 请使用USB 自供电集线器供电 </string>
     <string name="usb_warn_host_onemore_ums_device_title">警告: 连接了多个USB大容量存储设备</string>
     <string name="usb_warn_host_onemore_ums_device_message">警告: 请仅连接一个USB大容量存储设备</string>
+    <string name="usb_warn_usb_not_work_title">警告: 电量不足，插入的USB设备不能工作</string>
+    <string name="usb_warn_usb_not_work_message">请给电池充电后再试一次</string>
+    <string name="usb_warn_usb_vbus_warn_title">警告: 电池使用时间会缩短</string>
+    <string name="usb_warn_usb_vbus_warn_message">插入的USB设备会消耗电力，缩短电池的使用时间</string>
     <string name="select_input_method" msgid="4653387336791222978">"选择输入法"</string>
     <string name="configure_input_methods" msgid="9091652157722495116">"设置输入法"</string>
     <string name="use_physical_keyboard" msgid="6203112478095117625">"物理键盘"</string>
