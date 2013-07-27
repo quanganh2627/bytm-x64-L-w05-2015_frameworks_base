@@ -384,6 +384,9 @@ public class KeyguardViewMediator {
                     // only force lock screen in case of missing sim if user hasn't
                     // gone through setup wizard
                     synchronized (this) {
+                        if (mKeyguardViewManager != null) {
+                            mKeyguardViewManager.setSimReady(false);
+                        }
                         if (!mUpdateMonitor.isDeviceProvisioned()) {
                             if (!isShowing()) {
                                 if (DEBUG) Log.d(TAG, "ICC_ABSENT isn't showing,"
@@ -424,6 +427,9 @@ public class KeyguardViewMediator {
                 case READY:
                     synchronized (this) {
                         if (isShowing()) {
+                            if (mKeyguardViewManager != null) {
+                                mKeyguardViewManager.setSimReady(true);
+                            }
                             resetStateLocked(null);
                         }
                     }
