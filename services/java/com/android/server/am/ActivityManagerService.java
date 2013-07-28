@@ -168,7 +168,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.text.SimpleDateFormat;
 
 // ASF imports
-import com.intel.security.AsfAosp;
+import com.intel.asf.AsfAosp;
 
 public final class ActivityManagerService  extends ActivityManagerNative
         implements Watchdog.Monitor, BatteryStatsImpl.BatteryCallback {
