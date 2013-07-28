@@ -19,7 +19,7 @@ LOCAL_STATIC_JAVA_LIBRARIES := CwsMMGRService
 ifeq ($(strip $(USE_INTEL_ASF)),true)
 	LOCAL_SRC_FILES += $(call all-java-files-under, \
 		../../../../vendor/intel/asf/platform/enabled)
-	LOCAL_JAVA_LIBRARIES += com.intel.security
+	LOCAL_JAVA_LIBRARIES += com.intel.asf
 else
 	LOCAL_SRC_FILES += $(call all-java-files-under, \
 		../../../../vendor/intel/asf/platform/disabled)

@@ -159,7 +159,7 @@ import libcore.io.OsConstants;
 import libcore.io.StructStat;
 
 // ASF
-import com.intel.security.AsfAosp;
+import com.intel.asf.AsfAosp;
 
 /**
  * Keep track of all those .apks everywhere.
