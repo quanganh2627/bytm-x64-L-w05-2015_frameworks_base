@@ -1142,4 +1142,10 @@
         <item>com.android.inputmethod.latin</item>
     </string-array>
 
+    <!-- Flag indicating whether the current device supports
+         CAT aka STK handling. If true, this means that the
+         device supports handling of CAT messages from UICC.
+         Set to false if the device do not want to support CAT
+         aka STK feature -->
+    <bool name="config_cat_support">true</bool>
 </resources>
