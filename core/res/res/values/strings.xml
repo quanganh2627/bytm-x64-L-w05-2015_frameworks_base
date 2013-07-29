@@ -2773,6 +2773,10 @@
     <!-- String used to display the date. This is the string to say something happened more than 1 month ago. -->
     <string name="beforeOneMonthDurationPast">Before 1 month ago</string>
 
+    <!-- When the phone is network PUK locked -->
+    <string name="lockscreen_network_puk_locked_message">Network PUK locked, Please contact Customer Care</string>
+    <string name="lockscreen_network_puk_locked_instructions">Please contact Customer Care.</string>
+
     <!-- This is used to express that something occurred some number of seconds in the past (e.g., 5 seconds ago). -->
     <plurals name="num_seconds_ago">
         <item quantity="one">1 second ago</item>
