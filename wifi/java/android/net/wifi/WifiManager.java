@@ -1049,12 +1049,12 @@ public class WifiManager {
      * Note that starting in access point mode disables station
      * mode operation
      * @param wifiConfig SSID, security and channel details as
-     *        part of WifiConfiguration
+     *        part of WifiApConfiguration
      * @return {@code true} if the operation succeeds, {@code false} otherwise
      *
      * @hide Dont open up yet
      */
-    public boolean setWifiApEnabled(WifiConfiguration wifiConfig, boolean enabled) {
+    public boolean setWifiApEnabled(WifiApConfiguration wifiConfig, boolean enabled) {
         try {
             mService.setWifiApEnabled(wifiConfig, enabled);
             return true;
@@ -1093,11 +1093,11 @@ public class WifiManager {
 
     /**
      * Gets the Wi-Fi AP Configuration.
-     * @return AP details in WifiConfiguration
+     * @return AP details in WifiApConfiguration
      *
      * @hide Dont open yet
      */
-    public WifiConfiguration getWifiApConfiguration() {
+    public WifiApConfiguration getWifiApConfiguration() {
         try {
             return mService.getWifiApConfiguration();
         } catch (RemoteException e) {
@@ -1111,7 +1111,7 @@ public class WifiManager {
      *
      * @hide Dont open yet
      */
-    public boolean setWifiApConfiguration(WifiConfiguration wifiConfig) {
+    public boolean setWifiApConfiguration(WifiApConfiguration wifiConfig) {
         try {
             mService.setWifiApConfiguration(wifiConfig);
             return true;
@@ -1205,6 +1205,20 @@ public class WifiManager {
     public List<WifiApConnectedDevice> getWifiApConnectedList() {
         try {
             return mService.getWifiApConnectedList();
+        } catch (RemoteException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Wifi_Hotspot: Request the list of authorized channels for Wifi_Hotspot.
+     * @return {@code List} if the operation succeeds, {@code null} otherwise
+     *
+     * @hide
+     */
+    public List<WifiChannel> getWifiAuthorizedChannels() {
+        try {
+            return mService.getWifiAuthorizedChannels();
         } catch (RemoteException e) {
             return null;
         }

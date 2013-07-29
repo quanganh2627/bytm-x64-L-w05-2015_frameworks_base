@@ -340,6 +340,7 @@ public class WifiMonitor {
     /* hostap events */
     public static final int AP_STA_DISCONNECTED_EVENT            = BASE + 41;
     public static final int AP_STA_CONNECTED_EVENT               = BASE + 42;
+    public static final int AP_CONNECTION_FAIL                   = BASE + 43;
 
     /**
      * This indicates the supplicant connection for the monitor is closed
@@ -423,8 +424,10 @@ public class WifiMonitor {
             if (mWifi_mode == WIFI_AP_MODE) {
                 if (connectToHostapd())
                     Log.d(TAG, "Wifi_Hotspot: connectToHostAP Success");
-                else
+                else {
                     Log.d(TAG, "Wifi_Hotspot: connectToHostAP Failed");
+                    mStateMachine.sendMessage(AP_CONNECTION_FAIL);
+                }
             } else {
                 if (connectToSupplicant()) {
                     // Send a message indicating that it is now possible to send commands

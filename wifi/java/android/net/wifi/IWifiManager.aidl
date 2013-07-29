@@ -16,8 +16,10 @@
 
 package android.net.wifi;
 
+import android.net.wifi.WifiChannel;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiApConfiguration;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiApConnectedDevice;
 import android.net.DhcpInfo;
@@ -90,13 +92,13 @@ interface IWifiManager
 
     void releaseMulticastLock();
 
-    void setWifiApEnabled(in WifiConfiguration wifiConfig, boolean enable);
+    void setWifiApEnabled(in WifiApConfiguration wifiConfig, boolean enable);
 
     int getWifiApEnabledState();
 
-    WifiConfiguration getWifiApConfiguration();
+    WifiApConfiguration getWifiApConfiguration();
 
-    void setWifiApConfiguration(in WifiConfiguration wifiConfig);
+    void setWifiApConfiguration(in WifiApConfiguration wifiConfig);
 
     void startWifi();
 
@@ -115,5 +117,7 @@ interface IWifiManager
     void captivePortalCheckComplete();
 
     List<WifiApConnectedDevice> getWifiApConnectedList();
+
+    List<WifiChannel> getWifiAuthorizedChannels();
 }
 
