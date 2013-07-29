@@ -47,6 +47,7 @@ public class ThermalSensor {
     private String mHighTempPath;   /* sys path to set the intermediate upper threshold */
     private String mLowTempPath;    /* sys path to set the intermediate lower threshold */
     private String mUEventDevPath;  /* sys path for uevent listener */
+    private int mErrorCorrectionTemp; /* Temperature difference in mC */
     private int mSensorID;
     private int mCurrTemp;          /* Holds the latest temperature of the sensor */
     private int upperLimit = 90;    /* intermediate lower thershold */
@@ -68,6 +69,7 @@ public class ThermalSensor {
         Log.i(TAG, "mHighTempPath: " + mHighTempPath);
         Log.i(TAG, "mLowTempPath: " + mLowTempPath);
         Log.i(TAG, "mUEventDevPath: " + mUEventDevPath);
+        Log.i(TAG, "mErrorCorrection: " + mErrorCorrectionTemp);
         Log.i(TAG, "mTempThresholds");
         for (int val : mTempThresholds)
             Log.i(TAG, Integer.toString(val));
@@ -99,6 +101,9 @@ public class ThermalSensor {
         * ueventobserver in ThermalManager will ignore the sensor
         */
         mUEventDevPath = "invalid";
+
+        // Set default value of 'correction temperature' to 0
+        mErrorCorrectionTemp = 0;
     }
 
 
@@ -146,6 +151,14 @@ public class ThermalSensor {
 
     public String getUEventDevPath() {
         return mUEventDevPath;
+    }
+
+    public void setErrorCorrectionTemp(int temp) {
+        mErrorCorrectionTemp = temp;
+    }
+
+    public int getErrorCorrectionTemp() {
+        return mErrorCorrectionTemp;
     }
 
     public void setThermalThresholds(ArrayList<Integer> thresholdList) {
