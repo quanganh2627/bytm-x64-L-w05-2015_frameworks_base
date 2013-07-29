@@ -237,6 +237,25 @@ static jstring android_net_wifi_getWifiApStationList(JNIEnv* env, jobject)
     return env->NewString((const jchar *)str.string(), str.size());
 }
 
+static jstring android_net_wifi_getWifiApChannelList(JNIEnv* env, jobject)
+{
+    char reply[4096];
+    size_t reply_len = sizeof(reply) - 1;
+
+    if (::wifi_get_AP_channel_list( reply, &reply_len ) != 0 )
+        return NULL;
+    else {
+        // Strip off trailing newline
+        if (reply_len > 0 && reply[reply_len-1] == '\n')
+            reply[reply_len-1] = '\0';
+        else
+            reply[reply_len] = '\0';
+    }
+
+    String16 str((char *)reply);
+    return env->NewString((const jchar *)str.string(), str.size());
+}
+
 static jstring android_net_wifi_waitForEvent(JNIEnv* env, jobject, jstring jIface)
 {
     char buf[EVENT_BUF_SIZE];
@@ -311,6 +330,8 @@ static JNINativeMethod gWifiMethods[] = {
     { "closeHostapdConnection", "()V",  (void *)android_net_wifi_closeHostapdConnection },
     { "getWifiApStationList", "()Ljava/lang/String;",
             (void *) android_net_wifi_getWifiApStationList },
+    { "getWifiApChannelList", "()Ljava/lang/String;",
+            (void *) android_net_wifi_getWifiApChannelList },
     { "waitForEvent", "(Ljava/lang/String;)Ljava/lang/String;",
             (void*) android_net_wifi_waitForEvent },
     { "doBooleanCommand", "(Ljava/lang/String;Ljava/lang/String;)Z",
