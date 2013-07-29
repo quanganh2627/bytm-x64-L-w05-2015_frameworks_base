@@ -1148,4 +1148,11 @@
          Set to false if the device do not want to support CAT
          aka STK feature -->
     <bool name="config_cat_support">true</bool>
+
+    <!-- set to true if oem hooks are supported by framework -->
+    <bool name="config_usage_oem_hooks_supported">false</bool>
+    <!-- set the oemhook data state reporting property -->
+    <string name="oemhook_datastate_property"></string>
+    <!-- set the concurrent data support property -->
+    <string name="oemhook_concurrentdata_property"></string>
 </resources>

@@ -279,6 +279,7 @@
   <java-symbol type="bool" name="config_speed_up_audio_on_mt_calls" />
   <java-symbol type="bool" name="config_useFixedVolume" />
   <java-symbol type="bool" name="config_cat_support"/>
+  <java-symbol type="bool" name="config_usage_oem_hooks_supported"/>
 
   <java-symbol type="integer" name="config_cursorWindowSize" />
   <java-symbol type="integer" name="config_longPressOnPowerBehavior" />
@@ -1496,6 +1497,8 @@
   <java-symbol type="string" name="kg_text_message_separator" />
   <java-symbol type="string" name="lockscreen_network_puk_locked_message" />
   <java-symbol type="string" name="lockscreen_network_puk_locked_instructions" />
+  <java-symbol type="string" name="oemhook_datastate_property"/>
+  <java-symbol type="string" name="oemhook_concurrentdata_property"/>
 
   <!-- From services -->
   <java-symbol type="anim" name="screen_rotate_0_enter" />
