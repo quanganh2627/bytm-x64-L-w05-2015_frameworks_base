@@ -610,6 +610,20 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
         }
     }
 
+     @Override // Binder call
+    public void reconnectWifiDisplay() {
+        final long token = Binder.clearCallingIdentity();
+        try {
+            synchronized (mSyncRoot) {
+                if (mWifiDisplayAdapter != null) {
+                    mWifiDisplayAdapter.requestReconnectLocked();
+                }
+            }
+        } finally {
+            Binder.restoreCallingIdentity(token);
+        }
+    }
+
     @Override // Binder call
     public void renameWifiDisplay(String address, String alias) {
         if (address == null) {
