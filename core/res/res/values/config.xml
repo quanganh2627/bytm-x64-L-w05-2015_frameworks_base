@@ -1155,4 +1155,6 @@
     <string name="oemhook_datastate_property"></string>
     <!-- set the concurrent data support property -->
     <string name="oemhook_concurrentdata_property"></string>
+    <!-- When set to false, the call status polling is disabled -->
+    <bool name="gsm_call_status_polling_enable">true</bool>
 </resources>
