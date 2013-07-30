@@ -148,6 +148,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
     // The device to which we are currently connected, which means we have an active P2P group.
     private WifiP2pDevice mConnectedDevice;
 
+    // The device to which we want to reconnect.
+    private WifiP2pDevice mReconnectDesiredDevice;
+
     // The group info obtained after connecting.
     private WifiP2pGroup mConnectedDeviceGroupInfo;
 
@@ -191,6 +194,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_DISCOVERY_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION);
         context.registerReceiver(mWifiP2pReceiver, intentFilter, null, mHandler);
 
@@ -323,6 +327,10 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 }
             }
         });
+    }
+
+    public void requestReconnect() {
+        reconnect();
     }
 
     private void updateWfdEnableState() {
@@ -489,6 +497,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
         mWifiP2pManager.requestPeers(mWifiP2pChannel, new PeerListListener() {
             @Override
             public void onPeersAvailable(WifiP2pDeviceList peers) {
+                boolean tryReconnect = false;
                 if (DEBUG) {
                     Slog.d(TAG, "Received list of peers.");
                 }
@@ -501,6 +510,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
                     if (isWifiDisplay(device)) {
                         mAvailableWifiDisplayPeers.add(device);
+                        if (mReconnectDesiredDevice != null &&
+                            device.deviceAddress.equals(mReconnectDesiredDevice.deviceAddress))
+                            tryReconnect = true;
                     }
                 }
 
@@ -591,6 +603,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
         }
 
         mDesiredDevice = device;
+        mReconnectDesiredDevice = null;
         mConnectionRetriesLeft = CONNECT_MAX_RETRIES;
         updateConnection();
     }
@@ -598,6 +611,14 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private void disconnect() {
         mDesiredDevice = null;
         updateConnection();
+    }
+
+    private void reconnect() {
+        if (DEBUG) {
+            Slog.d(TAG, "Reconnecting (disconnection) to " + mConnectedDevice);
+        }
+        mReconnectDesiredDevice = mConnectedDevice;
+        disconnect();
     }
 
     private void retryConnection() {
@@ -1176,6 +1197,22 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 if (DEBUG) {
                     Slog.d(TAG, "Received WIFI_P2P_THIS_DEVICE_CHANGED_ACTION: mThisDevice= "
                             + mThisDevice);
+                }
+            } else if (action.equals(WifiP2pManager.WIFI_P2P_DISCOVERY_CHANGED_ACTION)) {
+                boolean stopped = (intent.getIntExtra(WifiP2pManager.EXTRA_DISCOVERY_STATE,
+                        WifiP2pManager.WIFI_P2P_DISCOVERY_STOPPED)) ==
+                        WifiP2pManager.WIFI_P2P_DISCOVERY_STOPPED;
+
+                if (DEBUG) {
+                    Slog.d(TAG, "Received WIFI_P2P_DISCOVERY_CHANGED_ACTION: state = "
+                           + (stopped ? "stopped" : "started"));
+                }
+
+                if (stopped && mReconnectDesiredDevice != null) {
+                    if (DEBUG) {
+                        Slog.d(TAG, "Cannot find device " + mReconnectDesiredDevice + ", abort reconnection" );
+                    }
+                    mReconnectDesiredDevice = null;
                 }
             } else if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
                 NetworkInfo networkInfo = (NetworkInfo)intent.getParcelableExtra(

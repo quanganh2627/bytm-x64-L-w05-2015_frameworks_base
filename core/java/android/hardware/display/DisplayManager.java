@@ -361,6 +361,15 @@ public final class DisplayManager {
     }
 
     /**
+     * Reconnects to the current Wifi display.
+     * The results are sent as a {@link #ACTION_WIFI_DISPLAY_STATUS_CHANGED} broadcast.
+     * @hide
+     */
+    public void reconnectWifiDisplay() {
+        mGlobal.reconnectWifiDisplay();
+    }
+
+    /**
      * Renames a Wifi display.
      * <p>
      * The display must already be remembered for this call to succeed.  In other words,
