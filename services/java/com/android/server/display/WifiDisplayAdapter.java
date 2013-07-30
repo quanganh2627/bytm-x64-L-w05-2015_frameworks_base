@@ -268,6 +268,21 @@ final class WifiDisplayAdapter extends DisplayAdapter {
         });
     }
 
+    public void requestReconnectLocked() {
+        if (DEBUG) {
+            Slog.d(TAG, "requestReconnectedLocked");
+        }
+        mActiveDisplayState = WifiDisplayStatus.DISPLAY_STATE_DISCONNECTING;
+        getHandler().post(new Runnable() {
+            @Override
+            public void run() {
+                if (mDisplayController != null) {
+                    mDisplayController.requestReconnect();
+                }
+            }
+        });
+    }
+
     public void requestRenameLocked(String address, String alias) {
         if (DEBUG) {
             Slog.d(TAG, "requestRenameLocked: address=" + address + ", alias=" + alias);
