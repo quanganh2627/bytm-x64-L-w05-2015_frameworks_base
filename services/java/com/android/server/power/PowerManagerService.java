@@ -631,7 +631,8 @@ public final class PowerManagerService extends IPowerManager.Stub
             if (SystemProperties.get("wakelock.trace", "unknown").equals("1")) {
                 Slog.i("WAKELOCK_ACQUIRE", "TIMESTAMP=" + SystemClock.elapsedRealtimeNanos()
                         + ", TAG=" + tag + ", TYPE=" + wakeLock.getLockLevelString()
-                        + ", COUNT=0" + ", PID=" + pid + ", UID=" + uid);
+                        + ", COUNT=0" + ", PID=" + pid + ", UID=" + uid
+                        + ", FLAGS=" + wakeLock.getLockFlagsString());
             }
 
             applyWakeLockFlagsOnAcquireLocked(wakeLock);
@@ -707,7 +708,7 @@ public final class PowerManagerService extends IPowerManager.Stub
                 Slog.i("WAKELOCK_RELEASE", "TIMESTAMP=" + SystemClock.elapsedRealtimeNanos()
                         + ", TAG=" + wakeLock.mTag + ", TYPE=" + wakeLock.getLockLevelString()
                         + ", COUNT=0" + ", PID=" + wakeLock.mOwnerPid + ", UID="
-                        + wakeLock.mOwnerUid);
+                        + wakeLock.mOwnerUid + ", FLAGS=" + wakeLock.getLockFlagsString());
             }
         }
     }
@@ -736,7 +737,7 @@ public final class PowerManagerService extends IPowerManager.Stub
                 Slog.i("WAKELOCK_RELEASE", "TIMESTAMP=" + SystemClock.elapsedRealtimeNanos()
                         + ", TAG=" + wakeLock.mTag + ", TYPE=" + wakeLock.getLockLevelString()
                         + ", COUNT=0" + ", PID=" + wakeLock.mOwnerPid + ", UID="
-                        + wakeLock.mOwnerUid);
+                        + wakeLock.mOwnerUid + ", FLAGS=" + wakeLock.getLockFlagsString());
             }
         }
     }
