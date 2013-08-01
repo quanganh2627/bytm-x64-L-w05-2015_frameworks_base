@@ -208,6 +208,18 @@ final class DisplayPowerController {
     // True if auto-brightness should be used.
     private boolean mUseSoftwareAutoBrightnessConfig;
 
+    // True if auto-brightness is enabled.
+    private boolean mAutoBrightnessEnabled;
+
+    // Automatic button light control.
+    private boolean mUseButtonAutoBrightnessConfig;
+    private boolean mUseButtonLedBrightnessConfig;
+    private boolean mButtonAutoBrightnessEnabled;
+    private LightsService.Light mButtonLight;
+    private int[] mButtonBacklightValues;
+    private int[] mAutoBrightnessLevels;
+    private int mButtonLastValue;
+
     // The auto-brightness spline adjustment.
     // The brightness values have been scaled to a range of 0..1.
     private Spline mScreenAutoBrightnessSpline;
@@ -343,6 +355,10 @@ final class DisplayPowerController {
     // Twilight changed.  We might recalculate auto-brightness values.
     private boolean mTwilightChanged;
 
+    private Handler mButtonLedHandler;
+    private boolean mButtonLedState = false;
+    private final int mButtonLedBrightness = 0x87;
+
     /**
      * Creates the display power controller.
      */
@@ -363,6 +379,8 @@ final class DisplayPowerController {
         mSensorManager = sensorManager;
         mDisplayManager = displayManager;
 
+        mButtonLedHandler = new Handler(true /*async*/);
+
         final Resources resources = context.getResources();
 
         mScreenBrightnessDimConfig = clampAbsoluteBrightness(resources.getInteger(
@@ -375,18 +393,19 @@ final class DisplayPowerController {
         mUseSoftwareAutoBrightnessConfig = resources.getBoolean(
                 com.android.internal.R.bool.config_automatic_brightness_available);
         if (mUseSoftwareAutoBrightnessConfig) {
-            int[] lux = resources.getIntArray(
+            mAutoBrightnessLevels = resources.getIntArray(
                     com.android.internal.R.array.config_autoBrightnessLevels);
             int[] screenBrightness = resources.getIntArray(
                     com.android.internal.R.array.config_autoBrightnessLcdBacklightValues);
 
-            mScreenAutoBrightnessSpline = createAutoBrightnessSpline(lux, screenBrightness);
+            mScreenAutoBrightnessSpline = createAutoBrightnessSpline(mAutoBrightnessLevels,
+                    screenBrightness);
             if (mScreenAutoBrightnessSpline == null) {
                 Slog.e(TAG, "Error in config.xml.  config_autoBrightnessLcdBacklightValues "
                         + "(size " + screenBrightness.length + ") "
                         + "must be monotic and have exactly one more entry than "
-                        + "config_autoBrightnessLevels (size " + lux.length + ") "
-                        + "which must be strictly increasing.  "
+                        + "config_autoBrightnessLevels (size " + mAutoBrightnessLevels.length
+                        + ") " + "which must be strictly increasing.  "
                         + "Auto-brightness will be disabled.");
                 mUseSoftwareAutoBrightnessConfig = false;
             } else {
@@ -397,6 +416,20 @@ final class DisplayPowerController {
 
             mLightSensorWarmUpTimeConfig = resources.getInteger(
                     com.android.internal.R.integer.config_lightSensorWarmupTime);
+        }
+
+        mUseButtonAutoBrightnessConfig = resources.getBoolean(
+                com.android.internal.R.bool.config_button_automatic_brightness_available);
+        if (mUseButtonAutoBrightnessConfig) {
+            mButtonAutoBrightnessEnabled = true;
+            mButtonBacklightValues = resources.getIntArray(
+                    com.android.internal.R.array.config_autoBrightnessButtonBacklightValues);
+            mButtonLastValue = -1;
+        }
+        mUseButtonLedBrightnessConfig = resources.getBoolean(
+                com.android.internal.R.bool.config_button_led_brightness_available);
+        if (mUseButtonAutoBrightnessConfig || mUseButtonLedBrightnessConfig) {
+            mButtonLight = mLights.getLight(LightsService.LIGHT_ID_BUTTONS);
         }
 
         mScreenBrightnessRangeMinimum = clampAbsoluteBrightness(screenBrightnessMinimum);
@@ -413,7 +446,7 @@ final class DisplayPowerController {
             }
         }
 
-        if (mUseSoftwareAutoBrightnessConfig
+        if ((mUseSoftwareAutoBrightnessConfig || mUseButtonAutoBrightnessConfig)
                 && !DEBUG_PRETEND_LIGHT_SENSOR_ABSENT) {
             mLightSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
         }
@@ -521,6 +554,36 @@ final class DisplayPowerController {
         }
     }
 
+    public void requestButtonLedState(boolean enable) {
+        if (mUseButtonLedBrightnessConfig) {
+            if (enable) {
+                if (!mButtonLedState) {
+                    mButtonLight.setBrightness(mButtonLedBrightness);
+                    mButtonLedState = true;
+                }
+                mButtonLedHandler.removeCallbacks(mButtonLedUpdateRunnable);
+                mButtonLedHandler.postDelayed(mButtonLedUpdateRunnable, 3000);
+            }
+            else {
+                mButtonLedHandler.removeCallbacks(mButtonLedUpdateRunnable);
+                if (mButtonLedState) {
+                    mButtonLight.turnOff();
+                    mButtonLedState = false;
+                }
+            }
+        }
+    }
+
+    private final Runnable mButtonLedUpdateRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (mButtonLedState) {
+                mButtonLight.turnOff();
+                mButtonLedState = false;
+            }
+        }
+    };
+
     private void initialize() {
         mPowerState = new DisplayPowerState(
                 new ElectronBeam(mDisplayManager), mDisplayBlanker,
@@ -607,11 +670,9 @@ final class DisplayPowerController {
                     mScreenOffBecauseOfProximity = true;
                     sendOnProximityPositiveWithWakelock();
                     setScreenOn(false);
+                    requestButtonLedState(false);
                 }
-            } else if (mWaitingForNegativeProximity
-                    && mScreenOffBecauseOfProximity
-                    && mProximity == PROXIMITY_POSITIVE
-                    && mPowerRequest.screenState != DisplayPowerRequest.SCREEN_STATE_OFF) {
+            } else if (mProximity == PROXIMITY_POSITIVE) {
                 setProximitySensorEnabled(true);
             } else {
                 setProximitySensorEnabled(false);
@@ -628,15 +689,17 @@ final class DisplayPowerController {
 
         // Turn on the light sensor if needed.
         if (mLightSensor != null) {
-            setLightSensorEnabled(mPowerRequest.useAutoBrightness
-                    && wantScreenOn(mPowerRequest.screenState), updateAutoBrightness);
+            mAutoBrightnessEnabled = mPowerRequest.useAutoBrightness &&
+                wantScreenOn(mPowerRequest.screenState);
+            setLightSensorEnabled(mAutoBrightnessEnabled || mButtonAutoBrightnessEnabled,
+                    updateAutoBrightness);
         }
 
         // Set the screen brightness.
         if (wantScreenOn(mPowerRequest.screenState)) {
             int target;
             boolean slow;
-            if (mScreenAutoBrightness >= 0 && mLightSensorEnabled) {
+            if (mScreenAutoBrightness >= 0 && mAutoBrightnessEnabled) {
                 // Use current auto-brightness value.
                 target = mScreenAutoBrightness;
                 slow = mUsingScreenAutoBrightness;
@@ -678,6 +741,7 @@ final class DisplayPowerController {
                     // be visible if the electron beam has not been dismissed because
                     // its last frame of animation is solid black.
                     setScreenOn(true);
+                    requestButtonLedState(true);
 
                     if (mPowerRequest.blockScreenOn
                             && mPowerState.getElectronBeamLevel() == 0.0f) {
@@ -898,8 +962,9 @@ final class DisplayPowerController {
 
     private void setLightSensorEnabled(boolean enable, boolean updateAutoBrightness) {
         if (enable) {
-            if (!mLightSensorEnabled) {
+            if (mAutoBrightnessEnabled)
                 updateAutoBrightness = true;
+            if (!mLightSensorEnabled) {
                 mLightSensorEnabled = true;
                 mLightSensorEnableTime = SystemClock.uptimeMillis();
                 mSensorManager.registerListener(mLightSensorListener, mLightSensor,
@@ -919,11 +984,29 @@ final class DisplayPowerController {
         }
     }
 
+    private void updateButtonBrightness(float lux) {
+        int i, buttonValue;
+        int value = (int)lux;
+
+        for (i = 0; i < mAutoBrightnessLevels.length; i++)
+            if (value < mAutoBrightnessLevels[i])
+                break;
+        buttonValue = mButtonBacklightValues[i];
+        if (buttonValue != mButtonLastValue) {
+            mButtonLight.setBrightness(buttonValue);
+            mButtonLastValue = buttonValue;
+        }
+    }
+
     private void handleLightSensorEvent(long time, float lux) {
         mHandler.removeMessages(MSG_LIGHT_SENSOR_DEBOUNCED);
 
-        applyLightSensorMeasurement(time, lux);
-        updateAmbientLux(time);
+        if (mAutoBrightnessEnabled) {
+            applyLightSensorMeasurement(time, lux);
+            updateAmbientLux(time);
+        }
+        if (mButtonAutoBrightnessEnabled)
+            updateButtonBrightness(lux);
     }
 
     private void applyLightSensorMeasurement(long time, float lux) {
@@ -1073,7 +1156,7 @@ final class DisplayPowerController {
     }
 
     private void updateAutoBrightness(boolean sendUpdate) {
-        if (!mAmbientLuxValid) {
+        if (!mAmbientLuxValid || !mAutoBrightnessEnabled) {
             return;
         }
 
@@ -1214,6 +1297,7 @@ final class DisplayPowerController {
         pw.println("  mScreenBrightnessRangeMaximum=" + mScreenBrightnessRangeMaximum);
         pw.println("  mUseSoftwareAutoBrightnessConfig="
                 + mUseSoftwareAutoBrightnessConfig);
+        pw.println("  mUseButtonAutoBrightnessConfig=" + mUseButtonAutoBrightnessConfig);
         pw.println("  mScreenAutoBrightnessSpline=" + mScreenAutoBrightnessSpline);
         pw.println("  mLightSensorWarmUpTimeConfig=" + mLightSensorWarmUpTimeConfig);
 
