@@ -25,6 +25,7 @@ import android.nfc.INdefPushCallback;
 import android.nfc.INfcAdapterExtras;
 import android.nfc.INfcTag;
 import android.nfc.INfcSecureElement;
+import android.nfc.INfcCEFromHost;
 
 /**
  * @hide
@@ -35,6 +36,7 @@ interface INfcAdapter
 
     INfcAdapterExtras getNfcAdapterExtrasInterface(in String pkg);
     INfcSecureElement getNfcSecureElementInterface();
+    INfcCEFromHost getNfcCEFromHostInterface();
 
     int getState();
     boolean disable(boolean saveState);

@@ -757,7 +757,15 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 }
             }, mHandler);
 
-            mHandler.postDelayed(mRtspTimeout, RTSP_TIMEOUT_SECONDS * 1000);
+            String rtspTimeout = SystemProperties.get("sigma.rtsptimeout", "");
+            if (!rtspTimeout.equals("")) {
+                Slog.d(TAG, "Use RTSP TIMEOUT value of "
+                        + Integer.parseInt(rtspTimeout) + " instead of "
+                        + RTSP_TIMEOUT_SECONDS + " seconds");
+                mHandler.postDelayed(mRtspTimeout, Integer.parseInt(rtspTimeout) * 1000);
+            } else {
+                mHandler.postDelayed(mRtspTimeout, RTSP_TIMEOUT_SECONDS * 1000);
+            }
         }
     }
 
@@ -852,9 +860,16 @@ final class WifiDisplayController implements DumpUtils.Dump {
         public void run() {
             if (mConnectedDevice != null
                     && mRemoteDisplay != null && !mRemoteDisplayConnected) {
-                Slog.i(TAG, "Timed out waiting for Wifi display RTSP connection after "
-                        + RTSP_TIMEOUT_SECONDS + " seconds: "
-                        + mConnectedDevice.deviceName);
+                String rtspTimeout = SystemProperties.get("sigma.rtsptimeout", "");
+                if (!rtspTimeout.equals("")) {
+                    Slog.i(TAG, "Timed out waiting for Wifi display RTSP connection after "
+                            + Integer.parseInt(rtspTimeout) + " seconds: "
+                            + mConnectedDevice.deviceName);
+                } else {
+                    Slog.i(TAG, "Timed out waiting for Wifi display RTSP connection after "
+                            + RTSP_TIMEOUT_SECONDS + " seconds: "
+                            + mConnectedDevice.deviceName);
+                }
                 handleConnectionFailure(true);
             }
         }

@@ -22,10 +22,19 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.BroadcastReceiver;
+import static android.hardware.usb.UsbManager.ACTION_USB_HOST_VBUS;
+import static android.hardware.usb.UsbManager.EXTRA_HOST_VBUS;
+import static android.hardware.usb.UsbManager.USB_HOST_VBUS_NORMAL;
+import static android.hardware.usb.UsbManager.USB_HOST_VBUS_WARNING;
+import static android.hardware.usb.UsbManager.USB_HOST_VBUS_ALERT;
+import static android.hardware.usb.UsbManager.USB_HOST_VBUS_CRITICAL;
+import static android.hardware.usb.UsbManager.ACTION_USB_DEVICE_ATTACHED;
+import static android.hardware.usb.UsbManager.ACTION_USB_DEVICE_DETACHED;
 import android.os.BatteryManager;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.ServiceManager;
+import android.os.UserHandle;
 import android.util.Log;
 
 import android.os.UEventObserver;
@@ -60,6 +69,7 @@ class CurrentMgmtService extends Binder {
     private static int battWarnLevel1 = 15;
     private static int battWarnLevel2 = 10;
     private static int battWarnLevel3 = 5;
+    private static boolean isUsbDeviceAttached = false;
 
     public enum Level {
         NORMAL, WARNING, ALERT, CRITICAL;
@@ -86,6 +96,16 @@ class CurrentMgmtService extends Binder {
         }
     };
 
+    private enum Otg {Normal(0), Warn(1), Alert(2);
+        private int numVal;
+        Otg(int numVal) {
+            this.numVal = numVal;
+        }
+        public int getVal() {
+            return numVal;
+        }
+     };
+
     private enum SubSystem {
          BCU_SUBSYS_AUDIO(1),
          BCU_SUBSYS_CAMERA(2),
@@ -103,13 +123,26 @@ class CurrentMgmtService extends Binder {
 
     private static int speakerStatus;
     private static int flashStatus = 1;
+    private static int otgStatus;
+
+    private final class UsbReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (ACTION_USB_DEVICE_ATTACHED.equals(action))
+                isUsbDeviceAttached = true;
+            else if (ACTION_USB_DEVICE_DETACHED.equals(action))
+                isUsbDeviceAttached = false;
+        }
+    }
+
 
     private final class BCUReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
             int battLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, 0);
             prevLevel = currentLevel;
-            //Determine the current BCU state: normal/warning/alert/critical
+            // Determine the current BCU state: normal/warning/alert/critical
             if (battLevel < battWarnLevel3) {
                 currentLevel = Level.CRITICAL;
             } else if (battLevel < battWarnLevel2) {
@@ -120,14 +153,16 @@ class CurrentMgmtService extends Binder {
                 currentLevel = Level.NORMAL;
             }
             
-            //Take actions if the BCU state has changed
+            // Take actions if the BCU state has changed
             if (currentLevel != prevLevel) {
-                switch(currentLevel) {
-                    //Currently, we take same actions for both critical and alert state
+                 // Intent to notify USB on certain battery thresholds
+                Intent BCUIntent = new Intent(ACTION_USB_HOST_VBUS);
+                switch (currentLevel) {
+                    // Currently, we take same actions for both critical and alert state
                     case CRITICAL:
                     case ALERT:
-                        //Same action could have been taken in an earlier state also.
-                        //So check the throttling status before proceeding.
+                        // Same action could have been taken in an earlier state also.
+                        // So check the throttling status before proceeding.
                         if (speakerStatus != Speaker.Stop.getVal()) {
                             nativeSubsystemThrottle(SubSystem.BCU_SUBSYS_AUDIO.getVal(), Speaker.Stop.getVal());
                             speakerStatus = Speaker.Stop.getVal();
@@ -135,6 +170,10 @@ class CurrentMgmtService extends Binder {
                         if (flashStatus != Flash.Disable.getVal()) {
                             nativeSubsystemThrottle(SubSystem.BCU_SUBSYS_CAMERA.getVal(), Flash.Disable.getVal());
                             flashStatus = Flash.Disable.getVal();
+                        }
+                        if (otgStatus != Otg.Alert.getVal()) {
+                            BCUIntent.putExtra(EXTRA_HOST_VBUS, USB_HOST_VBUS_CRITICAL);
+                            otgStatus = Otg.Alert.getVal();
                         }
                         break;
                     case WARNING:       
@@ -146,6 +185,10 @@ class CurrentMgmtService extends Binder {
                             nativeSubsystemThrottle(SubSystem.BCU_SUBSYS_CAMERA.getVal(), Flash.Disable.getVal());
                             flashStatus = Flash.Disable.getVal();
                         }
+                        if (otgStatus != Otg.Warn.getVal()) {
+                            BCUIntent.putExtra(EXTRA_HOST_VBUS, USB_HOST_VBUS_WARNING);
+                            otgStatus = Otg.Warn.getVal();
+                        }
                         break;
                     case NORMAL:
                         if (speakerStatus != Speaker.Full.getVal()) {
@@ -156,7 +199,14 @@ class CurrentMgmtService extends Binder {
                             nativeSubsystemThrottle(SubSystem.BCU_SUBSYS_CAMERA.getVal(), Flash.Enable.getVal());
                             flashStatus = Flash.Enable.getVal();
                         }
+                        if (otgStatus != Otg.Normal.getVal()) {
+                            BCUIntent.putExtra(EXTRA_HOST_VBUS, USB_HOST_VBUS_NORMAL);
+                            otgStatus = Otg.Normal.getVal();
+                        }
                         break;
+                }
+                if (isUsbDeviceAttached) {
+                    context.sendBroadcastAsUser(BCUIntent, UserHandle.ALL);
                 }
             }
         }
@@ -174,6 +224,12 @@ class CurrentMgmtService extends Binder {
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_BATTERY_CHANGED);
         context.registerReceiver(new BCUReceiver(), filter);
+        IntentFilter usbFilter1 = new IntentFilter();
+        usbFilter1.addAction(ACTION_USB_DEVICE_ATTACHED);
+        IntentFilter usbFilter2 = new IntentFilter();
+        usbFilter2.addAction(ACTION_USB_DEVICE_DETACHED);
+        context.registerReceiver(new UsbReceiver(), usbFilter1);
+        context.registerReceiver(new UsbReceiver(), usbFilter2);
         nativeInit();
         mUEventObserver.startObserving(devPath);
     }
