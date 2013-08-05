@@ -559,7 +559,9 @@ public class MediaVideoItem extends MediaItem {
                 MediaProperties.DEFAULT_SAMPLING_FREQUENCY;
                 sampleCount = MediaProperties.SAMPLES_PER_FRAME_AMRWB;
             } else if (mMANativeHelper.getAudioCodecType(mAudioType) ==
-                MediaProperties.ACODEC_AAC_LC ) {
+                MediaProperties.ACODEC_AAC_LC ||
+                       mMANativeHelper.getAudioCodecType(mAudioType) ==
+                MediaProperties.ACODEC_AAC_PLUS ) {
                 frameDuration = (MediaProperties.SAMPLES_PER_FRAME_AAC * 1000)/
                 MediaProperties.DEFAULT_SAMPLING_FREQUENCY;
                 sampleCount = MediaProperties.SAMPLES_PER_FRAME_AAC;
