@@ -163,6 +163,7 @@ public class AudioTrack {
             case MediaProperties.ACODEC_AMRNB:
             case MediaProperties.ACODEC_AMRWB:
             case MediaProperties.ACODEC_AAC_LC:
+            case MediaProperties.ACODEC_AAC_PLUS:
             case MediaProperties.ACODEC_MP3:
                 break;
             default:
@@ -553,7 +554,8 @@ public class AudioTrack {
                     break;
                 }
 
-                case MediaProperties.ACODEC_AAC_LC: {
+                case MediaProperties.ACODEC_AAC_LC:
+                case MediaProperties.ACODEC_AAC_PLUS: {
                     frameDuration = (MediaProperties.SAMPLES_PER_FRAME_AAC * 1000)
                     / MediaProperties.DEFAULT_SAMPLING_FREQUENCY;
                     sampleCount = MediaProperties.SAMPLES_PER_FRAME_AAC;
