@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+/*
+ * Portions contributed by: Intel Corporation
+ */
 package com.android.server.display;
 
 import com.android.internal.util.DumpUtils;
@@ -683,7 +686,11 @@ final class WifiDisplayController implements DumpUtils.Dump {
             }
             config.deviceAddress = mConnectingDevice.deviceAddress;
             // Helps with STA & P2P concurrency
-            config.groupOwnerIntent = WifiP2pConfig.MIN_GROUP_OWNER_INTENT;
+            // Google set groupOwnerIntent to 0 ( WifiP2pConfig.MIN_GROUP_OWNER_INTENT).
+            // Intel modification is to set go_intent to 14 in order to become GO.
+            // It would allow to choose the operating channel with the help of an internal
+            // algorithm executed in wpa_supplicant
+            config.groupOwnerIntent = WifiP2pConfig.MAX_GROUP_OWNER_INTENT - 1;
 
             WifiDisplay display = createWifiDisplay(mConnectingDevice);
             advertiseDisplay(display, null, 0, 0, 0);
