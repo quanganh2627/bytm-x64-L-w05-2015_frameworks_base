@@ -509,8 +509,8 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
                     // start tethering if we have a request pending
                     if (usbConnected && mRndisEnabled && mUsbTetherRequested) {
                         tetherUsb(true);
+                        mUsbTetherRequested = false;
                     }
-                    mUsbTetherRequested = false;
                 }
             } else if (action.equals(ConnectivityManager.CONNECTIVITY_ACTION)) {
                 NetworkInfo networkInfo = (NetworkInfo)intent.getParcelableExtra(
