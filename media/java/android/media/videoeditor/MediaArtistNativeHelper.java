@@ -3296,6 +3296,9 @@ class MediaArtistNativeHelper {
             case AudioFormat.AAC:
                 retValue = MediaProperties.ACODEC_AAC_LC;
                 break;
+            case AudioFormat.AAC_PLUS:
+                retValue = MediaProperties.ACODEC_AAC_PLUS;
+                break;
             case AudioFormat.MP3:
                 retValue = MediaProperties.ACODEC_MP3;
                 break;
