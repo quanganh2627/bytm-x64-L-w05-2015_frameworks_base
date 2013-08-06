@@ -139,7 +139,9 @@ public class WifiStateMachine extends StateMachine {
     private final boolean mBackgroundScanSupported;
 
     private String mInterfaceName;
-    /* Tethering interface could be separate from wlan interface */
+    private static final String mP2pInterfaceName = "p2p0";
+    private static final String[] mP2pRegexs = {"p2p-p2p0-\\d"};
+    /* Tethering interface could be seperate from wlan interface */
     private String mTetherInterfaceName;
 
     private int mLastSignalLevel = -1;
@@ -2660,9 +2662,32 @@ public class WifiStateMachine extends StateMachine {
                         }
 
                         try {
-                            // A runtime crash can leave the interface up and
-                            // this affects connectivity when supplicant starts up.
-                            // Ensure interface is down before a supplicant start.
+                       /* Stop a running supplicant after a runtime restart
+                        * Avoids issues with drivers that do not handle interface down
+                        * on a running supplicant properly.
+                        */
+                       if (DBG) log("Kill any running supplicant");
+                       mWifiNative.killSupplicant(mP2pSupported);
+                       // A runtime crash can leave the interface up and
+                       // this affects connectivity when supplicant starts up.
+                       // Ensure interface is down before a supplicant start.
+                        if (mP2pSupported) {
+                            // Ensure  p2p and p2p-p20-X interfaces are down
+                            if (DBG) log("Set P2P interfaces down");
+                            String[] ifaces = new String[0];
+                            try {
+                                ifaces =  mNwService.listInterfaces();
+                            } catch (Exception e) {
+                                loge("Error listing Interfaces");
+                            }
+                            for (String iface : ifaces) {
+                                if (isP2p(iface)) {
+                                    if (DBG) log("P2P group iface: " + iface);
+                                    mNwService.setInterfaceDown(iface);
+                                }
+                            }
+                            mNwService.setInterfaceDown(mP2pInterfaceName);
+                        }
                             mNwService.setInterfaceDown(mInterfaceName);
                             // Set privacy extensions
                             mNwService.setInterfaceIpv6PrivacyExtensions(mInterfaceName, true);
@@ -2678,11 +2703,6 @@ public class WifiStateMachine extends StateMachine {
                             loge("Unable to change interface settings: " + ie);
                         }
 
-                       /* Stop a running supplicant after a runtime restart
-                        * Avoids issues with drivers that do not handle interface down
-                        * on a running supplicant properly.
-                        */
-                        mWifiMonitor.killSupplicant(mP2pSupported);
                         if(mWifiNative.startSupplicant(mP2pSupported)) {
                             setWifiState(WIFI_STATE_ENABLING);
                             if (DBG) log("Supplicant start successful");
@@ -4431,5 +4451,11 @@ public class WifiStateMachine extends StateMachine {
         Message msg = Message.obtain();
         msg.arg2 = srcMsg.arg2;
         return msg;
+    }
+
+    private boolean isP2p(String iface) {
+        for (String regex : mP2pRegexs)
+            if (iface.matches(regex)) return true;
+        return false;
     }
 }
