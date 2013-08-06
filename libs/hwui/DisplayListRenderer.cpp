@@ -912,11 +912,12 @@ status_t DisplayList::replay(OpenGLRenderer& renderer, Rect& dirty, int32_t flag
                 op &= ~OP_MAY_BE_SKIPPED_MASK;
             }
         }
-        nsecs_t startTime = systemTime(SYSTEM_TIME_MONOTONIC);
+        logBuffer.writeCommand(level, op);
 
 #if DEBUG_DISPLAY_LIST_OPS_AS_EVENTS
         Caches::getInstance().eventMark(strlen(OP_NAMES[op]), OP_NAMES[op]);
 #endif
+
         switch (op) {
             case DrawGLFunction: {
                 Functor *functor = (Functor *) getInt();
@@ -1331,8 +1332,6 @@ status_t DisplayList::replay(OpenGLRenderer& renderer, Rect& dirty, int32_t flag
                         (char*) indent, OP_NAMES[op]);
                 break;
         }
-        nsecs_t duration = systemTime(SYSTEM_TIME_MONOTONIC) - startTime;
-        logBuffer.writeCommand(level, op, (int)(ns2us(duration)));
     }
 
     DISPLAY_LIST_LOGD("%s%s %d", (char*) indent, "RestoreToCount", restoreTo);
