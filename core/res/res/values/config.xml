@@ -1031,6 +1031,7 @@
 
     <bool name="config_button_automatic_brightness_available">false</bool>
     <bool name="config_button_led_brightness_available">false</bool>
+    <bool name="config_proximityScreenOffAvailable">true</bool>
 
     <!-- Controls whether window orientation should use non-polling mode accelerometer.
          set default to false to use polling mode. -->
