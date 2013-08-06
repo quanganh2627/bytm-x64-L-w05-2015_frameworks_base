@@ -143,6 +143,12 @@ public final class BatteryService extends Binder {
 
     private boolean mSentLowBatteryBroadcast = false;
 
+    // Variables used to check if battery is discharging, by taking voltage samples
+    private static int dischargeCount = 0;
+    private static int voltPrev = -1;
+    private static final int MAX_DISCHARGE_COUNT = 3;
+    private static boolean mBatteryLevelZero = false;
+
     private native void native_update();
 
     public BatteryService(Context context, LightsService lights) {
@@ -171,6 +177,52 @@ public final class BatteryService extends Binder {
         // set initial status
         synchronized (mLock) {
             updateLocked();
+        }
+    }
+
+    private final boolean isDischarging() {
+    // If the voltage is dropping during consecutive readings, report that battery is discharging.
+    // Reset the discharge count if the current voltage is greater than the previous voltage
+        if ((mBatteryVoltage < voltPrev) && (voltPrev != -1)) {
+           dischargeCount++;
+        } else if (mBatteryVoltage > voltPrev) {
+           dischargeCount = 0;
+        }
+        voltPrev = mBatteryVoltage;
+        return (dischargeCount >= MAX_DISCHARGE_COUNT);
+    }
+
+    private void initiateShutdown() {
+        // wait until the system has booted before attempting to display the shutdown dialog.
+        if (ActivityManagerNative.isSystemReady()) {
+            Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
+            intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mContext.startActivityAsUser(intent, UserHandle.CURRENT);
+        }
+    }
+
+    /**
+     * Thread initiates 0% shutdown intent when charger connected
+     * and significant 3 consecutive voltage drops
+     */
+    public class ShutDownZeroChargerConnect implements Runnable {
+        public void run() {
+            while (mBatteryLevel == 0) {
+                try {
+                    // Update the values of mAcOnline, et. all.
+                    native_update();
+                    if (isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY) && isDischarging()) {
+                        initiateShutdown();
+                    }
+                    Slog.d(TAG, "ShutDownZeroChargerConnect thread running\n");
+                    Thread.sleep(60000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            mBatteryLevelZero = false;
+            Slog.d(TAG, "ShutDownZeroChargerConnect thread exited:" + mBatteryLevelZero);
         }
     }
 
@@ -246,20 +298,22 @@ public final class BatteryService extends Binder {
     }
 
     private void shutdownIfNoPowerLocked() {
-        // shut down gracefully if our battery is critically low and we are not powered.
-        // wait until the system has booted before attempting to display the shutdown dialog.
-        if (mBatteryLevel == 0 && !isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY)) {
-            mHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    if (ActivityManagerNative.isSystemReady()) {
-                        Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
-                        intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
-                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        mContext.startActivityAsUser(intent, UserHandle.CURRENT);
+        if (mBatteryLevel == 0) {
+            // spawn a thread if charger is connected at 0% capacity for disharge condition
+            if (mBatteryLevelZero == false && isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY)) {
+                Slog.d(TAG, "shutdownIfNoPowerLocked- Start a Thread: mBatteryLevelZero:"+ mBatteryLevelZero);
+                mBatteryLevelZero = true;
+                new Thread(new ShutDownZeroChargerConnect()).start();
+            }
+            // shut down gracefully if our battery is critically low and we are not powered.
+            else if (!isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY)) {
+                mHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        initiateShutdown();
                     }
-                }
-            });
+                });
+            }
         }
     }
 
