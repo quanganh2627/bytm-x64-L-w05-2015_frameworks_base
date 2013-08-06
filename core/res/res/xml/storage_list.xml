@@ -20,9 +20,9 @@
 <!-- See storage config details at http://source.android.com/tech/storage/ -->
 
 <StorageList xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- internal emulated storage -->
+    <!-- removable is not set in nosdcard product -->
     <storage
-        android:storageDescription="@string/storage_internal"
-        android:emulated="true"
-        android:mtpReserve="100" />
+        android:mountPoint="/storage/sdcard"
+        android:storageDescription="@string/storage_usb"
+        android:primary="true" />
 </StorageList>
