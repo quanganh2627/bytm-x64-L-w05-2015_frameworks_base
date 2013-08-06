@@ -38,6 +38,7 @@ import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.UEventObserver;
 import android.os.UserHandle;
+import android.os.SystemProperties;
 import android.provider.Settings;
 import android.util.EventLog;
 import android.util.Slog;
@@ -45,6 +46,9 @@ import android.util.Slog;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 
@@ -184,6 +188,7 @@ public final class BatteryService extends Binder {
         }
 
         // set initial status
+        writeStats();
         synchronized (mLock) {
             updateLocked();
         }
@@ -267,6 +272,7 @@ public final class BatteryService extends Binder {
 
         // wait until the system has booted before attempting to display the shutdown dialog.
         if (ActivityManagerNative.isSystemReady()) {
+            writeStats();
             Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
             intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -296,6 +302,42 @@ public final class BatteryService extends Binder {
             mBatteryLevelZero = false;
             Slog.d(TAG, "ShutDownZeroChargerConnect thread exited:" + mBatteryLevelZero);
         }
+    }
+
+    static String readSysfs(String path) {
+       if (!(new File(path).exists())) {
+          Slog.i(TAG, path + "does not exist");
+          return null;
+       }
+       BufferedReader br = null;
+       String val = null;
+       try {
+           br = new BufferedReader(new FileReader(path));
+           val = br.readLine();
+           br.close();
+       } catch(Exception e) {
+          e.printStackTrace();
+       }
+       return val;
+    }
+
+    public void writeStats() {
+       try {
+           // Do not write stats to the file in USER builds... for userdebug and eng build, continue writing to the file.
+           String buildtype = SystemProperties.get("ro.build.type", null);
+           if ((mBatteryHealth == BatteryManager.BATTERY_HEALTH_DEAD) && ((buildtype != null) &&
+                 (buildtype.equals("userdebug") || buildtype.equals("eng")))) {
+              PrintWriter pw = new PrintWriter(new FileWriter("/logs/stats/lowbatt_trigger"));
+              pw.println("Status:" + mBatteryStatus);
+              pw.println("Prev capacity:" + mLastBatteryLevel);
+              pw.println("Voltage now:" + mBatteryVoltage);
+              pw.println("Health:" + mBatteryHealth);
+              pw.println("Temp:" + mBatteryTemperature);
+              pw.close();
+           }
+       } catch (Exception e) {
+               android.util.Log.e(TAG, "crash logs not written:" + e);
+       }
     }
 
     void systemReady() {
