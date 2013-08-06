@@ -343,16 +343,24 @@ int register_android_server_BatteryService(JNIEnv* env)
                     gPaths.batteryCapacityPath = path;
 
                 path.clear();
-                path.appendFormat("%s/%s/voltage_now", POWER_SUPPLY_PATH, name);
+                path.appendFormat("%s/%s/voltage_ocv", POWER_SUPPLY_PATH, name);
                 if (access(path, R_OK) == 0) {
                     gPaths.batteryVoltagePath = path;
-                    // voltage_now is in microvolts, not millivolts
+                    // voltage_ocv is in microvolts, not millivolts
                     gVoltageDivisor = 1000;
                 } else {
                     path.clear();
                     path.appendFormat("%s/%s/batt_vol", POWER_SUPPLY_PATH, name);
                     if (access(path, R_OK) == 0)
                             gPaths.batteryVoltagePath = path;
+                    else {
+                        path.clear();
+                        path.appendFormat("%s/%s/voltage_now", POWER_SUPPLY_PATH, name);
+                        if (access(path, R_OK) == 0)
+                            gPaths.batteryVoltagePath = path;
+                        // voltage_now is in microvolts, not millivolts
+                        gVoltageDivisor = 1000;
+                    }
                 }
 
                 path.clear();
