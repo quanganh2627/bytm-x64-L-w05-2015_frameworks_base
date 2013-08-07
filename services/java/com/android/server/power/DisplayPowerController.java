@@ -193,6 +193,9 @@ final class DisplayPowerController {
     // The proximity sensor, or null if not available or needed.
     private Sensor mProximitySensor;
 
+    // If True proximity sensor screen-off function should be used
+    private boolean mProximityScreenOffConfig;
+
     // The light sensor, or null if not available or needed.
     private Sensor mLightSensor;
 
@@ -394,6 +397,9 @@ final class DisplayPowerController {
                 com.android.internal.R.integer.config_screenBrightnessSettingMinimum),
                 mScreenBrightnessDimConfig);
 
+        mProximityScreenOffConfig = resources.getBoolean(
+                com.android.internal.R.bool.config_proximityScreenOffAvailable);
+
         mUseSoftwareAutoBrightnessConfig = resources.getBoolean(
                 com.android.internal.R.bool.config_automatic_brightness_available);
         if (mUseSoftwareAutoBrightnessConfig) {
@@ -489,7 +495,9 @@ final class DisplayPowerController {
      * Returns true if the proximity sensor screen-off function is available.
      */
     public boolean isProximitySensorAvailable() {
-        return mProximitySensor != null;
+        if (mProximityScreenOffConfig)
+            return mProximitySensor != null;
+        return false;
     }
 
     /**
