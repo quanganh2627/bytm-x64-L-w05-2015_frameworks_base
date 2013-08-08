@@ -242,6 +242,12 @@ static void nativeScreenshot(JNIEnv* env, jclass clazz,
     }
 }
 
+static void nativeSetRotationAnimationStatus(
+        JNIEnv* env, jobject clazz, jboolean on)
+{
+    SurfaceComposerClient::setRotationAnimationStatus(on);
+}
+
 static void nativeOpenTransaction(JNIEnv* env, jclass clazz) {
     SurfaceComposerClient::openGlobalTransaction();
 }
@@ -445,6 +451,8 @@ static JNINativeMethod sSurfaceControlMethods[] = {
             (void*)nativeScreenshotBitmap },
     {"nativeScreenshot", "(Landroid/os/IBinder;Landroid/view/Surface;IIIIZ)V",
             (void*)nativeScreenshot },
+    {"nativeSetRotationAnimationStatus", "(Z)V",
+            (void*)nativeSetRotationAnimationStatus },
     {"nativeOpenTransaction", "()V",
             (void*)nativeOpenTransaction },
     {"nativeCloseTransaction", "()V",
