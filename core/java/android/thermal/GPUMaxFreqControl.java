@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 Intel Corporation All Rights Reserved.
+ * Copyright 2013 Intel Corporation All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,20 +17,21 @@
 package android.thermal;
 
 import java.io.File;
+import android.util.Log;
 
 /**
- * The SoC Control class contains strings and constants used for values
+ * The GPUMaxFreqControl class contains strings and constants used for values
  * in the {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED} Intent.
  *@hide
  */
-public class SoCControl {
-    private static final String TAG = "Thermal:SoCControl";
-    private static String mSoCThrottlePath;
-    private static boolean mIsSoCDeviceExists = false;
+public class GPUMaxFreqControl {
+    private static final String TAG = "Thermal:GPUMaxFreqControl";
+    private static String mGPUThrottlePath;
+    private static boolean mIsGPUDeviceExists = false;
 
     public static void throttleDevice(int thermalState) {
-       if (mIsSoCDeviceExists) {
-          SysfsManager.writeSysfs(mSoCThrottlePath, thermalState);
+       if (mIsGPUDeviceExists) {
+          SysfsManager.writeSysfs(mGPUThrottlePath, thermalState);
        }
     }
 
@@ -40,12 +41,13 @@ public class SoCControl {
        String coolDeviceState = "/cur_state";
        String coolDeviceType = "/type";
        int i = 0;
-       /* Search throttle path for SoC cooling device */
+
+       /* Search throttle path for gpu_burst cooling device */
        while (new File(coolDeviceThrottlePath + i + coolDeviceType).exists()) {
              String coolDeviceName = SysfsManager.readSysfs(coolDeviceThrottlePath + i + coolDeviceType);
-             if ((coolDeviceName != null) && (coolDeviceName.equals("SoC"))) {
-                   mSoCThrottlePath = coolDeviceThrottlePath + i + coolDeviceState;
-                   mIsSoCDeviceExists = true;
+             if ((coolDeviceName != null) && (coolDeviceName.equals("gpu_burst"))) {
+                          mGPUThrottlePath = coolDeviceThrottlePath + i + coolDeviceState;
+                          mIsGPUDeviceExists = true;
              }
              i++;
        }
