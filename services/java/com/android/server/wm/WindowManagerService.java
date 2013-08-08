@@ -4888,6 +4888,13 @@ public class WindowManagerService extends IWindowManager.Stub
             case 2: mAnimatorDurationScale = fixScale(scale); break;
         }
 
+	if (which == 1) {
+	    if (mTransitionAnimationScale > 0.0)
+	        SurfaceControl.setTransition(true);
+	    else
+	        SurfaceControl.setTransition(false);
+	}
+
         // Persist setting
         mH.sendEmptyMessage(H.PERSIST_ANIMATION_SCALE);
     }
@@ -4905,6 +4912,10 @@ public class WindowManagerService extends IWindowManager.Stub
             }
             if (scales.length >= 2) {
                 mTransitionAnimationScale = fixScale(scales[1]);
+		if (mTransitionAnimationScale > 0.0)
+		    SurfaceControl.setTransition(true);
+		else
+		    SurfaceControl.setTransition(false);
             }
             if (scales.length >= 3) {
                 setAnimatorDurationScale(fixScale(scales[2]));
@@ -9093,6 +9104,7 @@ public class WindowManagerService extends IWindowManager.Stub
         }
 
         if (mInnerFields.mUpdateRotation) {
+	    SurfaceControl.setOrientationEnd(true);
             if (DEBUG_ORIENTATION) Slog.d(TAG, "Performing post-rotate rotation");
             if (updateRotationUncheckedLocked(false)) {
                 mH.sendEmptyMessage(H.SEND_NEW_CONFIGURATION);
@@ -9612,6 +9624,8 @@ public class WindowManagerService extends IWindowManager.Stub
             screenRotationAnimation = new ScreenRotationAnimation(mContext,
                     display, mFxSession, inTransaction, displayInfo.logicalWidth,
                     displayInfo.logicalHeight, display.getRotation());
+
+	    SurfaceControl.setOrientationEnd(false);
             mAnimator.setScreenRotationAnimationLocked(displayId, screenRotationAnimation);
         }
     }
