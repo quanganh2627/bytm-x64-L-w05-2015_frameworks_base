@@ -486,6 +486,7 @@ public class WindowAnimator {
                     if (screenRotationAnimation.stepAnimationLocked(mCurrentTime)) {
                         mAnimating = true;
                     } else {
+                        SurfaceControl.setRotationAnimationStatus(false);
                         mBulkUpdateParams |= SET_UPDATE_ROTATION;
                         screenRotationAnimation.kill();
                         displayAnimator.mScreenRotationAnimation = null;

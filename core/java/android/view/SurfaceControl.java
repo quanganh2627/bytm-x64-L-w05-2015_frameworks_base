@@ -44,6 +44,7 @@ public class SurfaceControl {
     private static native void nativeScreenshot(IBinder displayToken, Surface consumer,
             int width, int height, int minLayer, int maxLayer, boolean allLayers);
 
+    private static native void nativeSetRotationAnimationStatus(boolean end);
     private static native void nativeOpenTransaction();
     private static native void nativeCloseTransaction();
     private static native void nativeSetAnimationTransaction();
@@ -292,6 +293,11 @@ public class SurfaceControl {
     private void checkNotReleased() {
         if (mNativeObject == 0) throw new NullPointerException(
                 "mNativeObject is null. Have you called release() already?");
+    }
+
+    /** set orientation end @hide */
+    public static void setRotationAnimationStatus(boolean on) {
+        nativeSetRotationAnimationStatus(on);
     }
 
     /*
