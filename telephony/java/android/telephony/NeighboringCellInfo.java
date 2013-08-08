@@ -18,6 +18,9 @@ package android.telephony;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.os.SystemProperties;
+
+import com.android.internal.telephony.TelephonyProperties;
 
 import static android.telephony.TelephonyManager.NETWORK_TYPE_UNKNOWN;
 import static android.telephony.TelephonyManager.NETWORK_TYPE_EDGE;
@@ -26,9 +29,8 @@ import static android.telephony.TelephonyManager.NETWORK_TYPE_UMTS;
 import static android.telephony.TelephonyManager.NETWORK_TYPE_HSDPA;
 import static android.telephony.TelephonyManager.NETWORK_TYPE_HSUPA;
 import static android.telephony.TelephonyManager.NETWORK_TYPE_HSPA;
-
-
-
+import static android.telephony.TelephonyManager.NETWORK_TYPE_HSPAP;
+import static android.telephony.TelephonyManager.NETWORK_TYPE_LTE;
 /**
  * Represents the neighboring cell information, including
  * Received Signal Strength and Cell ID location.
@@ -123,7 +125,8 @@ public class NeighboringCellInfo implements Parcelable
      * {@link TelephonyManager#NETWORK_TYPE_UMTS TelephonyManager.NETWORK_TYPE_UMTS},
      * {@link TelephonyManager#NETWORK_TYPE_HSDPA TelephonyManager.NETWORK_TYPE_HSDPA},
      * {@link TelephonyManager#NETWORK_TYPE_HSUPA TelephonyManager.NETWORK_TYPE_HSUPA},
-     * and {@link TelephonyManager#NETWORK_TYPE_HSPA TelephonyManager.NETWORK_TYPE_HSPA}.
+     * {@link TelephonyManager#NETWORK_TYPE_HSPA TelephonyManager.NETWORK_TYPE_HSPA},
+     * and {@link TelephonyManager#NETWORK_TYPE_HSPA TelephonyManager.NETWORK_TYPE_HSPAP}
      */
     public NeighboringCellInfo(int rssi, String location, int radioType) {
         // set default value
@@ -158,6 +161,7 @@ public class NeighboringCellInfo implements Parcelable
             case NETWORK_TYPE_HSDPA:
             case NETWORK_TYPE_HSUPA:
             case NETWORK_TYPE_HSPA:
+            case NETWORK_TYPE_HSPAP:
                 mNetworkType = radioType;
                 mPsc = Integer.valueOf(location, 16);
                 break;
@@ -183,6 +187,32 @@ public class NeighboringCellInfo implements Parcelable
             mPsc = in.readInt();
             mNetworkType = in.readInt();
         } else {
+            mPsc = UNKNOWN_CID;
+            mLac = UNKNOWN_CID;
+            mCid = UNKNOWN_CID;
+            String radioString = SystemProperties.get(
+                    TelephonyProperties.PROPERTY_DATA_NETWORK_TYPE, "unknown");
+            if (radioString.equals("GPRS")) {
+                mNetworkType =  NETWORK_TYPE_GPRS;
+            } else if (radioString.equals("EDGE")) {
+                mNetworkType = NETWORK_TYPE_EDGE;
+            } else if (radioString.equals("UMTS")) {
+                mNetworkType = NETWORK_TYPE_UMTS;
+            } else if (radioString.equals("HSDPA")) {
+                mNetworkType = NETWORK_TYPE_HSDPA;
+            } else if (radioString.equals("HSUPA")) {
+                mNetworkType = NETWORK_TYPE_HSUPA;
+            } else if (radioString.equals("HSPA")) {
+                mNetworkType = NETWORK_TYPE_HSPA;
+            } else if (radioString.equals("HSPAP")) {
+                mNetworkType = NETWORK_TYPE_HSPAP;
+            } else if (radioString.equals("LTE")) {
+                mNetworkType = NETWORK_TYPE_LTE;
+            } else {
+                mNetworkType = NETWORK_TYPE_UNKNOWN;
+            }
+
+            mRssi = UNKNOWN_RSSI;
             mCellInfoType = in.readInt();
             mIsServingCell = in.readInt();
             switch (mCellInfoType) {
@@ -209,7 +239,19 @@ public class NeighboringCellInfo implements Parcelable
      * For UMTS, it is the Level index of CPICH RSCP defined in TS 25.125
      */
     public int getRssi() {
-        return mRssi;
+        if (mVersion == 1) {
+            return mRssi;
+        } else {
+            switch (mCellInfoType) {
+            case CELL_INFO_TYPE_GSM:
+            case CELL_INFO_TYPE_WCDMA:
+                return mCellSignalStrengthGsm.getDbm();
+            case CELL_INFO_TYPE_LTE:
+                return mCellSignalStrengthLte.getDbm();
+            default:
+                return UNKNOWN_RSSI;
+            }
+        }
     }
 
     /**
@@ -217,7 +259,19 @@ public class NeighboringCellInfo implements Parcelable
      *  UNKNOWN_CID if in UMTS or CMDA or unknown
      */
     public int getLac() {
-        return mLac;
+        if (mVersion == 1) {
+            return mLac;
+        } else {
+            switch (mCellInfoType) {
+            case CELL_INFO_TYPE_GSM:
+            case CELL_INFO_TYPE_WCDMA:
+                return mCellIdentityGsm.getLac();
+            case CELL_INFO_TYPE_LTE:
+                return mCellIdentityLte.getTac();
+            default:
+                return UNKNOWN_CID;
+            }
+        }
     }
 
     /**
@@ -225,7 +279,19 @@ public class NeighboringCellInfo implements Parcelable
      *  UNKNOWN_CID if in UMTS or CDMA or unknown
      */
     public int getCid() {
-        return mCid;
+        if (mVersion == 1) {
+            return mCid;
+        } else {
+            switch (mCellInfoType) {
+            case CELL_INFO_TYPE_GSM:
+            case CELL_INFO_TYPE_WCDMA:
+                return mCellIdentityGsm.getCid();
+            case CELL_INFO_TYPE_LTE:
+                return mCellIdentityLte.getCi();
+            default:
+                return UNKNOWN_CID;
+            }
+        }
     }
 
     /**
@@ -233,7 +299,19 @@ public class NeighboringCellInfo implements Parcelable
      *  UNKNOWN_CID if in GSM or CMDA or unknown
      */
     public int getPsc() {
-        return mPsc;
+        if (mVersion == 1) {
+            return mPsc;
+        } else {
+            switch (mCellInfoType) {
+            case CELL_INFO_TYPE_GSM:
+            case CELL_INFO_TYPE_WCDMA:
+                return mCellIdentityGsm.getPsc();
+            case CELL_INFO_TYPE_LTE:
+                return mCellIdentityLte.getTac();
+            default:
+                return UNKNOWN_CID;
+            }
+        }
     }
 
     /**
@@ -252,7 +330,9 @@ public class NeighboringCellInfo implements Parcelable
      * Return {@link TelephonyManager#NETWORK_TYPE_UMTS TelephonyManager.NETWORK_TYPE_UMTS},
      * {@link TelephonyManager#NETWORK_TYPE_HSDPA TelephonyManager.NETWORK_TYPE_HSDPA},
      * {@link TelephonyManager#NETWORK_TYPE_HSUPA TelephonyManager.NETWORK_TYPE_HSUPA},
-     * or {@link TelephonyManager#NETWORK_TYPE_HSPA TelephonyManager.NETWORK_TYPE_HSPA}
+     * {@link TelephonyManager#NETWORK_TYPE_HSPA TelephonyManager.NETWORK_TYPE_HSPA},
+     * {@link TelephonyManager#NETWORK_TYPE_HSPA TelephonyManager.NETWORK_TYPE_HSPAP},
+     * or {@link TelephonyManager#NETWORK_TYPE_HSPA TelephonyManager.NETWORK_TYPE_LTE}
      * means that Neighboring Cell information is stored for UMTS network, in
      * which {@link NeighboringCellInfo#getPsc NeighboringCellInfo.getPsc}
      * should be called to access location.
@@ -295,29 +375,13 @@ public class NeighboringCellInfo implements Parcelable
         StringBuilder sb = new StringBuilder();
 
         sb.append("[");
-        if (mVersion == 1) {
-           if (mPsc != UNKNOWN_CID) {
-               sb.append(Integer.toHexString(mPsc))
-                       .append("@").append(((mRssi == UNKNOWN_RSSI)? "-" : mRssi));
-           } else if(mLac != UNKNOWN_CID && mCid != UNKNOWN_CID) {
-               sb.append(Integer.toHexString(mLac))
-                       .append(Integer.toHexString(mCid))
-                       .append("@").append(((mRssi == UNKNOWN_RSSI)? "-" : mRssi));
-           }
-        } else { // Extended neighboring cell info with LTE support
-            switch (mCellInfoType) {
-            case CELL_INFO_TYPE_GSM:
-            case CELL_INFO_TYPE_WCDMA:
-                sb.append(mCellSignalStrengthGsm.toString());
-                sb.append(mCellIdentityGsm.toString());
-                break;
-            case CELL_INFO_TYPE_LTE:
-                sb.append(mCellSignalStrengthLte.toString());
-                sb.append(mCellIdentityLte.toString());
-                break;
-            default:
-                break;
-            }
+        if (getPsc() != UNKNOWN_CID) {
+            sb.append(Integer.toHexString(getPsc()))
+                    .append("@").append(((getRssi() == UNKNOWN_RSSI)? "-" : getRssi()));
+        } else if(getLac() != UNKNOWN_CID && getCid() != UNKNOWN_CID) {
+            sb.append(Integer.toHexString(getLac()))
+                    .append(Integer.toHexString(getCid()))
+                    .append("@").append(((getRssi() == UNKNOWN_RSSI)? "-" : getRssi()));
         }
         sb.append("]");
 
@@ -329,13 +393,12 @@ public class NeighboringCellInfo implements Parcelable
     }
 
     public void writeToParcel(Parcel dest, int flags) {
-        if (mVersion == 1) {
-            dest.writeInt(mRssi);
-            dest.writeInt(mLac);
-            dest.writeInt(mCid);
-            dest.writeInt(mPsc);
-            dest.writeInt(mNetworkType);
-        }
+        dest.writeInt(mVersion);
+        dest.writeInt(getRssi());
+        dest.writeInt(getLac());
+        dest.writeInt(getCid());
+        dest.writeInt(getPsc());
+        dest.writeInt(getNetworkType());
     }
 
     public static final Parcelable.Creator<NeighboringCellInfo> CREATOR
