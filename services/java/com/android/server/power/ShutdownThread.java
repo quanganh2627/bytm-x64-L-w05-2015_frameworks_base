@@ -246,6 +246,8 @@ public final class ShutdownThread extends Thread {
         pd.setIndeterminate(true);
         pd.setCancelable(false);
         pd.getWindow().setType(WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG);
+        pd.getWindow().addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+        pd.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         pd.show();
 
@@ -437,7 +439,6 @@ public final class ShutdownThread extends Thread {
                 final IWifiManager wifi =
                         IWifiManager.Stub.asInterface(ServiceManager.checkService(
                                 Context.WIFI_SERVICE));
-
                 try {
                     nfcOff = nfc == null ||
                              nfc.getState() == NfcAdapter.STATE_OFF;
@@ -489,7 +490,8 @@ public final class ShutdownThread extends Thread {
                             wifi.getWifiEnabledState() == WifiManager.WIFI_STATE_DISABLED;
                     if (!wifiOff) {
                         Log.w(TAG, "Turning off Wifi...");
-                        wifi.haltWifi();
+                        if (wifi != null)
+                            wifi.setWifiEnabledPersist(false, false);
                     }
                 } catch (RemoteException ex) {
                     Log.e(TAG, "RemoteException during wifi shutdown", ex);
@@ -501,7 +503,8 @@ public final class ShutdownThread extends Thread {
                 while (SystemClock.elapsedRealtime() < endTime) {
                     if (!bluetoothOff) {
                         try {
-                            bluetoothOff = !bluetooth.isEnabled();
+                            if (bluetooth != null)
+                                bluetoothOff = !bluetooth.isEnabled();
                         } catch (RemoteException ex) {
                             Log.e(TAG, "RemoteException during bluetooth shutdown", ex);
                             bluetoothOff = true;
@@ -512,7 +515,8 @@ public final class ShutdownThread extends Thread {
                     }
                     if (!radioOff) {
                         try {
-                            radioOff = !phone.isRadioOn();
+                            if (phone != null)
+                                radioOff = !phone.isRadioOn();
                         } catch (RemoteException ex) {
                             Log.e(TAG, "RemoteException during radio shutdown", ex);
                             radioOff = true;
@@ -528,14 +532,14 @@ public final class ShutdownThread extends Thread {
                             Log.e(TAG, "RemoteException during NFC shutdown", ex);
                             nfcOff = true;
                         }
-                        if (radioOff) {
+                        if (nfcOff) {
                             Log.i(TAG, "NFC turned off.");
                         }
                     }
                     if (!wifiOff) {
                         try {
-                            SupplicantState ss = wifi.getConnectionInfo().getSupplicantState();
-                            wifiOff = ss == SupplicantState.INTERFACE_DISABLED;
+                            if (wifi != null)
+                                wifiOff = wifi.getWifiEnabledState() == WifiManager.WIFI_STATE_DISABLED;
                         } catch (RemoteException ex) {
                             Log.e(TAG, "RemoteException during Wifi shutdown", ex);
                             wifiOff = true;
@@ -575,8 +579,11 @@ public final class ShutdownThread extends Thread {
     public static void rebootOrShutdown(boolean reboot, String reason) {
         if (reboot) {
             Log.i(TAG, "Rebooting, reason: " + reason);
-            PowerManagerService.lowLevelReboot(reason);
-            Log.e(TAG, "Reboot failed, will attempt shutdown instead");
+            try {
+                PowerManagerService.lowLevelReboot(reason);
+            } catch (Exception e) {
+                Log.e(TAG, "Reboot failed, will attempt shutdown instead", e);
+            }
         } else if (SHUTDOWN_VIBRATE_MS > 0) {
             // vibrate before shutting down
             Vibrator vibrator = new SystemVibrator();
