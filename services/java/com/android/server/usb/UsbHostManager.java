@@ -41,6 +41,8 @@ import com.android.internal.annotations.GuardedBy;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.HashMap;
+import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * UsbHostManager manages USB state in host mode.
@@ -280,12 +282,23 @@ public class UsbHostManager {
             mDevices.put(deviceName, device);
             getCurrentSettings().deviceAttached(device);
 
-            /*android currently only supports one MSC device for storage. */
-            /*If connected one more, send notification to show a warnning msg. */
-            if (isOneMoreMscDeviceConnected()) {
-                Slog.d(TAG, "One more MSC Device Connected and send notification ");
-                mHandler.showUsbHostWarning(ONEMORE_UMS_DEVICE);
-            }
+            /* android currently only supports one MSC device for storage.
+             * If connected one more, send notification to show a warnning msg.
+             *
+             * Here add a workaround for BYT, delay 500ms then check. Because
+             * the UMS may be emurated again as High speed device, reconnect
+             * event may go first than disconnect event.
+             */
+            TimerTask task = new TimerTask() {
+                public void run() {
+                    if (isOneMoreMscDeviceConnected()) {
+                        Slog.d(TAG, "One more MSC Device Connected and send notification ");
+                        mHandler.showUsbHostWarning(ONEMORE_UMS_DEVICE);
+                    }
+                }
+            };
+            Timer timer = new Timer();
+            timer.schedule(task, 500);
         }
     }
 
