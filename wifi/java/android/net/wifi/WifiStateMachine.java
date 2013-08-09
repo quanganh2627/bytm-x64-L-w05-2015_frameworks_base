@@ -4081,7 +4081,7 @@ public class WifiStateMachine extends StateMachine {
                     if (mP2pConnected.get() || mP2pConnecting.get()) {
                         int defaultInterval = mContext.getResources().getInteger(
                                 R.integer.config_wifi_scan_interval_p2p_connected);
-                        long scanIntervalMs = Settings.Global.getLong(mContext.getContentResolver(),
+                        scanIntervalMs = Settings.Global.getLong(mContext.getContentResolver(),
                                 Settings.Global.WIFI_SCAN_INTERVAL_WHEN_P2P_CONNECTED_MS,
                                 defaultInterval);
                         mWifiNative.setScanInterval((int) scanIntervalMs/1000);
