@@ -43,6 +43,7 @@ import android.net.LinkAddress;
 import android.net.NetworkStats;
 import android.net.NetworkUtils;
 import android.net.RouteInfo;
+import android.net.wifi.WifiApConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.KeyMgmt;
 import android.os.Binder;
@@ -53,6 +54,7 @@ import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.SystemProperties;
+import android.provider.Settings;
 import android.util.Log;
 import android.util.Slog;
 import android.util.SparseBooleanArray;
@@ -1016,17 +1018,43 @@ public class NetworkManagementService extends INetworkManagementService.Stub
 
     @Override
     public void startAccessPoint(
-            WifiConfiguration wifiConfig, String wlanIface) {
+            WifiApConfiguration wifiConfig, String wlanIface) {
         mContext.enforceCallingOrSelfPermission(CONNECTIVITY_INTERNAL, TAG);
         try {
             wifiFirmwareReload(wlanIface, "AP");
             if (wifiConfig == null) {
                 mConnector.execute("softap", "set", wlanIface);
             } else {
-                mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
-                        getSecurityType(wifiConfig), wifiConfig.preSharedKey);
+                executeSetSoftap(wifiConfig, wlanIface);
             }
             mConnector.execute("softap", "startap");
+        } catch (NativeDaemonConnectorException e) {
+            throw e.rethrowAsParcelableException();
+        }
+    }
+
+    private void executeSetSoftap(
+            WifiApConfiguration wifiConfig, String wlanIface) {
+        String hwMode = wifiConfig.hwMode;
+        // mode "ac" is not yet supported by lower layers
+        if (hwMode.equals("c"))
+            hwMode = "a";
+        String countryCode = Settings.Global.getString(mContext.getContentResolver(),
+                Settings.Global.WIFI_COUNTRY_CODE);
+        try {
+            if (countryCode != null && !countryCode.isEmpty()) {
+                countryCode = countryCode.toUpperCase();
+                mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
+                        getSecurityType(wifiConfig), wifiConfig.preSharedKey,
+                        wifiConfig.channel.toString(), " ", " ",
+                        hwMode, wifiConfig.is80211n ? "1" : "0",
+                        countryCode);
+            } else {
+                mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
+                        getSecurityType(wifiConfig), wifiConfig.preSharedKey,
+                        wifiConfig.channel.toString(), " ", " ",
+                        hwMode, wifiConfig.is80211n ? "1" : "0");
+            }
         } catch (NativeDaemonConnectorException e) {
             throw e.rethrowAsParcelableException();
         }
@@ -1066,14 +1094,13 @@ public class NetworkManagementService extends INetworkManagementService.Stub
     }
 
     @Override
-    public void setAccessPoint(WifiConfiguration wifiConfig, String wlanIface) {
+    public void setAccessPoint(WifiApConfiguration wifiConfig, String wlanIface) {
         mContext.enforceCallingOrSelfPermission(CONNECTIVITY_INTERNAL, TAG);
         try {
             if (wifiConfig == null) {
                 mConnector.execute("softap", "set", wlanIface);
             } else {
-                mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
-                        getSecurityType(wifiConfig), wifiConfig.preSharedKey);
+                executeSetSoftap(wifiConfig, wlanIface);
             }
         } catch (NativeDaemonConnectorException e) {
             throw e.rethrowAsParcelableException();

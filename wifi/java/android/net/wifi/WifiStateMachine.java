@@ -130,6 +130,8 @@ public class WifiStateMachine extends StateMachine {
     private final boolean mP2pSupported;
     private final AtomicBoolean mP2pConnecting = new AtomicBoolean(false);
     private final AtomicBoolean mP2pConnected = new AtomicBoolean(false);
+    private final AtomicBoolean mSoftApErrorDetected = new AtomicBoolean(false);
+    private WifiApConfiguration mLastWifiApConfig = null;
     private boolean mTemporarilyDisconnectWifi = false;
     private final String mPrimaryDeviceType;
 
@@ -144,6 +146,8 @@ public class WifiStateMachine extends StateMachine {
     private boolean mBackgroundScanAutoTurnOffEnabled;
 
     private String mInterfaceName;
+    private static final String mP2pInterfaceName = "p2p0";
+    private static final String[] mP2pRegexs = {"p2p-p2p0-\\d"};
     /* Tethering interface could be seperate from wlan interface */
     private String mTetherInterfaceName;
 
@@ -809,7 +813,7 @@ public class WifiStateMachine extends StateMachine {
     /**
      * TODO: doc
      */
-    public void setWifiApEnabled(WifiConfiguration wifiConfig, boolean enable) {
+    public void setWifiApEnabled(WifiApConfiguration wifiConfig, boolean enable) {
         mLastApEnableUid.set(Binder.getCallingUid());
         if (enable) {
             /* Argument is the state that is entered prior to load */
@@ -822,13 +826,13 @@ public class WifiStateMachine extends StateMachine {
         }
     }
 
-    public void setWifiApConfiguration(WifiConfiguration config) {
+    public void setWifiApConfiguration(WifiApConfiguration config) {
         mWifiApConfigChannel.sendMessage(CMD_SET_AP_CONFIG, config);
     }
 
-    public WifiConfiguration syncGetWifiApConfiguration() {
+    public WifiApConfiguration syncGetWifiApConfiguration() {
         Message resultMsg = mWifiApConfigChannel.sendMessageSynchronously(CMD_REQUEST_AP_CONFIG);
-        WifiConfiguration ret = (WifiConfiguration) resultMsg.obj;
+        WifiApConfiguration ret = (WifiApConfiguration) resultMsg.obj;
         resultMsg.recycle();
         return ret;
     }
@@ -1216,6 +1220,23 @@ public class WifiStateMachine extends StateMachine {
            getConnectedDeviceInfo(tokens[i], DeviceList);
         }
         return DeviceList;
+    }
+
+    /* Wifi_Hotspot */
+    public List<WifiChannel> getWifiAuthorizedChannels() {
+        String rawList = mWifiNative.getWifiApChannelList();
+        List<WifiChannel> resultList = new ArrayList<WifiChannel>();
+
+        if (rawList == null)
+            return null;
+        // Extract elements from the list and skip duplicates if any
+        String[] items = rawList.split(" ");
+        for (String item : items) {
+            WifiChannel channel = new WifiChannel(item);
+            if (!resultList.contains(channel))
+                resultList.add(channel);
+        }
+        return resultList;
     }
 
    /* Wifi_Hotspot */
@@ -1967,7 +1988,8 @@ public class WifiStateMachine extends StateMachine {
      * TODO: Add control channel setup through hostapd that allows changing config
      * on a running daemon
      */
-    private void startSoftApWithConfig(final WifiConfiguration config) {
+    private void startSoftApWithConfig(final WifiApConfiguration config) {
+        mLastWifiApConfig = config;
         // start hostapd on a seperate thread
         new Thread(new Runnable() {
             public void run() {
@@ -2337,9 +2359,32 @@ public class WifiStateMachine extends StateMachine {
                         // continue
                     }
                    try {
-                       //A runtime crash can leave the interface up and
-                       //this affects connectivity when supplicant starts up.
-                       //Ensure interface is down before a supplicant start.
+                       /* Stop a running supplicant after a runtime restart
+                        * Avoids issues with drivers that do not handle interface down
+                        * on a running supplicant properly.
+                        */
+                       if (DBG) log("Kill any running supplicant");
+                       mWifiNative.killSupplicant(mP2pSupported);
+                       // A runtime crash can leave the interface up and
+                       // this affects connectivity when supplicant starts up.
+                       // Ensure interface is down before a supplicant start.
+                        if (mP2pSupported) {
+                            // Ensure  p2p and p2p-p20-X interfaces are down
+                            if (DBG) log("Set P2P interfaces down");
+                            String[] ifaces = new String[0];
+                            try {
+                                ifaces =  mNwService.listInterfaces();
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error listing Interfaces", e);
+                            }
+                            for (String iface : ifaces) {
+                                if (isP2p(iface)) {
+                                    if (DBG) log("P2P group iface: " + iface);
+                                    mNwService.setInterfaceDown(iface);
+                                }
+                            }
+                            mNwService.setInterfaceDown(mP2pInterfaceName);
+                        }
                         mNwService.setInterfaceDown(mInterfaceName);
                         //Set privacy extensions
                         mNwService.setInterfaceIpv6PrivacyExtensions(mInterfaceName, true);
@@ -2348,13 +2393,6 @@ public class WifiStateMachine extends StateMachine {
                     } catch (IllegalStateException ie) {
                         loge("Unable to change interface settings: " + ie);
                     }
-
-                    /* Stop a running supplicant after a runtime restart
-                     * Avoids issues with drivers that do not handle interface down
-                     * on a running supplicant properly.
-                     */
-                    if (DBG) log("Kill any running supplicant");
-                    mWifiNative.killSupplicant(mP2pSupported);
 
                     if(mWifiNative.startSupplicant(mP2pSupported)) {
                         if (DBG) log("Supplicant start successful");
@@ -2459,6 +2497,14 @@ public class WifiStateMachine extends StateMachine {
         public void enter() {
             if (DBG) log(getName() + "\n");
             EventLog.writeEvent(EVENTLOG_WIFI_STATE_CHANGED, getName());
+            if (mSoftApErrorDetected.get()) {
+                mSoftApErrorDetected.set(false);
+                if (mLastWifiApConfig != null && !mLastWifiApConfig.isRadioDefault()) {
+                    if (DBG) log("Restart softAP with default radio configuration");
+                    mLastWifiApConfig.resetRadioConfig();
+                    setWifiApEnabled(mLastWifiApConfig, true);
+                }
+            }
         }
         @Override
         public boolean processMessage(Message message) {
@@ -4046,7 +4092,7 @@ public class WifiStateMachine extends StateMachine {
 
             final Message message = getCurrentMessage();
             if (message.what == CMD_START_AP) {
-                final WifiConfiguration config = (WifiConfiguration) message.obj;
+                final WifiApConfiguration config = (WifiApConfiguration) message.obj;
 
                 if (config == null) {
                     mWifiApConfigChannel.sendMessage(CMD_REQUEST_AP_CONFIG);
@@ -4080,7 +4126,7 @@ public class WifiStateMachine extends StateMachine {
                     deferMessage(message);
                     break;
                 case WifiStateMachine.CMD_RESPONSE_AP_CONFIG:
-                    WifiConfiguration config = (WifiConfiguration) message.obj;
+                    WifiApConfiguration config = (WifiApConfiguration) message.obj;
                     if (config != null) {
                         startSoftApWithConfig(config);
                     } else {
@@ -4238,8 +4284,14 @@ public class WifiStateMachine extends StateMachine {
                     TetherStateChange stateChange = (TetherStateChange) message.obj;
                     if (!isWifiTethered(stateChange.active)) {
                         loge("Tethering reports wifi as untethered!, shut down soft Ap");
+                        mSoftApErrorDetected.set(true);
                         setWifiApEnabled(null, false);
                     }
+                    return HANDLED;
+                case WifiMonitor.AP_CONNECTION_FAIL:
+                    mSoftApErrorDetected.set(true);
+                    setWifiApEnabled(null, false);
+                    loge("WifiMonitor reports a connection failure!, reset soft Ap");
                     return HANDLED;
                 case CMD_STOP_AP:
                     if (DBG) log("Untethering before stopping AP");
@@ -4364,5 +4416,11 @@ public class WifiStateMachine extends StateMachine {
 
     private void loge(String s) {
         Log.e(TAG, s);
+    }
+
+    private boolean isP2p(String iface) {
+        for (String regex : mP2pRegexs)
+            if (iface.matches(regex)) return true;
+        return false;
     }
 }

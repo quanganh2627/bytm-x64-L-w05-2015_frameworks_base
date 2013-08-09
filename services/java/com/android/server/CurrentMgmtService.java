@@ -60,9 +60,8 @@ class CurrentMgmtService extends Binder {
 
     private static final String TAG = "CurrentMgmtService";
 
-    /* for future implementation change this to real subsytem*/
-    private static final String devPath = "SUBSYSTEM=msic_vdd";
-
+    private static final String devPath = "SUBSYSTEM=hwmon";
+    private final Context mContext;
 
     native static void nativeSubsystemThrottle(int subsystem, int level);
     native static void nativeInit();
@@ -70,6 +69,7 @@ class CurrentMgmtService extends Binder {
     private static int battWarnLevel2 = 10;
     private static int battWarnLevel3 = 5;
     private static boolean isUsbDeviceAttached = false;
+    private static boolean shutdownInitiated = false;
 
     public enum Level {
         NORMAL, WARNING, ALERT, CRITICAL;
@@ -212,24 +212,34 @@ class CurrentMgmtService extends Binder {
         }
     }
 
-    /* not working as of now for future implementation */
-    private static UEventObserver mUEventObserver = new UEventObserver() {
+    private UEventObserver mUEventObserver = new UEventObserver() {
         public void onUEvent(UEventObserver.UEvent event) {
-        Log.v(TAG, "Uevent Called");
+            Log.v(TAG, "Uevent Called");
+            if ("VWARN2".equals(event.get("BCUEVT"))) {
+                if (!shutdownInitiated) {
+                    shutdownInitiated = true;
+                    Log.i(TAG, "Initiating shutdown due to peak current");
+                    Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
+                    intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    mContext.startActivityAsUser(intent, UserHandle.CURRENT);
+                }
+            }
         }
     };
 
     public CurrentMgmtService(Context context) {
         Log.v(TAG, "CurrentMgmtService start");
+        mContext = context;
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_BATTERY_CHANGED);
-        context.registerReceiver(new BCUReceiver(), filter);
+        mContext.registerReceiver(new BCUReceiver(), filter);
         IntentFilter usbFilter1 = new IntentFilter();
         usbFilter1.addAction(ACTION_USB_DEVICE_ATTACHED);
         IntentFilter usbFilter2 = new IntentFilter();
         usbFilter2.addAction(ACTION_USB_DEVICE_DETACHED);
-        context.registerReceiver(new UsbReceiver(), usbFilter1);
-        context.registerReceiver(new UsbReceiver(), usbFilter2);
+        mContext.registerReceiver(new UsbReceiver(), usbFilter1);
+        mContext.registerReceiver(new UsbReceiver(), usbFilter2);
         nativeInit();
         mUEventObserver.startObserving(devPath);
     }

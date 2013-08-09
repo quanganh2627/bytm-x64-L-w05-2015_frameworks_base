@@ -222,6 +222,8 @@ public class ThermalService extends Binder {
                        mCurrSensor.setLowTempPath(mParser.nextText());
                    else if (name.equalsIgnoreCase("UEventDevPath") && mCurrSensor != null)
                        mCurrSensor.setUEventDevPath(mParser.nextText());
+                   else if (name.equalsIgnoreCase("ErrorCorrection") && mCurrSensor != null)
+                       mCurrSensor.setErrorCorrectionTemp(Integer.parseInt(mParser.nextText()));
                    else if (name.equalsIgnoreCase(THRESHOLD) && mCurrSensor != null) {
                        mThresholdList = new ArrayList<Integer>();
                    }

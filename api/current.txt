@@ -20771,6 +20771,10 @@ package android.telephony {
     field public static final android.os.Parcelable.Creator CREATOR;
     field public static final int UNKNOWN_CID = -1; // 0xffffffff
     field public static final int UNKNOWN_RSSI = 99; // 0x63
+    field public static final int CELL_INFO_TYPE_GSM = 1; // 0x01
+    field public static final int CELL_INFO_TYPE_CDMA = 2; // 0x02
+    field public static final int CELL_INFO_TYPE_LTE = 3; // 0x03
+    field public static final int CELL_INFO_TYPE_WCDMA = 4; // 0x04
   }
 
   public class PhoneNumberFormattingTextWatcher implements android.text.TextWatcher {
@@ -23181,6 +23185,7 @@ package android.thermal {
     method public int getCurrState();
     method public int getCurrState(int);
     method public int getCurrTemp();
+    method public int getErrorCorrectionTemp();
     method public int getLowerThresholdTemp(int);
     method public boolean getSensorActiveStatus();
     method public java.lang.String getSensorHighTempPath();
@@ -23196,6 +23201,7 @@ package android.thermal {
     method public int getUpperThresholdTemp(int);
     method public void printAttrs();
     method public void setCurrTemp(int);
+    method public void setErrorCorrectionTemp(int);
     method public void setHighTempPath(java.lang.String);
     method public void setInputTempPath(java.lang.String);
     method public void setLowTempPath(java.lang.String);
