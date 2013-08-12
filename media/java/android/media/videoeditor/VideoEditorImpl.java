@@ -639,8 +639,8 @@ public class VideoEditorImpl implements VideoEditor {
             }
 
             mMediaItems.add(0, mediaItem);
-            computeTimelineDuration();
             generateProjectThumbnail();
+            computeTimelineDuration();
         } else {
             final int mediaItemCount = mMediaItems.size();
             for (int i = 0; i < mediaItemCount; i++) {
@@ -655,6 +655,7 @@ public class VideoEditorImpl implements VideoEditor {
                      *  Insert the new media item
                      */
                     mMediaItems.add(i + 1, mediaItem);
+                    generateProjectThumbnail();
                     computeTimelineDuration();
                     return;
                 }
@@ -1841,6 +1842,8 @@ public class VideoEditorImpl implements VideoEditor {
                 if (bitmap == null) {
                     String msg = "Thumbnail extraction from " +
                                     filename + " failed";
+                    // Remove the mediaitem which can't be extracted the thumbnail
+                    mMediaItems.remove(0);
                     throw new IllegalArgumentException(msg);
                 }
                 // Resize the thumbnail to the target size
@@ -1869,6 +1872,25 @@ public class VideoEditorImpl implements VideoEditor {
                 throw new IllegalArgumentException ("Error creating project thumbnail");
             } finally {
                 projectBitmap.recycle();
+            }
+        }
+
+        // Make sure the imported clip can be extracted its thumbnail
+        if (mMediaItems.size() > 1) {
+            MediaItem mI = mMediaItems.get(mMediaItems.size()-1);
+            if (mI instanceof MediaVideoItem) {
+                String filename = mI.getFilename();
+                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+                retriever.setDataSource(filename);
+                Bitmap bitmap = retriever.getFrameAtTime();
+                retriever.release();
+                retriever = null;
+                if (bitmap == null) {
+                    String msg = "Thumbnail extraction from " +
+                                    filename + " failed";
+                    mMediaItems.remove(mMediaItems.size()-1);
+                    throw new IllegalArgumentException(msg);
+                }
             }
         }
     }
