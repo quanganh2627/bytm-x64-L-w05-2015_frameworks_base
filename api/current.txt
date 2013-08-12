@@ -24193,6 +24193,7 @@ package android.thermal {
     method public int getCurrState();
     method public int getCurrState(int);
     method public int getCurrTemp();
+    method public int getErrorCorrectionTemp();
     method public int getLowerThresholdTemp(int);
     method public boolean getSensorActiveStatus();
     method public java.lang.String getSensorHighTempPath();
@@ -24208,6 +24209,7 @@ package android.thermal {
     method public int getUpperThresholdTemp(int);
     method public void printAttrs();
     method public void setCurrTemp(int);
+    method public void setErrorCorrectionTemp(int);
     method public void setHighTempPath(java.lang.String);
     method public void setInputTempPath(java.lang.String);
     method public void setLowTempPath(java.lang.String);

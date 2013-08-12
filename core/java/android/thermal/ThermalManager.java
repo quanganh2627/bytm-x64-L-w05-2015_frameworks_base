@@ -256,18 +256,27 @@ public class ThermalManager {
     private static UEventObserver mUEventObserver = new UEventObserver() {
         @Override
         public void onUEvent(UEventObserver.UEvent event) {
-            String sensorName, temp;
+            String sensorName;
+            int sensorTemp, errorVal, eventType;
             ThermalZone zone;
             synchronized (mLock) {
-                int sensorTemp = 0;
                 sensorName = event.get("NAME");
-                temp = event.get("TEMP");
-                Log.i(TAG, "UEvent received for sensor:" + sensorName + " temp:" + temp);
-                // call isZoneStateChanged() for zones registed to this sensor
+                sensorTemp = Integer.parseInt(event.get("TEMP"));
+                eventType = Integer.parseInt(event.get("EVENT"));
+
+                Log.i(TAG, "UEvent received for sensor:" + sensorName + " temp:" + sensorTemp + "event: " + eventType);
+
+                // call isZoneStateChanged() for zones registered to this sensor
                 if (sensorName != null) {
                     ThermalSensor s = sensorMap.get(sensorName);
                     if (s == null) return;
-                    sensorTemp = Integer.parseInt(temp);
+
+                    // Adjust the sensor temperature based on the 'error correction' temperature.
+                    // For 'LOW' event, debounce interval will take care of this.
+                    errorVal = s.getErrorCorrectionTemp();
+                    if (eventType == THERMAL_HIGH_EVENT)
+                       sensorTemp += errorVal;
+
                     // for zone to which this sensor is mapped,
                     // call iszonestatechanged
                     zone = sensorZoneMap.get(sensorName);
