@@ -80,7 +80,7 @@ public class ThermalSensor {
         while (new File (ThermalManager.mSysfsSensorBasePath + count + ThermalManager.mSysfsSensorType).exists()) {
            String name = SysfsManager.readSysfs(ThermalManager.mSysfsSensorBasePath + count + ThermalManager.mSysfsSensorType);
            if (name != null && (name.equalsIgnoreCase(mSensorName) ||
-              (mSensorName.equalsIgnoreCase("battery") && name.contains("_battery")))) {
+              (mSensorName.contains("battery") && name.contains("battery")))) {
               mSensorPath = ThermalManager.mSysfsSensorBasePath + count + "/";
               break;
            }
