@@ -58,6 +58,7 @@ import com.android.internal.R;
 import com.android.internal.policy.impl.keyguard.KeyguardSecurityModel.SecurityMode;
 import com.android.internal.policy.impl.keyguard.KeyguardUpdateMonitor.DisplayClientState;
 import com.android.internal.widget.LockPatternUtils;
+import com.intel.arkham.ContainerPolicyCommons;
 
 import java.io.File;
 import java.util.List;
@@ -102,6 +103,8 @@ public class KeyguardHostView extends KeyguardViewBase {
     private KeyguardSecurityModel mSecurityModel;
     private KeyguardViewStateManager mViewStateManager;
 
+    private ContainerPolicyCommons mContainerPolicyCommons;
+
     private Rect mTempRect = new Rect();
 
     private int mDisabledFeatures;
@@ -127,7 +130,7 @@ public class KeyguardHostView extends KeyguardViewBase {
         void userActivity();
     }
 
-    /*package*/ interface OnDismissAction {
+    public interface OnDismissAction {
         /* returns true if the dismiss should be deferred */
         boolean onDismiss();
     }
@@ -155,6 +158,8 @@ public class KeyguardHostView extends KeyguardViewBase {
             mDisabledFeatures = getDisabledFeatures(dpm);
             mCameraDisabled = dpm.getCameraDisabled(null);
         }
+        mContainerPolicyCommons = new ContainerPolicyCommons(context, mLockPatternUtils);
+        mDisabledFeatures = mContainerPolicyCommons.setContainerKeyguardFeatures(mDisabledFeatures);
 
         mSafeModeEnabled = LockPatternUtils.isSafeModeEnabled();
 
@@ -390,13 +395,26 @@ public class KeyguardHostView extends KeyguardViewBase {
 
         showPrimarySecurityScreen(false);
         updateSecurityViews();
+
+        mContainerPolicyCommons.editKeyguardForContainer(this);
     }
 
     private void setBackButtonEnabled(boolean enabled) {
         if (mContext instanceof Activity) return;  // always enabled in activity mode
+        // ARKHAM-984 Allow back button in container mode
+        int flag = getStatusBarDisabledFlags();
         setSystemUiVisibility(enabled ?
-                getSystemUiVisibility() & ~View.STATUS_BAR_DISABLE_BACK :
-                getSystemUiVisibility() | View.STATUS_BAR_DISABLE_BACK);
+                getSystemUiVisibility() & ~flag :
+                getSystemUiVisibility() | flag);
+    }
+
+    // ARKHAM-984 overrides KeyguardViewBase.getStatusBarDisabledFlags method
+    @Override
+    protected int getStatusBarDisabledFlags() {
+        if (mLockPatternUtils.isContainerUserMode())
+            return View.STATUS_BAR_DISABLE_SEARCH;
+        else
+            return View.STATUS_BAR_DISABLE_BACK;
     }
 
     private boolean shouldEnableAddWidget() {
@@ -1548,6 +1566,8 @@ public class KeyguardHostView extends KeyguardViewBase {
             return;
         }
 
+        mContainerPolicyCommons.removeContainerUser(users);
+
         final View multiUserView = findViewById(R.id.keyguard_user_selector);
         if (multiUserView == null) {
             Throwable t = new Throwable();
@@ -1640,6 +1660,17 @@ public class KeyguardHostView extends KeyguardViewBase {
         // The following enables the MENU key to work for testing automation
         if (shouldEnableMenuKey()) {
             showNextSecurityScreenOrFinish(false);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * ARKHAM:1088 - dismiss container keyguard when home key is pressed.
+     */
+    public boolean handleHomeKey() {
+        mDismissAction = mContainerPolicyCommons.handleContainerKeyguardDismiss(mViewMediatorCallback, mDismissAction);
+        if (mLockPatternUtils.isContainerUserMode()) {
             return true;
         }
         return false;

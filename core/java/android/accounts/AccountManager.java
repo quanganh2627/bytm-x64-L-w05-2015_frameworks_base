@@ -2011,7 +2011,7 @@ public class AccountManager {
      */
     private final BroadcastReceiver mAccountsChangedBroadcastReceiver = new BroadcastReceiver() {
         public void onReceive(final Context context, final Intent intent) {
-            final Account[] accounts = getAccounts();
+            final Account[] accounts = getContainerAccounts();
             // send the result to the listeners
             synchronized (mAccountsUpdatedListeners) {
                 for (Map.Entry<OnAccountsUpdateListener, Handler> entry :
@@ -2071,7 +2071,7 @@ public class AccountManager {
         }
 
         if (updateImmediately) {
-            postToHandler(handler, listener, getAccounts());
+            postToHandler(handler, listener, getContainerAccounts());
         }
     }
 
@@ -2100,5 +2100,10 @@ public class AccountManager {
                 mContext.unregisterReceiver(mAccountsChangedBroadcastReceiver);
             }
         }
+    }
+
+    /** @hide */
+    protected Account[] getContainerAccounts() {
+        return getAccounts();
     }
 }

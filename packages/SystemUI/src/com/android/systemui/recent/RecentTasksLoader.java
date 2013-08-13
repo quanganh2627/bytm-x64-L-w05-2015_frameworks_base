@@ -39,6 +39,9 @@ import com.android.systemui.R;
 import com.android.systemui.statusbar.phone.PhoneStatusBar;
 import com.android.systemui.statusbar.tablet.TabletStatusBar;
 
+import com.intel.arkham.ExtendRecentTasksLoader;
+import com.intel.arkham.ExtendTaskDescription;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -46,12 +49,12 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 public class RecentTasksLoader implements View.OnTouchListener {
     static final String TAG = "RecentTasksLoader";
-    static final boolean DEBUG = TabletStatusBar.DEBUG || PhoneStatusBar.DEBUG || false;
+    protected static final boolean DEBUG = TabletStatusBar.DEBUG || PhoneStatusBar.DEBUG || false;
 
     private static final int DISPLAY_TASKS = 20;
     private static final int MAX_TASKS = DISPLAY_TASKS + 1; // allow extra for non-apps
 
-    private Context mContext;
+    protected Context mContext;
     private RecentsPanelView mRecentsPanel;
 
     private Object mFirstTaskLock = new Object();
@@ -63,7 +66,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
     private Handler mHandler;
 
     private int mIconDpi;
-    private Bitmap mDefaultThumbnailBackground;
+    protected Bitmap mDefaultThumbnailBackground;
     private Bitmap mDefaultIconBackground;
     private int mNumTasksInFirstScreenful = Integer.MAX_VALUE;
 
@@ -77,12 +80,12 @@ public class RecentTasksLoader implements View.OnTouchListener {
     private static RecentTasksLoader sInstance;
     public static RecentTasksLoader getInstance(Context context) {
         if (sInstance == null) {
-            sInstance = new RecentTasksLoader(context);
+            sInstance = new ExtendRecentTasksLoader(context);
         }
         return sInstance;
     }
 
-    private RecentTasksLoader(Context context) {
+    protected RecentTasksLoader(Context context) {
         mContext = context;
         mHandler = new Handler();
 
@@ -157,6 +160,10 @@ public class RecentTasksLoader implements View.OnTouchListener {
             && homeInfo.name.equals(component.getClassName());
     }
 
+    protected ResolveInfo resolveActivity(Intent intent) {
+        return mContext.getPackageManager().resolveActivity(intent, 0);
+    }
+
     // Create an TaskDescription, returning null if the title or icon is null
     TaskDescription createTaskDescription(int taskId, int persistentTaskId, Intent baseIntent,
             ComponentName origActivity, CharSequence description) {
@@ -167,7 +174,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
         final PackageManager pm = mContext.getPackageManager();
         intent.setFlags((intent.getFlags()&~Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                 | Intent.FLAG_ACTIVITY_NEW_TASK);
-        final ResolveInfo resolveInfo = pm.resolveActivity(intent, 0);
+        final ResolveInfo resolveInfo = resolveActivity(intent);
         if (resolveInfo != null) {
             final ActivityInfo info = resolveInfo.activityInfo;
             final String title = info.loadLabel(pm).toString();
@@ -176,7 +183,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
                 if (DEBUG) Log.v(TAG, "creating activity desc for id="
                         + persistentTaskId + ", label=" + title);
 
-                TaskDescription item = new TaskDescription(taskId,
+                TaskDescription item = new ExtendTaskDescription(taskId,
                         persistentTaskId, resolveInfo, baseIntent, info.packageName,
                         description);
                 item.setLabel(title);
@@ -189,7 +196,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
         return null;
     }
 
-    void loadThumbnailAndIcon(TaskDescription td) {
+    protected void loadThumbnailAndIcon(TaskDescription td) {
         final ActivityManager am = (ActivityManager)
                 mContext.getSystemService(Context.ACTIVITY_SERVICE);
         final PackageManager pm = mContext.getPackageManager();
@@ -211,12 +218,12 @@ public class RecentTasksLoader implements View.OnTouchListener {
         }
     }
 
-    Drawable getFullResDefaultActivityIcon() {
+    protected Drawable getFullResDefaultActivityIcon() {
         return getFullResIcon(Resources.getSystem(),
                 com.android.internal.R.mipmap.sym_def_app_icon);
     }
 
-    Drawable getFullResIcon(Resources resources, int iconId) {
+    protected Drawable getFullResIcon(Resources resources, int iconId) {
         try {
             return resources.getDrawableForDensity(iconId, mIconDpi);
         } catch (Resources.NotFoundException e) {
@@ -510,7 +517,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
 
                 while (true) {
                     try {
-                        tasksWaitingForThumbnails.put(new TaskDescription());
+                        tasksWaitingForThumbnails.put(new ExtendTaskDescription());
                         break;
                     } catch (InterruptedException e) {
                     }

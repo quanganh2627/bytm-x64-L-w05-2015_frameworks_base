@@ -17,6 +17,7 @@
 package android.widget;
 
 import com.android.internal.R;
+import com.intel.arkham.ParentQuickContactBadge;
 
 import android.content.AsyncQueryHandler;
 import android.content.ContentResolver;
@@ -52,6 +53,8 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
     private QueryHandler mQueryHandler;
     private Drawable mDefaultAvatar;
     private Bundle mExtras = null;
+
+    private ParentQuickContactBadge mPQCB;
 
     protected String[] mExcludeMimes = null;
 
@@ -94,11 +97,13 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
 
         mQueryHandler = new QueryHandler(mContext.getContentResolver());
         setOnClickListener(this);
+        mPQCB = new ParentQuickContactBadge();
     }
 
     @Override
     protected void drawableStateChanged() {
         super.drawableStateChanged();
+        mPQCB.drawableStateChanged(mOverlay, getDrawableState());
         if (mOverlay != null && mOverlay.isStateful()) {
             mOverlay.setState(getDrawableState());
             invalidate();
@@ -136,6 +141,7 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
             mOverlay.draw(canvas);
             canvas.restoreToCount(saveCount);
         }
+        mPQCB.onContainerDraw(canvas, getWidth(), getHeight(), mPaddingTop, mPaddingLeft);
     }
 
     /** True if a contact, an email address or a phone number has been assigned */
@@ -163,6 +169,8 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
      *            {@link Contacts#CONTENT_LOOKUP_URI} style URI.
      */
     public void assignContactUri(Uri contactUri) {
+        mPQCB.assignContactUri(contactUri);
+
         mContactUri = contactUri;
         mContactEmail = null;
         mContactPhone = null;
@@ -251,6 +259,7 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
 
     private void onContactUriChanged() {
         setEnabled(isAssigned());
+        mPQCB.onContactUriChanged(mContactUri, mContext);
     }
 
     @Override

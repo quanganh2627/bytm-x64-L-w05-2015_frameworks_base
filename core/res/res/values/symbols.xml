@@ -464,6 +464,13 @@
   <java-symbol type="string" name="config_tether_apndata" />
   <java-symbol type="string" name="config_useragentprofile_url" />
   <java-symbol type="string" name="config_wifi_p2p_device_type" />
+  <java-symbol type="string" name="container_err_unknown"/>
+  <java-symbol type="string" name="container_err_no_service"/>
+  <java-symbol type="string" name="container_err_permission_denied"/>
+  <java-symbol type="string" name="container_err_disabled"/>
+  <java-symbol type="string" name="container_err_mount"/>
+  <java-symbol type="string" name="container_wiped"/>
+  <java-symbol type="string" name="change_password_failed"/>
   <java-symbol type="string" name="contentServiceSync" />
   <java-symbol type="string" name="contentServiceSyncNotificationTitle" />
   <java-symbol type="string" name="contentServiceTooManyDeletesNotificationDesc" />
@@ -1015,6 +1022,8 @@
   <java-symbol type="drawable" name="picture_emergency" />
   <java-symbol type="drawable" name="platlogo" />
   <java-symbol type="drawable" name="platlogo_alt" />
+  <java-symbol type="drawable" name="stat_notify_large_wipe_container"/>
+  <java-symbol type="drawable" name="stat_notify_small_wipe_container"/>
   <java-symbol type="drawable" name="stat_notify_sync_error" />
   <java-symbol type="drawable" name="stat_notify_wifi_in_range" />
   <java-symbol type="drawable" name="stat_notify_rssi_in_range" />
@@ -1175,6 +1184,11 @@
   <java-symbol type="xml" name="global_keys" />
   <java-symbol type="xml" name="thermal_sensor_config" />
   <java-symbol type="xml" name="thermal_throttle_config" />
+
+  <!-- ARKHAM-180 Add XML file that describe container manager
+       properties set at build time. For now this contains the system
+       whitelist. -->
+  <java-symbol type="xml" name="container_manager" />
 
   <java-symbol type="raw" name="accessibility_gestures" />
   <java-symbol type="raw" name="incognito_mode_start_page" />
@@ -1876,4 +1890,8 @@
   <java-symbol type="attr" name="actionModeWebSearchDrawable" />
   <java-symbol type="string" name="websearch" />
 
+  <!-- ARKHAM-676 -->
+  <java-symbol type="string" name="container_unlock_message" />
+  <!-- ARKHAM-620 -->
+  <java-symbol type="string" name="unlock_container_notification"/>
 </resources>

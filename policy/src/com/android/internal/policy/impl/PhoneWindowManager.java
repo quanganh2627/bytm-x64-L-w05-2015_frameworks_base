@@ -100,6 +100,8 @@ import com.android.internal.statusbar.IStatusBarService;
 import com.android.internal.telephony.ITelephony;
 import com.android.internal.widget.PointerLocationView;
 
+import com.intel.arkham.ParentPhoneWindowManager;
+
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
@@ -117,7 +119,7 @@ import static android.view.WindowManagerPolicy.WindowManagerFuncs.LID_CLOSED;
  * can be acquired with either thw Lw and Li lock held, so has the restrictions
  * of both of those when held.
  */
-public class PhoneWindowManager implements WindowManagerPolicy {
+public class PhoneWindowManager extends ParentPhoneWindowManager implements WindowManagerPolicy {
     static final String TAG = "WindowManager";
     static final boolean DEBUG = false;
     static final boolean localLOGV = false;
@@ -893,6 +895,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (!mHeadless) {
             // don't create KeyguardViewMediator if headless
             mKeyguardMediator = new KeyguardViewMediator(context, null);
+            super.init(context);
         }
         mHandler = new PolicyHandler();
         mOrientationListener = new MyOrientationListener(mContext, mHandler);
@@ -4157,6 +4160,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     @Override
     public void screenTurnedOff(int why) {
+        super.screenTurnedOff(why);
         Log.i(TAG, "Screen turned off...");
         EventLog.writeEvent(70000, 0);
         synchronized (mLock) {
@@ -4667,6 +4671,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 mHandler.postDelayed(mScreenLockTimeout, mLockScreenTimeout);
             }
         }
+        super.userActivity();
     }
 
     class ScreenLockTimeout implements Runnable {
@@ -4677,6 +4682,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             synchronized (this) {
                 if (localLOGV) Log.v(TAG, "mScreenLockTimeout activating keyguard");
                 if (mKeyguardMediator != null) {
+                    PhoneWindowManager.super.doScreenLockTimeout();
                     mKeyguardMediator.doKeyguardTimeout(options);
                 }
                 mLockScreenTimerActive = false;
@@ -5217,5 +5223,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         pw.print(prefix); pw.print("mDemoHdmiRotation="); pw.print(mDemoHdmiRotation);
                 pw.print(" mDemoHdmiRotationLock="); pw.println(mDemoHdmiRotationLock);
         pw.print(prefix); pw.print("mUndockedHdmiRotation="); pw.println(mUndockedHdmiRotation);
+    }
+
+    protected Handler getHandler() {
+        return mHandler;
+    }
+
+    protected KeyguardViewMediator getKeyguardViewMediator() {
+        return mKeyguardMediator;
     }
 }

@@ -27,6 +27,8 @@ import com.android.internal.annotations.GuardedBy;
 import java.io.File;
 import java.io.IOException;
 
+import com.intel.arkham.ContainerCommons;
+
 /**
  * Provides access to environment variables.
  */
@@ -184,7 +186,9 @@ public class Environment {
      * Gets the Android root directory.
      */
     public static File getRootDirectory() {
-        return DIR_ANDROID_ROOT;
+        File dir = DIR_ANDROID_ROOT;
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
 
     /**
@@ -195,11 +199,14 @@ public class Environment {
      * @hide
      */
     public static File getSystemSecureDirectory() {
+        File dir;
         if (isEncryptedFilesystemEnabled()) {
-            return new File(SECURE_DATA_DIRECTORY, "system");
+            dir = new File(SECURE_DATA_DIRECTORY, "system");
         } else {
-            return new File(DATA_DIRECTORY, "system");
+            dir = new File(DATA_DIRECTORY, "system");
         }
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
 
     /**
@@ -210,11 +217,14 @@ public class Environment {
      * @hide
      */
     public static File getSecureDataDirectory() {
+        File dir;
         if (isEncryptedFilesystemEnabled()) {
-            return SECURE_DATA_DIRECTORY;
+            dir = SECURE_DATA_DIRECTORY;
         } else {
-            return DATA_DIRECTORY;
+            dir = DATA_DIRECTORY;
         }
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
 
     /**
@@ -225,7 +235,9 @@ public class Environment {
      */
     public static File getMediaStorageDirectory() {
         throwIfUserRequired();
-        return sCurrentUser.getMediaStorageDirectory();
+        File dir = sCurrentUser.getMediaStorageDirectory();
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
 
     /**
@@ -236,7 +248,9 @@ public class Environment {
      * @hide
      */
     public static File getUserSystemDirectory(int userId) {
-        return new File(new File(getSystemSecureDirectory(), "users"), Integer.toString(userId));
+        File dir =  new File(new File(getSystemSecureDirectory(), "users"), Integer.toString(userId));
+        ContainerCommons.logContainerUnmountedAccess(userId, dir.toString());
+        return dir;
     }
 
     /**
@@ -264,7 +278,9 @@ public class Environment {
      * Gets the Android data directory.
      */
     public static File getDataDirectory() {
-        return DATA_DIRECTORY;
+        File dir = DATA_DIRECTORY;
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
 
     /**
@@ -320,29 +336,39 @@ public class Environment {
      */
     public static File getExternalStorageDirectory() {
         throwIfUserRequired();
-        return sCurrentUser.getExternalStorageDirectory();
+        File dir = sCurrentUser.getExternalStorageDirectory();
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
 
     /** {@hide} */
     public static File getLegacyExternalStorageDirectory() {
-        return new File(System.getenv(ENV_EXTERNAL_STORAGE));
+        File dir = new File(System.getenv(ENV_EXTERNAL_STORAGE));
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
 
     /** {@hide} */
     public static File getLegacyExternalStorageObbDirectory() {
-        return buildPath(getLegacyExternalStorageDirectory(), DIRECTORY_ANDROID, "obb");
+        File dir = buildPath(getLegacyExternalStorageDirectory(), DIRECTORY_ANDROID, "obb");
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
 
     /** {@hide} */
     public static File getEmulatedStorageSource(int userId) {
         // /mnt/shell/emulated/0
-        return new File(System.getenv(ENV_EMULATED_STORAGE_SOURCE), String.valueOf(userId));
+        File dir = new File(System.getenv(ENV_EMULATED_STORAGE_SOURCE), String.valueOf(userId));
+        ContainerCommons.logContainerUnmountedAccess(userId, dir.toString());
+        return dir;
     }
 
     /** {@hide} */
     public static File getEmulatedStorageObbSource() {
         // /mnt/shell/emulated/obb
-        return new File(System.getenv(ENV_EMULATED_STORAGE_SOURCE), "obb");
+        File dir = new File(System.getenv(ENV_EMULATED_STORAGE_SOURCE), "obb");
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
 
     /**
@@ -467,7 +493,9 @@ public class Environment {
      */
     public static File getExternalStoragePublicDirectory(String type) {
         throwIfUserRequired();
-        return sCurrentUser.getExternalStoragePublicDirectory(type);
+        File dir = sCurrentUser.getExternalStoragePublicDirectory(type);
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
 
     /**
@@ -476,7 +504,9 @@ public class Environment {
      */
     public static File getExternalStorageAndroidDataDir() {
         throwIfUserRequired();
-        return sCurrentUser.getExternalStorageAndroidDataDir();
+        File dir = sCurrentUser.getExternalStorageAndroidDataDir();
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
     
     /**
@@ -485,7 +515,9 @@ public class Environment {
      */
     public static File getExternalStorageAppDataDirectory(String packageName) {
         throwIfUserRequired();
-        return sCurrentUser.getExternalStorageAppDataDirectory(packageName);
+        File dir = sCurrentUser.getExternalStorageAppDataDirectory(packageName);
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
     
     /**
@@ -494,7 +526,9 @@ public class Environment {
      */
     public static File getExternalStorageAppMediaDirectory(String packageName) {
         throwIfUserRequired();
-        return sCurrentUser.getExternalStorageAppMediaDirectory(packageName);
+        File dir = sCurrentUser.getExternalStorageAppMediaDirectory(packageName);
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
     
     /**
@@ -503,7 +537,9 @@ public class Environment {
      */
     public static File getExternalStorageAppObbDirectory(String packageName) {
         throwIfUserRequired();
-        return sCurrentUser.getExternalStorageAppObbDirectory(packageName);
+        File dir = sCurrentUser.getExternalStorageAppObbDirectory(packageName);
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
     
     /**
@@ -512,7 +548,9 @@ public class Environment {
      */
     public static File getExternalStorageAppFilesDirectory(String packageName) {
         throwIfUserRequired();
-        return sCurrentUser.getExternalStorageAppFilesDirectory(packageName);
+        File dir = sCurrentUser.getExternalStorageAppFilesDirectory(packageName);
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
 
     /**
@@ -521,14 +559,18 @@ public class Environment {
      */
     public static File getExternalStorageAppCacheDirectory(String packageName) {
         throwIfUserRequired();
-        return sCurrentUser.getExternalStorageAppCacheDirectory(packageName);
+        File dir = sCurrentUser.getExternalStorageAppCacheDirectory(packageName);
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
     
     /**
      * Gets the Android download/cache content directory.
      */
     public static File getDownloadCacheDirectory() {
-        return DOWNLOAD_CACHE_DIRECTORY;
+        File dir = DOWNLOAD_CACHE_DIRECTORY;
+        ContainerCommons.logContainerUnmountedAccess(UserHandle.myUserId(), dir.toString());
+        return dir;
     }
 
     /**

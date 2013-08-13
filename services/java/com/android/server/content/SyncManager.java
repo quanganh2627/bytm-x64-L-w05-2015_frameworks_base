@@ -80,6 +80,7 @@ import com.android.server.content.SyncStorageEngine.OnSyncRequestListener;
 import com.google.android.collect.Lists;
 import com.google.android.collect.Maps;
 import com.google.android.collect.Sets;
+import com.intel.arkham.ParentSyncManager;
 
 import java.io.FileDescriptor;
 import java.io.PrintStream;
@@ -101,7 +102,7 @@ import java.util.concurrent.CountDownLatch;
 /**
  * @hide
  */
-public class SyncManager {
+public class SyncManager extends ParentSyncManager {
     private static final String TAG = "SyncManager";
 
     /** Delay a sync due to local changes this long. In milliseconds */
@@ -290,6 +291,11 @@ public class SyncManager {
         for (UserInfo user : mUserManager.getUsers(true)) {
             // Skip any partially created/removed users
             if (user.partial) continue;
+            // ARKHAM-477: Skip containers that are not yet opened
+            // (ecryptfs not mounted for /data/system/users/<id>)
+            if (user.isContainer() && !isContainerSystemDataMounted(user.id)) {
+                continue;
+            }
             Account[] accountsForUser = AccountManagerService.getSingleton().getAccounts(user.id);
             mSyncStorageEngine.doDatabaseCleanup(accountsForUser, user.id);
         }
@@ -365,6 +371,8 @@ public class SyncManager {
      * {@link PackageManager} is ready to query.
      */
     public SyncManager(Context context, boolean factoryTest) {
+        // ARKHAM-951 Refactor Arkham changes
+        super(context, factoryTest);
         // Initialize the SyncStorageEngine first, before registering observers
         // and creating threads and so on; it may fail if the disk is full.
         mContext = context;
@@ -965,7 +973,7 @@ public class SyncManager {
         }
     }
 
-    private void onUserStarting(int userId) {
+    protected void onUserStarting(int userId) {
         // Make sure that accounts we're about to use are valid
         AccountManagerService.getSingleton().validateAccounts(userId);
 

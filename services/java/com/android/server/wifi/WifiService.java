@@ -86,11 +86,11 @@ import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
  *
  * @hide
  */
-public final class WifiService extends IWifiManager.Stub {
+public class WifiService extends IWifiManager.Stub {
     private static final String TAG = "WifiService";
     private static final boolean DBG = false;
 
-    final WifiStateMachine mWifiStateMachine;
+    protected final WifiStateMachine mWifiStateMachine;
     private final WifiNative mWifiNative;
 
     private final Context mContext;
@@ -330,7 +330,7 @@ public final class WifiService extends IWifiManager.Stub {
         mWifiStateMachine.startScan(Binder.getCallingUid());
     }
 
-    private void enforceAccessPermission() {
+    protected void enforceAccessPermission() {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.ACCESS_WIFI_STATE,
                                                 "WifiService");
     }
