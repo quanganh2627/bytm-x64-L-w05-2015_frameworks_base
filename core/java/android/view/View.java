@@ -8509,11 +8509,6 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
 
         if ((changed & DRAW_MASK) != 0) {
             if ((mViewFlags & WILL_NOT_DRAW) != 0) {
-               /*
-                * if the view has set the WILL_NOT_DRAW,
-                * but the background is transparent,
-                * maybe we needn't draw the background, keep to set PFLAG_SKIP_DRAW
-                */
                 if (mBackground != null) {
                     mPrivateFlags &= ~PFLAG_SKIP_DRAW;
                     mPrivateFlags |= PFLAG_ONLY_DRAWS_BACKGROUND;
@@ -14556,15 +14551,8 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             mBackground = background;
 
             if ((mPrivateFlags & PFLAG_SKIP_DRAW) != 0) {
-               /*
-                * if the view has set the PFLAG_SKIP_DRAW,
-                * but the background is transparent,
-                * maybe we needn't draw the background, keep to set PFLAG_SKIP_DRAW
-                */
-                if (mBackground.getOpacity() != PixelFormat.TRANSPARENT) {
-                    mPrivateFlags &= ~PFLAG_SKIP_DRAW;
-                    mPrivateFlags |= PFLAG_ONLY_DRAWS_BACKGROUND;
-                }
+                mPrivateFlags &= ~PFLAG_SKIP_DRAW;
+                mPrivateFlags |= PFLAG_ONLY_DRAWS_BACKGROUND;
                 requestLayout = true;
             }
         } else {
