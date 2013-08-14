@@ -59,6 +59,7 @@ public class WifiMonitor {
     private static final int EAP_FAILURE  = 8;
     private static final int UNKNOWN      = 9;
     private static final int BGSCAN_LEARN = 10;
+    private static final int ASSOC_REJECT = 11;
 
     /** All events coming from the supplicant start with this prefix */
     private static final String EVENT_PREFIX_STR = "CTRL-EVENT-";
@@ -165,6 +166,12 @@ public class WifiMonitor {
      * </pre>
      */
     private static final String EAP_FAILURE_STR = "EAP-FAILURE";
+    /**
+     * <pre>
+     * CTRL-EVENT-ASSOC-REJECT Association rejected by AP
+     * </pre>
+     */
+    private static final String ASSOC_REJECT_STR = "ASSOC-REJECT";
 
     /**
      * This indicates an authentication failure on EAP FAILURE event
@@ -514,6 +521,8 @@ public class WifiMonitor {
                     event = EAP_FAILURE;
                 else if (eventName.equals(BGSCAN_LEARN_STR))
                     event = BGSCAN_LEARN;
+                else if (eventName.equals(ASSOC_REJECT_STR))
+                    event = ASSOC_REJECT;
                 else
                     event = UNKNOWN;
 
@@ -558,6 +567,8 @@ public class WifiMonitor {
                     if (eventData.startsWith(EAP_AUTH_FAILURE_STR)) {
                         mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
                     }
+                } else if (event == ASSOC_REJECT) {
+                    mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
                 } else {
                     handleEvent(event, eventData);
                 }
