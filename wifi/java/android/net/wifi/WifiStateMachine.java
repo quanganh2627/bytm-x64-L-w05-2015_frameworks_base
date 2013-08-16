@@ -1082,14 +1082,19 @@ public class WifiStateMachine extends StateMachine {
                     Settings.Global.WIFI_FREQUENCY_BAND,
                     band);
         }
-        sendMessage(CMD_SET_FREQUENCY_BAND, band, 0);
+        sendMessage(CMD_SET_FREQUENCY_BAND, band, persist?1:0);
     }
 
     /**
      * Returns the operational frequency band
      */
     public int getFrequencyBand() {
-        return mFrequencyBand.get();
+        if (mWifiState.get() == WIFI_STATE_ENABLED)
+            return mFrequencyBand.get();
+        else
+            return Settings.Global.getInt(mContext.getContentResolver(),
+                    Settings.Global.WIFI_FREQUENCY_BAND,
+                    WifiManager.WIFI_FREQUENCY_BAND_AUTO);
     }
 
     /**
@@ -2646,6 +2651,7 @@ public class WifiStateMachine extends StateMachine {
                     break;
                 case CMD_SET_FREQUENCY_BAND:
                     int band =  message.arg1;
+                    boolean persist = (message.arg2 == 1);
                     if (DBG) log("set frequency band " + band);
                     if (mWifiNative.setBand(band)) {
                         mFrequencyBand.set(band);
@@ -2653,6 +2659,10 @@ public class WifiStateMachine extends StateMachine {
                         startScanNative(WifiNative.SCAN_WITH_CONNECTION_SETUP);
                     } else {
                         loge("Failed to set frequency band " + band);
+                        if (persist)
+                            Settings.Global.putInt(mContext.getContentResolver(),
+                                    Settings.Global.WIFI_FREQUENCY_BAND,
+                                    mFrequencyBand.get());
                     }
                     break;
                 case CMD_BLUETOOTH_ADAPTER_STATE_CHANGE:
