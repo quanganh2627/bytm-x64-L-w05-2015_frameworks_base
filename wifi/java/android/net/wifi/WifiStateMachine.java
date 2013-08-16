@@ -130,8 +130,6 @@ public class WifiStateMachine extends StateMachine {
     private final boolean mP2pSupported;
     private final AtomicBoolean mP2pConnecting = new AtomicBoolean(false);
     private final AtomicBoolean mP2pConnected = new AtomicBoolean(false);
-    private final AtomicBoolean mSoftApErrorDetected = new AtomicBoolean(false);
-    private WifiApConfiguration mLastWifiApConfig = null;
     private boolean mTemporarilyDisconnectWifi = false;
     private final String mPrimaryDeviceType;
 
@@ -813,7 +811,7 @@ public class WifiStateMachine extends StateMachine {
     /**
      * TODO: doc
      */
-    public void setWifiApEnabled(WifiApConfiguration wifiConfig, boolean enable) {
+    public void setWifiApEnabled(WifiConfiguration wifiConfig, boolean enable) {
         mLastApEnableUid.set(Binder.getCallingUid());
         if (enable) {
             /* Argument is the state that is entered prior to load */
@@ -826,13 +824,13 @@ public class WifiStateMachine extends StateMachine {
         }
     }
 
-    public void setWifiApConfiguration(WifiApConfiguration config) {
+    public void setWifiApConfiguration(WifiConfiguration config) {
         mWifiApConfigChannel.sendMessage(CMD_SET_AP_CONFIG, config);
     }
 
-    public WifiApConfiguration syncGetWifiApConfiguration() {
+    public WifiConfiguration syncGetWifiApConfiguration() {
         Message resultMsg = mWifiApConfigChannel.sendMessageSynchronously(CMD_REQUEST_AP_CONFIG);
-        WifiApConfiguration ret = (WifiApConfiguration) resultMsg.obj;
+        WifiConfiguration ret = (WifiConfiguration) resultMsg.obj;
         resultMsg.recycle();
         return ret;
     }
@@ -1220,23 +1218,6 @@ public class WifiStateMachine extends StateMachine {
            getConnectedDeviceInfo(tokens[i], DeviceList);
         }
         return DeviceList;
-    }
-
-    /* Wifi_Hotspot */
-    public List<WifiChannel> getWifiAuthorizedChannels() {
-        String rawList = mWifiNative.getWifiApChannelList();
-        List<WifiChannel> resultList = new ArrayList<WifiChannel>();
-
-        if (rawList == null)
-            return null;
-        // Extract elements from the list and skip duplicates if any
-        String[] items = rawList.split(" ");
-        for (String item : items) {
-            WifiChannel channel = new WifiChannel(item);
-            if (!resultList.contains(channel))
-                resultList.add(channel);
-        }
-        return resultList;
     }
 
    /* Wifi_Hotspot */
@@ -1988,8 +1969,7 @@ public class WifiStateMachine extends StateMachine {
      * TODO: Add control channel setup through hostapd that allows changing config
      * on a running daemon
      */
-    private void startSoftApWithConfig(final WifiApConfiguration config) {
-        mLastWifiApConfig = config;
+    private void startSoftApWithConfig(final WifiConfiguration config) {
         // start hostapd on a seperate thread
         new Thread(new Runnable() {
             public void run() {
@@ -2497,14 +2477,6 @@ public class WifiStateMachine extends StateMachine {
         public void enter() {
             if (DBG) log(getName() + "\n");
             EventLog.writeEvent(EVENTLOG_WIFI_STATE_CHANGED, getName());
-            if (mSoftApErrorDetected.get()) {
-                mSoftApErrorDetected.set(false);
-                if (mLastWifiApConfig != null && !mLastWifiApConfig.isRadioDefault()) {
-                    if (DBG) log("Restart softAP with default radio configuration");
-                    mLastWifiApConfig.resetRadioConfig();
-                    setWifiApEnabled(mLastWifiApConfig, true);
-                }
-            }
         }
         @Override
         public boolean processMessage(Message message) {
@@ -4092,7 +4064,7 @@ public class WifiStateMachine extends StateMachine {
 
             final Message message = getCurrentMessage();
             if (message.what == CMD_START_AP) {
-                final WifiApConfiguration config = (WifiApConfiguration) message.obj;
+                final WifiConfiguration config = (WifiConfiguration) message.obj;
 
                 if (config == null) {
                     mWifiApConfigChannel.sendMessage(CMD_REQUEST_AP_CONFIG);
@@ -4126,7 +4098,7 @@ public class WifiStateMachine extends StateMachine {
                     deferMessage(message);
                     break;
                 case WifiStateMachine.CMD_RESPONSE_AP_CONFIG:
-                    WifiApConfiguration config = (WifiApConfiguration) message.obj;
+                    WifiConfiguration config = (WifiConfiguration) message.obj;
                     if (config != null) {
                         startSoftApWithConfig(config);
                     } else {
@@ -4284,14 +4256,8 @@ public class WifiStateMachine extends StateMachine {
                     TetherStateChange stateChange = (TetherStateChange) message.obj;
                     if (!isWifiTethered(stateChange.active)) {
                         loge("Tethering reports wifi as untethered!, shut down soft Ap");
-                        mSoftApErrorDetected.set(true);
                         setWifiApEnabled(null, false);
                     }
-                    return HANDLED;
-                case WifiMonitor.AP_CONNECTION_FAIL:
-                    mSoftApErrorDetected.set(true);
-                    setWifiApEnabled(null, false);
-                    loge("WifiMonitor reports a connection failure!, reset soft Ap");
                     return HANDLED;
                 case CMD_STOP_AP:
                     if (DBG) log("Untethering before stopping AP");
