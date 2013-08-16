@@ -1369,10 +1369,12 @@ public class WifiStateMachine extends StateMachine {
     }
 
     /**
-     * Set the frequency band to the current value.
+     * Set the frequency band from the system setting value, if any.
      */
     private void setFrequencyBand() {
-        setFrequencyBand(mFrequencyBand.get(), false);
+        int band = Settings.Global.getInt(mContext.getContentResolver(),
+                Settings.Global.WIFI_FREQUENCY_BAND, WifiManager.WIFI_FREQUENCY_BAND_AUTO);
+        setFrequencyBand(band, false);
     }
 
     private void setSuspendOptimizationsNative(int reason, boolean enabled) {
@@ -2196,11 +2198,6 @@ public class WifiStateMachine extends StateMachine {
                 mWifiApConfigChannel.connectSync(mContext, getHandler(),
                         wifiApConfigStore.getMessenger());
             }
-
-            // Init the current frequency band value from the system setting value, if any
-            mFrequencyBand.set(Settings.Global.getInt(mContext.getContentResolver(),
-                Settings.Global.WIFI_FREQUENCY_BAND, WifiManager.WIFI_FREQUENCY_BAND_AUTO));
-
         }
         @Override
         public boolean processMessage(Message message) {
