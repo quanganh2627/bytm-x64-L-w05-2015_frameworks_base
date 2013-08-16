@@ -224,6 +224,10 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
     private static final String[] DHCP_RANGE = {"192.168.49.2", "192.168.49.254"};
     private static final String SERVER_ADDRESS = "192.168.49.1";
 
+    /* For WFD certification WPS PIN needs to be handled by sigma agent.
+     * The variable will not be used outside of certification scope. */
+    private String sigmaWpsPin;
+
     /**
      * Error code definition.
      * see the Table.8 in the WiFi Direct specification for the detail.
@@ -1240,6 +1244,10 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                     if (mSavedPeerConfig.wps.setup == WpsInfo.KEYPAD) {
                         if (DBG) logd("Found a match " + mSavedPeerConfig);
                         /* we already have the pin */
+                        sigmaWpsPin = SystemProperties.get("sigma.wps_pin", "");
+                        if (!sigmaWpsPin.equals("")) {
+                            mSavedPeerConfig.wps.pin = sigmaWpsPin;
+                        }
                         if (!TextUtils.isEmpty(mSavedPeerConfig.wps.pin)) {
                             p2pConnectWithPinDisplay(mSavedPeerConfig);
                             transitionTo(mGroupNegotiationState);
@@ -1693,6 +1701,21 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                         mSavedPeerConfig.wps.pin = provDisc.pin;
                     } else {
                         mSavedPeerConfig.wps.setup = WpsInfo.PBC;
+                    }
+                    sigmaWpsPin = SystemProperties.get("sigma.wps_pin", "");
+                    if (!sigmaWpsPin.equals("")) {
+                        if ((message.what == WifiMonitor.P2P_PROV_DISC_ENTER_PIN_EVENT) ||
+                                (message.what == WifiMonitor.P2P_PROV_DISC_SHOW_PIN_EVENT)) {
+                            mSavedPeerConfig.wps.pin = sigmaWpsPin;
+                            mWifiNative.startWpsPinKeypad(mGroup.getInterface(),
+                                    mSavedPeerConfig.wps.pin);
+                            mSavedPeerConfig = null;
+                            break;
+                        } else {
+                            mWifiNative.startWpsPbc(mGroup.getInterface(), null);
+                            mSavedPeerConfig = null;
+                            break;
+                        }
                     }
                     if (!sendConnectNoticeToApp(mSavedProvDiscDevice, mSavedPeerConfig)) {
                         transitionTo(mUserAuthorizingJoinState);
@@ -2242,6 +2265,10 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
             return;
         }
 
+        sigmaWpsPin = SystemProperties.get("sigma.wps_pin", "");
+        if (!sigmaWpsPin.equals("")) {
+            config.wps.pin = sigmaWpsPin;
+        }
         String pin = mWifiNative.p2pConnect(config, dev.isGroupOwner());
         try {
             Integer.parseInt(pin);
@@ -2704,6 +2731,11 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
      * @return
      */
     private boolean sendShowPinReqToFrontApp(String pin) {
+        sigmaWpsPin = SystemProperties.get("sigma.wps_pin", "");
+        if (!sigmaWpsPin.equals("")) {
+            // Let sigma manage WPS PIN instead of notifying user
+            return true;
+        }
         if (!isForegroundApp(mForegroundAppPkgName)) {
             sendDetachedMsg(WifiP2pManager.NOT_IN_FOREGROUND);
             return false;

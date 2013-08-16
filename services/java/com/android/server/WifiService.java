@@ -36,6 +36,8 @@ import android.database.ContentObserver;
 import android.net.wifi.IWifiManager;
 import android.net.wifi.ScanResult;
 import android.net.wifi.SupplicantState;
+import android.net.wifi.WifiApConfiguration;
+import android.net.wifi.WifiChannel;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiStateMachine;
@@ -305,9 +307,11 @@ public class WifiService extends IWifiManager.Stub {
      * Handles client connections
      */
     private class AsyncServiceHandler extends Handler {
+        private AsyncChannel ac;
 
         AsyncServiceHandler(android.os.Looper looper) {
             super(looper);
+            ac = new AsyncChannel();
         }
 
         @Override
@@ -332,7 +336,7 @@ public class WifiService extends IWifiManager.Stub {
                     break;
                 }
                 case AsyncChannel.CMD_CHANNEL_FULL_CONNECTION: {
-                    AsyncChannel ac = new AsyncChannel();
+                    //AsyncChannel ac = new AsyncChannel();
                     ac.connect(mContext, this, msg.replyTo);
                     break;
                 }
@@ -813,12 +817,12 @@ public class WifiService extends IWifiManager.Stub {
     }
 
     /**
-     * see {@link android.net.wifi.WifiManager#setWifiApEnabled(WifiConfiguration, boolean)}
+     * see {@link android.net.wifi.WifiManager#setWifiApEnabled(WifiApConfiguration, boolean)}
      * @param wifiConfig SSID, security and channel details as
-     *        part of WifiConfiguration
+     *        part of WifiApConfiguration
      * @param enabled true to enable and false to disable
      */
-    public void setWifiApEnabled(WifiConfiguration wifiConfig, boolean enabled) {
+    public void setWifiApEnabled(WifiApConfiguration wifiConfig, boolean enabled) {
         enforceChangePermission();
         mWifiStateMachine.setWifiApEnabled(wifiConfig, enabled);
     }
@@ -840,16 +844,16 @@ public class WifiService extends IWifiManager.Stub {
      * see {@link WifiManager#getWifiApConfiguration()}
      * @return soft access point configuration
      */
-    public WifiConfiguration getWifiApConfiguration() {
+    public WifiApConfiguration getWifiApConfiguration() {
         enforceAccessPermission();
         return mWifiStateMachine.syncGetWifiApConfiguration();
     }
 
     /**
-     * see {@link WifiManager#setWifiApConfiguration(WifiConfiguration)}
-     * @param wifiConfig WifiConfiguration details for soft access point
+     * see {@link WifiManager#setWifiApConfiguration(WifiApConfiguration)}
+     * @param wifiConfig WifiApConfiguration details for soft access point
      */
-    public void setWifiApConfiguration(WifiConfiguration wifiConfig) {
+    public void setWifiApConfiguration(WifiApConfiguration wifiConfig) {
         enforceChangePermission();
         if (wifiConfig == null)
             return;
@@ -862,6 +866,13 @@ public class WifiService extends IWifiManager.Stub {
     public List<WifiApConnectedDevice> getWifiApConnectedList() {
         return mWifiStateMachine.getWifiApConnectedList();
     }
+
+    /**
+     * Wifi_Hotspot: Request the list of authorized channels for Wifi_Hotspot.
+     */
+   public List<WifiChannel> getWifiAuthorizedChannels() {
+       return mWifiStateMachine.getWifiAuthorizedChannels();
+   }
 
     /**
      * see {@link android.net.wifi.WifiManager#disconnect()}

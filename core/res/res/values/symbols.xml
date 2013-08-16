@@ -1561,6 +1561,7 @@
   <java-symbol type="bool" name="show_ongoing_ime_switcher" />
   <java-symbol type="bool" name="config_button_automatic_brightness_available" />
   <java-symbol type="bool" name="config_button_led_brightness_available" />
+  <java-symbol type="bool" name="config_proximityScreenOffAvailable" />
   <java-symbol type="color" name="config_defaultNotificationColor" />
   <java-symbol type="drawable" name="ic_notification_ime_default" />
   <java-symbol type="drawable" name="ic_notify_wifidisplay" />

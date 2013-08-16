@@ -76,6 +76,7 @@ public class WifiNative {
 
     /* Wifi_Hotspot */
     public native String getWifiApStationList();
+    public native String getWifiApChannelList();
 
     /**
      * Wait for the supplicant to send an event, returning the event string.

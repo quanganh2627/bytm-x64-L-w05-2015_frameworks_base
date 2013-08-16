@@ -419,7 +419,8 @@ class QuickSettings {
                             // Disable tethering if enabling Wifi
                             final int wifiApState = mWifiManager.getWifiApState();
                             if (enable && ((wifiApState == WifiManager.WIFI_AP_STATE_ENABLING) ||
-                                           (wifiApState == WifiManager.WIFI_AP_STATE_ENABLED))) {
+                                           (wifiApState == WifiManager.WIFI_AP_STATE_ENABLED)) ||
+                                           (wifiApState == WifiManager.WIFI_AP_STATE_DISABLING)) {
                                 mWifiManager.setWifiApEnabled(null, false);
                             }
 
