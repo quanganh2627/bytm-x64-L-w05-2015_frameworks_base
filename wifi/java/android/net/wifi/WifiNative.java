@@ -190,6 +190,10 @@ public class WifiNative {
         }
     }
 
+    public boolean flushBSS() {
+        return doBooleanCommand("BSS_FLUSH 0");
+    }
+
     /* Does a graceful shutdown of supplicant. Is a common stop function for both p2p and sta.
      *
      * Note that underneath we use a harsh-sounding "terminate" supplicant command
