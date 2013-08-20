@@ -78,17 +78,20 @@ public class WifiEnterpriseConfig implements Parcelable {
     private static final String CLIENT_CERT_PREFIX = KEYSTORE_URI + Credentials.USER_CERTIFICATE;
 
     private static final String EAP_KEY             = "eap";
+    private static final String PHASE1_KEY          = "phase1";
     private static final String PHASE2_KEY          = "phase2";
     private static final String IDENTITY_KEY        = "identity";
     private static final String ANON_IDENTITY_KEY   = "anonymous_identity";
     private static final String PASSWORD_KEY        = "password";
     private static final String CLIENT_CERT_KEY     = "client_cert";
     private static final String CA_CERT_KEY         = "ca_cert";
+    private static final String PAC_FILE_KEY        = "pac_file";
     private static final String SUBJECT_MATCH_KEY   = "subject_match";
     private static final String ENGINE_KEY          = "engine";
     private static final String ENGINE_ID_KEY       = "engine_id";
     private static final String PRIVATE_KEY_ID_KEY  = "key_id";
     private static final String OPP_KEY_CACHING     = "proactive_key_caching";
+    private static final String PCSC_KEY            = "pcsc";
 
     private HashMap<String, String> mFields = new HashMap<String, String>();
     private X509Certificate mCaCert;
@@ -226,9 +229,17 @@ public class WifiEnterpriseConfig implements Parcelable {
         public static final int TTLS    = 2;
         /** EAP-Password */
         public static final int PWD     = 3;
+        /** EAP-SIM */
         /** @hide */
-        public static final String[] strings = { "PEAP", "TLS", "TTLS", "PWD" };
-
+        public static final int SIM     = 4;
+        /** EAP-AKA */
+        /** @hide */
+        public static final int AKA     = 5;
+        /** EAP-Fast */
+        /** @hide */
+        public static final int FAST    = 6;
+        /** @hide */
+        public static final String[] strings = { "PEAP", "TLS", "TTLS", "PWD", "SIM", "AKA", "FAST" };
         /** Prevent initialization */
         private Eap() {}
     }
@@ -259,9 +270,9 @@ public class WifiEnterpriseConfig implements Parcelable {
 
     /** Internal use only */
     static String[] getSupplicantKeys() {
-        return new String[] { EAP_KEY, PHASE2_KEY, IDENTITY_KEY, ANON_IDENTITY_KEY, PASSWORD_KEY,
+        return new String[] { EAP_KEY, PHASE1_KEY, PHASE2_KEY, IDENTITY_KEY, ANON_IDENTITY_KEY, PASSWORD_KEY,
                 CLIENT_CERT_KEY, CA_CERT_KEY, SUBJECT_MATCH_KEY, ENGINE_KEY, ENGINE_ID_KEY,
-                PRIVATE_KEY_ID_KEY };
+                PRIVATE_KEY_ID_KEY, PCSC_KEY, PAC_FILE_KEY };
     }
 
     /**
@@ -277,6 +288,9 @@ public class WifiEnterpriseConfig implements Parcelable {
             case Eap.PWD:
             case Eap.TLS:
             case Eap.TTLS:
+            case Eap.SIM:
+            case Eap.AKA:
+            case Eap.FAST:
                 mFields.put(EAP_KEY, Eap.strings[eapMethod]);
                 mFields.put(OPP_KEY_CACHING, "1");
                 break;
@@ -292,6 +306,24 @@ public class WifiEnterpriseConfig implements Parcelable {
     public int getEapMethod() {
         String eapMethod  = mFields.get(EAP_KEY);
         return getStringIndex(Eap.strings, eapMethod, Eap.NONE);
+    }
+
+     /**
+     * Set Phase 1 option value (currently only used for EAP-FAST method)
+     * @param value
+     * @hide
+     */
+    public void setPhase1Method(String value) {
+        setFieldValue(PHASE1_KEY, value, "");
+    }
+
+    /**
+     * Get the Phase 1 value
+     * @return the Phase 1 value
+     * @hide
+    */
+    public String getPhase1Method() {
+        return getFieldValue(PHASE1_KEY, "");
     }
 
     /**
@@ -319,6 +351,15 @@ public class WifiEnterpriseConfig implements Parcelable {
             default:
                 throw new IllegalArgumentException("Unknown Phase 2 method");
         }
+    }
+
+     /**
+     * Set the pcsc entry name
+     * @param value
+     * @hide
+     */
+    public void setPcsc(String value) {
+        setFieldValue(PCSC_KEY, value, "");
     }
 
     /**
@@ -505,6 +546,25 @@ public class WifiEnterpriseConfig implements Parcelable {
      */
     public X509Certificate getClientCertificate() {
         return mClientCertificate;
+    }
+
+    /**
+     * Set File path for the PAC entries (EAP-FAST param)
+     * @param value could be either a File path or a named configuration blob
+     *         (set blob://<blob name>)
+     * @hide
+     */
+    public void setPacFile(String value) {
+        setFieldValue(PAC_FILE_KEY, value, "");
+    }
+
+    /**
+     * Get the Pac File value
+     * @return the Pac File value
+     * @hide
+    */
+    public String getPacFile() {
+        return getFieldValue(PAC_FILE_KEY, "");
     }
 
     boolean needsKeyStore() {
