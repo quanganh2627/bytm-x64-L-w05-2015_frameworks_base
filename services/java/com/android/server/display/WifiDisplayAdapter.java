@@ -317,6 +317,7 @@ final class WifiDisplayAdapter extends DisplayAdapter {
     }
 
     public void requestForgetLocked(String address) {
+        final String addr = address;
         if (DEBUG) {
             Slog.d(TAG, "requestForgetLocked: address=" + address);
         }
@@ -330,6 +331,15 @@ final class WifiDisplayAdapter extends DisplayAdapter {
         if (mActiveDisplay != null && mActiveDisplay.getDeviceAddress().equals(address)) {
             requestDisconnectLocked();
         }
+
+        getHandler().post(new Runnable() {
+            @Override
+            public void run() {
+                if (mDisplayController != null) {
+                    mDisplayController.requestForget(addr);
+                }
+            }
+        });
     }
 
     public WifiDisplayStatus getWifiDisplayStatusLocked() {
