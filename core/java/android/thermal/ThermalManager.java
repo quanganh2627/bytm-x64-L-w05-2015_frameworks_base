@@ -257,14 +257,18 @@ public class ThermalManager {
         @Override
         public void onUEvent(UEventObserver.UEvent event) {
             String sensorName;
-            int sensorTemp, errorVal, eventType;
+            int sensorTemp, errorVal, eventType = -1;
             ThermalZone zone;
             synchronized (mLock) {
+                // Name of the sensor and current temperature are mandatory parameters of an UEvent
                 sensorName = event.get("NAME");
                 sensorTemp = Integer.parseInt(event.get("TEMP"));
-                eventType = Integer.parseInt(event.get("EVENT"));
 
-                Log.i(TAG, "UEvent received for sensor:" + sensorName + " temp:" + sensorTemp + "event: " + eventType);
+                // eventType is an optional parameter. so, check for null case
+                if (event.get("EVENT") != null)
+                   eventType = Integer.parseInt(event.get("EVENT"));
+
+                Log.i(TAG, "UEvent received for sensor:" + sensorName + " temp:" + sensorTemp);
 
                 // call isZoneStateChanged() for zones registered to this sensor
                 if (sensorName != null) {
