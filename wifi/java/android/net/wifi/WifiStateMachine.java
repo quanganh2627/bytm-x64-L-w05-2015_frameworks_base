@@ -118,7 +118,8 @@ public class WifiStateMachine extends StateMachine {
     private ConnectivityManager mCm;
 
     private final boolean mP2pSupported;
-    private final AtomicBoolean mP2pConnected = new AtomicBoolean(false);
+    private final AtomicBoolean mP2pConnecting = new AtomicBoolean(false);
+    private final AtomicBoolean mP2pConnected  = new AtomicBoolean(false);
     private boolean mTemporarilyDisconnectWifi = false;
     private final String mPrimaryDeviceType;
 
@@ -1648,7 +1649,10 @@ public class WifiStateMachine extends StateMachine {
             } else {
                 //Allow 2s for suspend optimizations to be set
                 mSuspendWakeLock.acquire(2000);
-                sendMessage(CMD_SET_SUSPEND_OPT_ENABLED, 1, 0);
+                if (!mP2pConnecting.get())
+                    sendMessage(obtainMessage(CMD_SET_SUSPEND_OPT_ENABLED, 1, 0));
+                else
+                    log("P2P connecting ongoing discard SET_SUSPEND");
             }
         }
         mScreenBroadcastReceived.set(true);
@@ -2606,6 +2610,7 @@ public class WifiStateMachine extends StateMachine {
                 case WifiP2pService.P2P_CONNECTION_CHANGED:
                     NetworkInfo info = (NetworkInfo) message.obj;
                     mP2pConnected.set(info.isConnected());
+                    mP2pConnecting.set(info.getState() == NetworkInfo.State.CONNECTING);
                     break;
                 case WifiP2pService.DISCONNECT_WIFI_REQUEST:
                     mTemporarilyDisconnectWifi = (message.arg1 == 1);
@@ -4072,7 +4077,9 @@ public class WifiStateMachine extends StateMachine {
                 case WifiP2pService.P2P_CONNECTION_CHANGED:
                     NetworkInfo info = (NetworkInfo) message.obj;
                     mP2pConnected.set(info.isConnected());
-                    if (mP2pConnected.get()) {
+                    mP2pConnecting.set(info.getState() == NetworkInfo.State.CONNECTING);
+
+                    if (mP2pConnected.get() || mP2pConnecting.get()) {
                         int defaultInterval = mContext.getResources().getInteger(
                                 R.integer.config_wifi_scan_interval_p2p_connected);
                         long scanIntervalMs = Settings.Global.getLong(mContext.getContentResolver(),
