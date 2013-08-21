@@ -64,6 +64,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.intel.cws.cwsservicemanager.CsmException;
+
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.telephony.TelephonyIntents;
@@ -118,6 +120,8 @@ public final class WifiService extends IWifiManager.Stub {
     private WifiTrafficPoller mTrafficPoller;
     /* Tracks the persisted states for wi-fi & airplane mode */
     final WifiSettingsStore mSettingsStore;
+
+    WifiCsmClient mWifiCsmClient;
 
     /**
      * Asynchronous channel to WifiStateMachine
@@ -228,6 +232,12 @@ public final class WifiService extends IWifiManager.Stub {
         mContext = context;
 
         mInterfaceName =  SystemProperties.get("wifi.interface", "wlan0");
+
+        try {
+            mWifiCsmClient = new WifiCsmClient(mContext, this);
+        } catch (CsmException e) {
+            Log.e(TAG, "Unable to create WifiCsmClient.", e);
+        }
 
         mWifiStateMachine = new WifiStateMachine(mContext, mInterfaceName);
         mWifiStateMachine.enableRssiPolling(true);
