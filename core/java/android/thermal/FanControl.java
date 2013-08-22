@@ -43,7 +43,7 @@ public class FanControl {
        /* Search throttle path for Fan cooling device */
        while (new File(coolDeviceThrottlePath + i + coolDeviceType).exists()) {
              String coolDeviceName = SysfsManager.readSysfs(coolDeviceThrottlePath + i + coolDeviceType);
-             if (coolDeviceName != null & coolDeviceName.equals("Fan_EC")) {
+             if (coolDeviceName != null && coolDeviceName.equals("Fan_EC")) {
                    mFanThrottlePath = coolDeviceThrottlePath + i + coolDeviceState;
                    mIsFanDeviceExists = true;
                    break;
