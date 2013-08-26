@@ -620,6 +620,11 @@ static void videoEditor_clearSurface(JNIEnv* pEnv,
                                              (M4OSA_NULL == pContext),
                                              "not initialized");
 
+    if (!needToBeLoaded) {
+        ALOGE("pContext is not initialized");
+        return;
+    }
+
     // Make sure that the context was set.
     videoEditJava_checkAndThrowIllegalStateException(&needToBeLoaded, pEnv,
                                  (M4OSA_NULL == pContext->mPreviewController),
