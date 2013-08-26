@@ -128,5 +128,9 @@ interface IWifiManager
     boolean isBatchedScanSupported();
 
     void pollBatchedScan();
+
+    String setRTCoexMode(int enable, int safeChannelBitmap);
+
+    String setSafeChannel(int safeChannelBitmap);
 }
 

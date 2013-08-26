@@ -2170,6 +2170,33 @@ public class WifiManager {
         } catch (RemoteException e) {}
     }
 
+    /** @hide */
+    public String setSafeChannel(int safeChannelBitmap) {
+        if (mService == null) {
+            return "";
+        } else {
+            try {
+                return mService.setSafeChannel(safeChannelBitmap);
+            } catch (RemoteException e) {
+                return "";
+            }
+        }
+    }
+
+    /** @hide */
+    public String setRTCoexMode(int enable, int safeChannelBitmap) {
+        if (mService == null) {
+            return "";
+        } else {
+            try {
+                return mService.setRTCoexMode(enable,safeChannelBitmap);
+            } catch (RemoteException e) {
+                return "";
+            }
+        }
+    }
+
+
     protected void finalize() throws Throwable {
         try {
             synchronized (sThreadRefLock) {
