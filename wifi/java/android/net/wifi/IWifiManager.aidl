@@ -119,5 +119,9 @@ interface IWifiManager
     List<WifiApConnectedDevice> getWifiApConnectedList();
 
     List<WifiChannel> getWifiAuthorizedChannels();
+
+    String setRTCoexMode(int enable, int safeChannelBitmap);
+
+    String setSafeChannel(int safeChannelBitmap);
 }
 
