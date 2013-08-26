@@ -40,6 +40,7 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiStateMachine;
 import android.net.wifi.WifiWatchdogStateMachine;
+import android.net.wifi.WifiNative;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.Messenger;
@@ -100,6 +101,7 @@ public final class WifiService extends IWifiManager.Stub {
     private static final boolean DBG = false;
 
     final WifiStateMachine mWifiStateMachine;
+    private final WifiNative mWifiNative;
 
     private final Context mContext;
 
@@ -284,6 +286,9 @@ public final class WifiService extends IWifiManager.Stub {
 
         mWifiStateMachine = new WifiStateMachine(mContext, mInterfaceName);
         mWifiStateMachine.enableRssiPolling(true);
+
+        mWifiNative = new WifiNative(mInterfaceName);
+
         mBatteryStats = BatteryStatsService.getService();
         mAppOps = (AppOpsManager)context.getSystemService(Context.APP_OPS_SERVICE);
 
@@ -340,6 +345,15 @@ public final class WifiService extends IWifiManager.Stub {
     }
 
     private WifiController mWifiController;
+
+
+    public String setSafeChannel(int safeChannelBitmap) {
+       return mWifiNative.setSafeChannel(safeChannelBitmap);
+    }
+
+    public String setRTCoexMode(int enable, int safeChannelBitmap) {
+       return mWifiNative.setRTCoexMode(enable,safeChannelBitmap);
+    }
 
     /**
      * Check if Wi-Fi needs to be enabled and start
