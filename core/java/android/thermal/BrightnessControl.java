@@ -15,11 +15,13 @@
  */
 
 package android.thermal;
+import android.content.Context;
 import android.os.IPowerManager;
 import android.os.PowerManager;
 import android.os.ServiceManager;
-import android.util.Log;
 import android.os.RemoteException;
+import android.util.Log;
+import android.thermal.ThermalNotifier;
 /**
  * The BrightnessControl class contains strings and constants used for values
  * in the {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED} Intent.
@@ -33,9 +35,10 @@ public class BrightnessControl {
     private static IPowerManager sPower;
     private static final int sDefaultBrightness = 102;
     private static final int sFullBrightness = 255;
+    private static Context mContext;
 
-
-    public static void init(String path) {
+    public static void init(Context context, String path) {
+        mContext = context;
         /* Get interface to power manager service */
         sPower = IPowerManager.Stub.asInterface(ServiceManager.getService("power"));
         if (sPower == null) {
@@ -45,15 +48,19 @@ public class BrightnessControl {
     }
 
     public static void throttleDevice(int tstate) {
-
         if (sPower == null) return;
 
+        int notificationMask = 0x0;
         switch(tstate) {
         case ThermalManager.THERMAL_STATE_WARNING:
         case ThermalManager.THERMAL_STATE_ALERT:
         case ThermalManager.THERMAL_STATE_CRITICAL:
               try {
                     sPower.setThermalBrightnessLimit(sDefaultBrightness, true);
+                    notificationMask |= ThermalNotifier.VIBRATE;
+                    notificationMask |= ThermalNotifier.TOAST;
+                    notificationMask |= ThermalNotifier.BRIGHTNESS;
+                    new ThermalNotifier(mContext, notificationMask).triggerNotification();
               } catch (RemoteException e) {
                     Log.i(TAG, "remote exception for setThermalBrightnessLimit()");
               }

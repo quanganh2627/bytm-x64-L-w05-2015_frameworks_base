@@ -245,11 +245,11 @@ public class ThermalCooling {
     public boolean init(Context context) {
        Log.i(TAG, "Thermal Cooling manager init() called");
 
+       mContext = context;
        ThermalParser parser = new ThermalParser(ThermalManager.THROTTLE_FILE_PATH);
        if (parser == null) return false;
        parser.parse();
 
-       mContext = context;
        // Register for thermal zone state changed notifications
        IntentFilter filter = new IntentFilter();
        filter.addAction(Intent.ACTION_THERMAL_ZONE_STATE_CHANGED);
@@ -352,11 +352,13 @@ public class ThermalCooling {
 
         /* Initialize the contributing device class */
         try {
-            Class partypes[] = new Class[1];
-            partypes[0] = String.class;
+            Class partypes[] = new Class[2];
+            partypes[0] = Context.class;
+            partypes[1] = String.class;
             Method init = cls.getMethod("init", partypes);
-            Object arglist[] = new Object[1];
-            arglist[0] = device.getThrottlePath();
+            Object arglist[] = new Object[2];
+            arglist[0] = mContext;
+            arglist[1] = device.getThrottlePath();
             init.invoke(cls, arglist);
         } catch (NoSuchMethodException e) {
             Log.i(TAG, "NoSuchMethodException caught in device class init: " + device.getClassPath());

@@ -19,6 +19,7 @@ package android.thermal;
 import android.thermal.ThermalManager;
 import android.thermal.SysfsManager;
 import java.io.File;
+import android.content.Context;
 import android.util.Log;
 
 /**
@@ -29,6 +30,7 @@ import android.util.Log;
 public class BatteryChargeCurrentControl {
     private static final String TAG = "Thermal:BatteryChargeCurrentControl";
     private static String mThrottlePath;
+    private static Context mContext;
 
     private static void setThrottlePath() {
         int count = 0;
@@ -53,7 +55,8 @@ public class BatteryChargeCurrentControl {
         }
     }
 
-    public static void init(String path) {
+    public static void init(Context context, String path) {
+         mContext = context;
          if (path != null) {
             if (path.equalsIgnoreCase("auto")) {
                setThrottlePath();
