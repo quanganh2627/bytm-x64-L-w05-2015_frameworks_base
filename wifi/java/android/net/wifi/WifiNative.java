@@ -1031,4 +1031,47 @@ public class WifiNative {
         // Note: optional feature on the driver. It is ok for this to fail.
         doBooleanCommand("DRIVER MIRACAST " + mode);
     }
+
+
+    /*
+     * For LTE Coexistence
+     */
+
+    /*
+     * setSafeChannel
+     *      send safe channel bitmap list for best channel computation in the supplicant
+     *      Unsafe channel are bitmapped as a 1, safe channels are bitmapped as a 0
+     *
+     *      safeChannelBitmap:  int value for safe channel bitmap.
+     */
+
+    public String setSafeChannel(int safeChannelBitmap) {
+        if (DBG) Log.d(mTAG, "setSafeChannel: " + safeChannelBitmap);
+        return doStringCommand("SET_SAFE_CHANNELS " + safeChannelBitmap);
+    }
+
+    /*
+     * setRTCoexMode
+     *     Send a command to the Wifi/BT driver to enable (1) or disable (0) Real Time (RT)
+     *     and provide the safe channel bitmap.
+     *      Unsafe channel are bitmapped as a 1, safe channels are bitmapped as a 0
+     *
+     *      enable: set to 1 to enable RT, or 0 to disable RT
+     *      safeChannelBitmap:  int value for safe channel bitmap.
+     */
+    public String setRTCoexMode(int enable, int safeChannelBitmap) {
+
+        String cmd = "DRIVER mws_coex_bitmap ";
+
+        if (enable == 1) {
+            cmd = cmd + "0x" + Integer.toHexString(safeChannelBitmap);
+        } else {
+            cmd = cmd + "0x0000";
+        }
+
+        if (DBG) Log.d(mTAG, "setRTCoexMode: " + cmd);
+
+        return doStringCommand(cmd);
+    }
+
 }
