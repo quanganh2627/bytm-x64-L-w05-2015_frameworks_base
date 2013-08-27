@@ -30,7 +30,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
-import android.content.pm.ResolveInfo;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -42,15 +41,8 @@ import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.UserHandle;
-import android.media.AudioManager;
 import android.provider.Settings;
 import android.util.Log;
-
-import com.android.internal.telephony.CwsMMGRService.IMmgrService;
-
-import java.util.ArrayList;
-import java.util.List;
-
 class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final String TAG = "BluetoothManagerService";
     private static final boolean DBG = true;
@@ -68,8 +60,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final int SERVICE_RESTART_TIME_MS = 200;
     //Maximum msec to delay MESSAGE_USER_SWITCHED
     private static final int USER_SWITCHED_TIME_MS = 200;
-
-    private static final String AUDIO_PARAMETER_KEY_BLUETOOTH_STATE = "bluetooth_enabled";
 
     private static final int MESSAGE_ENABLE = 1;
     private static final int MESSAGE_DISABLE = 2;
@@ -97,8 +87,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     // and Airplane mode will have higher priority.
     private static final int BLUETOOTH_ON_AIRPLANE=2;
 
-    private boolean mAirplanePending = false;
-
     private final Context mContext;
 
     // Locks are not provided for mName and mAddress.
@@ -124,9 +112,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private int mState;
     private HandlerThread mThread;
     private final BluetoothHandler mHandler;
-    private BluetoothAdapter mAdapter;
-
-    private AudioManager mAudioManager;
 
     private void registerForAirplaneMode(IntentFilter filter) {
         final ContentResolver resolver = mContext.getContentResolver();
@@ -138,7 +123,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 airplaneModeRadios.contains(Settings.Global.RADIO_BLUETOOTH);
         if (mIsAirplaneSensitive) {
             filter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
-            filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
         }
     }
 
@@ -161,13 +145,21 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     storeNameAndAddress(newName, null);
                 }
             } else if (Intent.ACTION_AIRPLANE_MODE_CHANGED.equals(action)) {
-                if (isBluetoothInStableState()) {
-                    // no need to handle an old pending airplane mode, handle the current
-                    mAirplanePending = false;
-                    handleAirplaneModeStateChange();
-                } else {
-                    // if in transition state, wait until BT is back to stable state
-                    mAirplanePending = true;
+                synchronized(mReceiver) {
+                    if (isBluetoothPersistedStateOn()) {
+                        if (isAirplaneModeOn()) {
+                            persistBluetoothSetting(BLUETOOTH_ON_AIRPLANE);
+                        } else {
+                            persistBluetoothSetting(BLUETOOTH_ON_BLUETOOTH);
+                        }
+                    }
+                    if (isAirplaneModeOn()) {
+                        // disable without persisting the setting
+                        sendDisableMsg();
+                    } else if (mEnableExternal) {
+                        // enable without persisting the setting
+                        sendEnableMsg(mQuietEnableExternal);
+                    }
                 }
             } else if (Intent.ACTION_USER_SWITCHED.equals(action)) {
                 mHandler.sendMessage(mHandler.obtainMessage(MESSAGE_USER_SWITCHED,
@@ -186,73 +178,9 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     if (DBG) Log.d(TAG,"Retrieving Bluetooth Adapter name and address...");
                     getNameAndAddress();
                 }
-            } else if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
-                // if in stable state then handle the pending airplane mode
-                if (mAirplanePending && isBluetoothInStableState()) {
-                    mAirplanePending = false;
-                    handleAirplaneModeStateChange();
-                }
             }
         }
     };
-
-    // Modem manager service
-    private IMmgrService mService = null;
-
-    // Indicate wether or not we are bound to
-    // the modem manager service
-    private static boolean sIsBound = false;
-
-    /**
-     * Class for interacting with the main interface of the modem manager service.
-     */
-    private ServiceConnection mCwsMMGRConnection = new ServiceConnection() {
-        public void onServiceConnected(ComponentName className,
-                IBinder service) {
-            // This is called when the connection with the service has been
-            // established, giving us the service object we can use to
-            // interact with the service.  We are communicating with our
-            // service through an IDL interface, so get a client-side
-            // representation of that from the raw service object.
-            mService = IMmgrService.Stub.asInterface((IBinder)service);
-            Log.d(TAG, "Connected to modem manager service");
-            try {
-                Log.d(TAG, "Registering callback interface for MMGR");
-                mService.registerCallback(null);
-            } catch (RemoteException e) {
-                Log.e(TAG, "Unable to register callback for MMGR : "+e);
-            }
-        }
-
-        public void onServiceDisconnected(ComponentName className) {
-            // This is called when the connection with the service has been
-            // unexpectedly disconnected -- that is, its process crashed.
-            mService = null;
-            Log.d(TAG, "Disconnected from modem manager service");
-        }
-    };
-
-    private void handleAirplaneModeStateChange() {
-        synchronized(mReceiver) {
-            if (isBluetoothPersistedStateOn()) {
-                // persist the state of BT to know
-                // in what state we should be after
-                // a change in airplane mode state
-                if (isAirplaneModeOn()) {
-                    persistBluetoothSetting(BLUETOOTH_ON_AIRPLANE);
-                } else {
-                    persistBluetoothSetting(BLUETOOTH_ON_BLUETOOTH);
-                }
-            }
-            // state is persisted, we can handle
-            // the airplane mode state change
-            if (isAirplaneModeOn()) {
-                sendDisableMsg();
-            } else if (mEnableExternal) {
-                sendEnableMsg(mQuietEnableExternal);
-            }
-        }
-    }
 
     BluetoothManagerService(Context context) {
         mThread = new HandlerThread("BluetoothManager");
@@ -269,7 +197,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         mEnableExternal = false;
         mAddress = null;
         mName = null;
-        mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         mContentResolver = context.getContentResolver();
         mCallbacks = new RemoteCallbackList<IBluetoothManagerCallback>();
         mStateChangeCallbacks = new RemoteCallbackList<IBluetoothStateChangeCallback>();
@@ -282,14 +209,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         if (isBluetoothPersistedStateOn()) {
             mEnableExternal = true;
         }
-    }
-
-    private boolean isBluetoothInStableState() {
-        if (mAdapter == null ) {
-            mAdapter = BluetoothAdapter.getDefaultAdapter();
-        }
-        return (mAdapter.getState() == BluetoothAdapter.STATE_ON ||
-                mAdapter.getState() == BluetoothAdapter.STATE_OFF);
     }
 
     /**
@@ -483,20 +402,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
             Binder.restoreCallingIdentity(callingIdentity);
             sendEnableMsg(false);
         }
-
-        // BT should be enabled, bind to modem manager service if needed
-        // We first check if MMGR service is available on device
-        List<ResolveInfo> list = mContext.getPackageManager().queryIntentServices(new Intent(IMmgrService.class.getName()),0);
-        if (list.size() > 0) {
-            if (!sIsBound) {
-                sIsBound = mContext.bindService(new Intent(IMmgrService.class.getName()), mCwsMMGRConnection, Context.BIND_AUTO_CREATE);
-                if (sIsBound) {
-                    Log.i(TAG, "Bound to service : " + IMmgrService.class.getName());
-                } else {
-                    Log.e(TAG, "Failure to bind to service : " + IMmgrService.class.getName());
-                }
-            }
-        }
         return true;
     }
 
@@ -524,12 +429,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
             }
             mEnableExternal = false;
             sendDisableMsg();
-        }
-        // BT should be disabled, unbind from modem manager service if needed
-        if (sIsBound) {
-            mContext.unbindService(mCwsMMGRConnection);
-            sIsBound = false;
-            Log.i(TAG, "Unbound from service : " + IMmgrService.class.getName());
         }
         return true;
     }
@@ -842,11 +741,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 case MESSAGE_UNREGISTER_STATE_CHANGE_CALLBACK:
                 {
                     IBluetoothStateChangeCallback callback = (IBluetoothStateChangeCallback) msg.obj;
-                    if (callback != null) {
-                        mStateChangeCallbacks.unregister(callback);
-                    } else {
-                        if (DBG) Log.d(TAG,"Trying to unregister a null callback, skipping");
-                    }
+                    mStateChangeCallbacks.unregister(callback);
                     break;
                 }
                 case MESSAGE_BLUETOOTH_SERVICE_CONNECTED:
@@ -1103,9 +998,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     Log.e(TAG,"Unable to call enable()",e);
                 }
             }
-
-            // Inform AudioRouteManager that bluetooth is enabled
-            mAudioManager.setParameters(AUDIO_PARAMETER_KEY_BLUETOOTH_STATE + "=true");
         }
     }
 
@@ -1115,9 +1007,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
             // service will be unbinded after Name and Address are saved
             if ((mBluetooth != null) && (!mConnection.isGetNameAddressOnly())) {
                 if (DBG) Log.d(TAG,"Sending off request.");
-
-                // Inform AudioRouteManager that bluetooth is disabled
-                mAudioManager.setParameters(AUDIO_PARAMETER_KEY_BLUETOOTH_STATE + "=false");
 
                 try {
                     if(!mBluetooth.disable()) {

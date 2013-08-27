@@ -20,7 +20,6 @@ import android.media.AudioManager;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Locale;
 
 /**
  * An AudioGroup is an audio hub for the speaker, the microphone, and
@@ -147,7 +146,7 @@ public class AudioGroup {
         if (!mStreams.containsKey(stream)) {
             try {
                 AudioCodec codec = stream.getCodec();
-                String codecSpec = String.format(Locale.US, "%d %s %s", codec.type,
+                String codecSpec = String.format("%d %s %s", codec.type,
                         codec.rtpmap, codec.fmtp);
                 int id = nativeAdd(stream.getMode(), stream.getSocket(),
                         stream.getRemoteAddress().getHostAddress(),

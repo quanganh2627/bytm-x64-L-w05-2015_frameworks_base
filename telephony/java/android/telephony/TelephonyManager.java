@@ -473,14 +473,6 @@ public class TelephonyManager {
         return retVal;
     }
 
-    /** @hide */
-    public static boolean getLteOnGsmModeStatic() {
-        boolean ret = SystemProperties.getBoolean(TelephonyProperties.PROPERTY_LTE_ON_GSM_DEVICE,
-                false);
-        Log.d(TAG, TelephonyProperties.PROPERTY_LTE_ON_GSM_DEVICE + " is " + ret);
-        return ret;
-    }
-
     //
     //
     // Current Network

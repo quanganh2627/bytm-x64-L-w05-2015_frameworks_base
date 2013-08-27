@@ -147,10 +147,6 @@ static jlong getTotalStat(JNIEnv* env, jclass clazz, jint type) {
 
 static jlong getIfaceStat(JNIEnv* env, jclass clazz, jstring iface, jint type) {
     struct IfaceStat stat;
-
-    if (iface == NULL)
-        return VALUE_UNKNOWN;
-
     const char* ifaceChars = env->GetStringUTFChars(iface, NULL);
     if (ifaceChars) {
         uint64_t stat = getIfaceStatType(ifaceChars, (IfaceStatType) type);

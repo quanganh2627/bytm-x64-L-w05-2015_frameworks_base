@@ -259,10 +259,5 @@ public abstract class KeyguardAbsKeyInputView extends LinearLayout
         KeyguardSecurityViewHelper.
                 hideBouncer(mSecurityMessageDisplay, mEcaView, mBouncerFrame, duration);
     }
-
-    public int getVisibility() {
-        return mPasswordEntry.getVisibility();
-    }
-
 }
 

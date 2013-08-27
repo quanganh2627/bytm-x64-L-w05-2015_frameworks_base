@@ -57,7 +57,6 @@ public class PhoneConstants {
     public static final int PHONE_TYPE_GSM = RILConstants.GSM_PHONE;
     public static final int PHONE_TYPE_CDMA = RILConstants.CDMA_PHONE;
     public static final int PHONE_TYPE_SIP = RILConstants.SIP_PHONE;
-    public static final int PHONE_TYPE_IMS = RILConstants.IMS_PHONE;
 
     // Modes for LTE_ON_CDMA
     public static final int LTE_ON_CDMA_UNKNOWN = RILConstants.LTE_ON_CDMA_UNKNOWN;
@@ -83,7 +82,6 @@ public class PhoneConstants {
     public static final String NETWORK_UNAVAILABLE_KEY = "networkUnvailable";
     public static final String DATA_NETWORK_ROAMING_KEY = "networkRoaming";
     public static final String PHONE_IN_ECM_STATE = "phoneinECMState";
-    public static final String EMERGENCY_CALL_STATUS_KEY = "emergencyCallOngoing";
 
     public static final String REASON_LINK_PROPERTIES_CHANGED = "linkPropertiesChanged";
 
@@ -121,9 +119,5 @@ public class PhoneConstants {
     public static final String APN_TYPE_IMS = "ims";
     /** APN type for CBS */
     public static final String APN_TYPE_CBS = "cbs";
-    /** APN type for BIP 1 traffic*/
-    public static final String APN_TYPE_BIP_GPRS1 = "bip_gprs1";
-    /** APN type for BIP 2 traffic*/
-    public static final String APN_TYPE_BIP_GPRS2 = "bip_gprs2";
 
 }

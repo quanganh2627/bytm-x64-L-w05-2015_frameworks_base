@@ -185,10 +185,6 @@ public final class InputManager {
         synchronized (InputManager.class) {
             if (sInstance == null) {
                 IBinder b = ServiceManager.getService(Context.INPUT_SERVICE);
-                if (b == null) {
-                    Log.e(TAG, "InputManager service is not available.");
-                    return null;
-                }
                 sInstance = new InputManager(IInputManager.Stub.asInterface(b));
             }
             return sInstance;

@@ -25,7 +25,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.ContentObserver;
 import static android.os.BatteryManager.BATTERY_STATUS_FULL;
-import static android.os.BatteryManager.BATTERY_STATUS_CHARGING;
 import static android.os.BatteryManager.BATTERY_STATUS_UNKNOWN;
 import static android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN;
 import static android.os.BatteryManager.EXTRA_STATUS;
@@ -118,26 +117,6 @@ public class KeyguardUpdateMonitor {
     private ContentObserver mDeviceProvisionedObserver;
 
     private final Handler mHandler = new Handler() {
-        @Override
-        public String getMessageName(Message msg) {
-            switch (msg.what) {
-                case MSG_TIME_UPDATE: return "MSG_TIME_UPDATE";
-                case MSG_BATTERY_UPDATE: return "MSG_BATTERY_UPDATE";
-                case MSG_CARRIER_INFO_UPDATE: return "MSG_CARRIER_INFO_UPDATE";
-                case MSG_SIM_STATE_CHANGE: return "MSG_SIM_STATE_CHANGE";
-                case MSG_RINGER_MODE_CHANGED: return "MSG_RINGER_MODE_CHANGED";
-                case MSG_PHONE_STATE_CHANGED: return "MSG_PHONE_STATE_CHANGED";
-                case MSG_CLOCK_VISIBILITY_CHANGED: return "MSG_CLOCK_VISIBILITY_CHANGED";
-                case MSG_DEVICE_PROVISIONED: return "MSG_DEVICE_PROVISIONED";
-                case MSG_DPM_STATE_CHANGED: return "MSG_DPM_STATE_CHANGED";
-                case MSG_USER_SWITCHED: return "MSG_USER_SWITCHED";
-                case MSG_USER_REMOVED: return "MSG_USER_REMOVED";
-                case MSG_KEYGUARD_VISIBILITY_CHANGED: return "MSG_KEYGUARD_VISIBILITY_CHANGED";
-                case MSG_BOOT_COMPLETED: return "MSG_BOOT_COMPLETED";
-            }
-            return super.getMessageName(msg);
-        }
-
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
@@ -276,15 +255,11 @@ public class KeyguardUpdateMonitor {
                 }
             } else if (IccCardConstants.INTENT_VALUE_LOCKED_NETWORK.equals(stateExtra)) {
                 state = IccCardConstants.State.NETWORK_LOCKED;
-            } else if (IccCardConstants.INTENT_VALUE_LOCKED_NETWORK_PUK.equals(stateExtra)) {
-                state = IccCardConstants.State.NETWORK_LOCKED_PUK;
             } else if (IccCardConstants.INTENT_VALUE_ICC_LOADED.equals(stateExtra)
                         || IccCardConstants.INTENT_VALUE_ICC_IMSI.equals(stateExtra)) {
                 // This is required because telephony doesn't return to "READY" after
                 // these state transitions. See bug 7197471.
                 state = IccCardConstants.State.READY;
-            } else if (IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra)) {
-                state = IccCardConstants.State.NOT_READY;
             } else {
                 state = IccCardConstants.State.UNKNOWN;
             }
@@ -326,14 +301,6 @@ public class KeyguardUpdateMonitor {
          */
         public boolean isCharged() {
             return status == BATTERY_STATUS_FULL || level >= 100;
-        }
-
-        /**
-         * Whether battery is charging.
-         * @return true if battery is charging
-         */
-        public boolean isCharging() {
-            return status == BATTERY_STATUS_CHARGING;
         }
 
         /**
@@ -840,8 +807,7 @@ public class KeyguardUpdateMonitor {
     public static boolean isSimLocked(IccCardConstants.State state) {
         return state == IccCardConstants.State.PIN_REQUIRED
         || state == IccCardConstants.State.PUK_REQUIRED
-        || state == IccCardConstants.State.PERM_DISABLED
-        || state == IccCardConstants.State.NETWORK_LOCKED_PUK;
+        || state == IccCardConstants.State.PERM_DISABLED;
     }
 
     public boolean isSimPinSecure() {

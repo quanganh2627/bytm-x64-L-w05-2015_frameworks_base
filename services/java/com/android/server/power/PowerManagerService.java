@@ -53,7 +53,6 @@ import android.os.SystemClock;
 import android.os.SystemService;
 import android.os.UserHandle;
 import android.os.WorkSource;
-import android.os.SystemProperties;
 import android.provider.Settings;
 import android.util.EventLog;
 import android.util.Log;
@@ -257,7 +256,7 @@ public final class PowerManagerService extends IPowerManager.Stub
     private boolean mBootCompleted;
 
     // True if the device is plugged into a power source.
-    private static boolean mIsPowered;
+    private boolean mIsPowered;
 
     // The current plug type, such as BatteryManager.BATTERY_PLUGGED_WIRELESS.
     private int mPlugType;
@@ -404,23 +403,6 @@ public final class PowerManagerService extends IPowerManager.Stub
         // activity manager is not running when the constructor is called, so we
         // have to defer setting the screen state until this point.
         mDisplayBlanker.unblankAllDisplays();
-    }
-
-    /* new function added, called from display plugin */
-    public void setThermalBrightnessLimit(int newBrightness, boolean immediate) {
-        // Update the max allowed brightness val synchronously.
-        // synchronize the step on mLock. This lock is used by PowerMangerService
-        // to synchronize operations
-        synchronized (mLock) {
-            // mScreenBrightnessSettingMaximum is the maximum allowed brightness val
-            mScreenBrightnessSettingMaximum = newBrightness;
-        }
-
-        // mScreenBrightnessSetting stores the current brightness value
-        // set the new brightness only if its lesser than the current brightness
-        if ((immediate) && (newBrightness < mScreenBrightnessSetting)) {
-                setScreenBrightnessOverrideFromWindowManager(newBrightness);
-        }
     }
 
     public void setPolicy(WindowManagerPolicy policy) {
@@ -633,14 +615,6 @@ public final class PowerManagerService extends IPowerManager.Stub
                 mWakeLocks.add(wakeLock);
             }
 
-            // Generate user-level wakelock traces for Wuwatch
-            if (SystemProperties.get("wakelock.trace", "unknown").equals("1")) {
-                Slog.i("WAKELOCK_ACQUIRE", "TIMESTAMP=" + SystemClock.elapsedRealtimeNanos()
-                        + ", TAG=" + tag + ", TYPE=" + wakeLock.getLockLevelString()
-                        + ", COUNT=0" + ", PID=" + pid + ", UID=" + uid
-                        + ", FLAGS=" + wakeLock.getLockFlagsString());
-            }
-
             applyWakeLockFlagsOnAcquireLocked(wakeLock);
             mDirty |= DIRTY_WAKE_LOCKS;
             updatePowerStateLocked();
@@ -704,14 +678,6 @@ public final class PowerManagerService extends IPowerManager.Stub
             applyWakeLockFlagsOnReleaseLocked(wakeLock);
             mDirty |= DIRTY_WAKE_LOCKS;
             updatePowerStateLocked();
-
-            // Generate user-level wakelock traces for Wuwatch
-            if (SystemProperties.get("wakelock.trace", "unknown").equals("1")) {
-                Slog.i("WAKELOCK_RELEASE", "TIMESTAMP=" + SystemClock.elapsedRealtimeNanos()
-                        + ", TAG=" + wakeLock.mTag + ", TYPE=" + wakeLock.getLockLevelString()
-                        + ", COUNT=0" + ", PID=" + wakeLock.mOwnerPid + ", UID="
-                        + wakeLock.mOwnerUid + ", FLAGS=" + wakeLock.getLockFlagsString());
-            }
         }
     }
 
@@ -732,14 +698,6 @@ public final class PowerManagerService extends IPowerManager.Stub
             applyWakeLockFlagsOnReleaseLocked(wakeLock);
             mDirty |= DIRTY_WAKE_LOCKS;
             updatePowerStateLocked();
-
-            // Generate user-level wakelock traces for Wuwatch
-            if (SystemProperties.get("wakelock.trace", "unknown").equals("1")) {
-                Slog.i("WAKELOCK_RELEASE", "TIMESTAMP=" + SystemClock.elapsedRealtimeNanos()
-                        + ", TAG=" + wakeLock.mTag + ", TYPE=" + wakeLock.getLockLevelString()
-                        + ", COUNT=0" + ", PID=" + wakeLock.mOwnerPid + ", UID="
-                        + wakeLock.mOwnerUid + ", FLAGS=" + wakeLock.getLockFlagsString());
-            }
         }
     }
 
@@ -885,10 +843,6 @@ public final class PowerManagerService extends IPowerManager.Stub
         synchronized (mLock) {
             if (userActivityNoUpdateLocked(eventTime, event, flags, uid)) {
                 updatePowerStateLocked();
-                int newScreenState = getDesiredScreenPowerStateLocked();
-                if (newScreenState == DisplayPowerRequest.SCREEN_STATE_DIM
-                    || newScreenState == DisplayPowerRequest.SCREEN_STATE_BRIGHT)
-                    mDisplayPowerController.requestButtonLedState(true);
             }
         }
     }
@@ -949,10 +903,6 @@ public final class PowerManagerService extends IPowerManager.Stub
         synchronized (mLock) {
             if (wakeUpNoUpdateLocked(eventTime)) {
                 updatePowerStateLocked();
-                int newScreenState = getDesiredScreenPowerStateLocked();
-                if (newScreenState == DisplayPowerRequest.SCREEN_STATE_DIM
-                    || newScreenState == DisplayPowerRequest.SCREEN_STATE_BRIGHT)
-                    mDisplayPowerController.requestButtonLedState(true);
             }
         }
     }
@@ -1014,11 +964,8 @@ public final class PowerManagerService extends IPowerManager.Stub
 
     private void goToSleepInternal(long eventTime, int reason) {
         synchronized (mLock) {
-            if (mProximityPositive == false && goToSleepNoUpdateLocked(eventTime, reason)) {
+            if (goToSleepNoUpdateLocked(eventTime, reason)) {
                 updatePowerStateLocked();
-                int newScreenState = getDesiredScreenPowerStateLocked();
-                if (newScreenState == DisplayPowerRequest.SCREEN_STATE_OFF)
-                    mDisplayPowerController.requestButtonLedState(false);
             }
         }
     }
@@ -1204,20 +1151,6 @@ public final class PowerManagerService extends IPowerManager.Stub
                 // and it shuts off right away.
                 // Some devices also wake the device when plugged or unplugged because
                 // they don't have a charging LED.
-
-                // UsbDeviceManager acquires a wakelock on SDP/CDP insert and turns on screen.
-                // But, DCP insertion doesn't go through this flow; hence adding an
-                // additional flow to accomodate all charger-insertion to turn-on screen.
-                if (!wasPowered && mDisplayPowerRequest.screenState == DisplayPowerRequest.SCREEN_STATE_OFF) {
-                    PowerManager mPowerManager = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
-                    PowerManager.WakeLock mChargeScreen = mPowerManager.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK
-                                                                                    | PowerManager.ACQUIRE_CAUSES_WAKEUP, "charger plug");
-                    mChargeScreen.setReferenceCounted(false);
-
-                    // Acquire short time wakelock same as keyguard
-                    mChargeScreen.acquire(10000);
-                }
-
                 final long now = SystemClock.uptimeMillis();
                 if (shouldWakeUpWhenPluggedOrUnpluggedLocked(wasPowered, oldPlugType,
                         dockedOnWirelessCharger)) {
@@ -2217,11 +2150,6 @@ public final class PowerManagerService extends IPowerManager.Stub
      */
     public static void lowLevelReboot(String reason) throws IOException {
         nativeReboot(reason);
-    }
-
-    public static boolean isPoweredPlugged() {
-        // Return status of battery service if something is plugged.
-        return mIsPowered;
     }
 
     @Override // Watchdog.Monitor implementation

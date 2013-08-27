@@ -462,8 +462,7 @@ public final class WebViewCore {
                 new WebStorage.QuotaUpdater() {
                         @Override
                         public void updateQuota(long newQuota) {
-                            if (mNativeClass != 0)
-                                nativeSetNewStorageLimit(mNativeClass, newQuota);
+                            nativeSetNewStorageLimit(mNativeClass, newQuota);
                         }
                 });
     }
@@ -481,8 +480,7 @@ public final class WebViewCore {
                 new WebStorage.QuotaUpdater() {
                     @Override
                     public void updateQuota(long newQuota) {
-                        if (mNativeClass != 0)
-                            nativeSetNewStorageLimit(mNativeClass, newQuota);
+                        nativeSetNewStorageLimit(mNativeClass, newQuota);
                     }
                 });
     }
@@ -1280,7 +1278,6 @@ public final class WebViewCore {
                                 mBrowserFrame = null;
                                 mSettings.onDestroyed();
                                 mNativeClass = 0;
-                                WebCoreThreadWatchdog.unregisterWebView(mWebViewClassic);
                                 mWebViewClassic = null;
                             }
                             break;
@@ -1985,6 +1982,7 @@ public final class WebViewCore {
             mEventHub.sendMessageAtFrontOfQueue(
                     Message.obtain(null, EventHub.DESTROY));
             mEventHub.blockMessages();
+            WebCoreThreadWatchdog.unregisterWebView(mWebViewClassic);
         }
     }
 
@@ -2069,7 +2067,6 @@ public final class WebViewCore {
 
     // notify webkit that our virtual view size changed size (after inv-zoom)
     private void viewSizeChanged(WebViewClassic.ViewSizeData data) {
-        if (0 == mNativeClass) return;
         int w = data.mWidth;
         int h = data.mHeight;
         int textwrapWidth = data.mTextWrapWidth;
@@ -2211,8 +2208,6 @@ public final class WebViewCore {
                 return;
             }
         }
-
-        if (0 == mNativeClass) return;
 
         mDrawIsScheduled = false;
         DrawData draw = new DrawData();

@@ -23,7 +23,6 @@ import android.text.TextUtils;
 import android.net.wifi.p2p.nsd.WifiP2pServiceInfo;
 import android.net.wifi.p2p.nsd.WifiP2pServiceRequest;
 import android.util.Log;
-import android.os.SystemProperties;
 
 import java.io.InputStream;
 import java.lang.Process;
@@ -67,16 +66,6 @@ public class WifiNative {
     private native boolean connectToSupplicant(String iface);
 
     private native void closeSupplicantConnection(String iface);
-
-    /* Wifi_Hotspot */
-    public native static boolean connectToHostapd();
-
-    /* Wifi_Hotspot */
-    public native static void closeHostapdConnection();
-
-    /* Wifi_Hotspot */
-    public native String getWifiApStationList();
-    public native String getWifiApChannelList();
 
     /**
      * Wait for the supplicant to send an event, returning the event string.
@@ -604,17 +593,7 @@ public class WifiNative {
             if (groupOwnerIntent < 0 || groupOwnerIntent > 15) {
                 groupOwnerIntent = DEFAULT_GROUP_OWNER_INTENT;
             }
-            String go_intent = SystemProperties.get("wifi.p2p.go_intent", "");
-            if (!"".equals(go_intent)) {
-                args.add("go_intent=" + go_intent);
-            } else {
-                args.add("go_intent=" + groupOwnerIntent);
-            }
-        }
-
-        String freq = SystemProperties.get("wifi.p2p.force_freq", "");
-        if (!"".equals(freq) && !"0".equals(freq)) {
-            args.add("freq=" + freq);
+            args.add("go_intent=" + groupOwnerIntent);
         }
 
         String command = "P2P_CONNECT ";
@@ -646,37 +625,14 @@ public class WifiNative {
     }
 
     public boolean p2pGroupAdd(boolean persistent) {
-        List<String> args = new ArrayList<String>();
-
         if (persistent) {
-            args.add("persistent");
+            return doBooleanCommand("P2P_GROUP_ADD persistent");
         }
-
-        String freq = SystemProperties.get("wifi.p2p.force_freq", "");
-        if (!"".equals(freq) && !"0".equals(freq)) {
-            args.add("freq=" + freq);
-        }
-
-        String command = "P2P_GROUP_ADD ";
-        for (String s : args) command += s + " ";
-
-        return doBooleanCommand(command);
+        return doBooleanCommand("P2P_GROUP_ADD");
     }
 
     public boolean p2pGroupAdd(int netId) {
-        List<String> args = new ArrayList<String>();
-
-        args.add("persistent=" + netId);
-
-        String freq = SystemProperties.get("wifi.p2p.force_freq", "");
-        if (!"".equals(freq) && !"0".equals(freq)) {
-            args.add("freq=" + freq);
-        }
-
-        String command = "P2P_GROUP_ADD ";
-        for (String s : args) command += s + " ";
-
-        return doBooleanCommand(command);
+        return doBooleanCommand("P2P_GROUP_ADD persistent=" + netId);
     }
 
     public boolean p2pGroupRemove(String iface) {
@@ -703,20 +659,8 @@ public class WifiNative {
     /* Reinvoke a persistent connection */
     public boolean p2pReinvoke(int netId, String deviceAddress) {
         if (TextUtils.isEmpty(deviceAddress) || netId < 0) return false;
-        List<String> args = new ArrayList<String>();
 
-        args.add("persistent=" + netId);
-        args.add("peer=" + deviceAddress);
-
-        String freq = SystemProperties.get("wifi.p2p.force_freq", "");
-        if (!"".equals(freq) && !"0".equals(freq)) {
-            args.add("freq=" + freq);
-        }
-
-        String command = "P2P_INVITE ";
-        for (String s : args) command += s + " ";
-
-        return doBooleanCommand(command);
+        return doBooleanCommand("P2P_INVITE persistent=" + netId + " peer=" + deviceAddress);
     }
 
     public String p2pGetSsid(String deviceAddress) {
@@ -779,11 +723,6 @@ public class WifiNative {
             }
         }
         return null;
-    }
-
-    public boolean p2pSetDisabled(boolean enabled) {
-        int value = (enabled == true) ? 1 : 0;
-        return doBooleanCommand("P2P_SET disabled " + value);
     }
 
     public boolean p2pServiceAdd(WifiP2pServiceInfo servInfo) {

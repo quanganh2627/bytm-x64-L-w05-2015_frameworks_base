@@ -331,7 +331,7 @@ public class StorageManager
         }
 
         synchronized (mListeners) {
-            if (mBinderListener == null && mMountService != null) {
+            if (mBinderListener == null ) {
                 try {
                     mBinderListener = new MountServiceBinderListener();
                     mMountService.registerListener(mBinderListener);
@@ -365,7 +365,7 @@ public class StorageManager
                     break;
                 }
             }
-            if (mListeners.size() == 0 && mBinderListener !=null && mMountService != null) {
+            if (mListeners.size() == 0 && mBinderListener != null) {
                 try {
                     mMountService.unregisterListener(mBinderListener);
                 } catch (RemoteException rex) {
@@ -554,9 +554,6 @@ public class StorageManager
         try {
             return mMountService.getVolumeState(mountPoint);
         } catch (RemoteException e) {
-            Log.e(TAG, "Failed to get volume state", e);
-            return null;
-        } catch (IllegalArgumentException e) {
             Log.e(TAG, "Failed to get volume state", e);
             return null;
         }

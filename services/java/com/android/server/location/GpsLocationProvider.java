@@ -16,17 +16,12 @@
 
 package com.android.server.location;
 
-import static android.content.Intent.ACTION_SHUTDOWN;
-
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.ServiceConnection;
-import android.content.pm.ResolveInfo;
 import android.database.Cursor;
 import android.location.Criteria;
 import android.location.IGpsStatusListener;
@@ -40,14 +35,11 @@ import android.location.LocationProvider;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
-import android.net.wifi.WifiInfo;
-import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.Message;
 import android.os.PowerManager;
 import android.os.RemoteException;
@@ -58,9 +50,6 @@ import android.os.WorkSource;
 import android.provider.Settings;
 import android.provider.Telephony.Carriers;
 import android.provider.Telephony.Sms.Intents;
-import android.telephony.CellInfo;
-import android.telephony.CellLocation;
-import android.telephony.PhoneStateListener;
 import android.telephony.SmsMessage;
 import android.telephony.TelephonyManager;
 import android.telephony.gsm.GsmCellLocation;
@@ -73,9 +62,6 @@ import com.android.internal.location.ProviderRequest;
 import com.android.internal.location.GpsNetInitiatedHandler.GpsNiNotification;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
-import com.android.internal.telephony.CwsMMGRService.IMmgrService;
-import com.android.internal.telephony.CwsMMGRService.IMmgrServiceListener;
-import com.android.internal.telephony.CwsMMGRService.ICsmGpsListener;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -85,11 +71,8 @@ import java.io.PrintWriter;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 import java.util.Map.Entry;
 import java.util.Properties;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A GPS implementation of LocationProvider used by LocationManager.
@@ -188,14 +171,13 @@ public class GpsLocationProvider implements LocationProviderInterface {
     private static final int AGPS_RIL_REQUEST_SETID_MSISDN = 2;
 
     // Request ref location
-    private static final int AGPS_REQUEST_REFLOC_CELLID = 1;
-    private static final int AGPS_REQUEST_REFLOC_MAC = 2;
+    private static final int AGPS_RIL_REQUEST_REFLOC_CELLID = 1;
+    private static final int AGPS_RIL_REQUEST_REFLOC_MAC = 2;
 
     // ref. location info
-    private static final int AGPS_REF_LOCATION_END = 0;
     private static final int AGPS_REF_LOCATION_TYPE_GSM_CELLID = 1;
     private static final int AGPS_REF_LOCATION_TYPE_UMTS_CELLID = 2;
-    private static final int AGPS_REF_LOCATION_TYPE_MAC = 3;
+    private static final int AGPS_REG_LOCATION_TYPE_MAC        = 3;
 
     // set id info
     private static final int AGPS_SETID_TYPE_NONE = 0;
@@ -203,8 +185,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
     private static final int AGPS_SETID_TYPE_MSISDN = 2;
 
     private static final String PROPERTIES_FILE = "/etc/gps.conf";
-
-    private static final int DEFAULT_HSLP_PORT = 7275;  // default port - secure
 
     /** simpler wrapper for ProviderRequest + Worksource */
     private static class GpsRequest {
@@ -217,7 +197,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
     }
 
     private Object mLock = new Object();
-    private Object mCellLocationLock = new Object();
 
     private int mLocationFlags = LOCATION_INVALID;
 
@@ -307,15 +286,12 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
     // Handler for processing events
     private Handler mHandler;
-    private Handler mRefLocHandler;
 
     private String mAGpsApn;
     private int mAGpsDataConnectionState;
     private int mAGpsDataConnectionIpAddr;
     private final ConnectivityManager mConnMgr;
     private final GpsNetInitiatedHandler mNIHandler;
-    private final TelephonyManager mTelephonyManager;
-    private boolean mRefLocationRequested;
 
     // Wakelocks
     private final static String WAKELOCK_KEY = "GpsLocationProvider";
@@ -332,10 +308,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
     // only modified on handler thread
     private int[] mClientUids = new int[0];
-
-    private CwsMMGRClient mCwsMMGRClient = new CwsMMGRClient();
-
-    private String mUiccHslp = null;
 
     private final IGpsStatusProvider mGpsStatusProvider = new IGpsStatusProvider.Stub() {
         @Override
@@ -390,13 +362,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
         return mGpsStatusProvider;
     }
 
-    private PhoneStateListener mPhoneStateListener = new PhoneStateListener() {
-        @Override
-        public void onCellLocationChanged(CellLocation location) {
-            updateCellLocation(location);
-        }
-    };
-
     private final BroadcastReceiver mBroadcastReciever = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
@@ -427,9 +392,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
                  info = connManager.getNetworkInfo(info.getType());
 
                  updateNetworkState(networkState, info);
-            } else if (action.equals(ACTION_SHUTDOWN)) {
-                stopNavigating();
-            }
+             }
         }
     };
 
@@ -468,9 +431,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
         mTimeoutIntent = PendingIntent.getBroadcast(mContext, 0, new Intent(ALARM_TIMEOUT), 0);
 
         mConnMgr = (ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
-
-        mTelephonyManager = (TelephonyManager)context.getSystemService(Context.TELEPHONY_SERVICE);
-        mTelephonyManager.listen(mPhoneStateListener, PhoneStateListener.LISTEN_CELL_LOCATION);
 
         // Battery statistics service to be notified when GPS turns on or off
         mBatteryStats = IBatteryStats.Stub.asInterface(ServiceManager.getService("batteryinfo"));
@@ -519,50 +479,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
                         0, 0, new NetworkLocationListener(), mHandler.getLooper());                
             }
         });
-
-        // create new thread for reference location handler
-        new Thread(new Runnable() {
-            public void run() {
-                Looper.prepare();
-                mRefLocHandler = new Handler() {
-                    public void handleMessage(Message msg) {
-                        int flags = (int)msg.what;
-
-                        try {
-                            if ((flags & AGPS_REQUEST_REFLOC_CELLID) == AGPS_REQUEST_REFLOC_CELLID) {
-                                if (mTelephonyManager.getPhoneType() == TelephonyManager.PHONE_TYPE_GSM) {
-                                    mRefLocationRequested = true;
-                                    CellLocation.requestLocationUpdate();
-                                    synchronized(mCellLocationLock) {
-                                        try {
-                                            mCellLocationLock.wait(5000);
-                                        } catch (InterruptedException ie) {
-                                            // restore the interrupted status
-                                            Thread.currentThread().interrupt();
-                                        }
-                                    }
-                                } else {
-                                    Log.e(TAG, "Cell location info is not supported for this phone type.");
-                                }
-                            }
-
-                            if ((flags & AGPS_REQUEST_REFLOC_MAC) == AGPS_REQUEST_REFLOC_MAC) {
-                                WifiManager wifi = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
-                                WifiInfo info = wifi.getConnectionInfo();
-                                String bssid = info.getBSSID();
-
-                                if (bssid != null)
-                                    native_agps_set_ref_location(new String(String.valueOf(AGPS_REF_LOCATION_TYPE_MAC)
-                                                                        + ":" + bssid));
-                            }
-                        } finally {
-                            native_agps_set_ref_location(new String(String.valueOf(AGPS_REF_LOCATION_END) + ":"));
-                        }
-                    }
-                };
-                Looper.loop();
-            }
-        }).start();
     }
 
     private void listenForBroadcasts() {
@@ -585,10 +501,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
         intentFilter.addAction(ALARM_WAKEUP);
         intentFilter.addAction(ALARM_TIMEOUT);
         intentFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
-        mContext.registerReceiver(mBroadcastReciever, intentFilter, null, mHandler);
-
-        intentFilter = new IntentFilter();
-        intentFilter.addAction(ACTION_SHUTDOWN);
         mContext.registerReceiver(mBroadcastReciever, intentFilter, null, mHandler);
     }
 
@@ -656,8 +568,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
                 if (DEBUG) Log.d(TAG, "call native_agps_data_conn_failed");
                 mAGpsApn = null;
                 mAGpsDataConnectionState = AGPS_DATA_CONNECTION_CLOSED;
-                mConnMgr.stopUsingNetworkFeature(
-                        ConnectivityManager.TYPE_MOBILE, Phone.FEATURE_ENABLE_SUPL);
                 native_agps_data_conn_failed();
             }
         }
@@ -777,27 +687,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
         }
     }
 
-
-    /* Function to log crashtool events*/
-    private void logCrashTool(String type) {
-        Intent msg = new Intent();
-        Log.d(TAG, "Sending Crashtool Broadcast " + type);
-        msg.setAction("intel.intent.action.phonedoctor.REPORT_INFO");
-        msg.putExtra("intel.intent.extra.phonedoctor.TYPE", "CWS.GPS."+ type);
-        mContext.sendBroadcast(msg);
-        return;
-    }
-
-    private void logCrashTool(String type, String data0) {
-        Intent msg = new Intent();
-        Log.d(TAG, "Sending Crashtool Broadcast " + type);
-        msg.setAction("intel.intent.action.phonedoctor.REPORT_INFO");
-        msg.putExtra("intel.intent.extra.phonedoctor.TYPE", "CWS.GPS."+ type);
-        msg.putExtra("intel.intent.extra.phonedoctor.DATA0", data0);
-        mContext.sendBroadcast(msg);
-        return;
-    }
-
     /**
      * Enables this provider.  When enabled, calls to getStatus()
      * must be handled.  Hardware may be started up
@@ -808,11 +697,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
         sendMessage(ENABLE, 1, null);
     }
 
-
     private void handleEnable() {
         if (DEBUG) Log.d(TAG, "handleEnable");
-
-        logCrashTool("ON");
 
         synchronized (mLock) {
             if (mEnabled) return;
@@ -823,9 +709,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
         if (enabled) {
             mSupportsXtra = native_supports_xtra();
-            if (mUiccHslp != null) {
-                native_set_agps_server(AGPS_TYPE_SUPL, mUiccHslp, DEFAULT_HSLP_PORT);
-            } else if (mSuplServerHost != null) {
+            if (mSuplServerHost != null) {
                 native_set_agps_server(AGPS_TYPE_SUPL, mSuplServerHost, mSuplServerPort);
             }
             if (mC2KServerHost != null) {
@@ -851,8 +735,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
     private void handleDisable() {
         if (DEBUG) Log.d(TAG, "handleDisable");
-
-        logCrashTool("OFF");
 
         synchronized (mLock) {
             if (!mEnabled) return;
@@ -938,7 +820,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
                 // start GPS
                 startNavigating();
             }
-
         } else {
             updateClientUids(new int[0]);
 
@@ -1071,13 +952,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
             mStarted = true;
             mPositionMode = GPS_POSITION_MODE_STANDALONE;
 
-            if (!mCwsMMGRClient.startClient()) {
-                mStarted = false;
-                Log.e(TAG, "CwsMMGRClient.startClient failed in startNavigating()");
-                return;
-            }
-
-            if (Settings.Global.getInt(mContext.getContentResolver(),
+             if (Settings.Global.getInt(mContext.getContentResolver(),
                     Settings.Global.ASSISTED_GPS_ENABLED, 1) != 0) {
                 if (hasCapability(GPS_CAPABILITY_MSB)) {
                     mPositionMode = GPS_POSITION_MODE_MS_BASED;
@@ -1119,7 +994,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
             mTimeToFirstFix = 0;
             mLastFixTime = 0;
             mLocationFlags = LOCATION_INVALID;
-            mCwsMMGRClient.stopClient();
 
             // reset SV count to zero
             updateStatus(LocationProvider.TEMPORARILY_UNAVAILABLE, 0);
@@ -1576,38 +1450,33 @@ public class GpsLocationProvider implements LocationProviderInterface {
      */
 
     private void requestRefLocation(int flags) {
-        mRefLocHandler.obtainMessage(flags).sendToTarget();
-    }
-
-    private final void updateCellLocation(CellLocation location) {
-        if (location instanceof GsmCellLocation && mRefLocationRequested) {
-            mRefLocationRequested = false;
-            GsmCellLocation gsm_cell = (GsmCellLocation)location;
-
-            if ((mTelephonyManager.getNetworkOperator() != null) &&
-                    (mTelephonyManager.getNetworkOperator().length() > 3)) {
+        TelephonyManager phone = (TelephonyManager)
+                mContext.getSystemService(Context.TELEPHONY_SERVICE);
+        if (phone.getPhoneType() == TelephonyManager.PHONE_TYPE_GSM) {
+            GsmCellLocation gsm_cell = (GsmCellLocation) phone.getCellLocation();
+            if ((gsm_cell != null) && (phone.getPhoneType() == TelephonyManager.PHONE_TYPE_GSM) &&
+                    (phone.getNetworkOperator() != null) &&
+                        (phone.getNetworkOperator().length() > 3)) {
                 int type;
-                int mcc = Integer.parseInt(mTelephonyManager.getNetworkOperator().substring(0,3));
-                int mnc = Integer.parseInt(mTelephonyManager.getNetworkOperator().substring(3));
-                int networkType = mTelephonyManager.getNetworkType();
+                int mcc = Integer.parseInt(phone.getNetworkOperator().substring(0,3));
+                int mnc = Integer.parseInt(phone.getNetworkOperator().substring(3));
+                int networkType = phone.getNetworkType();
                 if (networkType == TelephonyManager.NETWORK_TYPE_UMTS
-                        || networkType == TelephonyManager.NETWORK_TYPE_HSDPA
-                        || networkType == TelephonyManager.NETWORK_TYPE_HSUPA
-                        || networkType == TelephonyManager.NETWORK_TYPE_HSPA
-                        || networkType == TelephonyManager.NETWORK_TYPE_HSPAP) {
+                    || networkType == TelephonyManager.NETWORK_TYPE_HSDPA
+                    || networkType == TelephonyManager.NETWORK_TYPE_HSUPA
+                    || networkType == TelephonyManager.NETWORK_TYPE_HSPA) {
                     type = AGPS_REF_LOCATION_TYPE_UMTS_CELLID;
                 } else {
                     type = AGPS_REF_LOCATION_TYPE_GSM_CELLID;
                 }
-
-                native_agps_set_ref_location(new String(String.valueOf(type) + ":" + mcc + ":"
-                                + mnc + ":" + gsm_cell.getLac() + ":" + gsm_cell.getCid()));
+                native_agps_set_ref_location_cellid(type, mcc, mnc,
+                        gsm_cell.getLac(), gsm_cell.getCid());
             } else {
-                Log.i(TAG, "no network operators");
+                Log.e(TAG,"Error getting cell location info.");
             }
-            synchronized(mCellLocationLock) {
-                mCellLocationLock.notify();
-            }
+        }
+        else {
+            Log.e(TAG,"CDMA not supported.");
         }
     }
 
@@ -1681,198 +1550,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
         public void onProviderEnabled(String provider) { }
         @Override
         public void onProviderDisabled(String provider) { }
-    }
-
-    private class CwsMMGRClient {
-
-        private Semaphore waitOnModemUp = new Semaphore(0, true);
-        private IMmgrService mService = null;
-
-        private boolean mModemColdReset = false;
-        private boolean mModemShutdown = false;
-        private boolean mIsBound = false;
-
-        private boolean startClient() {
-            List<ResolveInfo> list = mContext.getPackageManager().queryIntentServices(
-                    new Intent(IMmgrService.class.getName()), 0);
-
-            if (list.size() > 0) {
-                if (DEBUG) Log.d(TAG, "CWS Modem Manager Service present");
-                if (!mIsBound) {
-                    if (DEBUG) Log.d(TAG, "Start Navigating - bind service IMMGR_SERVICE");
-
-                    boolean bindResponse = mContext.bindService(new Intent(IMmgrService.class.getName()),
-                            mCwsMMGRConnection, Context.BIND_AUTO_CREATE);
-                    if (bindResponse) {
-                        try {
-                            if (DEBUG) Log.d(TAG, "Waiting on modem Up");
-                            if (!waitOnModemUp.tryAcquire(60L, TimeUnit.SECONDS)) {
-                                Log.e(TAG, "Cannot start GPS");
-                                Log.e(TAG, "MODEM_UP event not received");
-                                if (mIsBound) mContext.unbindService(mCwsMMGRConnection);
-                                mIsBound = false;
-                                return false;
-                            }
-                        } catch (InterruptedException e) {
-                            Log.e(TAG, "Unable to wait on semaphore");
-                            waitOnModemUp.release();
-                            if (mIsBound) mContext.unbindService(mCwsMMGRConnection);
-                            mIsBound = false;
-                            return false;
-                        }
-                        return true;
-                    } else {
-                        Log.e(TAG, "Failed to bind Service: " + IMmgrService.class.getName());
-                        if (mIsBound) mContext.unbindService(mCwsMMGRConnection);
-                        mIsBound = false;
-                        return false;
-                    }
-                }
-            }
-            else {
-                if (DEBUG) Log.d(TAG, "CWS Modem Manager Service absent");
-                return true;
-            }
-            return false;
-        }
-
-        private void stopClient() {
-            if (mIsBound) {
-                try {
-                    if (mModemColdReset) {
-                        if (DEBUG) Log.d(TAG, "Acknowledge Modem cold reset");
-                        mService.ackModemColdReset();
-                        mModemColdReset = false;
-                    }
-                    if (mModemShutdown) {
-                        if (DEBUG) Log.d(TAG, "Acknowledge Modem shutdown");
-                        mService.ackModemShutdown();
-                        mModemShutdown = false;
-                    }
-                    mService.unregisterCallback(mMmgrCallbacks);
-                    mService.unregisterGpsCallback(mGpsCallbacks);
-                } catch (RemoteException e) {
-                    Log.e(TAG, "Unable to disconnect cws modem manager");
-                }
-                if (DEBUG) Log.d(TAG, "unbindService");
-                mContext.unbindService(mCwsMMGRConnection);
-                mIsBound = false;
-            }
-        }
-
-        /**
-         * Class for interacting with the main interface of the service.
-         */
-        private ServiceConnection mCwsMMGRConnection = new ServiceConnection() {
-
-            public void onServiceConnected(ComponentName className,
-                    IBinder service) {
-                // This is called when the connection with the service has been
-                // established, giving us the service object we can use to
-                // interact with the service. We are communicating with our
-                // service through an IDL interface, so get a client-side
-                // representation of that from the raw service object.
-                mService = IMmgrService.Stub.asInterface((IBinder) service);
-                if (DEBUG) Log.d(TAG, "onServiceConnected");
-                mIsBound = true;
-                try {
-                    if (DEBUG) Log.d(TAG, "Registering callback interface");
-                    mService.registerCallback(mMmgrCallbacks);
-                    if (DEBUG) Log.d(TAG, "Recover modem if Modem is Down");
-                    mService.checkModemDown();
-                    if (DEBUG) Log.d(TAG, "Registering GPS callback interface");
-                    mService.registerGpsCallback(mGpsCallbacks);
-                } catch (RemoteException e) {
-                    Log.e(TAG, "Unable to register callback");
-                }
-            }
-
-            public void onServiceDisconnected(ComponentName className) {
-                // This is called when the connection with the service has been
-                // unexpectedly disconnected -- that is, its process crashed.
-                try {
-                    if (mModemColdReset) {
-                        if (DEBUG) Log.d(TAG, "Acknowledge Modem cold reset");
-                        mService.ackModemColdReset();
-                        mModemColdReset = false;
-                    }
-                    if (mModemShutdown) {
-                        if (DEBUG) Log.d(TAG, "Acknowledge Modem shutdown");
-                        mService.ackModemShutdown();
-                        mModemShutdown = false;
-                    }
-                    mService.unregisterCallback(mMmgrCallbacks);
-                    mService.unregisterGpsCallback(mGpsCallbacks);
-                } catch (RemoteException e) {
-                    Log.e(TAG, "Unable to disconnect cws modem manager");
-                }
-                mIsBound = false;
-                mService = null;
-
-                if (DEBUG) Log.d(TAG, "onServiceDisconnected");
-            }
-        };
-
-        private final ICsmGpsListener.Stub mGpsCallbacks =
-                new ICsmGpsListener.Stub() {
-            public void updateUiccHslp(String hslpAddress) {
-                if (!hslpAddress.isEmpty()) {
-                    if (DEBUG) Log.d(TAG, "Uicc H-SLP Address received: " + hslpAddress);
-                    mUiccHslp = hslpAddress;
-                    if (mEnabled) {
-                        native_set_agps_server(AGPS_TYPE_SUPL,
-                                hslpAddress,
-                                DEFAULT_HSLP_PORT);
-                    }
-                } else {
-                    if (DEBUG) Log.d(TAG, "Empty Uicc H-SLP Address received");
-                    mUiccHslp = null;
-                    if (mEnabled && mSuplServerHost != null) {
-                        if (DEBUG) Log.d(TAG, "Using H-SLP read form the config file");
-                        native_set_agps_server(AGPS_TYPE_SUPL,
-                                mSuplServerHost,
-                                mSuplServerPort);
-                    }
-                }
-            }
-        };
-
-        private final IMmgrServiceListener.Stub mMmgrCallbacks =
-                new IMmgrServiceListener.Stub() {
-                    public void modemUp() {
-                        if (DEBUG) Log.d(TAG, "Modem is going UP message received");
-                        waitOnModemUp.release();
-                    }
-
-                    public void modemColdReset() {
-                        if (DEBUG) Log.d(TAG, "Modem is going COLD_RESET message received, STOP NAVIGATING");
-                        mModemColdReset = true;
-                        stopNavigating();
-                    }
-
-                    public void modemShutdown() {
-                        if (DEBUG) Log.d(TAG, "Modem is going SHUTDOWN message received, STOP NAVIGATING");
-                        mModemShutdown = true;
-                        stopNavigating();
-                    }
-
-                    public void modemOutOfOrder() {
-                        if (DEBUG) Log.d(TAG, "Modem out of order message received");
-                        stopNavigating();
-                    }
-                    public void modemAcquireError() {
-                        Log.e(TAG, "modemCommunicationError: modemManagerAcquireAsync failure");
-                    }
-                    public void modemConnectError() {
-                        Log.e(TAG, "modemCommunicationError: modemManagerConnectAsync failure");
-                    }
-                    public void modemAckShutdownError() {
-                        Log.e(TAG, "modemCommunicationError: failure sending shutdown ack");
-                    }
-                    public void modemAckResetError() {
-                        Log.e(TAG, "modemCommunicationError: failure sending cold reset ack");
-                    }
-                };
     }
 
     private String getSelectedApn() {
@@ -1963,8 +1640,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
     private native void native_send_ni_response(int notificationId, int userResponse);
 
     // AGPS ril suport
-    private native void native_agps_set_ref_location(String reflocation);
-
+    private native void native_agps_set_ref_location_cellid(int type, int mcc, int mnc,
+            int lac, int cid);
     private native void native_agps_set_id(int type, String setid);
 
     private native void native_update_network_state(boolean connected, int type,

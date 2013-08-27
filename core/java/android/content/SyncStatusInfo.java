@@ -128,11 +128,8 @@ public class SyncStatusInfo implements Parcelable {
     }
 
     public void setPeriodicSyncTime(int index, long when) {
-        synchronized(this) {
-            ensurePeriodicSyncTimeSize(index);
-            periodicSyncTimes.set(index, when);
-        }
-
+        ensurePeriodicSyncTimeSize(index);
+        periodicSyncTimes.set(index, when);
     }
 
     private void ensurePeriodicSyncTimeSize(int index) {
@@ -156,10 +153,8 @@ public class SyncStatusInfo implements Parcelable {
     }
 
     public void removePeriodicSyncTime(int index) {
-        synchronized(this) {
-            ensurePeriodicSyncTimeSize(index);
-            periodicSyncTimes.remove(index);
-        }
+        ensurePeriodicSyncTimeSize(index);
+        periodicSyncTimes.remove(index);
     }
 
     public static final Creator<SyncStatusInfo> CREATOR = new Creator<SyncStatusInfo>() {

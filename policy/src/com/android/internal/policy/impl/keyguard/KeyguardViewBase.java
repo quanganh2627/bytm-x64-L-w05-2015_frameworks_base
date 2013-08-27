@@ -51,7 +51,7 @@ public abstract class KeyguardViewBase extends FrameLayout {
     protected KeyguardViewMediator.ViewMediatorCallback mViewMediatorCallback;
 
     // Whether the volume keys should be handled by keyguard. If true, then
-    // they will be handled here for specific media types such as music and voice, otherwise
+    // they will be handled here for specific media types such as music, otherwise
     // the audio service will bring up the volume dialog.
     private static final boolean KEYGUARD_MANAGES_VOLUME = true;
 
@@ -198,24 +198,13 @@ public abstract class KeyguardViewBase extends FrameLayout {
                                         Context.AUDIO_SERVICE);
                             }
                         }
-                        // Volume buttons should only function for music (local or remote)
-                        // and for voice calls.
+                        // Volume buttons should only function for music (local or remote).
                         // TODO: Actually handle MUTE.
-                        if (mAudioManager.getMode() == AudioManager.MODE_IN_CALL
-                            || mAudioManager.getMode() == AudioManager.MODE_IN_COMMUNICATION) {
-                                    mAudioManager.adjustStreamVolume(
-                                        AudioManager.STREAM_VOICE_CALL,
-                                        keyCode == KeyEvent.KEYCODE_VOLUME_UP
-                                                ? AudioManager.ADJUST_RAISE
-                                                : AudioManager.ADJUST_LOWER,0);
-                        } else {
-                            mAudioManager.adjustLocalOrRemoteStreamVolume(
+                        mAudioManager.adjustLocalOrRemoteStreamVolume(
                                 AudioManager.STREAM_MUSIC,
                                 keyCode == KeyEvent.KEYCODE_VOLUME_UP
                                         ? AudioManager.ADJUST_RAISE
                                         : AudioManager.ADJUST_LOWER);
-                        }
-
                         // Don't execute default volume behavior
                         return true;
                     } else {

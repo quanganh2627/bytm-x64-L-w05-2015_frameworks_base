@@ -30,7 +30,6 @@
        <item><xliff:g id="id">bluetooth</xliff:g></item>
        <item><xliff:g id="id">nfc</xliff:g></item>
        <item><xliff:g id="id">tty</xliff:g></item>
-       <item><xliff:g id="id">ims</xliff:g></item>
        <item><xliff:g id="id">speakerphone</xliff:g></item>
        <item><xliff:g id="id">mute</xliff:g></item>
        <item><xliff:g id="id">volume</xliff:g></item>
@@ -649,9 +648,6 @@
         <item>com.android.location.fused</item>
     </string-array>
 
-    <!-- Boolean indicating if current platform is using NXP PN547 for clf -->
-    <bool name="clf_is_pn547">false</bool>
-
     <!-- Boolean indicating if current platform supports bluetooth SCO for off call
     use cases -->
     <bool name="config_bluetooth_sco_off_call">true</bool>
@@ -887,7 +883,7 @@
     <!-- Remote server that can provide NTP responses. -->
     <string translatable="false" name="config_ntpServer">2.android.pool.ntp.org</string>
     <!-- Timeout to wait for NTP server response. -->
-    <integer name="config_ntpTimeout">3000</integer>
+    <integer name="config_ntpTimeout">20000</integer>
 
     <!-- Default network policy warning threshold, in megabytes. -->
     <integer name="config_networkPolicyDefaultWarning">2048</integer>
@@ -977,7 +973,7 @@
 
     <!-- When true use the linux /dev/input/event subsystem to detect the switch changes
          on the headphone/microphone jack. When false use the older uevent framework. -->
-    <bool name="config_useDevInputEventForAudioJack">true</bool>
+    <bool name="config_useDevInputEventForAudioJack">false</bool>
 
     <!-- Whether safe headphone volume is enabled or not (country specific). -->
     <bool name="config_safe_media_volume_enabled">true</bool>
@@ -1028,34 +1024,4 @@
 
     <!-- Flag indicating if the speed up audio on mt call code should be executed -->
     <bool name="config_speed_up_audio_on_mt_calls">false</bool>
-
-    <bool name="config_button_automatic_brightness_available">false</bool>
-    <bool name="config_button_led_brightness_available">false</bool>
-    <bool name="config_proximityScreenOffAvailable">true</bool>
-
-    <!-- Controls whether window orientation should use non-polling mode accelerometer.
-         set default to false to use polling mode. -->
-    <bool name="config_nonPollingWindowOrientation">false</bool>
-
-    <!-- When set to false, the call status polling is disabled -->
-    <bool name="gsm_call_status_polling_enable">true</bool>
-
-    <!-- set to true if oem hooks are supported by framework -->
-    <bool name="config_usage_oem_hooks_supported">false</bool>
-    <!-- set the oemhook data state reporting property -->
-    <string name="oemhook_datastate_property"></string>
-    <!-- set the concurrent data support property -->
-    <string name="oemhook_concurrentdata_property"></string>
-
-    <!-- Flag indicating whether the current device supports
-         CAT aka STK handling. If true, this means that the
-         device supports handling of CAT messages from UICC.
-         Set to false if the device do not want to support CAT
-         aka STK feature -->
-    <bool name="config_cat_support">true</bool>
-    <!-- Flag indicating whether the operator should be part of the unique Identifier used to track
-         requests associated with a poll. If true, this means that the operator query is part of
-         the unique identifier used to track requests associated with a poll. If false, this means
-         that the operator query is not part of the unique identifier used to track requests. -->
-    <bool name="config_track_get_operator_polling">true</bool>
 </resources>

@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-/*
- * Portions contributed by: Intel Corporation
- */
-
 package android.net.wifi.p2p;
 
 import android.app.Activity;
@@ -141,11 +137,11 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
     private static final int DISABLE_P2P_WAIT_TIME_MS = 5 * 1000;
     private static int mDisableP2pTimeoutIndex = 0;
 
-    /* Set a thirty seconds discover timeout to avoid STA scans from being blocked */
-    private static final int DISCOVER_TIMEOUT_S = 30;
+    /* Set a two minute discover timeout to avoid STA scans from being blocked */
+    private static final int DISCOVER_TIMEOUT_S = 120;
 
     /* Idle time after a peer is gone when the group is torn down */
-    private static final int GROUP_IDLE_TIME_S = 5;
+    private static final int GROUP_IDLE_TIME_S = 10;
 
     private static final int BASE = Protocol.BASE_WIFI_P2P_SERVICE;
 
@@ -223,10 +219,6 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
        the range defined in Tethering.java */
     private static final String[] DHCP_RANGE = {"192.168.49.2", "192.168.49.254"};
     private static final String SERVER_ADDRESS = "192.168.49.1";
-
-    /* For WFD certification WPS PIN needs to be handled by sigma agent.
-     * The variable will not be used outside of certification scope. */
-    private String sigmaWpsPin;
 
     /**
      * Error code definition.
@@ -1111,9 +1103,6 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
     class GroupCreatingState extends State {
         @Override
         public void enter() {
-            mNetworkInfo.setDetailedState(NetworkInfo.DetailedState.CONNECTING, null, null);
-            sendP2pConnectionChangedBroadcast();
-
             if (DBG) logd(getName());
             sendMessageDelayed(obtainMessage(GROUP_CREATING_TIMED_OUT,
                     ++mGroupCreatingTimeoutIndex, 0), GROUP_CREATING_WAIT_TIME_MS);
@@ -1244,10 +1233,6 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                     if (mSavedPeerConfig.wps.setup == WpsInfo.KEYPAD) {
                         if (DBG) logd("Found a match " + mSavedPeerConfig);
                         /* we already have the pin */
-                        sigmaWpsPin = SystemProperties.get("sigma.wps_pin", "");
-                        if (!sigmaWpsPin.equals("")) {
-                            mSavedPeerConfig.wps.pin = sigmaWpsPin;
-                        }
                         if (!TextUtils.isEmpty(mSavedPeerConfig.wps.pin)) {
                             p2pConnectWithPinDisplay(mSavedPeerConfig);
                             transitionTo(mGroupNegotiationState);
@@ -1368,8 +1353,7 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                         // invocation was succeeded.
                         // wait P2P_GROUP_STARTED_EVENT.
                         break;
-                    } else if ((status == P2pStatus.UNKNOWN_P2P_GROUP) ||
-                               (status == P2pStatus.INFORMATION_IS_CURRENTLY_UNAVAILABLE)) {
+                    } else if (status == P2pStatus.UNKNOWN_P2P_GROUP) {
                         // target device has already removed the credential.
                         // So, remove this credential accordingly.
                         int netId = mSavedPeerConfig.netId;
@@ -1570,13 +1554,6 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                         mWifiNative.p2pGroupRemove(mGroup.getInterface());
                     }
                     break;
-                case WifiP2pManager.CANCEL_CONNECT:
-                    // In case user cancels the connection although group has
-                    // already being created by supplicant.Remove the group in
-                    // this case.
-                    // It allows to improve User experience.
-                    if (DBG) logd("cancel connection ");
-                    replyToMessage(message, WifiP2pManager.CANCEL_CONNECT_SUCCEEDED);
                 case WifiP2pManager.REMOVE_GROUP:
                     if (DBG) logd(getName() + " remove group");
                     if (mWifiNative.p2pGroupRemove(mGroup.getInterface())) {
@@ -1701,21 +1678,6 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                         mSavedPeerConfig.wps.pin = provDisc.pin;
                     } else {
                         mSavedPeerConfig.wps.setup = WpsInfo.PBC;
-                    }
-                    sigmaWpsPin = SystemProperties.get("sigma.wps_pin", "");
-                    if (!sigmaWpsPin.equals("")) {
-                        if ((message.what == WifiMonitor.P2P_PROV_DISC_ENTER_PIN_EVENT) ||
-                                (message.what == WifiMonitor.P2P_PROV_DISC_SHOW_PIN_EVENT)) {
-                            mSavedPeerConfig.wps.pin = sigmaWpsPin;
-                            mWifiNative.startWpsPinKeypad(mGroup.getInterface(),
-                                    mSavedPeerConfig.wps.pin);
-                            mSavedPeerConfig = null;
-                            break;
-                        } else {
-                            mWifiNative.startWpsPbc(mGroup.getInterface(), null);
-                            mSavedPeerConfig = null;
-                            break;
-                        }
                     }
                     if (!sendConnectNoticeToApp(mSavedProvDiscDevice, mSavedPeerConfig)) {
                         transitionTo(mUserAuthorizingJoinState);
@@ -2265,10 +2227,6 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
             return;
         }
 
-        sigmaWpsPin = SystemProperties.get("sigma.wps_pin", "");
-        if (!sigmaWpsPin.equals("")) {
-            config.wps.pin = sigmaWpsPin;
-        }
         String pin = mWifiNative.p2pConnect(config, dev.isGroupOwner());
         try {
             Integer.parseInt(pin);
@@ -2731,11 +2689,6 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
      * @return
      */
     private boolean sendShowPinReqToFrontApp(String pin) {
-        sigmaWpsPin = SystemProperties.get("sigma.wps_pin", "");
-        if (!sigmaWpsPin.equals("")) {
-            // Let sigma manage WPS PIN instead of notifying user
-            return true;
-        }
         if (!isForegroundApp(mForegroundAppPkgName)) {
             sendDetachedMsg(WifiP2pManager.NOT_IN_FOREGROUND);
             return false;

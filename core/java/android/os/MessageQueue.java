@@ -231,7 +231,6 @@ public class MessageQueue {
             final int token = mNextBarrierToken++;
             final Message msg = Message.obtain();
             msg.arg1 = token;
-            msg.when = when;
 
             Message prev = null;
             Message p = mMessages;
@@ -274,16 +273,6 @@ public class MessageQueue {
                 mMessages = p.next;
                 needWake = mMessages == null || mMessages.target != null;
             }
-            long vsyncLatency = SystemClock.uptimeMillis() - p.when;
-            // warn if the vsync barrier is removed 30 frames later.
-            if (vsyncLatency > 500) {
-                Looper myLooper = Looper.myLooper();
-                if (myLooper != null && myLooper.mLocalLog != null) {
-                    String msg = p.toString();
-                    myLooper.mLocalLog.log("WARNING! VSYNC barrier removed too late: " + msg);
-                    Log.d("MessageQueue", "WARNING! VSYNC barrier removed too late: " + msg);
-                }
-            }
             p.recycle();
         }
         if (needWake) {
@@ -299,14 +288,6 @@ public class MessageQueue {
             throw new AndroidRuntimeException("Message must have a target.");
         }
 
-        Looper myLooper = msg.target.mLooper;
-        if (myLooper != null && myLooper.mLocalLog != null) {
-            try {
-                msg.fingerPrint = msg.toString();
-            } catch (NullPointerException e) {
-                msg.fingerPrint = "unknown";
-            }
-        }
         boolean needWake;
         synchronized (this) {
             if (mQuiting) {

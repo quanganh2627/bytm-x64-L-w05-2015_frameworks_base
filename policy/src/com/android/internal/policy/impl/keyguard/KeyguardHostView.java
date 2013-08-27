@@ -838,7 +838,6 @@ public class KeyguardHostView extends KeyguardViewBase {
             oldView.onPause();
             oldView.setKeyguardCallback(mNullCallback); // ignore requests from old view
         }
-
         newView.onResume(KeyguardSecurityView.VIEW_REVEALED);
         newView.setKeyguardCallback(mCallback);
 

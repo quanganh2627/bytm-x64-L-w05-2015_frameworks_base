@@ -2102,8 +2102,6 @@
     <!-- When the lock screen is showing, the phone is plugged in and the battery is fully
          charged, say that it is charged. -->
     <string name="lockscreen_charged">Charged</string>
-    <!-- When the lock screen is showing, the phone is plugged in, but the phone is not charging, say that it is not charging. -->
-    <string name="lockscreen_not_charging">Plugged in, not charging</string>
     <!-- A short representation of charging information, e.g "34%" -->
     <string name="lockscreen_battery_short"><xliff:g id="number">%d</xliff:g><xliff:g id="percent">%%</xliff:g></string>
 
@@ -2145,9 +2143,6 @@
          locked -->
     <string name="lockscreen_network_locked_message">Network locked</string>
 
-    <!-- When the phone is network PUK locked -->
-    <string name="lockscreen_network_puk_locked_message">Network PUK locked, Please contact Customer Care</string>
-    <string name="lockscreen_network_puk_locked_instructions">Please contact Customer Care.</string>
 
     <!-- When the user enters a wrong sim pin too many times, it becomes
          PUK locked (Pin Unlock Kode) -->
@@ -3297,21 +3292,6 @@
     <!-- Message of notification shown when ADB is actively connected to the phone. -->
     <string name="adb_active_notification_message">Touch to disable USB debugging.</string>
 
-    <!-- Message of notification shown when errors happened on USB -->
-    <string name="usb_warn_device_not_support">Warning: USB Device is not supported</string>
-    <string name="usb_warn_device_not_responding">Warning: USB Device is not responding</string>
-    <string name="usb_warn_device_vbus_invalid_title">Warning: Overcurrent on USB port</string>
-    <string name="usb_warn_device_vbus_invalid_message">Pls replug USB cable with high battery level to recover</string>
-    <string name="usb_warn_hub_max_tier">Warning: USB Hub nested too deep</string>
-    <string name="usb_warn_insufficient_power_title">Warning: Insufficient power on USB Bus</string>
-    <string name="usb_warn_insufficient_power_message">Please use USB self power hub to avoid this issue</string>
-    <string name="usb_warn_host_onemore_ums_device_title">Warning: One more MSC devices attached</string>
-    <string name="usb_warn_host_onemore_ums_device_message">Warning: only one USB Mass Storage device can be used</string>
-    <string name="usb_warn_usb_not_work_title">Warning: Insufficient battery for plugged USB device</string>
-    <string name="usb_warn_usb_not_work_message">Please charge the device to high battery level and try again</string>
-    <string name="usb_warn_usb_vbus_warn_title">Warning: Shorten battery life</string>
-    <string name="usb_warn_usb_vbus_warn_message">Plugged USB device will Shorten battery life</string>
-
     <!-- Used to replace %s in urls retreived from the signin server with locales.  For Some        -->
     <!-- devices we don't support all the locales we ship to and need to replace the '%s' with a    -->
     <!-- locale string based on mcc values.  By default (0-length string) we don't replace the %s   -->
@@ -3508,7 +3488,7 @@
 
     <!-- Strings for tethered notification -->
     <!-- Shown when the device is tethered -->
-    <string name="tethered_notification_title">Tethering active</string>
+    <string name="tethered_notification_title">Tethering or hotspot active</string>
     <string name="tethered_notification_message">Touch to set up.</string>
 
     <!--  Strings for possible PreferenceActivity Back/Next buttons -->
@@ -4024,11 +4004,5 @@
     <string name="user_switched">Current user <xliff:g id="name" example="Bob">%1$s</xliff:g>.</string>
     <!-- Default name of the owner user [CHAR LIMIT=20] -->
     <string name="owner_name" msgid="3879126011135546571">Owner</string>
-
-    <string name="hotspot_active">"Hotspot active"</string>
-    <string name="hotspot_no_connections">"No hotspot devices connected"</string>
-    <string name="hotspot_multiple_devices_connected">%d devices connected</string>
-    <string name="hotspot_device_connected">Device connected to hotspot</string>
-    <string name="hotspot_device_disconnected">Device disconnected from hotspot</string>
 
 </resources>

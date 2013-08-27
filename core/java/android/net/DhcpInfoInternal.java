@@ -97,8 +97,6 @@ public class DhcpInfoInternal {
             Log.e(TAG, "makeLinkAddress with empty ipAddress");
             return null;
         }
-        Log.e(TAG, "makeLinkAddress ipAddress=" + ipAddress +
-                    " / prefixLength=" + prefixLength);
         return new LinkAddress(NetworkUtils.numericToInetAddress(ipAddress), prefixLength);
     }
 

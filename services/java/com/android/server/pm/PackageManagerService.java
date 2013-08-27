@@ -132,7 +132,6 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FilenameFilter;
 import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.io.PrintWriter;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
@@ -157,9 +156,6 @@ import libcore.io.IoUtils;
 import libcore.io.Libcore;
 import libcore.io.OsConstants;
 import libcore.io.StructStat;
-
-// ASF
-import com.intel.asf.AsfAosp;
 
 /**
  * Keep track of all those .apks everywhere.
@@ -187,12 +183,10 @@ public class PackageManagerService extends IPackageManager.Stub {
     private static final boolean DEBUG_PACKAGE_SCANNING = false;
     private static final boolean DEBUG_APP_DIR_OBSERVER = false;
     private static final boolean DEBUG_VERIFY = false;
-    private static final boolean ENABLE_HOUDINI = Build.CPU_ABI.equals("x86") && (Build.CPU_ABI2.length()!=0);
 
     private static final int RADIO_UID = Process.PHONE_UID;
     private static final int LOG_UID = Process.LOG_UID;
     private static final int NFC_UID = Process.NFC_UID;
-    private static final int SMARTCARD_UID = Process.SMARTCARD_UID;
     private static final int BLUETOOTH_UID = Process.BLUETOOTH_UID;
 
     private static final boolean GET_CERTIFICATES = true;
@@ -420,11 +414,6 @@ public class PackageManagerService extends IPackageManager.Stub {
     // package uri's from external media onto secure containers
     // or internal storage.
     private IMediaContainerService mContainerService = null;
-
-    // Packages that have been installed with library matching 2nd ABI.
-    final HashMap<Integer, String> mPackagesMatchABI2 = new HashMap<Integer,String>();
-    // Packages that have been installed with library matching 2nd ABI and matching neon app list
-    final HashMap<Integer, String> mPackagesMatchABI2Neon = new HashMap<Integer,String>();
 
     static final int SEND_PENDING_BROADCAST = 1;
     static final int MCS_BOUND = 3;
@@ -673,10 +662,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                             packages[i] = ent.getKey();
                             components[i] = ent.getValue();
                             PackageSetting ps = mSettings.mPackages.get(ent.getKey());
-                            // No need to send PACKAGE_CHAGED broadcast for the package which was not exist.
-                            if (ps == null)
-                                continue;
-                            uids[i] = ps.appId;
+                            uids[i] = (ps != null) ? ps.appId : -1;
                             i++;
                         }
                         size = i;
@@ -990,8 +976,6 @@ public class PackageManagerService extends IPackageManager.Stub {
         mSettings.addSharedUserLPw("android.uid.phone", RADIO_UID, ApplicationInfo.FLAG_SYSTEM);
         mSettings.addSharedUserLPw("android.uid.log", LOG_UID, ApplicationInfo.FLAG_SYSTEM);
         mSettings.addSharedUserLPw("android.uid.nfc", NFC_UID, ApplicationInfo.FLAG_SYSTEM);
-        mSettings.addSharedUserLPw("org.simalliance.uid.openmobileapi", SMARTCARD_UID,
-                ApplicationInfo.FLAG_SYSTEM);
         mSettings.addSharedUserLPw("android.uid.bluetooth", BLUETOOTH_UID, ApplicationInfo.FLAG_SYSTEM);
 
         String separateProcesses = SystemProperties.get("debug.separate_processes");
@@ -1686,8 +1670,6 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     @Override
     public int getPackageUid(String packageName, int userId) {
-        long startTime = System.currentTimeMillis();
-        try {
         if (!sUserManager.exists(userId)) return -1;
         enforceCrossUserPermission(Binder.getCallingUid(), userId, false, "get package uid");
         // reader
@@ -1702,13 +1684,6 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
             p = ps.pkg;
             return p != null ? UserHandle.getUid(userId, p.applicationInfo.uid) : -1;
-        }
-        } finally {
-            long uptime = System.currentTimeMillis() - startTime;
-            if (uptime > 100) {
-                Log.d(TAG, "getPackageUid - Execution time: " +
-                        uptime + " ms");
-            }
         }
     }
 
@@ -1853,8 +1828,6 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     @Override
     public ApplicationInfo getApplicationInfo(String packageName, int flags, int userId) {
-        long startTime = System.currentTimeMillis();
-        try {
         if (!sUserManager.exists(userId)) return null;
         enforceCrossUserPermission(Binder.getCallingUid(), userId, false, "get application info");
         // writer
@@ -1878,13 +1851,6 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
         }
         return null;
-        } finally {
-            long uptime = System.currentTimeMillis() - startTime;
-            if (uptime > 100) {
-                Log.d(TAG, "getApplicationInfo - Execution time: " +
-                        uptime + " ms");
-            }
-        }
     }
 
 
@@ -1943,8 +1909,6 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     @Override
     public ActivityInfo getActivityInfo(ComponentName component, int flags, int userId) {
-        long startTime = System.currentTimeMillis();
-        try {
         if (!sUserManager.exists(userId)) return null;
         enforceCrossUserPermission(Binder.getCallingUid(), userId, false, "get activity info");
         synchronized (mPackages) {
@@ -1962,19 +1926,10 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
         }
         return null;
-        } finally {
-            long uptime = System.currentTimeMillis() - startTime;
-            if (uptime > 100) {
-                Log.d(TAG, "getActivityInfo - Execution time: " +
-                        uptime + " ms");
-            }
-        }
     }
 
     @Override
     public ActivityInfo getReceiverInfo(ComponentName component, int flags, int userId) {
-        long startTime = System.currentTimeMillis();
-        try {
         if (!sUserManager.exists(userId)) return null;
         enforceCrossUserPermission(Binder.getCallingUid(), userId, false, "get receiver info");
         synchronized (mPackages) {
@@ -1989,13 +1944,6 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
         }
         return null;
-        } finally {
-            long uptime = System.currentTimeMillis() - startTime;
-            if (uptime > 100) {
-                Log.d(TAG, "getReceiverInfo - Execution time: " +
-                        uptime + " ms");
-            }
-        }
     }
 
     @Override
@@ -2103,8 +2051,6 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     public int checkUidPermission(String permName, int uid) {
         final boolean enforcedDefault = isPermissionEnforcedDefault(permName);
-        long startTime = System.currentTimeMillis();
-        try {
         synchronized (mPackages) {
             Object obj = mSettings.getUserIdLPr(UserHandle.getAppId(uid));
             if (obj != null) {
@@ -2123,13 +2069,6 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
         }
         return PackageManager.PERMISSION_DENIED;
-        } finally {
-            long uptime = System.currentTimeMillis() - startTime;
-            if (uptime > 100) {
-                Log.d(TAG, "checkUidPermission - Execution time: " +
-                        uptime + " ms");
-            }
-        }
     }
 
     /**
@@ -2359,23 +2298,12 @@ public class PackageManagerService extends IPackageManager.Stub {
     }
 
     public boolean isProtectedBroadcast(String actionName) {
-        long startTime = System.currentTimeMillis();
-        try {
         synchronized (mPackages) {
             return mProtectedBroadcasts.contains(actionName);
-        }
-        } finally {
-            long uptime = System.currentTimeMillis() - startTime;
-            if (uptime > 100) {
-                Log.d(TAG, "isProtectedBroadcast - Execution time: " +
-                        uptime + " ms");
-            }
         }
     }
 
     public int checkSignatures(String pkg1, String pkg2) {
-        long startTime = System.currentTimeMillis();
-        try {
         synchronized (mPackages) {
             final PackageParser.Package p1 = mPackages.get(pkg1);
             final PackageParser.Package p2 = mPackages.get(pkg2);
@@ -2384,13 +2312,6 @@ public class PackageManagerService extends IPackageManager.Stub {
                 return PackageManager.SIGNATURE_UNKNOWN_PACKAGE;
             }
             return compareSignatures(p1.mSignatures, p2.mSignatures);
-        }
-        } finally {
-            long uptime = System.currentTimeMillis() - startTime;
-            if (uptime > 100) {
-                Log.d(TAG, "checkSignatures - Execution time: " +
-                        uptime + " ms");
-            }
         }
     }
 
@@ -2872,8 +2793,6 @@ public class PackageManagerService extends IPackageManager.Stub {
     @Override
     public List<ResolveInfo> queryIntentReceivers(Intent intent, String resolvedType, int flags,
             int userId) {
-        long startTime = System.currentTimeMillis();
-        try {
         if (!sUserManager.exists(userId)) return Collections.emptyList();
         ComponentName comp = intent.getComponent();
         if (comp == null) {
@@ -2905,13 +2824,6 @@ public class PackageManagerService extends IPackageManager.Stub {
                         userId);
             }
             return null;
-        }
-        } finally {
-            long uptime = System.currentTimeMillis() - startTime;
-            if (uptime > 100) {
-                Log.d(TAG, "queryIntentReceivers - Execution time: " +
-                        uptime + " ms");
-            }
         }
     }
 
@@ -3084,8 +2996,6 @@ public class PackageManagerService extends IPackageManager.Stub {
     public List<ApplicationInfo> getPersistentApplications(int flags) {
         final ArrayList<ApplicationInfo> finalList = new ArrayList<ApplicationInfo>();
 
-        long startTime = System.currentTimeMillis();
-        try {
         // reader
         synchronized (mPackages) {
             final Iterator<PackageParser.Package> i = mPackages.values().iterator();
@@ -3108,19 +3018,10 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
 
         return finalList;
-        } finally {
-            long uptime = System.currentTimeMillis() - startTime;
-            if (uptime > 100) {
-                Log.d(TAG, "getPersistentApplications - Execution time: " +
-                        uptime + " ms");
-            }
-        }
     }
 
     @Override
     public ProviderInfo resolveContentProvider(String name, int flags, int userId) {
-        long startTime = System.currentTimeMillis();
-        try {
         if (!sUserManager.exists(userId)) return null;
         // reader
         synchronized (mPackages) {
@@ -3136,13 +3037,6 @@ public class PackageManagerService extends IPackageManager.Stub {
                             ps.readUserState(userId), userId)
                     : null;
         }
-        } finally {
-            long uptime = System.currentTimeMillis() - startTime;
-            if (uptime > 100) {
-                Log.d(TAG, "resolveContentProvider - Execution time: " +
-                        uptime + " ms");
-            }
-        }
     }
 
     /**
@@ -3150,7 +3044,6 @@ public class PackageManagerService extends IPackageManager.Stub {
      */
     @Deprecated
     public void querySyncProviders(List<String> outNames, List<ProviderInfo> outInfo) {
-        long startTime = System.currentTimeMillis();
         // reader
         synchronized (mPackages) {
             final Iterator<Map.Entry<String, PackageParser.Provider>> i = mProviders.entrySet()
@@ -3173,18 +3066,12 @@ public class PackageManagerService extends IPackageManager.Stub {
                 }
             }
         }
-        long uptime = System.currentTimeMillis() - startTime;
-        if (uptime > 100) {
-            Log.d(TAG, "querySyncProviders - Execution time: " +
-                    uptime + " ms");
-        }
     }
 
     public List<ProviderInfo> queryContentProviders(String processName,
             int uid, int flags) {
         ArrayList<ProviderInfo> finalList = null;
 
-        long startTime = System.currentTimeMillis();
         // reader
         synchronized (mPackages) {
             final Iterator<PackageParser.Provider> i = mProvidersByComponent.values().iterator();
@@ -3216,29 +3103,15 @@ public class PackageManagerService extends IPackageManager.Stub {
             Collections.sort(finalList, mProviderInitOrderSorter);
         }
 
-        long uptime = System.currentTimeMillis() - startTime;
-        if (uptime > 100) {
-            Log.d(TAG, "queryContentProviders - Execution time: " +
-                    uptime + " ms");
-        }
         return finalList;
     }
 
     public InstrumentationInfo getInstrumentationInfo(ComponentName name,
             int flags) {
-        long startTime = System.currentTimeMillis();
-        try {
         // reader
         synchronized (mPackages) {
             final PackageParser.Instrumentation i = mInstrumentation.get(name);
             return PackageParser.generateInstrumentationInfo(i, flags);
-        }
-        } finally {
-            long uptime = System.currentTimeMillis() - startTime;
-            if (uptime > 100) {
-                Log.d(TAG, "getInstrumentationInfo - Execution time: " +
-                        uptime + " ms");
-            }
         }
     }
 
@@ -3695,53 +3568,6 @@ public class PackageManagerService extends IPackageManager.Stub {
         return new File(mUserAppDataDir.getAbsolutePath() + File.separator + userId);
     }
 
-    private void writeAppwithABI2Internal(String fileName, HashMap<Integer, String> map) {
-        File outputFile;
-        FileOutputStream out = null;
-        File appDataDir = new File("/data/data");
-
-        try {
-            File tempFile = File.createTempFile("tmp", "tmp", appDataDir);
-            String tempFilePath = tempFile.getPath();
-            outputFile = new File(fileName);
-            if (FileUtils.setPermissions(tempFilePath,
-                FileUtils.S_IRUSR | FileUtils.S_IWUSR |
-                FileUtils.S_IRGRP | FileUtils.S_IROTH, -1, -1) != 0
-                || !tempFile.renameTo(outputFile)) {
-                tempFile.delete();
-            }
-            out = new FileOutputStream(outputFile);
-            Iterator<HashMap.Entry<Integer, String>>
-            it = map.entrySet().iterator();
-            while (it.hasNext()) {
-                HashMap.Entry<Integer, String> ent = it.next();
-                int userID = ent.getKey().intValue();
-                out.write(userID & 0xff);
-                out.write((userID>>8)  & 0xff);
-                out.write((userID>>16) & 0xff);
-                out.write((userID>>24) & 0xff);
-                Slog.i(TAG, "Data written:"+ userID);
-            }
-        } catch (Exception e) {
-            Slog.e(TAG, "File Access Error: Not Able to write Data into " + fileName);
-        } finally {
-            try {
-                if (out != null) {
-                    out.close();
-                    Slog.i(TAG, "Data written into " + fileName);
-                }
-            } catch (IOException e) {}
-        }
-    }
-
-    private void writeAppwithABI2() {
-        writeAppwithABI2Internal(new String("/data/data/.appwithABI2"), mPackagesMatchABI2);
-    }
-
-    private void writeAppwithABI2Neon() {
-        writeAppwithABI2Internal(new String("/data/data/.appwithABI2neon"), mPackagesMatchABI2Neon);
-    }
-
     private File getDataPathForPackage(String packageName, int userId) {
         /*
          * Until we fully support multiple users, return the directory we
@@ -3981,25 +3807,6 @@ public class PackageManagerService extends IPackageManager.Stub {
                 Slog.w(TAG, "Package " + pkg.packageName
                         + " was transferred to another, but its .apk remains");
             }
-
-            if (ENABLE_HOUDINI) {
-                PackageSetting p = mSettings.mPackages.get(pkg.packageName);
-                if ((p != null) && (!p.codePath.equals(destCodeFile))){
-
-                   // Already existing package. Make sure not upgrade to black list
-                    int result = NativeLibraryHelper.listNativeBinariesLI(scanFile);
-
-                    if (result == PackageManager.INSTALL_ABI2_SUCCEEDED) {
-                        ICheckExt check = new CheckExt();
-                        if(check.doCheck(pkg.packageName, new String("filter"))){
-                            Slog.i(TAG, "Reject application in black list::" + pkg.packageName);
-                            mLastScanError = PackageManager.INSTALL_FAILED_INVALID_APK;
-                            return null;
-                        }
-                    }
-
-                }
-            }
             
             // Just create the setting, don't add it yet. For already existing packages
             // the PkgSetting exists already and doesn't have to be created.
@@ -4114,25 +3921,7 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
 
         final String pkgName = pkg.packageName;
-
-        // ASF HOOK: package installation event
-        if (AsfAosp.ENABLE) {
-            if ((scanMode & SCAN_NEW_INSTALL) != 0) {
-                if (! AsfAosp.sendPackageInstallEvent(
-                        pkg,
-                        generatePackageInfo(
-                                pkg,
-                                AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
-                                (user != null) ? UserHandle.getUserId(user.getIdentifier()) : 0
-                        ),
-                        (scanMode & SCAN_UPDATE_TIME)!=0)
-                ) {
-                    mLastScanError = PackageManager.INSTALL_FAILED_VERIFICATION_FAILURE;
-                    return null;
-                }
-            }
-        }
-
+        
         final long scanFileTime = scanFile.lastModified();
         final boolean forceDex = (scanMode&SCAN_FORCE_DEX) != 0;
         pkg.applicationInfo.processName = fixProcessName(
@@ -4317,33 +4106,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                         }
 
                         try {
-                            int copyRet = copyNativeLibrariesForInternalApp(scanFile, nativeLibraryDir);
-                            Integer pkgUidInt = new Integer(pkg.applicationInfo.uid);
-                            if (copyRet == PackageManager.INSTALL_SUCCEEDED) {
-                                if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(pkgUidInt)) {
-                                    Slog.i(TAG, "Replace package with primary ABI Library");
-                                    mPackagesMatchABI2.remove(pkgUidInt);
-                                    writeAppwithABI2();
-                                    if (mPackagesMatchABI2Neon.containsKey(pkgUidInt)) {
-                                        mPackagesMatchABI2Neon.remove(pkgUidInt);
-                                        writeAppwithABI2Neon();
-                                    }
-                                }
-                            } else if (ENABLE_HOUDINI && copyRet == PackageManager.INSTALL_ABI2_SUCCEEDED && !mPackagesMatchABI2.containsKey(pkgUidInt)) {
-                                ICheckExt check = new CheckExt();
-                                if(check.doCheck(pkgName, new String("filter"))) {
-                                    Slog.i(TAG, "Package with second ABI is in black list: " + pkgUidInt + pkg.applicationInfo.processName);
-                                    mLastScanError = PackageManager.INSTALL_FAILED_INVALID_APK;
-                                    return null;
-                                }
-                                Slog.i(TAG, "Package installed with second ABI Library: " + pkgUidInt + pkg.applicationInfo.processName);
-                                mPackagesMatchABI2.put(pkgUidInt, pkg.applicationInfo.processName);
-                                writeAppwithABI2();
-                                if (check.doCheck(pkgName, new String("neon"))) {
-                                    mPackagesMatchABI2Neon.put(pkgUidInt, pkg.applicationInfo.processName);
-                                    writeAppwithABI2Neon();
-                                }
-                            } else {
+                            if (copyNativeLibrariesForInternalApp(scanFile, nativeLibraryDir) != PackageManager.INSTALL_SUCCEEDED) {
                                 Slog.e(TAG, "Unable to copy native libraries");
                                 mLastScanError = PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
                                 return null;
@@ -4355,36 +4118,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                         }
                     }
 
-                    // if the pkg doesn't go through copyNativeLibrariesForInternalApp path
-                    // Need check the apk whether contains ABI2 library.
-                    int result = NativeLibraryHelper.listNativeBinariesLI(scanFile);
-                    if (result == PackageManager.INSTALL_SUCCEEDED) {
-                        if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
-                            Slog.i(TAG, "Replace package with primary ABI Library");
-                            mPackagesMatchABI2.remove(pkg.applicationInfo.uid);
-                            writeAppwithABI2();
-                            if (mPackagesMatchABI2Neon.containsKey(pkg.applicationInfo.uid)) {
-                                mPackagesMatchABI2Neon.remove(pkg.applicationInfo.uid);
-                                writeAppwithABI2Neon();
-                            }
-                        }
-                    } else if (ENABLE_HOUDINI && result == PackageManager.INSTALL_ABI2_SUCCEEDED && !mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
-                        ICheckExt check = new CheckExt();
-                        if (check.doCheck(pkgName, new String("filter"))) {
-                            Slog.i(TAG, "Package with second ABI is in black list: " + pkg.applicationInfo.uid + pkg.applicationInfo.processName);
-                            mLastScanError = PackageManager.INSTALL_FAILED_INVALID_APK;
-                            return null;
-                        }
-                        Slog.i(TAG, "Package installed with second ABI Library: " + pkg.applicationInfo.uid + pkg.applicationInfo.processName);
-                        mPackagesMatchABI2.put(pkg.applicationInfo.uid, pkg.applicationInfo.processName);
-                        writeAppwithABI2();
-                        if (check.doCheck(pkgName, new String("neon"))) {
-                            mPackagesMatchABI2Neon.put(pkg.applicationInfo.uid, pkg.applicationInfo.processName);
-                            writeAppwithABI2Neon();
-                        }
-                    }
-
-                    Slog.i(TAG, "Linking native library dir for " + path);
+                    if (DEBUG_INSTALL) Slog.i(TAG, "Linking native library dir for " + path);
                     final int[] userIds = sUserManager.getUserIds();
                     synchronized (mInstallLock) {
                         for (int userId : userIds) {
@@ -4782,18 +4516,6 @@ public class PackageManagerService extends IPackageManager.Stub {
             final PackageParser.Package pkg = ps.pkg;
             if (pkg != null) {
                 cleanPackageDataStructuresLILPw(pkg, chatty);
-
-                Integer pkgUidInt = new Integer(pkg.applicationInfo.uid);
-                if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(pkgUidInt)) {
-                    Slog.i(TAG, "Uninstall package with second ABI Library");
-                    mPackagesMatchABI2.remove(pkgUidInt);
-                    writeAppwithABI2();
-                    if (mPackagesMatchABI2Neon.containsKey(pkgUidInt)) {
-                        mPackagesMatchABI2Neon.remove(pkgUidInt);
-                        writeAppwithABI2Neon();
-                    }
-                }
-
             }
         }
     }
@@ -4811,17 +4533,6 @@ public class PackageManagerService extends IPackageManager.Stub {
                 mAppDirs.remove(pkg.mPath);
             }
             cleanPackageDataStructuresLILPw(pkg, chatty);
-
-            if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(new Integer(pkg.applicationInfo.uid))) {
-                Slog.i(TAG, "Uninstall package with second ABI Library");
-                mPackagesMatchABI2.remove(new Integer(pkg.applicationInfo.uid));
-                writeAppwithABI2();
-                if (mPackagesMatchABI2Neon.containsKey(new Integer(pkg.applicationInfo.uid))) {
-                    mPackagesMatchABI2Neon.remove(new Integer(pkg.applicationInfo.uid));
-                    writeAppwithABI2Neon();
-                }
-            }
-
         }
     }
 
@@ -6595,20 +6306,21 @@ public class PackageManagerService extends IPackageManager.Stub {
 
                     final File packageFile;
                     if (encryptionParams != null || !"file".equals(mPackageURI.getScheme())) {
-                        ParcelFileDescriptor out = null;
-
                         mTempPackage = createTempPackageFile(mDrmAppPrivateInstallDir);
                         if (mTempPackage != null) {
+                            ParcelFileDescriptor out;
                             try {
                                 out = ParcelFileDescriptor.open(mTempPackage,
                                         ParcelFileDescriptor.MODE_READ_WRITE);
                             } catch (FileNotFoundException e) {
+                                out = null;
                                 Slog.e(TAG, "Failed to create temporary file for : " + mPackageURI);
                             }
 
                             // Make a temporary file for decryption.
                             ret = mContainerService
                                     .copyResource(mPackageURI, encryptionParams, out);
+                            IoUtils.closeQuietly(out);
 
                             packageFile = mTempPackage;
 
@@ -7231,14 +6943,8 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
             try {
                 int copyRet = copyNativeLibrariesForInternalApp(codeFile, nativeLibraryFile);
-                if (ENABLE_HOUDINI) {
-                    if (copyRet != PackageManager.INSTALL_SUCCEEDED && copyRet != PackageManager.INSTALL_ABI2_SUCCEEDED) {
-                        return copyRet;
-                    }
-                } else {
-                    if (copyRet != PackageManager.INSTALL_SUCCEEDED) {
-                        return copyRet;
-                    }
+                if (copyRet != PackageManager.INSTALL_SUCCEEDED) {
+                    return copyRet;
                 }
             } catch (IOException e) {
                 Slog.e(TAG, "Copying native libraries failed", e);
@@ -8598,21 +8304,6 @@ public class PackageManagerService extends IPackageManager.Stub {
         boolean dataOnly = false;
         int removeUser = -1;
         int appId = -1;
-
-        // ASF HOOK: package deletion event
-        if (AsfAosp.ENABLE) {
-            if (! AsfAosp.sendPackageDeleteEvent(
-                    packageName,
-                    getPackageInfo(
-                            packageName,
-                            AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
-                            (user != null) ? UserHandle.getUserId(user.getIdentifier()) : 0
-                    )
-            )) {
-                return false;
-            }
-        }
-
         synchronized (mPackages) {
             ps = mSettings.mPackages.get(packageName);
             if (ps == null) {
@@ -9086,8 +8777,6 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     public void clearPackagePreferredActivities(String packageName) {
         final int uid = Binder.getCallingUid();
-        long startTime = System.currentTimeMillis();
-        try {
         // writer
         synchronized (mPackages) {
             PackageParser.Package pkg = mPackages.get(packageName);
@@ -9108,13 +8797,6 @@ public class PackageManagerService extends IPackageManager.Stub {
 
             if (clearPackagePreferredActivitiesLPw(packageName, UserHandle.getCallingUserId())) {
                 scheduleWriteSettingsLocked();            
-            }
-        }
-        } finally {
-            long uptime = System.currentTimeMillis() - startTime;
-            if (uptime > 100) {
-                Log.d(TAG, "clearPackagePreferredActivities - Execution time: " +
-                        uptime + " ms");
             }
         }
     }
@@ -9330,8 +9012,6 @@ public class PackageManagerService extends IPackageManager.Stub {
     }
 
     public void setPackageStoppedState(String packageName, boolean stopped, int userId) {
-        long startTime = System.currentTimeMillis();
-        try {
         if (!sUserManager.exists(userId)) return;
         final int uid = Binder.getCallingUid();
         final int permission = mContext.checkCallingOrSelfPermission(
@@ -9343,13 +9023,6 @@ public class PackageManagerService extends IPackageManager.Stub {
             if (mSettings.setPackageStoppedStateLPw(packageName, stopped, allowedByPermission,
                     uid, userId)) {
                 scheduleWritePackageRestrictionsLocked(userId);
-            }
-        }
-        } finally {
-            long uptime = System.currentTimeMillis() - startTime;
-            if (uptime > 100) {
-                Log.d(TAG, "setPackageStoppedState - Execution time: " +
-                        uptime + " ms");
             }
         }
     }
@@ -9424,10 +9097,8 @@ public class PackageManagerService extends IPackageManager.Stub {
                 if (removed.size() > 0) {
                     for (int j=0; j<removed.size(); j++) {
                         PreferredActivity pa = removed.get(i);
-                        RuntimeException here = new RuntimeException("here");
-                        here.fillInStackTrace();
                         Slog.w(TAG, "Removing dangling preferred activity: "
-                                + pa.mPref.mComponent, here);
+                                + pa.mPref.mComponent);
                         pir.removeFilter(pa);
                     }
                     mSettings.writePackageRestrictionsLPr(

@@ -519,24 +519,6 @@ static jobject nativeScreenshot(JNIEnv* env, jclass clazz, jobject displayTokenO
     return GraphicsJNI::createBitmap(env, bitmap, false, NULL);
 }
 
-static jboolean nativeIsAnimationPermitted(
-        JNIEnv* env, jobject clazz)
-{
-    return SurfaceComposerClient::isAnimationPermitted() ? JNI_TRUE : JNI_FALSE;
-}
-
-static void nativeSetTransition(
-        JNIEnv* env, jobject clazz, jboolean on)
-{
-    SurfaceComposerClient::setTransitionTransaction(on);
-}
-
-static void nativeSetOrientationEnd(
-        JNIEnv* env, jobject clazz, jboolean end)
-{
-    SurfaceComposerClient::setOrientationEndTransaction(end);
-}
-
 static void nativeOpenTransaction(JNIEnv* env, jclass clazz) {
     SurfaceComposerClient::openGlobalTransaction();
 }
@@ -841,12 +823,6 @@ static JNINativeMethod gSurfaceMethods[] = {
             (void*)nativeUnlockCanvasAndPost },
     {"nativeScreenshot", "(Landroid/os/IBinder;IIIIZ)Landroid/graphics/Bitmap;",
             (void*)nativeScreenshot },
-    {"nativeIsAnimationPermitted", "()Z",
-            (void*)nativeIsAnimationPermitted },
-    {"nativeSetTransition", "(Z)V",
-            (void*)nativeSetTransition },
-    {"nativeSetOrientationEnd", "(Z)V",
-            (void*)nativeSetOrientationEnd },
     {"nativeOpenTransaction", "()V",
             (void*)nativeOpenTransaction },
     {"nativeCloseTransaction", "()V",

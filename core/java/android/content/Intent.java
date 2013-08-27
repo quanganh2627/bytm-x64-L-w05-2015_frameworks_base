@@ -1466,22 +1466,6 @@ public class Intent implements Parcelable, Cloneable {
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
     public static final String ACTION_ALARM_CHANGED = "android.intent.action.ALARM_CHANGED";
     /**
-     * Thermal Zone State Changed Action: This is broadcast when the state of
-     * thermal zone changes.  It is used by the ThermalManager service to communicate the
-     * PowerManager Service about new state of thermal zone.
-     * See {@link android.thermal.ThermalZone} for documentation on the
-     * contents of the Intent.
-     * @hide
-     */
-    @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
-    public static final String ACTION_THERMAL_ZONE_STATE_CHANGED = "android.intent.action.THERMAL_ZONE_STATE_CHANGED";
-    /**
-     * This intent is sent when platform is shutting down due to thermal critical event.
-     * @hide
-     */
-    @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
-    public static final String ACTION_THERMAL_SHUTDOWN = "android.intent.action.THERMAL_SHUTDOWN";
-    /**
      * Sync State Changed Action: This is broadcast when the sync starts or stops or when one has
      * been failing for a long time.  It is used by the SyncManager and the StatusBar service.
      * @hide
@@ -2243,19 +2227,6 @@ public class Intent implements Parcelable, Cloneable {
     //@SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
     public static final String ACTION_ADVANCED_SETTINGS_CHANGED
             = "android.intent.action.ADVANCED_SETTINGS";
-
-    /**
-     * Broadcast Action: Wireless display is turned ON or OFF.
-     *
-     * <p>The intent will have the following extra values:
-     * <ul>
-     *   <li><em>state</em> - 0 for OFF, 1 for ON. </li>
-     * </ul>
-     * @hide
-     */
-     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
-     public static final String ACTION_WIDI_TURNED =
-             "android.intent.action.WIDI_TURNED";
 
     /**
      * Broadcast Action: An outgoing call is about to be placed.
@@ -3059,26 +3030,6 @@ public class Intent implements Parcelable, Cloneable {
      */
     public static final String EXTRA_USER_HANDLE =
             "android.intent.extra.user_handle";
-
-    /**
-     * Used to force the screen orientation to landscape.
-     * The boolean extra field {@link #EXTRA_SET_LANDSCAPE} can be set to true
-     * to request the screen orientation forced to landscape unless the application
-     * has already specified it.
-     *
-     * {@hide}
-     */
-    public static final String ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE =
-            "android.intent.action.REQUEST_SCREEN_ORIENTATION_LANDSCAPE";
-
-    /**
-     * Set to true in {@link #ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE} to
-     * force device's screen orientation to landscape. Or set to false to let
-     * the device orientation changed according to the originall logic.
-     *
-     * {@hide}
-     */
-    public static final String EXTRA_SET_LANDSCAPE = "android.intent.extra.SET_LANDSCAPE";
 
     // ---------------------------------------------------------------------
     // ---------------------------------------------------------------------

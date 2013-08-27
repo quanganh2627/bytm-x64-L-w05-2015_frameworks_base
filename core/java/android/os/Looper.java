@@ -16,13 +16,9 @@
 
 package android.os;
 
-import android.util.LocalLog;
 import android.util.Log;
 import android.util.Printer;
 import android.util.PrefixPrinter;
-
-import java.io.FileDescriptor;
-import java.io.PrintWriter;
 
 /**
   * Class used to run a message loop for a thread.  Threads by default do
@@ -66,11 +62,6 @@ public class Looper {
     volatile boolean mRun;
 
     private Printer mLogging;
-    LocalLog mLocalLog;
-    private String mDispatching;
-    private long mDispatchStart;
-    private StringBuilder mStringBuilder;
-    private static final long LATENCY_THRESHOLD = 500; // 500ms
 
      /** Initialize the current thread as a looper.
       * This gives you a chance to create handlers that then reference
@@ -128,8 +119,6 @@ public class Looper {
         // and keep track of what that identity token actually is.
         Binder.clearCallingIdentity();
         final long ident = Binder.clearCallingIdentity();
-        LocalLog localLog = me.mLocalLog;
-        if (localLog != null) me.mStringBuilder = new StringBuilder();
 
         for (;;) {
             Message msg = queue.next(); // might block
@@ -144,31 +133,11 @@ public class Looper {
                 logging.println(">>>>> Dispatching to " + msg.target + " " +
                         msg.callback + ": " + msg.what);
             }
-            if (localLog != null) {
-                me.mDispatching = msg.toStringLw();
-                me.mDispatchStart = SystemClock.uptimeMillis();
-            }
 
             msg.target.dispatchMessage(msg);
 
             if (logging != null) {
                 logging.println("<<<<< Finished to " + msg.target + " " + msg.callback);
-            }
-            if (localLog != null) {
-                final long elapsed = SystemClock.uptimeMillis() - me.mDispatchStart;
-                final long wait = me.mDispatchStart - msg.when;
-                me.mStringBuilder.setLength(0);
-                if (elapsed >= LATENCY_THRESHOLD) {
-                    me.mStringBuilder.append("WARNING! ");
-                }
-                me.mStringBuilder.append("Wait: ")
-                                 .append(wait)
-                                 .append("ms, Run: ")
-                                 .append(elapsed)
-                                 .append("ms due Message")
-                                 .append(me.mDispatching);
-                localLog.log(me.mStringBuilder.toString());
-                me.mDispatching = null;
             }
 
             // Make sure that during the course of dispatching the
@@ -181,6 +150,7 @@ public class Looper {
                         + msg.target.getClass().getName() + " "
                         + msg.callback + " what=" + msg.what);
             }
+
             msg.recycle();
         }
     }
@@ -204,11 +174,6 @@ public class Looper {
      */
     public void setMessageLogging(Printer printer) {
         mLogging = printer;
-    }
-
-    /** @hide */
-    public void setMessageLogging(LocalLog localLog) {
-        mLocalLog = localLog;
     }
     
     /**
@@ -295,10 +260,6 @@ public class Looper {
         pw.println("mRun=" + mRun);
         pw.println("mThread=" + mThread);
         pw.println("mQueue=" + ((mQueue != null) ? mQueue : "(null"));
-        if (mLocalLog != null) {
-            final long duration = SystemClock.uptimeMillis() - mDispatchStart;
-            pw.println("mDispatching=" + mDispatching + ", " + duration + "ms ago.");
-        }
         if (mQueue != null) {
             synchronized (mQueue) {
                 long now = SystemClock.uptimeMillis();
@@ -306,20 +267,11 @@ public class Looper {
                 int n = 0;
                 while (msg != null) {
                     pw.println("  Message " + n + ": " + msg.toString(now));
-                    if (msg.target == null) pw.println("  WARNING! Message " + n
-                            + " is a sync barrier!!");
                     n++;
                     msg = msg.next;
                 }
                 pw.println("(Total messages: " + n + ")");
             }
-        }
-    }
-
-    /** @hide */
-    public void dumpHistory(FileDescriptor fd, PrintWriter pw, String[] args) {
-        if (mLocalLog != null) {
-            mLocalLog.dump(fd, pw, args);
         }
     }
 

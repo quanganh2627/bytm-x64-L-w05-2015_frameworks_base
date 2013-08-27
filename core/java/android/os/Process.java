@@ -116,12 +116,6 @@ public class Process {
     public static final int NFC_UID = 1027;
 
     /**
-     * Defines the UID/GID for the SmartCard service process.
-     * @hide
-     */
-    public static final int SMARTCARD_UID = 1029;
-
-    /**
      * Defines the UID/GID for the Bluetooth service process.
      * @hide
      */
@@ -1016,25 +1010,4 @@ public class Process {
          */
         public boolean usingWrapper;
     }
-
-    /**
-     * Sets the CPU affinity of the current thread to the current CPU only.<br>
-     * Backup current CPU affinity that will be restored with a call to
-     * <code>endCpuAffinity</code>. CPU affinity of forked or spawn threads from this
-     * thread is set to the backup value (ie not limited to the current CPU).<br>
-     * If the CPU affinity of the current thread is modified after the call to this
-     * function then the backup value is cleared, as if <code>startCpuAffinity</code>
-     * was never called.
-     * @return false in case of error (CPU affinity is unchanged), true otherwise
-     * @hide
-     */
-    public static final native boolean startCpuAffinity();
-
-    /**
-     * Unsets the CPU affinity of the current thread set with <code>startCpuAffinity</code>.
-     * The backup value of CPU affinity is restored.
-     * @return false in case of error (CPU affinity is unchanged), true otherwise
-     * @hide
-     */
-    public static final native boolean endCpuAffinity();
 }

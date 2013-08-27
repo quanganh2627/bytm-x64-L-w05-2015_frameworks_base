@@ -21,7 +21,6 @@ import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 
 import android.app.ActivityManager;
 import android.app.Dialog;
-import android.app.Notification;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
@@ -248,12 +247,6 @@ public class InputMethodService extends AbstractInputMethodService {
      * The IME is visible.
      */
     public static final int IME_VISIBLE = 0x2;
-    /**
-     * @hide
-     * Notification ID
-     * It must differ from 0 to be promoted as foreground service
-     */
-    private static final int NOTIFICATION_ID = 1;
 
     InputMethodManager mImm;
     
@@ -412,7 +405,6 @@ public class InputMethodService extends AbstractInputMethodService {
             mShowInputRequested = false;
             mShowInputForced = false;
             doHideWindow();
-            stopForeground(true);
             if (resultReceiver != null) {
                 resultReceiver.send(wasVis != isInputViewShown()
                         ? InputMethodManager.RESULT_HIDDEN
@@ -429,7 +421,6 @@ public class InputMethodService extends AbstractInputMethodService {
             boolean wasVis = isInputViewShown();
             mShowInputFlags = 0;
             if (onShowInputRequested(flags, false)) {
-                startForeground(NOTIFICATION_ID, new Notification());
                 showWindow(true);
             }
             // If user uses hard keyboard, IME button should always be shown.

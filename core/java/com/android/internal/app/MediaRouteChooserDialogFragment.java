@@ -26,7 +26,6 @@ import android.app.MediaRouteButton;
 import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.hardware.display.DisplayManager;
-import android.hardware.display.WifiDisplayStatus;
 import android.media.MediaRouter;
 import android.media.MediaRouter.RouteCategory;
 import android.media.MediaRouter.RouteGroup;
@@ -209,12 +208,7 @@ public class MediaRouteChooserDialogFragment extends DialogFragment {
     public void onResume() {
         super.onResume();
         if (mDisplayService != null) {
-            // Don't scan if we're already connected to a wifi display,
-            // the scanning process can cause a hiccup with some configurations.
-            WifiDisplayStatus wifiDisplayStatus = mDisplayService.getWifiDisplayStatus();
-            if (wifiDisplayStatus.getActiveDisplayState() != wifiDisplayStatus.DISPLAY_STATE_CONNECTED) {
-                mDisplayService.scanWifiDisplays();
-            }
+            mDisplayService.scanWifiDisplays();
         }
     }
 

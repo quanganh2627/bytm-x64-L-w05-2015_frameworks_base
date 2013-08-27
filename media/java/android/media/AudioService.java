@@ -69,7 +69,6 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.VolumePanel;
-import android.widget.Toast;
 
 import com.android.internal.telephony.ITelephony;
 
@@ -159,10 +158,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     private static final int MSG_CONFIGURE_SAFE_MEDIA_VOLUME = 26;
     private static final int MSG_CONFIGURE_SAFE_MEDIA_VOLUME_FORCED = 27;
     private static final int MSG_PERSIST_SAFE_VOLUME_STATE = 28;
-
-    // Message of mute hw switch, only used by saltbay
-    private static final int MSG_MUTE_HW_SWITCH_TOAST = 29;
-    private static final int MSG_MUTE_HW_TOAST = 30;
 
     // flags for MSG_PERSIST_VOLUME indicating if current and/or last audible volume should be
     // persisted
@@ -340,24 +335,11 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     // Used to alter media button redirection when the phone is ringing.
     private boolean mIsRinging = false;
 
-    // Used to alter the hardware ringer button status
-    private boolean mIsHwRingerMuted = false;
-
     // Devices currently connected
     private final HashMap <Integer, String> mConnectedDevices = new HashMap <Integer, String>();
 
     // Forced device usage for communications
     private int mForcedUseForComm;
-    private final Object mForcedUseForCommLock = new Object();
-
-    // Forced device usage for record
-    private int mForcedUseForRecord;
-
-    // Is Speakerphone usage forced
-    private boolean mSpeakerPhoneOn = false;
-
-    // Is BT SCO usage forced
-    private boolean mBTScoOn = false;
 
     // True if we have master volume support
     private final boolean mUseMasterVolume;
@@ -395,10 +377,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     // Deactivation request for all SCO connections (initiated by audio mode change)
     // waiting for headset service to connect
     private static final int SCO_STATE_DEACTIVATE_EXT_REQ = 4;
-    // state of HDMI Device Enable set from HDMI settings application
-    private static int mHdmiEnable = 1;
-    // state of HDMI Audio hot plug
-    private static int mState = 0;
 
     // Current connection state indicated by bluetooth headset
     private int mScoConnectionState;
@@ -489,7 +467,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         mVolumePanel = new VolumePanel(context, this);
         mMode = AudioSystem.MODE_NORMAL;
         mForcedUseForComm = AudioSystem.FORCE_NONE;
-        mForcedUseForRecord = AudioSystem.FORCE_NONE;
 
         createAudioSystemThread();
 
@@ -532,10 +509,8 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                 new IntentFilter(BluetoothHeadset.ACTION_AUDIO_STATE_CHANGED);
         intentFilter.addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(Intent.ACTION_DOCK_EVENT);
-        intentFilter.addAction(Intent.ACTION_HDMI_AUDIO_PLUG);
         intentFilter.addAction(Intent.ACTION_USB_AUDIO_ACCESSORY_PLUG);
         intentFilter.addAction(Intent.ACTION_USB_AUDIO_DEVICE_PLUG);
-        intentFilter.addAction(Intent.ACTION_WIDI_TURNED);
         intentFilter.addAction(Intent.ACTION_BOOT_COMPLETED);
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);
         intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
@@ -971,11 +946,8 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                     (mStreamVolumeAlias[streamType] == getMasterStreamType())) {
                 int newRingerMode;
                 if (index == 0) {
-                    newRingerMode = getRingerMode();
-                    if (newRingerMode != AudioManager.RINGER_MODE_SILENT) {
-                       newRingerMode = mHasVibrator ? AudioManager.RINGER_MODE_VIBRATE
-                                                     : AudioManager.RINGER_MODE_SILENT;
-                    }
+                    newRingerMode = mHasVibrator ? AudioManager.RINGER_MODE_VIBRATE
+                                                  : AudioManager.RINGER_MODE_SILENT;
                     setStreamVolumeInt(mStreamVolumeAlias[streamType],
                                        index,
                                        device,
@@ -1305,18 +1277,8 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
 
     /** @see AudioManager#getRingerMode() */
     public int getRingerMode() {
-        synchronized (mSettingsLock) {
+        synchronized(mSettingsLock) {
             return mRingerMode;
-        }
-    }
-
-    /** @see isHwMuteSwitchON() */
-    public boolean isHwMuteSwitchON() {
-        synchronized (mSettingsLock) {
-            if (mIsHwRingerMuted) {
-                return true;
-            }
-            return false;
         }
     }
 
@@ -1328,33 +1290,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
 
     /** @see AudioManager#setRingerMode(int) */
     public void setRingerMode(int ringerMode) {
-        synchronized (mSettingsLock) {
-            if (mIsHwRingerMuted &&
-                (ringerMode !=  AudioManager.RINGER_MODE_HW_NORMAL) ) {
-                // HW mute switch ON and request is not for OFF of HW switch
-                sendMsg(mAudioHandler, MSG_MUTE_HW_TOAST,
-                    SENDMSG_REPLACE, 0, 0, null, PERSIST_DELAY);
-                return;
-            }
-        }
-        if (ringerMode == AudioManager.RINGER_MODE_HW_SILENT) {
-            synchronized (mSettingsLock) {
-                mIsHwRingerMuted = true;
-                ringerMode = AudioManager.RINGER_MODE_SILENT;
-            }
-            sendMsg(mAudioHandler, MSG_MUTE_HW_SWITCH_TOAST,
-                   SENDMSG_REPLACE, 0, 0, null, PERSIST_DELAY);
-        }
-        if (ringerMode == AudioManager.RINGER_MODE_HW_NORMAL) {
-            if (mRingerMode == AudioManager.RINGER_MODE_SILENT) {
-                synchronized (mSettingsLock) {
-                    ringerMode = AudioManager.RINGER_MODE_NORMAL;
-                    mIsHwRingerMuted = false;
-                }
-            }
-            sendMsg(mAudioHandler, MSG_MUTE_HW_SWITCH_TOAST,
-                    SENDMSG_REPLACE, 0, 0, null, PERSIST_DELAY);
-        }
         if ((ringerMode == AudioManager.RINGER_MODE_VIBRATE) && !mHasVibrator) {
             ringerMode = AudioManager.RINGER_MODE_SILENT;
         }
@@ -1896,32 +1831,15 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         }
     }
 
-    //It is MANDATORY to call this function with mForcedUseForCommLock
-    private void reconsiderUsageForComm() {
-        int reconsideredUsageForComm;
-        if (mSpeakerPhoneOn) {
-            reconsideredUsageForComm = AudioSystem.FORCE_SPEAKER;
-        } else if (mBTScoOn) {
-            reconsideredUsageForComm = AudioSystem.FORCE_BT_SCO;
-        } else {
-            reconsideredUsageForComm = AudioSystem.FORCE_NONE;
-        }
-        if (reconsideredUsageForComm != mForcedUseForComm) {
-            mForcedUseForComm = reconsideredUsageForComm;
-            sendMsg(mAudioHandler, MSG_SET_FORCE_USE, SENDMSG_QUEUE,
-                    AudioSystem.FOR_COMMUNICATION, mForcedUseForComm, null, 0);
-        }
-    }
-
     /** @see AudioManager#setSpeakerphoneOn() */
     public void setSpeakerphoneOn(boolean on){
         if (!checkAudioSettingsPermission("setSpeakerphoneOn()")) {
             return;
         }
-        synchronized (mForcedUseForCommLock) {
-            mSpeakerPhoneOn = on;
-            reconsiderUsageForComm();
-        }
+        mForcedUseForComm = on ? AudioSystem.FORCE_SPEAKER : AudioSystem.FORCE_NONE;
+
+        sendMsg(mAudioHandler, MSG_SET_FORCE_USE, SENDMSG_QUEUE,
+                AudioSystem.FOR_COMMUNICATION, mForcedUseForComm, null, 0);
     }
 
     /** @see AudioManager#isSpeakerphoneOn() */
@@ -1934,13 +1852,12 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         if (!checkAudioSettingsPermission("setBluetoothScoOn()")) {
             return;
         }
-        synchronized (mForcedUseForCommLock) {
-            mBTScoOn = on;
-            reconsiderUsageForComm();
-        }
-        mForcedUseForRecord = on ? AudioSystem.FORCE_BT_SCO : AudioSystem.FORCE_NONE;
+        mForcedUseForComm = on ? AudioSystem.FORCE_BT_SCO : AudioSystem.FORCE_NONE;
+
         sendMsg(mAudioHandler, MSG_SET_FORCE_USE, SENDMSG_QUEUE,
-                AudioSystem.FOR_RECORD, mForcedUseForRecord, null, 0);
+                AudioSystem.FOR_COMMUNICATION, mForcedUseForComm, null, 0);
+        sendMsg(mAudioHandler, MSG_SET_FORCE_USE, SENDMSG_QUEUE,
+                AudioSystem.FOR_RECORD, mForcedUseForComm, null, 0);
     }
 
     /** @see AudioManager#isBluetoothScoOn() */
@@ -3412,10 +3329,8 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                     AudioSystem.setPhoneState(mMode);
 
                     // Restore forced usage for communcations and record
-                    synchronized (mForcedUseForCommLock) {
-                        reconsiderUsageForComm();
-                    }
-                    AudioSystem.setForceUse(AudioSystem.FOR_RECORD, mForcedUseForRecord);
+                    AudioSystem.setForceUse(AudioSystem.FOR_COMMUNICATION, mForcedUseForComm);
+                    AudioSystem.setForceUse(AudioSystem.FOR_RECORD, mForcedUseForComm);
                     AudioSystem.setForceUse(AudioSystem.FOR_SYSTEM, mCameraSoundForced ?
                                     AudioSystem.FORCE_SYSTEM_ENFORCED : AudioSystem.FORCE_NONE);
 
@@ -3553,18 +3468,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                     break;
                 case MSG_PERSIST_SAFE_VOLUME_STATE:
                     onPersistSafeVolumeState(msg.arg1);
-                    break;
-                case MSG_MUTE_HW_SWITCH_TOAST:
-                    if (mIsHwRingerMuted) {
-                        Toast.makeText(mContext, "Mute HW switch to on ", Toast.LENGTH_LONG).show();
-                    } else {
-                        Toast.makeText(mContext, "Mute HW switch to off ", Toast.LENGTH_LONG).show();
-                    }
-                    break;
-                case MSG_MUTE_HW_TOAST:
-                    if (mIsHwRingerMuted) {
-                        Toast.makeText(mContext, "Mute HW is on, can't change the ringer mode ", Toast.LENGTH_LONG).show();
-                    }
                     break;
             }
         }
@@ -3731,13 +3634,13 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
             boolean isConnected = (mConnectedDevices.containsKey(device) &&
                     (params.isEmpty() || mConnectedDevices.get(device).equals(params)));
 
-            if ((isConnected && !connected) || (mHdmiEnable == 0)) {
+            if (isConnected && !connected) {
                 AudioSystem.setDeviceConnectionState(device,
                                               AudioSystem.DEVICE_STATE_UNAVAILABLE,
                                               mConnectedDevices.get(device));
                  mConnectedDevices.remove(device);
                  return true;
-            } else if ((!isConnected && connected) && (mHdmiEnable == 1)) {
+            } else if (!isConnected && connected) {
                  AudioSystem.setDeviceConnectionState(device,
                                                       AudioSystem.DEVICE_STATE_AVAILABLE,
                                                       params);
@@ -3843,10 +3746,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
         synchronized (mConnectedDevices) {
             if ((state == 0) && ((device == AudioSystem.DEVICE_OUT_WIRED_HEADSET) ||
                     (device == AudioSystem.DEVICE_OUT_WIRED_HEADPHONE))) {
-                if (!mConnectedDevices.containsKey(AudioSystem.DEVICE_OUT_WIRED_HEADSET) &&
-                    !mConnectedDevices.containsKey(AudioSystem.DEVICE_OUT_WIRED_HEADPHONE)) {
-                    setBluetoothA2dpOnInt(true);
-                }
+                setBluetoothA2dpOnInt(true);
             }
             boolean isUsb = ((device & AudioSystem.DEVICE_OUT_ALL_USB) != 0);
             handleDeviceConnection((state == 1), device, (isUsb ? name : ""));
@@ -3953,10 +3853,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                         }
                     }
                 }
-            } else if (action.equals(Intent.ACTION_HDMI_AUDIO_PLUG)) {
-                mState = intent.getIntExtra("state", 0);
-                Log.v(TAG, "Broadcast Receiver: Got ACTION_HDMI_AUDIO_PLUG, state = "+mState);
-                handleDeviceConnection((mState == 1), AudioSystem.DEVICE_OUT_AUX_DIGITAL, "");
             } else if (action.equals(Intent.ACTION_USB_AUDIO_ACCESSORY_PLUG) ||
                            action.equals(Intent.ACTION_USB_AUDIO_DEVICE_PLUG)) {
                 state = intent.getIntExtra("state", 0);
@@ -3971,30 +3867,6 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                               "ACTION_USB_AUDIO_ACCESSORY_PLUG" : "ACTION_USB_AUDIO_DEVICE_PLUG")
                         + ", state = " + state + ", card: " + alsaCard + ", device: " + alsaDevice);
                 setWiredDeviceConnectionState(device, state, params);
-             } else if (action.equals(Intent.ACTION_WIDI_TURNED)) {
-                 state = intent.getIntExtra("state", 0);
-                 Log.d(TAG, "Intent = ACTION_WIDI_TURNED caught: state = "+state);
-
-                 boolean isConnected = mConnectedDevices.containsKey(AudioSystem.DEVICE_OUT_WIDI);
-                 if (state == 0 && isConnected) {
-                     Log.d(TAG, "connected: calling AudioSystem.setDeviceConnectionState()");
-                     AudioSystem.setDeviceConnectionState(AudioSystem.DEVICE_OUT_WIDI,
-                             AudioSystem.DEVICE_STATE_UNAVAILABLE,
-                             "");
-                     mConnectedDevices.remove(AudioSystem.DEVICE_OUT_WIDI);
-                     AudioSystem.setForceUse(AudioSystem.FOR_MEDIA, AudioSystem.FORCE_NONE);
-                 } else if (state == 1 && !isConnected) {
-                     Log.d(TAG, "not connected: calling AudioSystem.setDeviceConnectionState()");
-                     AudioSystem.setDeviceConnectionState(AudioSystem.DEVICE_OUT_WIDI,
-                             AudioSystem.DEVICE_STATE_AVAILABLE,
-                             "");
-                     mConnectedDevices.put( new Integer(AudioSystem.DEVICE_OUT_WIDI), "");
-                     //force no use of A2DP device if WIDI is available
-                     if (AudioSystem.getDeviceConnectionState(AudioSystem.DEVICE_OUT_BLUETOOTH_A2DP,"")
-                         == AudioSystem.DEVICE_STATE_AVAILABLE) {
-                         AudioSystem.setForceUse(AudioSystem.FOR_MEDIA, AudioSystem.FORCE_NO_BT_A2DP);
-                     }
-                 }
             } else if (action.equals(BluetoothHeadset.ACTION_AUDIO_STATE_CHANGED)) {
                 boolean broadcast = false;
                 int scoAudioState = AudioManager.SCO_AUDIO_STATE_ERROR;
@@ -5974,7 +5846,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
             mBluetoothA2dpEnabled = on;
             mAudioHandler.removeMessages(MSG_SET_FORCE_BT_A2DP_USE);
             AudioSystem.setForceUse(AudioSystem.FOR_MEDIA,
-                    (mBluetoothA2dpEnabled && (AudioSystem.getDeviceConnectionState(AudioSystem.DEVICE_OUT_WIDI,"") == AudioSystem.DEVICE_STATE_UNAVAILABLE)) ? AudioSystem.FORCE_NONE : AudioSystem.FORCE_NO_BT_A2DP);
+                    mBluetoothA2dpEnabled ? AudioSystem.FORCE_NONE : AudioSystem.FORCE_NO_BT_A2DP);
         }
     }
 

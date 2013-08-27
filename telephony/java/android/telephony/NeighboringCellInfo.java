@@ -18,7 +18,6 @@ package android.telephony;
 
 import android.os.Parcel;
 import android.os.Parcelable;
-
 import static android.telephony.TelephonyManager.NETWORK_TYPE_UNKNOWN;
 import static android.telephony.TelephonyManager.NETWORK_TYPE_EDGE;
 import static android.telephony.TelephonyManager.NETWORK_TYPE_GPRS;
@@ -44,11 +43,6 @@ public class NeighboringCellInfo implements Parcelable
      */
     static final public int UNKNOWN_CID = -1;
 
-    static final public int CELL_INFO_TYPE_GSM = 1;
-    static final public int CELL_INFO_TYPE_CDMA = 2;
-    static final public int CELL_INFO_TYPE_LTE = 3;
-    static final public int CELL_INFO_TYPE_WCDMA = 4;
-
     /**
      * In GSM, mRssi is the Received RSSI;
      * In UMTS, mRssi is the Level index of CPICH Received Signal Code Power
@@ -73,13 +67,6 @@ public class NeighboringCellInfo implements Parcelable
      */
     private int mNetworkType;
 
-    private int mVersion;
-    private CellIdentityGsm mCellIdentityGsm;
-    private CellSignalStrengthGsm mCellSignalStrengthGsm;
-    private CellIdentityLte mCellIdentityLte;
-    private CellSignalStrengthLte mCellSignalStrengthLte;
-    private int mIsServingCell;
-    private int mCellInfoType;
     /**
      * Empty constructor.  Initializes the RSSI and CID.
      *
@@ -96,7 +83,6 @@ public class NeighboringCellInfo implements Parcelable
         mCid = UNKNOWN_CID;
         mPsc = UNKNOWN_CID;
         mNetworkType = NETWORK_TYPE_UNKNOWN;
-        mVersion = 1;
     }
 
     /**
@@ -112,7 +98,6 @@ public class NeighboringCellInfo implements Parcelable
     public NeighboringCellInfo(int rssi, int cid) {
         mRssi = rssi;
         mCid = cid;
-        mVersion = 1;
     }
 
     /**
@@ -132,7 +117,7 @@ public class NeighboringCellInfo implements Parcelable
         mPsc = UNKNOWN_CID;
         mLac = UNKNOWN_CID;
         mCid = UNKNOWN_CID;
-        mVersion = 1;
+
 
         // pad location string with leading "0"
         int l = location.length();
@@ -175,30 +160,11 @@ public class NeighboringCellInfo implements Parcelable
      * Initialize the object from a parcel.
      */
     public NeighboringCellInfo(Parcel in) {
-        mVersion = in.readInt();
-        if ( mVersion == 1) {
-            mRssi = in.readInt();
-            mLac = in.readInt();
-            mCid = in.readInt();
-            mPsc = in.readInt();
-            mNetworkType = in.readInt();
-        } else {
-            mCellInfoType = in.readInt();
-            mIsServingCell = in.readInt();
-            switch (mCellInfoType) {
-            case CELL_INFO_TYPE_GSM:
-            case CELL_INFO_TYPE_WCDMA:
-                mCellSignalStrengthGsm = CellSignalStrengthGsm.CREATOR.createFromParcel(in);
-                mCellIdentityGsm = CellIdentityGsm.CREATOR.createFromParcel(in);
-                break;
-            case CELL_INFO_TYPE_LTE:
-                mCellSignalStrengthLte = CellSignalStrengthLte.CREATOR.createFromParcel(in);
-                mCellIdentityLte = CellIdentityLte.CREATOR.createFromParcel(in);
-                break;
-            default:
-                break;
-            }
-        }
+        mRssi = in.readInt();
+        mLac = in.readInt();
+        mCid = in.readInt();
+        mPsc = in.readInt();
+        mNetworkType = in.readInt();
     }
 
     /**
@@ -295,29 +261,13 @@ public class NeighboringCellInfo implements Parcelable
         StringBuilder sb = new StringBuilder();
 
         sb.append("[");
-        if (mVersion == 1) {
-           if (mPsc != UNKNOWN_CID) {
-               sb.append(Integer.toHexString(mPsc))
-                       .append("@").append(((mRssi == UNKNOWN_RSSI)? "-" : mRssi));
-           } else if(mLac != UNKNOWN_CID && mCid != UNKNOWN_CID) {
-               sb.append(Integer.toHexString(mLac))
-                       .append(Integer.toHexString(mCid))
-                       .append("@").append(((mRssi == UNKNOWN_RSSI)? "-" : mRssi));
-           }
-        } else { // Extended neighboring cell info with LTE support
-            switch (mCellInfoType) {
-            case CELL_INFO_TYPE_GSM:
-            case CELL_INFO_TYPE_WCDMA:
-                sb.append(mCellSignalStrengthGsm.toString());
-                sb.append(mCellIdentityGsm.toString());
-                break;
-            case CELL_INFO_TYPE_LTE:
-                sb.append(mCellSignalStrengthLte.toString());
-                sb.append(mCellIdentityLte.toString());
-                break;
-            default:
-                break;
-            }
+        if (mPsc != UNKNOWN_CID) {
+            sb.append(Integer.toHexString(mPsc))
+                    .append("@").append(((mRssi == UNKNOWN_RSSI)? "-" : mRssi));
+        } else if(mLac != UNKNOWN_CID && mCid != UNKNOWN_CID) {
+            sb.append(Integer.toHexString(mLac))
+                    .append(Integer.toHexString(mCid))
+                    .append("@").append(((mRssi == UNKNOWN_RSSI)? "-" : mRssi));
         }
         sb.append("]");
 
@@ -329,13 +279,11 @@ public class NeighboringCellInfo implements Parcelable
     }
 
     public void writeToParcel(Parcel dest, int flags) {
-        if (mVersion == 1) {
-            dest.writeInt(mRssi);
-            dest.writeInt(mLac);
-            dest.writeInt(mCid);
-            dest.writeInt(mPsc);
-            dest.writeInt(mNetworkType);
-        }
+        dest.writeInt(mRssi);
+        dest.writeInt(mLac);
+        dest.writeInt(mCid);
+        dest.writeInt(mPsc);
+        dest.writeInt(mNetworkType);
     }
 
     public static final Parcelable.Creator<NeighboringCellInfo> CREATOR

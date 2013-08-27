@@ -21,6 +21,7 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.os.BatteryManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.UserHandle;
@@ -51,7 +52,7 @@ class KeyguardMessageArea extends TextView {
     boolean mShowingBouncer = false;
 
     // last known plugged in state
-    boolean mPluggedIn = false;
+    boolean mCharging = false;
 
     // last known battery level
     int mBatteryLevel = 100;
@@ -63,7 +64,6 @@ class KeyguardMessageArea extends TextView {
 
     // Shadowed text values
     protected boolean mBatteryCharged;
-    protected boolean mBatteryCharging;
     protected boolean mBatteryIsLow;
 
     private Handler mHandler;
@@ -135,10 +135,10 @@ class KeyguardMessageArea extends TextView {
         @Override
         public void onRefreshBatteryInfo(KeyguardUpdateMonitor.BatteryStatus status) {
             mShowingBatteryInfo = status.isPluggedIn() || status.isBatteryLow();
-            mPluggedIn = status.isPluggedIn();
+            mCharging = status.status == BatteryManager.BATTERY_STATUS_CHARGING
+                     || status.status == BatteryManager.BATTERY_STATUS_FULL;
             mBatteryLevel = status.level;
             mBatteryCharged = status.isCharged();
-            mBatteryCharging = status.isCharging();
             mBatteryIsLow = status.isBatteryLow();
             update();
         }
@@ -225,15 +225,11 @@ class KeyguardMessageArea extends TextView {
         CharSequence string = null;
         if (mShowingBatteryInfo && !mShowingMessage) {
             // Battery status
-            if (mPluggedIn) {
+            if (mCharging) {
                 // Charging, charged or waiting to charge.
-                if (mBatteryCharging) {
-                    string = getContext().getString(com.android.internal.R.string.lockscreen_plugged_in, mBatteryLevel);
-                } else {
-                    string = getContext().getString(mBatteryCharged ?
-                        com.android.internal.R.string.lockscreen_charged
-                        :com.android.internal.R.string.lockscreen_not_charging);
-                }
+                string = getContext().getString(mBatteryCharged
+                        ? com.android.internal.R.string.lockscreen_charged
+                        : com.android.internal.R.string.lockscreen_plugged_in, mBatteryLevel);
                 icon.value = CHARGING_ICON;
             } else if (mBatteryIsLow) {
                 // Battery is low

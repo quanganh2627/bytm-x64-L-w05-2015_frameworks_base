@@ -97,7 +97,6 @@ public final class ViewRootImpl implements ViewParent,
     private static final String TAG = "ViewRootImpl";
     private static final boolean DBG = false;
     private static final boolean LOCAL_LOGV = false;
-    private static final boolean IS_USER_BUILD = "user".equals(android.os.Build.TYPE);
     /** @noinspection PointlessBooleanExpression*/
     private static final boolean DEBUG_DRAW = false || LOCAL_LOGV;
     private static final boolean DEBUG_LAYOUT = false || LOCAL_LOGV;
@@ -105,7 +104,7 @@ public final class ViewRootImpl implements ViewParent,
     private static final boolean DEBUG_INPUT_RESIZE = false || LOCAL_LOGV;
     private static final boolean DEBUG_ORIENTATION = false || LOCAL_LOGV;
     private static final boolean DEBUG_TRACKBALL = false || LOCAL_LOGV;
-    private static final boolean DEBUG_IMF = false || LOCAL_LOGV || !IS_USER_BUILD;
+    private static final boolean DEBUG_IMF = false || LOCAL_LOGV;
     private static final boolean DEBUG_CONFIGURATION = false || LOCAL_LOGV;
     private static final boolean DEBUG_FPS = false;
 
@@ -239,8 +238,6 @@ public final class ViewRootImpl implements ViewParent,
     // Input event queue.
     QueuedInputEvent mFirstPendingInputEvent;
     QueuedInputEvent mCurrentInputEvent;
-    private String mLastInputEvent;
-
     boolean mProcessInputEventsScheduled;
 
     boolean mWindowAttributesChanged = false;
@@ -1439,7 +1436,7 @@ public final class ViewRootImpl implements ViewParent,
                                 mTranslator.translateCanvas(layerCanvas);
                             }
 
-                            DisplayList displayList = mView.getDisplayList();
+                            DisplayList displayList = mView.mDisplayList;
                             if (displayList != null) {
                                 layerCanvas.drawDisplayList(displayList, null,
                                         DisplayList.FLAG_CLIP_CHILDREN);
@@ -2617,12 +2614,6 @@ public final class ViewRootImpl implements ViewParent,
                 scheduleTraversals();
             }
         }
-    }
-    /**
-     * send a fake vsync to trigger doFrame ahead of hw sync
-     * */
-    public void sendFakeVsync() {
-         mChoreographer.sendFakeVsync();
     }
 
     void dispatchDetachedFromWindow() {
@@ -4314,8 +4305,6 @@ public final class ViewRootImpl implements ViewParent,
             throw new IllegalStateException("finished input event out of order");
         }
 
-        mLastInputEvent = q.mEvent.toString();
-
         if (q.mReceiver != null) {
             q.mReceiver.finishInputEvent(q.mEvent, handled);
         } else {
@@ -4353,20 +4342,6 @@ public final class ViewRootImpl implements ViewParent,
                 mInputEventReceiver.consumeBatchedInputEvents(frameTimeNanos);
             }
             doProcessInputEvents();
-        }
-    }
-
-    void dumpInputEvent() {
-        Log.d(TAG, "mLastInputEvent is: " + mLastInputEvent);
-        Log.d(TAG, "mCurrentInputEvent is: "
-                + ((mCurrentInputEvent != null) ? mCurrentInputEvent.mEvent : null));
-
-        QueuedInputEvent q = mFirstPendingInputEvent;
-        int index = 0;
-        while (q != null) {
-            Log.d(TAG, "PendingInputEvent " + index + " is: " + q.mEvent);
-            q = q.mNext;
-            index ++;
         }
     }
 
@@ -4722,8 +4697,7 @@ public final class ViewRootImpl implements ViewParent,
                 }
             } break;
         }
-        if (mAccessibilityManager.isEnabled())
-            mAccessibilityManager.sendAccessibilityEvent(event);
+        mAccessibilityManager.sendAccessibilityEvent(event);
         return true;
     }
 
@@ -4995,15 +4969,6 @@ public final class ViewRootImpl implements ViewParent,
             final ViewRootImpl viewAncestor = mViewAncestor.get();
             if (viewAncestor != null) {
                 viewAncestor.dispatchDoneAnimating();
-            }
-        }
-
-        public void dumpANRInfo() {
-            final ViewRootImpl viewAncestor = mViewAncestor.get();
-            if (viewAncestor != null) {
-                Log.d(TAG,"=======DebugANR dump input event state begin=======");
-                viewAncestor.dumpInputEvent();
-                Log.d(TAG,"=======DebugANR dump input event state end=======");
             }
         }
     }

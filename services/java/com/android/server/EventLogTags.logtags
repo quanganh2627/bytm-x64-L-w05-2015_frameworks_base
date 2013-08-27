@@ -5,7 +5,7 @@ option java_package com.android.server
 # ---------------------------
 # BatteryService.java
 # ---------------------------
-2722 battery_level (level|1|6),(voltage|1|1),(temperature|1|1),(current|1|1)
+2722 battery_level (level|1|6),(voltage|1|1),(temperature|1|1)
 2723 battery_status (status|1|5),(health|1|5),(present|1|5),(plugged|1|5),(technology|3)
 # This is logged when battery goes from discharging to charging.
 # It lets us count the total amount of time between charges and the discharge level

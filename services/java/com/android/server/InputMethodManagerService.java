@@ -429,12 +429,8 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 setImeWindowVisibilityStatusHiddenLocked();
                 updateActive();
                 return;
-            } else if (Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(action) || intent.getAction().equals(Intent.ACTION_CAMERA_BUTTON)) {
+            } else if (Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(action)) {
                 hideInputMethodMenu();
-                if (mCurToken != null) {
-                    mInputShown = true;
-                    hideMySoftInput(mCurToken, 0);
-                }
                 // No need to updateActive
                 return;
             } else {
@@ -889,7 +885,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
         final boolean isScreenSecurelyLocked =
                 isScreenLocked && mKeyguardManager.isKeyguardSecure();
         final boolean inputShown = mInputShown && (!isScreenLocked || mInputBoundToKeyguard);
-        mImeWindowVis = (!isScreenSecurelyLocked && inputShown) ?
+        mImeWindowVis = (!isScreenSecurelyLocked && (inputShown || hardKeyShown)) ?
                 (InputMethodService.IME_ACTIVE | InputMethodService.IME_VISIBLE) : 0;
         updateImeWindowStatusLocked();
     }
@@ -1217,7 +1213,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
             throw new IllegalArgumentException("Unknown id: " + mCurMethodId);
         }
 
-        unbindCurrentMethodLocked(false, false);
+        unbindCurrentMethodLocked(false, true);
 
         mCurIntent = new Intent(InputMethod.SERVICE_INTERFACE);
         mCurIntent.setComponent(info.getComponent());
@@ -1264,9 +1260,6 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
 
     @Override
     public void finishInput(IInputMethodClient client) {
-        synchronized (mMethodMap) {
-            hideInputMethodMenuLocked();
-        }
     }
 
     @Override

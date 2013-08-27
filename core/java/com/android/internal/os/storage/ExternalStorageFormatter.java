@@ -21,8 +21,6 @@ import android.widget.Toast;
 
 import com.android.internal.R;
 
-import java.io.File;
-
 /**
  * Takes care of unmounting and formatting external storage.
  */
@@ -53,50 +51,13 @@ public class ExternalStorageFormatter extends Service
     private boolean mFactoryReset = false;
     private boolean mAlwaysReset = false;
 
-    private static final File EXTERNAL_STORAGE_DIRECTORY_EXT
-             = new File( "/mnt/sdcard_ext");
-
-
-    private boolean supportMultipleStorage(){
-        StorageVolume[] storageVolumes = mStorageManager.getVolumeList();
-
-        if (storageVolumes == null)
-            return false;
-
-        if (storageVolumes.length == 1)
-            return false;
-        else
-            return true;
-    }
-
-    private String getExternalStorageState() {
-            return mStorageManager.getVolumeState( getExternalStoragePath() );
-    }
-
-    private  String getExternalStoragePath() {
-        String storagePath;
-        if ( supportMultipleStorage() )
-            storagePath = EXTERNAL_STORAGE_DIRECTORY_EXT.toString();
-        else
-            storagePath = Environment.getExternalStorageDirectory().toString();
-
-        return storagePath;
-    }
-
     StorageEventListener mStorageListener = new StorageEventListener() {
         @Override
         public void onStorageStateChanged(String path, String oldState, String newState) {
             Log.i(TAG, "Received storage state changed notification that " +
                     path + " changed state from " + oldState +
                     " to " + newState);
-            String volumePath = mStorageVolume == null ?
-                    getExternalStoragePath() : mStorageVolume.getPath();
-            if (volumePath.equals(path))
-                updateProgressState();
-            else
-                Log.i(TAG, "Ignore " + path + " since it is not external storage path "
-                           + (mStorageVolume == null ?
-                                   getExternalStoragePath() : mStorageVolume.getPath()));
+            updateProgressState();
         }
     };
 
@@ -130,8 +91,6 @@ public class ExternalStorageFormatter extends Service
             mProgressDialog.setIndeterminate(true);
             mProgressDialog.setCancelable(true);
             mProgressDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
-            mProgressDialog.getWindow().setFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-                                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL);
             if (!mAlwaysReset) {
                 mProgressDialog.setOnCancelListener(this);
             }
@@ -163,11 +122,8 @@ public class ExternalStorageFormatter extends Service
     public void onCancel(DialogInterface dialog) {
         IMountService mountService = getMountService();
         String extStoragePath = mStorageVolume == null ?
-                getExternalStoragePath(): 
+                Environment.getLegacyExternalStorageDirectory().toString() :
                 mStorageVolume.getPath();
-        if (mStorageManager != null) {
-            mStorageManager.unregisterListener(mStorageListener);
-        }
         try {
             mountService.mountVolume(extStoragePath);
         } catch (RemoteException e) {
@@ -186,7 +142,7 @@ public class ExternalStorageFormatter extends Service
 
     void updateProgressState() {
         String status = mStorageVolume == null ?
-                getExternalStorageState():
+                Environment.getExternalStorageState() :
                 mStorageManager.getVolumeState(mStorageVolume.getPath());
         if (Environment.MEDIA_MOUNTED.equals(status)
                 || Environment.MEDIA_MOUNTED_READ_ONLY.equals(status)) {
@@ -207,7 +163,7 @@ public class ExternalStorageFormatter extends Service
             updateProgressDialog(R.string.progress_erasing);
             final IMountService mountService = getMountService();
             final String extStoragePath = mStorageVolume == null ?
-                    getExternalStoragePath():
+                    Environment.getLegacyExternalStorageDirectory().toString() :
                     mStorageVolume.getPath();
             if (mountService != null) {
                 new Thread() {
@@ -268,8 +224,6 @@ public class ExternalStorageFormatter extends Service
             mProgressDialog.setIndeterminate(true);
             mProgressDialog.setCancelable(false);
             mProgressDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
-            mProgressDialog.getWindow().setFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-                                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL);
             mProgressDialog.show();
         }
 

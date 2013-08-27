@@ -390,14 +390,6 @@ restart:
     else ALOGW("Truncated writing to dispatch fd: %d", res);
 }
 
-#ifdef WITH_HOUDINI
-namespace houdini {
-void* hookDlopen(const char* filename, int flag, bool* useHoudini);
-void* hookDlsym(bool useHoudini, void* handle, const char* symbol);
-void  hookCreateActivity(bool useHoudini, void* createActivityFunc, void* activity, void*houdiniActivity, void* savedState, size_t savedStateSize);
-}
-#endif
-
 namespace android {
 
 // ------------------------------------------------------------------------
@@ -415,9 +407,6 @@ struct NativeCode : public ANativeActivity {
         inputChannel = NULL;
         nativeInputQueue = NULL;
         mainWorkRead = mainWorkWrite = -1;
-#ifdef WITH_HOUDINI
-        houdiniNativeActivity = NULL;
-#endif
     }
     
     ~NativeCode() {
@@ -443,10 +432,6 @@ struct NativeCode : public ANativeActivity {
             // is really no benefit to unloading the code.
             //dlclose(dlhandle);
         }
-#ifdef WITH_HOUDINI
-        if (houdiniNativeActivity != NULL)
-            delete houdiniNativeActivity;
-#endif
     }
     
     void setSurface(jobject _surface) {
@@ -497,9 +482,6 @@ struct NativeCode : public ANativeActivity {
     int mainWorkRead;
     int mainWorkWrite;
     sp<MessageQueue> messageQueue;
-#ifdef WITH_HOUDINI
-    ANativeActivity *houdiniNativeActivity;
-#endif
 };
 
 void android_NativeActivity_finish(ANativeActivity* activity) {
@@ -627,24 +609,14 @@ loadNativeCode_native(JNIEnv* env, jobject clazz, jstring path, jstring funcName
     const char* pathStr = env->GetStringUTFChars(path, NULL);
     NativeCode* code = NULL;
     
-#ifdef WITH_HOUDINI
-    bool useHoudini = false;
-    void* handle = houdini::hookDlopen(pathStr, RTLD_LAZY, &useHoudini);
-#else
     void* handle = dlopen(pathStr, RTLD_LAZY);
-#endif
     
     env->ReleaseStringUTFChars(path, pathStr);
     
     if (handle != NULL) {
         const char* funcStr = env->GetStringUTFChars(funcName, NULL);
-#ifdef WITH_HOUDINI
-        code = new NativeCode(handle, (ANativeActivity_createFunc*)
-                houdini::hookDlsym(useHoudini, handle, funcStr));
-#else
         code = new NativeCode(handle, (ANativeActivity_createFunc*)
                 dlsym(handle, funcStr));
-#endif
         env->ReleaseStringUTFChars(funcName, funcStr);
         
         if (code->createActivityFunc == NULL) {
@@ -712,21 +684,7 @@ loadNativeCode_native(JNIEnv* env, jobject clazz, jstring path, jstring funcName
             rawSavedSize = env->GetArrayLength(savedState);
         }
 
-#ifdef WITH_HOUDINI
-        if(useHoudini) {
-            /*
-             * If houdini is used, code is used by x86 code. So we create
-             * a houdini version for code. x86 version will store peer's
-             * pointer in houdiniNativeActivity each other.
-             */
-            code->houdiniNativeActivity = new ANativeActivity;
-            *code->houdiniNativeActivity = *(ANativeActivity *)code;
-        }
-
-        houdini::hookCreateActivity(useHoudini, (void*)code->createActivityFunc, (void*)code, (void*)code->houdiniNativeActivity, (void*)rawSavedState, rawSavedSize);
-#else
         code->createActivityFunc(code, rawSavedState, rawSavedSize);
-#endif
 
         if (rawSavedState != NULL) {
             env->ReleaseByteArrayElements(savedState, rawSavedState, 0);

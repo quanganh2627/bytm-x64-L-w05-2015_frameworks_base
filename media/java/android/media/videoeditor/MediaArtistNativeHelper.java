@@ -3296,9 +3296,6 @@ class MediaArtistNativeHelper {
             case AudioFormat.AAC:
                 retValue = MediaProperties.ACODEC_AAC_LC;
                 break;
-            case AudioFormat.AAC_PLUS:
-                retValue = MediaProperties.ACODEC_AAC_PLUS;
-                break;
             case AudioFormat.MP3:
                 retValue = MediaProperties.ACODEC_MP3;
                 break;
@@ -3693,7 +3690,6 @@ class MediaArtistNativeHelper {
         mPreviewEditSettings.outputFile = mOutputFilename = filePath;
 
         int aspectRatio = mVideoEditor.getAspectRatio();
-        int oldVideoFrameSize = mPreviewEditSettings.videoFrameSize;
         mPreviewEditSettings.videoFrameSize = findVideoResolution(aspectRatio, height);
         mPreviewEditSettings.videoFormat = mExportVideoCodec;
         mPreviewEditSettings.audioFormat = mExportAudioCodec;
@@ -3745,7 +3741,6 @@ class MediaArtistNativeHelper {
         }
 
         mExportProgressListener = null;
-        mPreviewEditSettings.videoFrameSize = oldVideoFrameSize;
     }
 
     /**

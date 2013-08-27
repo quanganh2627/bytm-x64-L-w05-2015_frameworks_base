@@ -827,9 +827,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     private int mCurrentScrollingLayerId;
     private Rect mScrollingLayerRect = new Rect();
 
-    private boolean mInSetNewPicture = false;
-    private boolean mDelayDestroyWebcore = false;
-
     // only trigger accelerated fling if the new velocity is at least
     // MINIMUM_VELOCITY_RATIO_FOR_ACCELERATION times of the previous velocity
     private static final float MINIMUM_VELOCITY_RATIO_FOR_ACCELERATION = 0.2f;
@@ -2133,10 +2130,11 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         }
     }
 
-    private void destroyWebCore() {
-        if (mInSetNewPicture) {
-            mDelayDestroyWebcore = true;
-            return;
+    private void destroyJava() {
+        mCallbackProxy.blockMessages();
+        if (mAccessibilityInjector != null) {
+            mAccessibilityInjector.destroy();
+            mAccessibilityInjector = null;
         }
         if (mWebViewCore != null) {
             // Tell WebViewCore to destroy itself
@@ -2144,35 +2142,10 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
                 WebViewCore webViewCore = mWebViewCore;
                 mWebViewCore = null; // prevent using partial webViewCore
                 webViewCore.destroy();
-                Log.d(LOGTAG, "WebViewCore destroyed");
             }
             // Remove any pending messages that might not be serviced yet.
             mPrivateHandler.removeCallbacksAndMessages(null);
         }
-        mDelayDestroyWebcore = false;
-    }
-
-    private void destroyJava() {
-        mCallbackProxy.blockMessages();
-        if (mAccessibilityInjector != null) {
-            mAccessibilityInjector.destroy();
-            mAccessibilityInjector = null;
-        }
-        // If there is Tab in BrowserActiviy, the Tab close will call
-        // WebView.destory directly. So we need clear HTML5VideoViewProxy
-        // here as well.
-        if (mHTML5VideoViewProxy != null) {
-        // we can't set mWebView to null in mHTML5VideoViewProxy because it may
-        // trigger NULL exception. Instead, we have a new member to track the
-        // WebView destroy.
-        mHTML5VideoViewProxy.markWebViewgone(true);
-
-        // We remove reference of HTML5VideoViewProxy here.
-        // FIXME: add interface to HTML5VideoViewProxy to remove reference
-        // of WebView because the WebView object is destroyed already.
-        setHTML5VideoViewProxy(null);
-        }
-        destroyWebCore();
     }
 
     private void destroyNative() {
@@ -2545,9 +2518,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void loadUrlImpl(String url, Map<String, String> extraHeaders) {
-        if (mWebViewCore == null) {
-            return;
-        }
         switchOutDrawHistory();
         WebViewCore.GetUrlData arg = new WebViewCore.GetUrlData();
         arg.mUrl = url;
@@ -2936,9 +2906,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
      */
     @Override
     public void requestFocusNodeHref(Message hrefMsg) {
-        if (mNativeClass == 0) { // in case the WebView.destroy is called.
-            return;
-        }
         if (hrefMsg == null) {
             return;
         }
@@ -3165,7 +3132,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         calcOurContentVisibleRect(mVisibleRect);
         // Rect.equals() checks for null input.
         if (!mVisibleRect.equals(mLastVisibleRectSent)) {
-            if (!mBlockWebkitViewMessages && (mNativeClass != 0)) {
+            if (!mBlockWebkitViewMessages) {
                 mScrollOffset.set(mVisibleRect.left, mVisibleRect.top);
                 mWebViewCore.removeMessages(EventHub.SET_SCROLL_OFFSET);
                 mWebViewCore.sendMessage(EventHub.SET_SCROLL_OFFSET,
@@ -3510,9 +3477,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
      */
     @Override
     public void onPause() {
-        if (mNativeClass == 0)
-            return;
-
         if (!mIsPaused) {
             mIsPaused = true;
             mWebViewCore.sendMessage(EventHub.ON_PAUSE);
@@ -3904,7 +3868,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void scrollLayerTo(int x, int y) {
-        if (0 == mNativeClass) return; // client isn't initialized
         int dx = mScrollingLayerRect.left - x;
         int dy = mScrollingLayerRect.top - y;
         if ((dx == 0 && dy == 0) || mNativeClass == 0) {
@@ -4485,7 +4448,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
      * Select the word at the indicated content coordinates.
      */
     boolean selectText(int x, int y) {
-        if (0 == mNativeClass) return false; // client isn't initialized
         if (mWebViewCore == null) {
             return false;
         }
@@ -4504,10 +4466,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         mOrientation = newConfig.orientation;
         if (mWebViewCore != null && !mBlockWebkitViewMessages) {
             mWebViewCore.sendMessage(EventHub.CLEAR_CONTENT);
-        }
-
-        if (mHTML5VideoViewProxy != null) {
-            mHTML5VideoViewProxy.setMediaControllerHided();
         }
     }
 
@@ -4682,7 +4640,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void drawTextSelectionHandles(Canvas canvas) {
-        if (0 == mNativeClass) return; // client isn't initialized
         if (mBaseAlpha.getAlpha() == 0 && mExtentAlpha.getAlpha() == 0) {
             return;
         }
@@ -4929,7 +4886,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
      * debug only
      */
     public void dumpDisplayTree() {
-        if (0 == mNativeClass) return; // client isn't initialized
         nativeDumpDisplayTree(getUrl());
     }
 
@@ -5886,7 +5842,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     * and the middle point for multi-touch.
     */
     private void handleTouchEventCommon(MotionEvent event, int action, int x, int y) {
-        if (0 == mNativeClass) return; // client isn't initialized
         ScaleGestureDetector detector = mZoomManager.getScaleGestureDetector();
 
         long eventTime = event.getEventTime();
@@ -6356,7 +6311,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void startDrag() {
-        if (0 == mNativeClass) return; // client isn't initialized
         WebViewCore.reducePriority();
         // to get better performance, pause updating the picture
         WebViewCore.pauseUpdatePicture(mWebViewCore);
@@ -6433,7 +6387,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void stopTouch() {
-        if (0 == mNativeClass) return; // client isn't initialized
         if (mScroller.isFinished() && !mSelectingText
                 && (mTouchMode == TOUCH_DRAG_MODE
                 || mTouchMode == TOUCH_DRAG_LAYER_MODE)) {
@@ -6466,7 +6419,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void cancelTouch() {
-        if (0 == mNativeClass) return; // client isn't initialized
         // we also use mVelocityTracker == null to tell us that we are
         // not "moving around", so we can take the slower/prettier
         // mode in the drawing code
@@ -6714,7 +6666,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void doTrackball(long time, int metaState) {
-        if (0 == mNativeClass) return; // client isn't initialized
         int elapsed = (int) (mTrackballLastTime - mTrackballFirstTime);
         if (elapsed == 0) {
             elapsed = TRACKBALL_TIMEOUT;
@@ -7966,20 +7917,14 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
 
     void setNewPicture(final WebViewCore.DrawData draw, boolean updateBaseLayer) {
         if (mNativeClass == 0) {
-            try {
-                if (mDelaySetPicture != null) {
-                   throw new IllegalStateException("Tried to setNewPicture with"
-                                 + " a delay picture already set! (memory leak)");
-                }
-            } catch (IllegalStateException e) {
-                Log.w(LOGTAG, "Exception"+e);
+            if (mDelaySetPicture != null) {
+                throw new IllegalStateException("Tried to setNewPicture with"
+                        + " a delay picture already set! (memory leak)");
             }
-
             // Not initialized yet, delay set
             mDelaySetPicture = draw;
             return;
         }
-        mInSetNewPicture = true;
         WebViewCore.ViewState viewState = draw.mViewState;
         boolean isPictureAfterFirstLayout = viewState != null;
 
@@ -8054,19 +7999,8 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
                 mPictureListener.onNewPicture(getWebView(), capturePicture());
             }
         }
-        if (viewRoot != null)
-        {
-            if ((!mWebView.isHardwareAccelerated()
-                    || mWebView.getLayerType() == View.LAYER_TYPE_SOFTWARE)) {
-                viewRoot.sendFakeVsync();
-            }
-        }
-
-        mInSetNewPicture = false;
-        if (mDelayDestroyWebcore) {
-            destroyWebCore();
-        }
     }
+
     /**
      * Used when receiving messages for REQUEST_KEYBOARD_WITH_SELECTION_MSG_ID
      * and UPDATE_TEXT_SELECTION_MSG_ID.
@@ -8576,15 +8510,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
      */
     public void setHTML5VideoViewProxy(HTML5VideoViewProxy proxy) {
         mHTML5VideoViewProxy = proxy;
-    }
-
-    /**
-     * Called by VideoViewProxy to resetBaseLayer for videoView
-     */
-    public void requestWebkitDraw() {
-        if (mWebViewCore != null) {
-            mWebViewCore.sendMessage(EventHub.WEBKIT_DRAW);
-        }
     }
 
     /**

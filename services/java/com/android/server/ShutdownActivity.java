@@ -41,9 +41,7 @@ public class ShutdownActivity extends Activity {
         Intent intent = getIntent();
         mReboot = Intent.ACTION_REBOOT.equals(intent.getAction());
         mConfirm = intent.getBooleanExtra(Intent.EXTRA_KEY_CONFIRM, false);
-        Slog.i(TAG, "[SHTDWN] onCreate():"
-                    + (mReboot ? "reboot" : "shutdown") + " required "
-                    + "confirm=" + mConfirm);
+        Slog.i(TAG, "onCreate(): confirm=" + mConfirm);
 
         Thread thr = new Thread("ShutdownActivity") {
             @Override

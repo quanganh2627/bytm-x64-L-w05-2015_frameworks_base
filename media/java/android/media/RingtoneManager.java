@@ -32,7 +32,6 @@ import android.provider.MediaStore;
 import android.provider.Settings;
 import android.provider.Settings.System;
 import android.util.Log;
-import android.content.CursorLoader;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -573,8 +572,7 @@ public class RingtoneManager {
             String[] selectionArgs,
             String sortOrder) {
         if (mActivity != null) {
-            CursorLoader loader = new CursorLoader(mActivity, uri, projection, selection, selectionArgs, sortOrder);
-            return loader.loadInBackground();
+            return mActivity.managedQuery(uri, projection, selection, selectionArgs, sortOrder);
         } else {
             return mContext.getContentResolver().query(uri, projection, selection, selectionArgs,
                     sortOrder);

@@ -458,20 +458,6 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
     }
 
     @Override // Binder call
-    public void stopScanWifiDisplays() {
-        final long token = Binder.clearCallingIdentity();
-        try {
-            synchronized (mSyncRoot) {
-                if (mWifiDisplayAdapter != null) {
-                    mWifiDisplayAdapter.requestStopScanLocked();
-                }
-            }
-        } finally {
-            Binder.restoreCallingIdentity(token);
-        }
-    }
-
-    @Override // Binder call
     public void connectWifiDisplay(String address) {
         if (address == null) {
             throw new IllegalArgumentException("address must not be null");
@@ -497,20 +483,6 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
             synchronized (mSyncRoot) {
                 if (mWifiDisplayAdapter != null) {
                     mWifiDisplayAdapter.requestDisconnectLocked();
-                }
-            }
-        } finally {
-            Binder.restoreCallingIdentity(token);
-        }
-    }
-
-    @Override // Binder call
-    public void reconnectWifiDisplay() {
-        final long token = Binder.clearCallingIdentity();
-        try {
-            synchronized (mSyncRoot) {
-                if (mWifiDisplayAdapter != null) {
-                    mWifiDisplayAdapter.requestReconnectLocked();
                 }
             }
         } finally {
@@ -843,12 +815,6 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
         } else {
             boolean isBlanked = (mAllDisplayBlankStateFromPowerManager
                     == DISPLAY_BLANK_STATE_BLANKED);
-            if (isBlanked && display.hasContentLocked()
-                    && display != mLogicalDisplays.get(Display.DEFAULT_DISPLAY)) {
-                // Display has unique content, meaning there is a background
-                // presentation on this display, so override isBlanked.
-                isBlanked = false;
-            }
             display.configureDisplayInTransactionLocked(device, isBlanked);
         }
 
@@ -1012,23 +978,6 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
     private final class DisplayManagerHandler extends Handler {
         public DisplayManagerHandler(Looper looper) {
             super(looper, null, true /*async*/);
-        }
-
-        @Override
-        public String getMessageName(Message msg) {
-            switch (msg.what) {
-                case MSG_REGISTER_DEFAULT_DISPLAY_ADAPTER:
-                    return "MSG_REGISTER_DEFAULT_DISPLAY_ADAPTER";
-                case MSG_REGISTER_ADDITIONAL_DISPLAY_ADAPTERS:
-                    return "MSG_REGISTER_ADDITIONAL_DISPLAY_ADAPTERS";
-                case MSG_DELIVER_DISPLAY_EVENT:
-                    return "MSG_DELIVER_DISPLAY_EVENT";
-                case MSG_REQUEST_TRAVERSAL:
-                    return "MSG_REQUEST_TRAVERSAL";
-                case MSG_UPDATE_VIEWPORT:
-                    return "MSG_UPDATE_VIEWPORT";
-            }
-            return super.getMessageName(msg);
         }
 
         @Override
