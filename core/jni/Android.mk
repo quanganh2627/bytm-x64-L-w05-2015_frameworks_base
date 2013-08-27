@@ -11,12 +11,8 @@ else
 	LOCAL_CFLAGS += -DPACKED=""
 endif
 
-ifeq ($(WITH_JIT),true)
-	LOCAL_CFLAGS += -DWITH_JIT
-endif
-
-ifneq ($(USE_CUSTOM_RUNTIME_HEAP_MAX),)
-  LOCAL_CFLAGS += -DCUSTOM_RUNTIME_HEAP_MAX=$(USE_CUSTOM_RUNTIME_HEAP_MAX)
+ifeq ($(INTEL_INGREDIENTS_VERSIONS), true)
+    LOCAL_CFLAGS += -DRETRIEVE_INGREDIENTS_VERSIONS
 endif
 
 ifeq ($(USE_OPENGL_RENDERER),true)
@@ -33,11 +29,13 @@ LOCAL_SRC_FILES:= \
 	com_google_android_gles_jni_GLImpl.cpp.arm \
 	android_app_NativeActivity.cpp \
 	android_opengl_EGL14.cpp \
+	android_opengl_EGLExt.cpp \
 	android_opengl_GLES10.cpp \
 	android_opengl_GLES10Ext.cpp \
 	android_opengl_GLES11.cpp \
 	android_opengl_GLES11Ext.cpp \
 	android_opengl_GLES20.cpp \
+	android_opengl_GLES30.cpp \
 	android_database_CursorWindow.cpp \
 	android_database_SQLiteCommon.cpp \
 	android_database_SQLiteConnection.cpp \
@@ -46,11 +44,14 @@ LOCAL_SRC_FILES:= \
 	android_emoji_EmojiFactory.cpp \
 	android_view_DisplayEventReceiver.cpp \
 	android_view_Surface.cpp \
+	android_view_SurfaceControl.cpp \
 	android_view_SurfaceSession.cpp \
 	android_view_TextureView.cpp \
 	android_view_InputChannel.cpp \
 	android_view_InputDevice.cpp \
 	android_view_InputEventReceiver.cpp \
+	android_view_InputEventSender.cpp \
+	android_view_InputQueue.cpp \
 	android_view_KeyEvent.cpp \
 	android_view_KeyCharacterMap.cpp \
 	android_view_HardwareRenderer.cpp \
@@ -95,7 +96,7 @@ LOCAL_SRC_FILES:= \
 	android/graphics/DrawFilter.cpp \
 	android/graphics/CreateJavaOutputStreamAdaptor.cpp \
 	android/graphics/Graphics.cpp \
-	android/graphics/HarfbuzzSkia.cpp \
+	android/graphics/HarfBuzzNGFaceSkia.cpp \
 	android/graphics/Interpolator.cpp \
 	android/graphics/LayerRasterizer.cpp \
 	android/graphics/MaskFilter.cpp \
@@ -149,7 +150,8 @@ LOCAL_SRC_FILES:= \
 	android_app_backup_FullBackup.cpp \
 	android_content_res_ObbScanner.cpp \
 	android_content_res_Configuration.cpp \
-    android_animation_PropertyValuesHolder.cpp
+	android_animation_PropertyValuesHolder.cpp \
+	com_android_internal_net_NetworkStatsFactory.cpp
 
 LOCAL_C_INCLUDES += \
 	$(JNI_H_INCLUDE) \
@@ -159,12 +161,13 @@ LOCAL_C_INCLUDES += \
 	$(call include-path-for, bluedroid) \
 	$(call include-path-for, libhardware)/hardware \
 	$(call include-path-for, libhardware_legacy)/hardware_legacy \
- $(TOP)/frameworks/av/include \
+	$(TOP)/frameworks/av/include \
 	external/skia/include/core \
 	external/skia/include/effects \
 	external/skia/include/images \
 	external/skia/include/ports \
-	external/skia/src/ports \
+	external/skia/src/core \
+	external/skia/src/images \
 	external/skia/include/utils \
 	external/sqlite/dist \
 	external/sqlite/android \
@@ -174,8 +177,7 @@ LOCAL_C_INCLUDES += \
 	external/icu4c/i18n \
 	external/icu4c/common \
 	external/jpeg \
-	external/harfbuzz/contrib \
-	external/harfbuzz/src \
+	external/harfbuzz_ng/src \
 	external/zlib \
 	frameworks/opt/emoji \
 	libcore/include
@@ -184,6 +186,7 @@ LOCAL_SHARED_LIBRARIES := \
 	libandroidfw \
 	libexpat \
 	libnativehelper \
+	liblog \
 	libcutils \
 	libutils \
 	libbinder \
@@ -200,24 +203,18 @@ LOCAL_SHARED_LIBRARIES := \
 	libETC1 \
 	libhardware \
 	libhardware_legacy \
+	libselinux \
 	libsonivox \
 	libcrypto \
 	libssl \
 	libicuuc \
 	libicui18n \
 	libmedia \
-	libmedia_native \
 	libwpa_client \
 	libjpeg \
 	libusbhost \
-	libharfbuzz \
+	libharfbuzz_ng \
 	libz
-
-ifeq ($(HAVE_SELINUX),true)
-LOCAL_C_INCLUDES += external/libselinux/include
-LOCAL_SHARED_LIBRARIES += libselinux
-LOCAL_CFLAGS += -DHAVE_SELINUX
-endif # HAVE_SELINUX
 
 ifeq ($(USE_OPENGL_RENDERER),true)
 	LOCAL_SHARED_LIBRARIES += libhwui
@@ -233,6 +230,11 @@ LOCAL_LDLIBS += -lpthread -ldl
 
 ifeq ($(WITH_MALLOC_LEAK_CHECK),true)
 	LOCAL_CFLAGS += -DMALLOC_LEAK_CHECK
+endif
+
+ifeq ($(INTEL_HOUDINI), true)
+    LOCAL_CFLAGS += -DWITH_HOUDINI
+    LOCAL_STATIC_LIBRARIES += libhoudini_hook
 endif
 
 LOCAL_MODULE:= libandroid_runtime

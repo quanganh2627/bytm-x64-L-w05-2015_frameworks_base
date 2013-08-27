@@ -187,4 +187,14 @@ public interface TelephonyProperties
      * Ignore RIL_UNSOL_NITZ_TIME_RECEIVED completely, used for debugging/testing.
      */
     static final String PROPERTY_IGNORE_NITZ = "telephony.test.ignore.nitz";
+
+    /**
+     * This property when set to true, the platform supports SIM HotSwap.
+     */
+    static final String PROPERTY_HOT_SWAP_SUPPORT = "persist.tel.hot_swap.support";
+
+    /**
+     * This property when set to true, the platform supports LTE and GSM specific features.
+     */
+    static final String PROPERTY_LTE_ON_GSM_DEVICE = "persist.tel.lteOnGsmDevice";
 }

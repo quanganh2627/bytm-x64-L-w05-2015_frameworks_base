@@ -116,7 +116,7 @@ public class WebSettingsClassic extends WebSettings {
     private boolean         mNeedInitialFocus = true;
     private boolean         mNavDump = false;
     private boolean         mSupportZoom = true;
-    private boolean         mMediaPlaybackRequiresUserGesture = true;
+    private boolean         mMediaPlaybackRequiresUserGesture = false;
     private boolean         mBuiltInZoomControls = false;
     private boolean         mDisplayZoomControls = true;
     private boolean         mAllowFileAccess = true;
@@ -647,10 +647,6 @@ public class WebSettingsClassic extends WebSettings {
     @Override
     public synchronized void setTextZoom(int textZoom) {
         if (mTextSize != textZoom) {
-            if (WebViewClassic.mLogEvent) {
-                EventLog.writeEvent(EventLogTags.BROWSER_TEXT_SIZE_CHANGE,
-                        mTextSize, textZoom);
-            }
             mTextSize = textZoom;
             postSync();
         }
@@ -820,6 +816,10 @@ public class WebSettingsClassic extends WebSettings {
      */
     @Override
     public synchronized void setLayoutAlgorithm(LayoutAlgorithm l) {
+        if (l == LayoutAlgorithm.TEXT_AUTOSIZING) {
+            throw new IllegalArgumentException(
+                    "WebViewClassic does not support TEXT_AUTOSIZING layout mode");
+        }
         // XXX: This will only be affective if libwebcore was built with
         // ANDROID_LAYOUT defined.
         if (mLayoutAlgorithm != l) {

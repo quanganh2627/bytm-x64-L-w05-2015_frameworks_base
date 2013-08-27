@@ -116,6 +116,12 @@ public class Process {
     public static final int NFC_UID = 1027;
 
     /**
+     * Defines the UID/GID for the SmartCard service process.
+     * @hide
+     */
+    public static final int SMARTCARD_UID = 1029;
+
+    /**
      * Defines the UID/GID for the Bluetooth service process.
      * @hide
      */
@@ -164,11 +170,6 @@ public class Process {
      * @hide
      */
     public static final int LAST_SHARED_APPLICATION_GID = 59999;
-
-    /**
-     * Defines a secondary group id for access to the bluetooth hardware.
-     */
-    public static final int BLUETOOTH_GID = 2000;
 
     /**
      * Standard priority of application threads.
@@ -806,7 +807,15 @@ public class Process {
      */
     public static final native void setProcessGroup(int pid, int group)
             throws IllegalArgumentException, SecurityException;
-    
+
+    /**
+     * Return the scheduling group of requested process.
+     *
+     * @hide
+     */
+    public static final native int getProcessGroup(int pid)
+            throws IllegalArgumentException, SecurityException;
+
     /**
      * Set the priority of the calling thread, based on Linux priorities.  See
      * {@link #setThreadPriority(int, int)} for more information.

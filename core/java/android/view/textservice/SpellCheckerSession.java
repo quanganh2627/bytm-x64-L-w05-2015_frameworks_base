@@ -170,6 +170,7 @@ public class SpellCheckerSession {
         try {
             mSpellCheckerSessionListenerImpl.close();
             mTextServicesManager.finishSpellCheckerService(mSpellCheckerSessionListenerImpl);
+            mSpellCheckerSessionListener = null;
         } catch (RemoteException e) {
             // do nothing
         }
@@ -214,11 +215,15 @@ public class SpellCheckerSession {
     }
 
     private void handleOnGetSuggestionsMultiple(SuggestionsInfo[] suggestionInfos) {
-        mSpellCheckerSessionListener.onGetSuggestions(suggestionInfos);
+        if (mIsUsed) {
+            mSpellCheckerSessionListener.onGetSuggestions(suggestionInfos);
+        }
     }
 
     private void handleOnGetSentenceSuggestionsMultiple(SentenceSuggestionsInfo[] suggestionInfos) {
-        mSpellCheckerSessionListener.onGetSentenceSuggestions(suggestionInfos);
+        if (mIsUsed) {
+            mSpellCheckerSessionListener.onGetSentenceSuggestions(suggestionInfos);
+        }
     }
 
     private static class SpellCheckerSessionListenerImpl extends ISpellCheckerSessionListener.Stub {
@@ -408,6 +413,13 @@ public class SpellCheckerSession {
                     mPendingTasks.offer(scp);
                     if (closeTask != null) {
                         mPendingTasks.offer(closeTask);
+                    } else if (scp.mWhat == TASK_CLOSE) {
+                        // Close asked but the session was not opened...
+                        // Set mHandler to NULL to avoid to prevent
+                        // the GC to collect the related activity
+                        synchronized (this) {
+                            mHandler = null;
+                        }
                     }
                     return;
                 }

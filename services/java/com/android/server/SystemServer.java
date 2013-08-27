@@ -16,29 +16,27 @@
 
 package com.android.server;
 
-import android.accounts.AccountManagerService;
 import android.app.ActivityManagerNative;
 import android.bluetooth.BluetoothAdapter;
 import android.content.ComponentName;
 import android.content.ContentResolver;
-import android.content.ContentService;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.IPackageManager;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.media.AudioService;
 import android.net.wifi.p2p.WifiP2pService;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.RemoteException;
-import android.os.SchedulingPolicyService;
 import android.os.ServiceManager;
 import android.os.StrictMode;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.UserHandle;
-import android.server.search.SearchManagerService;
 import android.service.dreams.DreamService;
 import android.util.DisplayMetrics;
 import android.util.EventLog;
@@ -48,22 +46,27 @@ import android.view.WindowManager;
 
 import com.android.internal.os.BinderInternal;
 import com.android.internal.os.SamplingProfilerIntegration;
-import com.android.internal.widget.LockSettingsService;
 import com.android.server.accessibility.AccessibilityManagerService;
+import com.android.server.accounts.AccountManagerService;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.am.BatteryStatsService;
+import com.android.server.content.ContentService;
 import com.android.server.display.DisplayManagerService;
 import com.android.server.dreams.DreamManagerService;
 import com.android.server.input.InputManagerService;
 import com.android.server.net.NetworkPolicyManagerService;
 import com.android.server.net.NetworkStatsService;
+import com.android.server.os.SchedulingPolicyService;
 import com.android.server.pm.Installer;
 import com.android.server.pm.PackageManagerService;
 import com.android.server.pm.UserManagerService;
 import com.android.server.power.PowerManagerService;
 import com.android.server.power.ShutdownThread;
+import com.android.server.search.SearchManagerService;
 import com.android.server.usb.UsbService;
+import com.android.server.wifi.WifiService;
 import com.android.server.wm.WindowManagerService;
+import com.intel.multidisplay.DisplayObserver;
 
 import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
@@ -127,6 +130,7 @@ class ServerThread extends Thread {
         PowerManagerService power = null;
         DisplayManagerService display = null;
         BatteryService battery = null;
+        CurrentMgmtService current = null;
         VibratorService vibrator = null;
         AlarmManagerService alarm = null;
         MountService mountService = null;
@@ -147,8 +151,8 @@ class ServerThread extends Thread {
         TwilightService twilight = null;
         UiModeManagerService uiMode = null;
         RecognitionManagerService recognition = null;
-        ThrottleService throttle = null;
         NetworkTimeUpdateService networkTimeUpdater = null;
+        ThermalService thermalservice = null;
         CommonTimeManagementService commonTimeMgmtService = null;
         InputManagerService inputManager = null;
         TelephonyRegistry telephonyRegistry = null;
@@ -207,9 +211,6 @@ class ServerThread extends Thread {
             installer = new Installer();
             installer.ping();
 
-            Slog.i(TAG, "Entropy Mixer");
-            ServiceManager.addService("entropy", new EntropyMixer());
-
             Slog.i(TAG, "Power Manager");
             power = new PowerManagerService();
             ServiceManager.addService(Context.POWER_SERVICE, power);
@@ -257,11 +258,13 @@ class ServerThread extends Thread {
             }
 
             ActivityManagerService.setSystemProcess();
-            
+
+            Slog.i(TAG, "Entropy Mixer");
+            ServiceManager.addService("entropy", new EntropyMixer(context));
+
             Slog.i(TAG, "User Service");
             ServiceManager.addService(Context.USER_SERVICE,
                     UserManagerService.getInstance());
-
 
             mContentResolver = context.getContentResolver();
 
@@ -284,9 +287,22 @@ class ServerThread extends Thread {
             Slog.i(TAG, "Lights Service");
             lights = new LightsService(context);
 
+            //THERMAL
+            if ("1".equals(SystemProperties.get("persist.service.thermal", "0"))) {
+               Slog.i(TAG, "Thermal Service enabled");
+               thermalservice = new ThermalService(context);
+               ServiceManager.addService("thermalservice", thermalservice);
+            } else {
+               Log.i(TAG, "Thermal Service disabled");
+            }
+
             Slog.i(TAG, "Battery Service");
             battery = new BatteryService(context, lights);
             ServiceManager.addService("battery", battery);
+
+            Slog.i(TAG, "Current Mgmt Service");
+            current = new CurrentMgmtService(context);
+            ServiceManager.addService("current", current);
 
             Slog.i(TAG, "Vibrator Service");
             vibrator = new VibratorService(context);
@@ -331,6 +347,9 @@ class ServerThread extends Thread {
                 Slog.i(TAG, "No Bluetooh Service (emulator)");
             } else if (factoryTest == SystemServer.FACTORY_TEST_LOW_LEVEL) {
                 Slog.i(TAG, "No Bluetooth Service (factory test)");
+            } else if (!context.getPackageManager().hasSystemFeature
+                       (PackageManager.FEATURE_BLUETOOTH)) {
+                Slog.i(TAG, "No Bluetooth Service (Bluetooth Hardware Not Present)");
             } else {
                 Slog.i(TAG, "Bluetooth Manager Service");
                 bluetooth = new BluetoothManagerService(context);
@@ -513,15 +532,6 @@ class ServerThread extends Thread {
             }
 
             try {
-                Slog.i(TAG, "Throttle Service");
-                throttle = new ThrottleService(context);
-                ServiceManager.addService(
-                        Context.THROTTLE_SERVICE, throttle);
-            } catch (Throwable e) {
-                reportWtf("starting ThrottleService", e);
-            }
-
-            try {
                 Slog.i(TAG, "UpdateLock Service");
                 ServiceManager.addService(Context.UPDATE_LOCK_SERVICE,
                         new UpdateLockService(context));
@@ -534,7 +544,8 @@ class ServerThread extends Thread {
              * AppWidget Provider. Make sure MountService is completely started
              * first before continuing.
              */
-            if (mountService != null) {
+            if (mountService != null &&
+                   !ENCRYPTING_STATE.equals(SystemProperties.get("vold.decrypt"))) {
                 mountService.waitForAsecScan();
             }
 
@@ -621,6 +632,14 @@ class ServerThread extends Thread {
                 } catch (Throwable e) {
                     reportWtf("starting Audio Service", e);
                 }
+            }
+
+            try {
+                Slog.i(TAG, "Intel Display Observer");
+                // Listen for display changes
+                DisplayObserver dso = new DisplayObserver(context);
+            } catch (Throwable e) {
+                reportWtf("starting Intel DisplayObserver", e);
             }
 
             try {
@@ -748,6 +767,13 @@ class ServerThread extends Thread {
                     reportWtf("starting DreamManagerService", e);
                 }
             }
+
+            try {
+                Slog.i(TAG, "IdleMaintenanceService");
+                new IdleMaintenanceService(context, battery);
+            } catch (Throwable e) {
+                reportWtf("starting IdleMaintenanceService", e);
+            }
         }
 
         // Before things start rolling, be sure we have decided whether
@@ -841,7 +867,6 @@ class ServerThread extends Thread {
         final ConnectivityService connectivityF = connectivity;
         final DockObserver dockF = dock;
         final UsbService usbF = usb;
-        final ThrottleService throttleF = throttle;
         final TwilightService twilightF = twilight;
         final UiModeManagerService uiModeF = uiMode;
         final AppWidgetService appWidgetF = appWidget;
@@ -867,6 +892,11 @@ class ServerThread extends Thread {
             public void run() {
                 Slog.i(TAG, "Making services ready");
 
+                try {
+                    ActivityManagerService.self().startObservingNativeCrashes();
+                } catch (Throwable e) {
+                    reportWtf("observing native crashes", e);
+                }
                 if (!headless) startSystemUi(contextF);
                 try {
                     if (mountServiceF != null) mountServiceF.systemReady();
@@ -952,11 +982,6 @@ class ServerThread extends Thread {
                     if (countryDetectorF != null) countryDetectorF.systemReady();
                 } catch (Throwable e) {
                     reportWtf("making Country Detector Service ready", e);
-                }
-                try {
-                    if (throttleF != null) throttleF.systemReady();
-                } catch (Throwable e) {
-                    reportWtf("making Throttle Service ready", e);
                 }
                 try {
                     if (networkTimeUpdaterF != null) networkTimeUpdaterF.systemReady();
@@ -1059,6 +1084,8 @@ public class SystemServer {
         // The system server has to run all of the time, so it needs to be
         // as efficient as possible with its memory usage.
         VMRuntime.getRuntime().setTargetHeapUtilization(0.8f);
+
+        Environment.setUserRequired(true);
 
         System.loadLibrary("android_servers");
         init1(args);

@@ -42,7 +42,7 @@ interface ITelephony {
      * Place a call to the specified number.
      * @param number the number to be called.
      */
-    void call(String number);
+    void call(String callingPackage, String number);
 
     /**
      * If there is currently a call in progress, show the call screen.
@@ -174,6 +174,11 @@ interface ITelephony {
     boolean setRadio(boolean turnOn);
 
     /**
+     * Set the radio to on or off unconditionally
+     */
+    boolean setRadioPower(boolean turnOn);
+
+    /**
      * Request to update location information in service state
      */
     void updateServiceLocation();
@@ -218,7 +223,7 @@ interface ITelephony {
     /**
      * Returns the neighboring cell information of the device.
      */
-    List<NeighboringCellInfo> getNeighboringCellInfo();
+    List<NeighboringCellInfo> getNeighboringCellInfo(String callingPkg);
 
      int getCallState();
      int getDataActivity();
@@ -261,9 +266,19 @@ interface ITelephony {
     int getVoiceMessageCount();
 
     /**
-      * Returns the network type
+      * Returns the network type for data transmission
       */
     int getNetworkType();
+
+    /**
+      * Returns the network type for data transmission
+      */
+    int getDataNetworkType();
+
+    /**
+      * Returns the network type for voice
+      */
+    int getVoiceNetworkType();
 
     /**
      * Return true if an ICC card is present
@@ -284,5 +299,45 @@ interface ITelephony {
      * Returns the all observed cell information of the device.
      */
     List<CellInfo> getAllCellInfo();
+
+    /**
+     * Sets minimum time in milli-seconds between onCellInfoChanged
+     */
+    void setCellInfoListRate(int rateInMillis);
+
+    /**
+     * Returns the response APDU for a command APDU sent to a logical channel
+     */
+    String transmitIccLogicalChannel(int cla, int command, int channel,
+            int p1, int p2, int p3, String data);
+
+    /**
+     * Returns the response APDU for a command APDU sent to the basic channel
+     */
+    String transmitIccBasicChannel(int cla, int command,
+            int p1, int p2, int p3, String data);
+
+    /**
+     * Returns the channel id of the logical channel,
+     * Returns 0 on error.
+     */
+    int openIccLogicalChannel(String AID);
+
+    /**
+     * Return true if logical channel was closed successfully
+     */
+    boolean closeIccLogicalChannel(int channel);
+
+    /**
+     * Returns the error code of the last error occured.
+     * Currently only used for openIccLogicalChannel
+     */
+    int getLastError();
+
+    /**
+     * Returns the response APDU for a command APDU sent through SIM_IO
+     */
+    byte[] transmitIccSimIO(int fileID, int command,
+            int p1, int p2, int p3, String filePath);
 }
 

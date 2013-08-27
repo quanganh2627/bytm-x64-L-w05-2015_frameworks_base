@@ -14,6 +14,7 @@ LOCAL_SRC_FILES:= \
     com_android_server_UsbDeviceManager.cpp \
     com_android_server_UsbHostManager.cpp \
     com_android_server_VibratorService.cpp \
+    com_android_server_CurrentMgmtService.cpp \
     com_android_server_location_GpsLocationProvider.cpp \
     com_android_server_connectivity_Vpn.cpp \
     onload.cpp
@@ -32,6 +33,7 @@ LOCAL_SHARED_LIBRARIES := \
     libandroid_runtime \
     libandroidfw \
     libcutils \
+    liblog \
     libhardware \
     libhardware_legacy \
     libnativehelper \
@@ -43,6 +45,14 @@ LOCAL_SHARED_LIBRARIES := \
     libgui \
     libusbhost \
     libsuspend
+
+ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
+    LOCAL_SHARED_LIBRARIES += \
+        libmultidisplay \
+        libbinder \
+        libmultidisplayjni
+    LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
+endif
 
 ifeq ($(WITH_MALLOC_LEAK_CHECK),true)
     LOCAL_CFLAGS += -DMALLOC_LEAK_CHECK

@@ -34,6 +34,7 @@ import android.hardware.usb.UsbInterface;
 import android.hardware.usb.UsbManager;
 import android.os.Binder;
 import android.os.Environment;
+import android.os.Process;
 import android.os.UserHandle;
 import android.util.AtomicFile;
 import android.util.Log;
@@ -364,8 +365,9 @@ class UsbSettingsManager {
         }
 
         @Override
-        public void onPackageChanged(String packageName, int uid, String[] components) {
+        public boolean onPackageChanged(String packageName, int uid, String[] components) {
             handlePackageUpdate(packageName);
+            return false;
         }
 
         @Override
@@ -613,13 +615,13 @@ class UsbSettingsManager {
             // Launch our default activity directly, if we have one.
             // Otherwise we will start the UsbResolverActivity to allow the user to choose.
             defaultPackage = mDevicePreferenceMap.get(new DeviceFilter(device));
+            // Send broadcast to running activity with registered intent
+            mUserContext.sendBroadcast(intent);
+            if (DEBUG) Slog.d(TAG, "usbDeviceAdded, sending " + intent);
+            // Start activity with registered intent
+            resolveActivity(intent, matches, defaultPackage, device, null);
         }
 
-        // Send broadcast to running activity with registered intent
-        mUserContext.sendBroadcast(intent);
-
-        // Start activity with registered intent
-        resolveActivity(intent, matches, defaultPackage, device, null);
     }
 
     public void deviceDetached(UsbDevice device) {
@@ -852,21 +854,29 @@ class UsbSettingsManager {
 
     public boolean hasPermission(UsbDevice device) {
         synchronized (mLock) {
+            int uid = Binder.getCallingUid();
+            if (uid == Process.SYSTEM_UID) {
+                return true;
+            }
             SparseBooleanArray uidList = mDevicePermissionMap.get(device.getDeviceName());
             if (uidList == null) {
                 return false;
             }
-            return uidList.get(Binder.getCallingUid());
+            return uidList.get(uid);
         }
     }
 
     public boolean hasPermission(UsbAccessory accessory) {
         synchronized (mLock) {
+            int uid = Binder.getCallingUid();
+            if (uid == Process.SYSTEM_UID) {
+                return true;
+            }
             SparseBooleanArray uidList = mAccessoryPermissionMap.get(accessory);
             if (uidList == null) {
                 return false;
             }
-            return uidList.get(Binder.getCallingUid());
+            return uidList.get(uid);
         }
     }
 
@@ -919,6 +929,7 @@ class UsbSettingsManager {
       if (hasPermission(device)) {
             intent.putExtra(UsbManager.EXTRA_DEVICE, device);
             intent.putExtra(UsbManager.EXTRA_PERMISSION_GRANTED, true);
+            intent.setPackage(packageName);
             try {
                 pi.send(mUserContext, 0, intent);
             } catch (PendingIntent.CanceledException e) {
@@ -939,6 +950,7 @@ class UsbSettingsManager {
         if (hasPermission(accessory)) {
             intent.putExtra(UsbManager.EXTRA_ACCESSORY, accessory);
             intent.putExtra(UsbManager.EXTRA_PERMISSION_GRANTED, true);
+            intent.setPackage(packageName);
             try {
                 pi.send(mUserContext, 0, intent);
             } catch (PendingIntent.CanceledException e) {

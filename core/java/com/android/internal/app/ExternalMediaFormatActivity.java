@@ -26,7 +26,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
 import android.util.Log;
-
+import android.os.storage.StorageVolume;
+import android.os.storage.StorageManager;
 /**
  * This activity is shown to the user to confirm formatting of external media.
  * It uses the alert dialog style. It will be launched from a notification, or from settings
@@ -34,6 +35,8 @@ import android.util.Log;
 public class ExternalMediaFormatActivity extends AlertActivity implements DialogInterface.OnClickListener {
 
     private static final int POSITIVE_BUTTON = AlertDialog.BUTTON_POSITIVE;
+    private StorageVolume mStorageVolume;
+    private StorageManager mStorageManager;
 
     /** Used to detect when the media state changes, in case we need to call finish() */
     private BroadcastReceiver mStorageReceiver = new BroadcastReceiver() {
@@ -56,6 +59,7 @@ public class ExternalMediaFormatActivity extends AlertActivity implements Dialog
         super.onCreate(savedInstanceState);
 
         Log.d("ExternalMediaFormatActivity", "onCreate!");
+        mStorageManager = (StorageManager) getSystemService(Context.STORAGE_SERVICE);
         // Set up the "dialog"
         final AlertController.AlertParams p = mAlertParams;
         p.mIconId = com.android.internal.R.drawable.stat_sys_warning;
@@ -95,7 +99,19 @@ public class ExternalMediaFormatActivity extends AlertActivity implements Dialog
         if (which == POSITIVE_BUTTON) {
             Intent intent = new Intent(ExternalStorageFormatter.FORMAT_ONLY);
             intent.setComponent(ExternalStorageFormatter.COMPONENT_NAME);
-            startService(intent);
+            StorageVolume[] storageVolumes = mStorageManager.getVolumeList();
+            if ( storageVolumes != null && storageVolumes.length > 1 ) {
+                //Transfer the storage volume to the new intent
+                mStorageVolume = getIntent().getParcelableExtra(
+                    StorageVolume.EXTRA_STORAGE_VOLUME);
+                if( mStorageVolume != null ) {
+                    intent.putExtra(StorageVolume.EXTRA_STORAGE_VOLUME,mStorageVolume);
+                    Log.d("ExternalMediaFormatActivity","onClick! storage path is " + mStorageVolume.getPath());
+                } else {
+                    Log.d("ExternalMediaFormatActivity","onClick! There is no extra storage volume!");
+                }
+            }
+           startService(intent);
         }
 
         // No matter what, finish the activity

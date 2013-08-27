@@ -52,6 +52,7 @@ LOCAL_SHARED_LIBRARIES := \
     libaudioutils \
     libbinder \
     libcutils \
+    liblog \
     libdl \
     libgui \
     libmedia \
@@ -74,6 +75,12 @@ LOCAL_CFLAGS += \
     -DUSE_STAGEFRIGHT_VIDEOENC \
     -DUSE_STAGEFRIGHT_READERS \
     -DUSE_STAGEFRIGHT_3GPP_READER
+
+ifeq ($(USE_VIDEOEDITOR_INTEL_NV12_VERSION),true)
+LOCAL_STATIC_LIBRARIES := liblvpp_intel
+LOCAL_CFLAGS += -DVIDEOEDITOR_INTEL_NV12_VERSION
+LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/videoeditornv12
+endif
 
 LOCAL_MODULE:= libvideoeditor_jni
 

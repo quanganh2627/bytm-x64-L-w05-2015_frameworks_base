@@ -18,14 +18,11 @@ package android.net.wifi;
 
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pGroup;
-import android.net.wifi.p2p.WifiP2pDevice;
 import android.text.TextUtils;
 import android.net.wifi.p2p.nsd.WifiP2pServiceInfo;
-import android.net.wifi.p2p.nsd.WifiP2pServiceRequest;
 import android.util.Log;
+import android.os.SystemProperties;
 
-import java.io.InputStream;
-import java.lang.Process;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -42,11 +39,14 @@ public class WifiNative {
 
     private static final boolean DBG = false;
     private final String mTAG;
-    private static final int DEFAULT_GROUP_OWNER_INTENT = 7;
+    private static final int DEFAULT_GROUP_OWNER_INTENT     = 6;
 
-    static final int BLUETOOTH_COEXISTENCE_MODE_ENABLED = 0;
-    static final int BLUETOOTH_COEXISTENCE_MODE_DISABLED = 1;
-    static final int BLUETOOTH_COEXISTENCE_MODE_SENSE = 2;
+    static final int BLUETOOTH_COEXISTENCE_MODE_ENABLED     = 0;
+    static final int BLUETOOTH_COEXISTENCE_MODE_DISABLED    = 1;
+    static final int BLUETOOTH_COEXISTENCE_MODE_SENSE       = 2;
+
+    static final int SCAN_WITHOUT_CONNECTION_SETUP          = 1;
+    static final int SCAN_WITH_CONNECTION_SETUP             = 2;
 
     String mInterface = "";
     private boolean mSuspendOptEnabled = false;
@@ -66,6 +66,15 @@ public class WifiNative {
     private native boolean connectToSupplicant(String iface);
 
     private native void closeSupplicantConnection(String iface);
+
+    /* Wifi_Hotspot */
+    public native static boolean connectToHostapd();
+
+    /* Wifi_Hotspot */
+    public native static void closeHostapdConnection();
+
+    /* Wifi_Hotspot */
+    public native String getWifiApStationList();
 
     /**
      * Wait for the supplicant to send an event, returning the event string.
@@ -116,15 +125,13 @@ public class WifiNative {
         return (pong != null && pong.equals("PONG"));
     }
 
-    public boolean scan() {
-       return doBooleanCommand("SCAN");
-    }
-
-    public boolean setScanMode(boolean setActive) {
-        if (setActive) {
-            return doBooleanCommand("DRIVER SCAN-ACTIVE");
+    public boolean scan(int type) {
+        if (type == SCAN_WITHOUT_CONNECTION_SETUP) {
+            return doBooleanCommand("SCAN TYPE=ONLY");
+        } else if (type == SCAN_WITH_CONNECTION_SETUP) {
+            return doBooleanCommand("SCAN");
         } else {
-            return doBooleanCommand("DRIVER SCAN-PASSIVE");
+            throw new IllegalArgumentException("Invalid scan type");
         }
     }
 
@@ -201,6 +208,7 @@ public class WifiNative {
     /**
      * Format of results:
      * =================
+     * id=1
      * bssid=68:7f:74:d7:1b:6e
      * freq=2412
      * level=-43
@@ -208,12 +216,14 @@ public class WifiNative {
      * age=2623
      * flags=[WPA2-PSK-CCMP][WPS][ESS]
      * ssid=zubyb
+     * ====
      *
      * RANGE=ALL gets all scan results
+     * RANGE=ID- gets results from ID
      * MASK=<N> see wpa_supplicant/src/common/wpa_ctrl.h for details
      */
-    public String scanResults() {
-        return doStringCommand("BSS RANGE=ALL MASK=0x1986");
+    public String scanResults(int sid) {
+        return doStringCommand("BSS RANGE=" + sid + "- MASK=0x21987");
     }
 
     public boolean startDriver() {
@@ -332,12 +342,7 @@ public class WifiNative {
     }
 
     public boolean saveConfig() {
-        // Make sure we never write out a value for AP_SCAN other than 1
-        return doBooleanCommand("AP_SCAN 1") && doBooleanCommand("SAVE_CONFIG");
-    }
-
-    public boolean setScanResultHandling(int mode) {
-        return doBooleanCommand("AP_SCAN " + mode);
+        return doBooleanCommand("SAVE_CONFIG");
     }
 
     public boolean addToBlacklist(String bssid) {
@@ -593,7 +598,17 @@ public class WifiNative {
             if (groupOwnerIntent < 0 || groupOwnerIntent > 15) {
                 groupOwnerIntent = DEFAULT_GROUP_OWNER_INTENT;
             }
-            args.add("go_intent=" + groupOwnerIntent);
+            String go_intent = SystemProperties.get("wifi.p2p.go_intent", "");
+            if (!"".equals(go_intent)) {
+                args.add("go_intent=" + go_intent);
+            } else {
+                args.add("go_intent=" + groupOwnerIntent);
+            }
+        }
+
+        String freq = SystemProperties.get("wifi.p2p.force_freq", "");
+        if (!"".equals(freq) && !"0".equals(freq)) {
+            args.add("freq=" + freq);
         }
 
         String command = "P2P_CONNECT ";
@@ -625,14 +640,37 @@ public class WifiNative {
     }
 
     public boolean p2pGroupAdd(boolean persistent) {
+        List<String> args = new ArrayList<String>();
+
         if (persistent) {
-            return doBooleanCommand("P2P_GROUP_ADD persistent");
+            args.add("persistent");
         }
-        return doBooleanCommand("P2P_GROUP_ADD");
+
+        String freq = SystemProperties.get("wifi.p2p.force_freq", "");
+        if (!"".equals(freq) && !"0".equals(freq)) {
+            args.add("freq=" + freq);
+        }
+
+        String command = "P2P_GROUP_ADD ";
+        for (String s : args) command += s + " ";
+
+        return doBooleanCommand(command);
     }
 
     public boolean p2pGroupAdd(int netId) {
-        return doBooleanCommand("P2P_GROUP_ADD persistent=" + netId);
+        List<String> args = new ArrayList<String>();
+
+        args.add("persistent=" + netId);
+
+        String freq = SystemProperties.get("wifi.p2p.force_freq", "");
+        if (!"".equals(freq) && !"0".equals(freq)) {
+            args.add("freq=" + freq);
+        }
+
+        String command = "P2P_GROUP_ADD ";
+        for (String s : args) command += s + " ";
+
+        return doBooleanCommand(command);
     }
 
     public boolean p2pGroupRemove(String iface) {
@@ -659,8 +697,20 @@ public class WifiNative {
     /* Reinvoke a persistent connection */
     public boolean p2pReinvoke(int netId, String deviceAddress) {
         if (TextUtils.isEmpty(deviceAddress) || netId < 0) return false;
+        List<String> args = new ArrayList<String>();
 
-        return doBooleanCommand("P2P_INVITE persistent=" + netId + " peer=" + deviceAddress);
+        args.add("persistent=" + netId);
+        args.add("peer=" + deviceAddress);
+
+        String freq = SystemProperties.get("wifi.p2p.force_freq", "");
+        if (!"".equals(freq) && !"0".equals(freq)) {
+            args.add("freq=" + freq);
+        }
+
+        String command = "P2P_INVITE ";
+        for (String s : args) command += s + " ";
+
+        return doBooleanCommand(command);
     }
 
     public String p2pGetSsid(String deviceAddress) {
@@ -723,6 +773,11 @@ public class WifiNative {
             }
         }
         return null;
+    }
+
+    public boolean p2pSetDisabled(boolean enabled) {
+        int value = (enabled == true) ? 1 : 0;
+        return doBooleanCommand("P2P_SET disabled " + value);
     }
 
     public boolean p2pServiceAdd(WifiP2pServiceInfo servInfo) {
@@ -797,5 +852,15 @@ public class WifiNative {
 
     public boolean p2pServDiscCancelReq(String id) {
         return doBooleanCommand("P2P_SERV_DISC_CANCEL_REQ " + id);
+    }
+
+    /* Set the current mode of miracast operation.
+     *  0 = disabled
+     *  1 = operating as source
+     *  2 = operating as sink
+     */
+    public void setMiracastMode(int mode) {
+        // Note: optional feature on the driver. It is ok for this to fail.
+        doBooleanCommand("DRIVER MIRACAST " + mode);
     }
 }

@@ -1024,30 +1024,26 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     static final int UPDATE_MATCH_COUNT                 = 126;
     static final int CENTER_FIT_RECT                    = 127;
     static final int SET_SCROLLBAR_MODES                = 129;
-    static final int SELECTION_STRING_CHANGED           = 130;
-    static final int HIT_TEST_RESULT                    = 131;
-    static final int SAVE_WEBARCHIVE_FINISHED           = 132;
-
-    static final int SET_AUTOFILLABLE                   = 133;
-    static final int AUTOFILL_COMPLETE                  = 134;
-
-    static final int SCREEN_ON                          = 136;
-    static final int UPDATE_ZOOM_DENSITY                = 139;
-    static final int EXIT_FULLSCREEN_VIDEO              = 140;
-
-    static final int COPY_TO_CLIPBOARD                  = 141;
-    static final int INIT_EDIT_FIELD                    = 142;
-    static final int REPLACE_TEXT                       = 143;
-    static final int CLEAR_CARET_HANDLE                 = 144;
-    static final int KEY_PRESS                          = 145;
-    static final int RELOCATE_AUTO_COMPLETE_POPUP       = 146;
-    static final int FOCUS_NODE_CHANGED                 = 147;
-    static final int AUTOFILL_FORM                      = 148;
-    static final int SCROLL_EDIT_TEXT                   = 149;
-    static final int EDIT_TEXT_SIZE_CHANGED             = 150;
-    static final int SHOW_CARET_HANDLE                  = 151;
-    static final int UPDATE_CONTENT_BOUNDS              = 152;
-    static final int SCROLL_HANDLE_INTO_VIEW            = 153;
+    static final int HIT_TEST_RESULT                    = 130;
+    static final int SAVE_WEBARCHIVE_FINISHED           = 131;
+    static final int SET_AUTOFILLABLE                   = 132;
+    static final int AUTOFILL_COMPLETE                  = 133;
+    static final int SCREEN_ON                          = 134;
+    static final int UPDATE_ZOOM_DENSITY                = 135;
+    static final int EXIT_FULLSCREEN_VIDEO              = 136;
+    static final int COPY_TO_CLIPBOARD                  = 137;
+    static final int INIT_EDIT_FIELD                    = 138;
+    static final int REPLACE_TEXT                       = 139;
+    static final int CLEAR_CARET_HANDLE                 = 140;
+    static final int KEY_PRESS                          = 141;
+    static final int RELOCATE_AUTO_COMPLETE_POPUP       = 142;
+    static final int FOCUS_NODE_CHANGED                 = 143;
+    static final int AUTOFILL_FORM                      = 144;
+    static final int SCROLL_EDIT_TEXT                   = 145;
+    static final int EDIT_TEXT_SIZE_CHANGED             = 146;
+    static final int SHOW_CARET_HANDLE                  = 147;
+    static final int UPDATE_CONTENT_BOUNDS              = 148;
+    static final int SCROLL_HANDLE_INTO_VIEW            = 149;
 
     private static final int FIRST_PACKAGE_MSG_ID = SCROLL_TO_MSG_ID;
     private static final int LAST_PACKAGE_MSG_ID = HIT_TEST_RESULT;
@@ -1258,6 +1254,40 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
 
         mAutoFillData = new WebViewCore.AutoFillData();
         mEditTextScroller = new Scroller(context);
+
+        // Calculate channel distance
+        calculateChannelDistance(context);
+    }
+
+    /**
+     * Calculate sChannelDistance based on the screen information.
+     * @param context A Context object used to access application assets.
+     */
+    private void calculateChannelDistance(Context context) {
+        // The channel distance is adjusted for density and screen size
+        final DisplayMetrics metrics = context.getResources().getDisplayMetrics();
+        final double screenSize = Math.hypot((double)(metrics.widthPixels/metrics.densityDpi),
+                (double)(metrics.heightPixels/metrics.densityDpi));
+        if (screenSize < 3.0) {
+            sChannelDistance = 16;
+        } else if (screenSize < 5.0) {
+            sChannelDistance = 22;
+        } else if (screenSize < 7.0) {
+            sChannelDistance = 28;
+        } else {
+            sChannelDistance = 34;
+        }
+        sChannelDistance = (int)(sChannelDistance * metrics.density);
+        if (sChannelDistance < 16) sChannelDistance = 16;
+
+        if (DebugFlags.WEB_VIEW) {
+            Log.v(LOGTAG, "sChannelDistance : " + sChannelDistance
+                    + ", density : " + metrics.density
+                    + ", screenSize : " + screenSize
+                    + ", metrics.heightPixels : " + metrics.heightPixels
+                    + ", metrics.widthPixels : " + metrics.widthPixels
+                    + ", metrics.densityDpi : " + metrics.densityDpi);
+        }
     }
 
     // WebViewProvider bindings
@@ -1766,6 +1796,12 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         event.setMaxScrollY(Math.max(convertedContentHeight - adjustedViewHeight, 0));
     }
 
+    /* package */ void handleSelectionChangedWebCoreThread(String selection, int token) {
+        if (isAccessibilityInjectionEnabled()) {
+            getAccessibilityInjector().onSelectionStringChangedWebCoreThread(selection, token);
+        }
+    }
+
     private boolean isAccessibilityInjectionEnabled() {
         final AccessibilityManager manager = AccessibilityManager.getInstance(mContext);
         if (!manager.isEnabled()) {
@@ -2113,7 +2149,8 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     @Override
     public void destroy() {
         if (mWebView.getViewRootImpl() != null) {
-            Log.e(LOGTAG, "Error: WebView.destroy() called while still attached!");
+            Log.e(LOGTAG, Log.getStackTraceString(
+                    new Throwable("Error: WebView.destroy() called while still attached!")));
         }
         ensureFunctorDetached();
         destroyJava();
@@ -2136,6 +2173,21 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
             mAccessibilityInjector.destroy();
             mAccessibilityInjector = null;
         }
+        // If there is Tab in BrowserActiviy, the Tab close will call
+        // WebView.destory directly. So we need clear HTML5VideoViewProxy
+        // here as well.
+        if (mHTML5VideoViewProxy != null) {
+        // we can't set mWebView to null in mHTML5VideoViewProxy because it may
+        // trigger NULL exception. Instead, we have a new member to track the
+        // WebView destroy.
+        mHTML5VideoViewProxy.markWebViewgone(true);
+
+        // We remove reference of HTML5VideoViewProxy here.
+        // FIXME: add interface to HTML5VideoViewProxy to remove reference
+        // of WebView because the WebView object is destroyed already.
+        setHTML5VideoViewProxy(null);
+        }
+
         if (mWebViewCore != null) {
             // Tell WebViewCore to destroy itself
             synchronized (this) {
@@ -2518,6 +2570,9 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void loadUrlImpl(String url, Map<String, String> extraHeaders) {
+        if (mWebViewCore == null) {
+            return;
+        }
         switchOutDrawHistory();
         WebViewCore.GetUrlData arg = new WebViewCore.GetUrlData();
         arg.mUrl = url;
@@ -2906,6 +2961,9 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
      */
     @Override
     public void requestFocusNodeHref(Message hrefMsg) {
+        if (mNativeClass == 0) { // in case the WebView.destroy is called.
+            return;
+        }
         if (hrefMsg == null) {
             return;
         }
@@ -3132,7 +3190,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         calcOurContentVisibleRect(mVisibleRect);
         // Rect.equals() checks for null input.
         if (!mVisibleRect.equals(mLastVisibleRectSent)) {
-            if (!mBlockWebkitViewMessages) {
+            if (!mBlockWebkitViewMessages && (mNativeClass != 0)) {
                 mScrollOffset.set(mVisibleRect.left, mVisibleRect.top);
                 mWebViewCore.removeMessages(EventHub.SET_SCROLL_OFFSET);
                 mWebViewCore.sendMessage(EventHub.SET_SCROLL_OFFSET,
@@ -3477,6 +3535,9 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
      */
     @Override
     public void onPause() {
+        if (mNativeClass == 0)
+            return;
+
         if (!mIsPaused) {
             mIsPaused = true;
             mWebViewCore.sendMessage(EventHub.ON_PAUSE);
@@ -3668,7 +3729,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         mCachedOverlappingActionModeHeight = -1;
         mFindCallback = callback;
         setFindIsUp(true);
-        mFindCallback.setWebView(this);
+        mFindCallback.setWebView(getWebView());
         if (showIme) {
             mFindCallback.showSoftInput();
         } else if (text != null) {
@@ -3770,7 +3831,8 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     /**
      * Called when the find ActionMode ends.
      */
-    void notifyFindDialogDismissed() {
+    @Override
+    public void notifyFindDialogDismissed() {
         mFindCallback = null;
         mCachedOverlappingActionModeHeight = -1;
         if (mWebViewCore == null) {
@@ -3868,6 +3930,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void scrollLayerTo(int x, int y) {
+        if (0 == mNativeClass) return; // client isn't initialized
         int dx = mScrollingLayerRect.left - x;
         int dy = mScrollingLayerRect.top - y;
         if ((dx == 0 && dy == 0) || mNativeClass == 0) {
@@ -4448,6 +4511,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
      * Select the word at the indicated content coordinates.
      */
     boolean selectText(int x, int y) {
+        if (0 == mNativeClass) return false; // client isn't initialized
         if (mWebViewCore == null) {
             return false;
         }
@@ -4466,6 +4530,10 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         mOrientation = newConfig.orientation;
         if (mWebViewCore != null && !mBlockWebkitViewMessages) {
             mWebViewCore.sendMessage(EventHub.CLEAR_CONTENT);
+        }
+
+        if (mHTML5VideoViewProxy != null) {
+            mHTML5VideoViewProxy.setMediaControllerHided();
         }
     }
 
@@ -4640,6 +4708,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void drawTextSelectionHandles(Canvas canvas) {
+        if (0 == mNativeClass) return; // client isn't initialized
         if (mBaseAlpha.getAlpha() == 0 && mExtentAlpha.getAlpha() == 0) {
             return;
         }
@@ -4886,6 +4955,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
      * debug only
      */
     public void dumpDisplayTree() {
+        if (0 == mNativeClass) return; // client isn't initialized
         nativeDumpDisplayTree(getUrl());
     }
 
@@ -5382,7 +5452,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         ClipData clipData = cm.getPrimaryClip();
         if (clipData != null) {
             ClipData.Item clipItem = clipData.getItemAt(0);
-            CharSequence pasteText = clipItem.getText();
+            CharSequence pasteText = clipItem.coerceToText(mContext);
             if (mInputConnection != null) {
                 mInputConnection.replaceSelection(pasteText);
             }
@@ -5715,32 +5785,13 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         }
         return mWebViewPrivate.super_dispatchKeyEvent(event);
     }
-
-    /*
-     * Here is the snap align logic:
-     * 1. If it starts nearly horizontally or vertically, snap align;
-     * 2. If there is a dramitic direction change, let it go;
-     *
-     * Adjustable parameters. Angle is the radians on a unit circle, limited
-     * to quadrant 1. Values range from 0f (horizontal) to PI/2 (vertical)
-     */
-    private static final float HSLOPE_TO_START_SNAP = .25f;
-    private static final float HSLOPE_TO_BREAK_SNAP = .4f;
-    private static final float VSLOPE_TO_START_SNAP = 1.25f;
-    private static final float VSLOPE_TO_BREAK_SNAP = .95f;
-    /*
-     *  These values are used to influence the average angle when entering
-     *  snap mode. If is is the first movement entering snap, we set the average
-     *  to the appropriate ideal. If the user is entering into snap after the
-     *  first movement, then we average the average angle with these values.
-     */
-    private static final float ANGLE_VERT = 2f;
-    private static final float ANGLE_HORIZ = 0f;
-    /*
-     *  The modified moving average weight.
-     *  Formula: MAV[t]=MAV[t-1] + (P[t]-MAV[t-1])/n
-     */
-    private static final float MMA_WEIGHT_N = 5;
+    
+    private static final int SNAP_BOUND = 16;
+    private static int sChannelDistance = 16;
+    private int mFirstTouchX = -1; // the first touched point
+    private int mFirstTouchY = -1;
+    private int mDistanceX = 0;
+    private int mDistanceY = 0;
 
     private boolean inFullScreenMode() {
         return mFullScreenHolder != null;
@@ -5830,18 +5881,13 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         }
     }
 
-    private float calculateDragAngle(int dx, int dy) {
-        dx = Math.abs(dx);
-        dy = Math.abs(dy);
-        return (float) Math.atan2(dy, dx);
-    }
-
     /*
     * Common code for single touch and multi-touch.
     * (x, y) denotes current focus point, which is the touch point for single touch
     * and the middle point for multi-touch.
     */
     private void handleTouchEventCommon(MotionEvent event, int action, int x, int y) {
+        if (0 == mNativeClass) return; // client isn't initialized
         ScaleGestureDetector detector = mZoomManager.getScaleGestureDetector();
 
         long eventTime = event.getEventTime();
@@ -5861,6 +5907,12 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         switch (action) {
             case MotionEvent.ACTION_DOWN: {
                 mConfirmMove = false;
+
+                // Channel Scrolling
+                mFirstTouchX = x;
+                mFirstTouchY = y;
+                mDistanceX = mDistanceY = 0;
+
                 if (!mEditTextScroller.isFinished()) {
                     mEditTextScroller.abortAnimation();
                 }
@@ -5998,20 +6050,16 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
                         break;
                     }
 
-                    // Only lock dragging to one axis if we don't have a scale in progress.
-                    // Scaling implies free-roaming movement. Note this is only ever a question
-                    // if mZoomManager.supportsPanDuringZoom() is true.
-                    mAverageAngle = calculateDragAngle(deltaX, deltaY);
-                    if (detector == null || !detector.isInProgress()) {
-                        // if it starts nearly horizontal or vertical, enforce it
-                        if (mAverageAngle < HSLOPE_TO_START_SNAP) {
-                            mSnapScrollMode = SNAP_X;
-                            mSnapPositive = deltaX > 0;
-                            mAverageAngle = ANGLE_HORIZ;
-                        } else if (mAverageAngle > VSLOPE_TO_START_SNAP) {
+                    if ((detector == null || !detector.isInProgress())
+                            && SNAP_NONE == mSnapScrollMode) {
+                        int ax = Math.abs(x - mFirstTouchX);
+                        int ay = Math.abs(y - mFirstTouchY);
+                        if (ax < SNAP_BOUND && ay < SNAP_BOUND) {
+                            break;
+                        } else if (ax < SNAP_BOUND) {
                             mSnapScrollMode = SNAP_Y;
-                            mSnapPositive = deltaY > 0;
-                            mAverageAngle = ANGLE_VERT;
+                        } else if (ay < SNAP_BOUND) {
+                            mSnapScrollMode = SNAP_X;
                         }
                     }
 
@@ -6030,31 +6078,21 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
                 if (deltaX == 0 && deltaY == 0) {
                     keepScrollBarsVisible = true;
                 } else {
-                    mAverageAngle +=
-                        (calculateDragAngle(deltaX, deltaY) - mAverageAngle)
-                        / MMA_WEIGHT_N;
-                    if (mSnapScrollMode != SNAP_NONE) {
-                        if (mSnapScrollMode == SNAP_Y) {
-                            // radical change means getting out of snap mode
-                            if (mAverageAngle < VSLOPE_TO_BREAK_SNAP) {
-                                mSnapScrollMode = SNAP_NONE;
-                            }
-                        }
+                    if (mSnapScrollMode == SNAP_X || mSnapScrollMode == SNAP_Y) {
+                        mDistanceX += Math.abs(deltaX);
+                        mDistanceY += Math.abs(deltaY);
                         if (mSnapScrollMode == SNAP_X) {
-                            // radical change means getting out of snap mode
-                            if (mAverageAngle > HSLOPE_TO_BREAK_SNAP) {
+                            if (mDistanceY > sChannelDistance) {
                                 mSnapScrollMode = SNAP_NONE;
-                            }
+                            } else if (mDistanceX > sChannelDistance) {
+                                mDistanceX = mDistanceY = 0;
                         }
                     } else {
-                        if (mAverageAngle < HSLOPE_TO_START_SNAP) {
-                            mSnapScrollMode = SNAP_X;
-                            mSnapPositive = deltaX > 0;
-                            mAverageAngle = (mAverageAngle + ANGLE_HORIZ) / 2;
-                        } else if (mAverageAngle > VSLOPE_TO_START_SNAP) {
-                            mSnapScrollMode = SNAP_Y;
-                            mSnapPositive = deltaY > 0;
-                            mAverageAngle = (mAverageAngle + ANGLE_VERT) / 2;
+                            if (mDistanceX > sChannelDistance) {
+                                mSnapScrollMode = SNAP_NONE;
+                            } else if (mDistanceY > sChannelDistance) {
+                                mDistanceX = mDistanceY = 0;
+                            }
                         }
                     }
                     if (mSnapScrollMode != SNAP_NONE) {
@@ -6089,6 +6127,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
                 break;
             }
             case MotionEvent.ACTION_UP: {
+                mFirstTouchX  = mFirstTouchY = -1;
                 if (mIsEditingText && mSelectionStarted) {
                     endScrollEdit();
                     mPrivateHandler.sendEmptyMessageDelayed(SCROLL_HANDLE_INTO_VIEW,
@@ -6311,6 +6350,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void startDrag() {
+        if (0 == mNativeClass) return; // client isn't initialized
         WebViewCore.reducePriority();
         // to get better performance, pause updating the picture
         WebViewCore.pauseUpdatePicture(mWebViewCore);
@@ -6387,6 +6427,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void stopTouch() {
+        if (0 == mNativeClass) return; // client isn't initialized
         if (mScroller.isFinished() && !mSelectingText
                 && (mTouchMode == TOUCH_DRAG_MODE
                 || mTouchMode == TOUCH_DRAG_LAYER_MODE)) {
@@ -6419,6 +6460,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void cancelTouch() {
+        if (0 == mNativeClass) return; // client isn't initialized
         // we also use mVelocityTracker == null to tell us that we are
         // not "moving around", so we can take the slower/prettier
         // mode in the drawing code
@@ -6666,6 +6708,7 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     private void doTrackball(long time, int metaState) {
+        if (0 == mNativeClass) return; // client isn't initialized
         int elapsed = (int) (mTrackballLastTime - mTrackballFirstTime);
         if (elapsed == 0) {
             elapsed = TRACKBALL_TIMEOUT;
@@ -7495,13 +7538,6 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
                     mVerticalScrollBarMode = msg.arg2;
                     break;
 
-                case SELECTION_STRING_CHANGED:
-                    if (isAccessibilityInjectionEnabled()) {
-                        getAccessibilityInjector()
-                                .handleSelectionChangedIfNecessary((String) msg.obj);
-                    }
-                    break;
-
                 case FOCUS_NODE_CHANGED:
                     mIsEditingText = (msg.arg1 == mFieldPointer);
                     if (mAutoCompletePopup != null && !mIsEditingText) {
@@ -7911,16 +7947,23 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
         if (mPictureListener != null) {
             // trigger picture listener for hardware layers. Software layers are
             // triggered in setNewPicture
-            mPictureListener.onNewPicture(getWebView(), capturePicture());
+            Picture picture = mContext.getApplicationInfo().targetSdkVersion <
+                    Build.VERSION_CODES.JELLY_BEAN_MR2 ? capturePicture() : null;
+            mPictureListener.onNewPicture(getWebView(), picture);
         }
     }
 
     void setNewPicture(final WebViewCore.DrawData draw, boolean updateBaseLayer) {
         if (mNativeClass == 0) {
-            if (mDelaySetPicture != null) {
-                throw new IllegalStateException("Tried to setNewPicture with"
-                        + " a delay picture already set! (memory leak)");
+            try {
+                if (mDelaySetPicture != null) {
+                   throw new IllegalStateException("Tried to setNewPicture with"
+                                 + " a delay picture already set! (memory leak)");
+                }
+            } catch (IllegalStateException e) {
+                Log.w(LOGTAG, "Exception"+e);
             }
+
             // Not initialized yet, delay set
             mDelaySetPicture = draw;
             return;
@@ -7996,11 +8039,20 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
                     || mWebView.getLayerType() == View.LAYER_TYPE_SOFTWARE) {
                 // trigger picture listener for software layers. Hardware layers are
                 // triggered in pageSwapCallback
-                mPictureListener.onNewPicture(getWebView(), capturePicture());
+                Picture picture = mContext.getApplicationInfo().targetSdkVersion <
+                        Build.VERSION_CODES.JELLY_BEAN_MR2 ? capturePicture() : null;
+                mPictureListener.onNewPicture(getWebView(), picture);
             }
         }
-    }
+        if (viewRoot != null)
+        {
+            if ((!mWebView.isHardwareAccelerated()
+                    || mWebView.getLayerType() == View.LAYER_TYPE_SOFTWARE)) {
+                viewRoot.sendFakeVsync();
+            }
+        }
 
+    }
     /**
      * Used when receiving messages for REQUEST_KEYBOARD_WITH_SELECTION_MSG_ID
      * and UPDATE_TEXT_SELECTION_MSG_ID.
@@ -8366,8 +8418,10 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
             mListBoxDialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
                 @Override
                 public void onCancel(DialogInterface dialog) {
+                 if (mWebViewCore != null) {
                     mWebViewCore.sendMessage(
                                 EventHub.SINGLE_LISTBOX_CHOICE, -2, 0);
+                    }
                     mListBoxDialog = null;
                 }
             });
@@ -8513,6 +8567,15 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     }
 
     /**
+     * Called by VideoViewProxy to resetBaseLayer for videoView
+     */
+    public void requestWebkitDraw() {
+        if (mWebViewCore != null) {
+            mWebViewCore.sendMessage(EventHub.WEBKIT_DRAW);
+        }
+    }
+
+    /**
      * Set the time to wait between passing touches to WebCore. See also the
      * TOUCH_SENT_INTERVAL member for further discussion.
      *
@@ -8558,6 +8621,11 @@ public final class WebViewClassic implements WebViewProvider, WebViewProvider.Sc
     @Override
     public void setLayerType(int layerType, Paint paint) {
         updateHwAccelerated();
+    }
+
+    @Override
+    public void preDispatchDraw(Canvas canvas) {
+        // no-op for WebViewClassic.
     }
 
     private void updateHwAccelerated() {

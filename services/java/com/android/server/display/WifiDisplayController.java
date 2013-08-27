@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
+/*
+ * Portions contributed by: Intel Corporation
+ */
 package com.android.server.display;
 
 import com.android.internal.util.DumpUtils;
 
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -30,6 +34,9 @@ import android.media.AudioManager;
 import android.media.RemoteDisplay;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pDevice;
@@ -45,6 +52,7 @@ import android.os.Handler;
 import android.provider.Settings;
 import android.util.Slog;
 import android.view.Surface;
+import android.os.SystemProperties;
 
 import java.io.PrintWriter;
 import java.net.Inet4Address;
@@ -53,6 +61,7 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.List;
 
 import libcore.util.Objects;
 
@@ -92,6 +101,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private final Handler mHandler;
     private final Listener mListener;
 
+    private final WifiManager mWifiManager;
     private final WifiP2pManager mWifiP2pManager;
     private final Channel mWifiP2pChannel;
 
@@ -110,6 +120,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
     // True if there is a call to discoverPeers in progress.
     private boolean mDiscoverPeersInProgress;
+
+    // True if a call to discoverPeers is scheduled.
+    private boolean mDiscoverPeersScheduled;
 
     // Number of discover peers retries remaining.
     private int mDiscoverPeersRetriesLeft;
@@ -161,6 +174,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
         mHandler = handler;
         mListener = listener;
 
+        mWifiManager = (WifiManager)context.getSystemService(Context.WIFI_SERVICE);
         mWifiP2pManager = (WifiP2pManager)context.getSystemService(Context.WIFI_P2P_SERVICE);
         mWifiP2pChannel = mWifiP2pManager.initialize(context, handler.getLooper(), null);
 
@@ -170,6 +184,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
+        intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         context.registerReceiver(mWifiP2pReceiver, intentFilter, null, mHandler);
 
         ContentObserver settingsObserver = new ContentObserver(mHandler) {
@@ -228,6 +243,10 @@ final class WifiDisplayController implements DumpUtils.Dump {
         discoverPeers();
     }
 
+    public void requestStopScan() {
+        stopDiscoverPeers();
+    }
+
     public void requestConnect(String address) {
         for (WifiP2pDevice device : mAvailableWifiDisplayPeers) {
             if (device.deviceAddress.equals(address)) {
@@ -259,6 +278,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
                             Slog.d(TAG, "Successfully set WFD info.");
                         }
                         if (mWfdEnabling) {
+                            restartDiscoverPeers();
                             mWfdEnabling = false;
                             mWfdEnabled = true;
                             reportFeatureState();
@@ -355,6 +375,36 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 }
             }
         });
+    }
+
+    private void stopDiscoverPeers() {
+        Slog.d(TAG, "Stop Discover peers...");
+        mWifiP2pManager.stopPeerDiscovery(mWifiP2pChannel, new ActionListener() {
+            @Override
+            public void onSuccess() {
+                if (DEBUG) {
+                    Slog.d(TAG, "Stop Discover peers succeeded.");
+                }
+
+                mDiscoverPeersInProgress = false;
+                if (mDiscoverPeersScheduled) {
+                    mDiscoverPeersScheduled = false;
+                    discoverPeers();
+                }
+            }
+
+            @Override
+            public void onFailure(int reason) {
+                if (DEBUG) {
+                    Slog.d(TAG, "Stop Discover peers failed with reason " + reason + ".");
+                }
+            }
+        });
+    }
+
+    private void restartDiscoverPeers() {
+        mDiscoverPeersScheduled = true;
+        stopDiscoverPeers();
     }
 
     private void requestPeers() {
@@ -481,6 +531,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
             mRemoteDisplayConnected = false;
             mHandler.removeCallbacks(mRtspTimeout);
 
+            mWifiP2pManager.setMiracastMode(WifiP2pManager.MIRACAST_DISABLED);
             setRemoteSubmixOn(false);
             unadvertiseDisplay();
 
@@ -583,9 +634,25 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 wps.setup = WpsInfo.DISPLAY;
             }
             config.wps = wps;
+            String wps_method = SystemProperties.get("wifi.p2p.wps_method", "");
+            if (!wps_method.equals("")) {
+                if (wps_method.equals("display")) {
+                    config.wps.setup = WpsInfo.DISPLAY;
+                }
+                if (wps_method.equals("keypad")) {
+                    config.wps.setup = WpsInfo.KEYPAD;
+                }
+                if (wps_method.equals("pbc")) {
+                    config.wps.setup = WpsInfo.PBC;
+                }
+            }
             config.deviceAddress = mConnectingDevice.deviceAddress;
             // Helps with STA & P2P concurrency
-            config.groupOwnerIntent = WifiP2pConfig.MIN_GROUP_OWNER_INTENT;
+            // Google set groupOwnerIntent to 0 ( WifiP2pConfig.MIN_GROUP_OWNER_INTENT).
+            // Intel modification is to set go_intent to 14 in order to become GO.
+            // It would allow to choose the operating channel with the help of an internal
+            // algorithm executed in wpa_supplicant
+            config.groupOwnerIntent = WifiP2pConfig.MAX_GROUP_OWNER_INTENT - 1;
 
             WifiDisplay display = createWifiDisplay(mConnectingDevice);
             advertiseDisplay(display, null, 0, 0, 0);
@@ -626,6 +693,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
             }
 
             setRemoteSubmixOn(true);
+            mWifiP2pManager.setMiracastMode(WifiP2pManager.MIRACAST_SOURCE);
 
             final WifiP2pDevice oldDevice = mConnectedDevice;
             final int port = getPortNumber(mConnectedDevice);
@@ -695,6 +763,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
     private void handleConnectionChanged(NetworkInfo networkInfo) {
         mNetworkInfo = networkInfo;
+        if (networkInfo.getState() == NetworkInfo.State.CONNECTING)
+            return;
+
         if (mWfdEnabled && networkInfo.isConnected()) {
             if (mDesiredDevice != null) {
                 mWifiP2pManager.requestGroupInfo(mWifiP2pChannel, new GroupInfoListener() {
@@ -738,7 +809,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
             // to get a peer change notification with an empty list of peers.
             // Perform a fresh scan.
             if (mWfdEnabled) {
-                requestPeers();
+                discoverPeers();
             }
         }
     }
@@ -878,7 +949,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private static boolean isWifiDisplay(WifiP2pDevice device) {
         return device.wfdInfo != null
                 && device.wfdInfo.isWfdEnabled()
-                && isPrimarySinkDeviceType(device.wfdInfo.getDeviceType());
+                && isPrimarySinkDeviceType(device.wfdInfo.getDeviceType())
+                && device.wfdInfo.isSessionAvailable();
     }
 
     private static boolean isPrimarySinkDeviceType(int deviceType) {
@@ -929,6 +1001,33 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 }
 
                 handleConnectionChanged(networkInfo);
+            } else if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
+                NetworkInfo networkInfo = (NetworkInfo)intent.getParcelableExtra(
+                        WifiManager.EXTRA_NETWORK_INFO);
+                if (networkInfo != null && networkInfo.isConnected() && mRemoteDisplayConnected) {
+                    final List<ScanResult> results = mWifiManager.getScanResults();
+                    WifiInfo currentInfo = mWifiManager.getConnectionInfo();
+                    if (currentInfo != null && results != null && results.size() > 0) {
+                        for (ScanResult result : results) {
+                            if (result.BSSID != null && result.BSSID.length() > 0 &&
+                                result.BSSID.equals(currentInfo.getBSSID()) &&
+                                mConnectedDeviceGroupInfo != null) {
+                                if (result.frequency != mConnectedDeviceGroupInfo.getFrequency()) {
+                                    try {
+                                        Intent intentWifiDisplay = new Intent(Settings.ACTION_WIFI_DISPLAY_SETTINGS);
+                                        intentWifiDisplay.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                                                | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+                                                | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                                        intentWifiDisplay.putExtra(WifiP2pManager.EXTRA_RECONNECT_WIFI_DISPLAY, true);
+                                        mContext.startActivity(intentWifiDisplay);
+                                    } catch (ActivityNotFoundException e) {
+                                        Slog.e(TAG, "Cannot open Wifi Display Settings");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     };

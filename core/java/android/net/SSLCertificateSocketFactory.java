@@ -23,6 +23,7 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.security.KeyManagementException;
+import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import javax.net.SocketFactory;
 import javax.net.ssl.HostnameVerifier;
@@ -80,14 +81,12 @@ public class SSLCertificateSocketFactory extends SSLSocketFactory {
         }
     };
 
-    private static final HostnameVerifier HOSTNAME_VERIFIER =
-        HttpsURLConnection.getDefaultHostnameVerifier();
-
     private SSLSocketFactory mInsecureFactory = null;
     private SSLSocketFactory mSecureFactory = null;
     private TrustManager[] mTrustManagers = null;
     private KeyManager[] mKeyManagers = null;
     private byte[] mNpnProtocols = null;
+    private PrivateKey mChannelIdPrivateKey = null;
 
     private final int mHandshakeTimeoutMillis;
     private final SSLClientSessionCache mSessionCache;
@@ -193,7 +192,7 @@ public class SSLCertificateSocketFactory extends SSLSocketFactory {
             if (session == null) {
                 throw new SSLException("Cannot verify SSL socket without session");
             }
-            if (!HOSTNAME_VERIFIER.verify(hostname, session)) {
+            if (!HttpsURLConnection.getDefaultHostnameVerifier().verify(hostname, session)) {
                 throw new SSLPeerUnverifiedException("Cannot verify hostname: " + hostname);
             }
         }
@@ -319,6 +318,20 @@ public class SSLCertificateSocketFactory extends SSLSocketFactory {
     }
 
     /**
+     * Sets the private key to be used for TLS Channel ID by connections made by this
+     * factory.
+     *
+     * @param privateKey private key (enables TLS Channel ID) or {@code null} for no key (disables
+     *        TLS Channel ID). The private key has to be an Elliptic Curve (EC) key based on the
+     *        NIST P-256 curve (aka SECG secp256r1 or ANSI X9.62 prime256v1).
+     *
+     * @hide
+     */
+    public void setChannelIdPrivateKey(PrivateKey privateKey) {
+        mChannelIdPrivateKey = privateKey;
+    }
+
+    /**
      * Enables <a href="http://tools.ietf.org/html/rfc5077#section-3.2">session ticket</a>
      * support on the given socket.
      *
@@ -378,6 +391,7 @@ public class SSLCertificateSocketFactory extends SSLSocketFactory {
         OpenSSLSocketImpl s = (OpenSSLSocketImpl) getDelegate().createSocket(k, host, port, close);
         s.setNpnProtocols(mNpnProtocols);
         s.setHandshakeTimeout(mHandshakeTimeoutMillis);
+        s.setChannelIdPrivateKey(mChannelIdPrivateKey);
         if (mSecure) {
             verifyHostname(s, host);
         }
@@ -397,6 +411,7 @@ public class SSLCertificateSocketFactory extends SSLSocketFactory {
         OpenSSLSocketImpl s = (OpenSSLSocketImpl) getDelegate().createSocket();
         s.setNpnProtocols(mNpnProtocols);
         s.setHandshakeTimeout(mHandshakeTimeoutMillis);
+        s.setChannelIdPrivateKey(mChannelIdPrivateKey);
         return s;
     }
 
@@ -414,6 +429,7 @@ public class SSLCertificateSocketFactory extends SSLSocketFactory {
                 addr, port, localAddr, localPort);
         s.setNpnProtocols(mNpnProtocols);
         s.setHandshakeTimeout(mHandshakeTimeoutMillis);
+        s.setChannelIdPrivateKey(mChannelIdPrivateKey);
         return s;
     }
 
@@ -429,6 +445,7 @@ public class SSLCertificateSocketFactory extends SSLSocketFactory {
         OpenSSLSocketImpl s = (OpenSSLSocketImpl) getDelegate().createSocket(addr, port);
         s.setNpnProtocols(mNpnProtocols);
         s.setHandshakeTimeout(mHandshakeTimeoutMillis);
+        s.setChannelIdPrivateKey(mChannelIdPrivateKey);
         return s;
     }
 
@@ -445,6 +462,7 @@ public class SSLCertificateSocketFactory extends SSLSocketFactory {
                 host, port, localAddr, localPort);
         s.setNpnProtocols(mNpnProtocols);
         s.setHandshakeTimeout(mHandshakeTimeoutMillis);
+        s.setChannelIdPrivateKey(mChannelIdPrivateKey);
         if (mSecure) {
             verifyHostname(s, host);
         }
@@ -462,6 +480,7 @@ public class SSLCertificateSocketFactory extends SSLSocketFactory {
         OpenSSLSocketImpl s = (OpenSSLSocketImpl) getDelegate().createSocket(host, port);
         s.setNpnProtocols(mNpnProtocols);
         s.setHandshakeTimeout(mHandshakeTimeoutMillis);
+        s.setChannelIdPrivateKey(mChannelIdPrivateKey);
         if (mSecure) {
             verifyHostname(s, host);
         }

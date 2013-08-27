@@ -52,15 +52,37 @@ static int doCommand(const char *ifname, const char *cmd, char *replybuf, int re
 static jint doIntCommand(const char *ifname, const char* fmt, ...)
 {
     char buf[BUF_SIZE];
+    char *dynBuf = NULL;
+    int bufSize;
     va_list args;
     va_start(args, fmt);
     int byteCount = vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
-    if (byteCount < 0 || byteCount >= BUF_SIZE) {
+    if (byteCount < 0)
         return -1;
+
+    if (byteCount >= BUF_SIZE) {
+        bufSize = byteCount + 1; // +1 for NULL at the end of string
+        dynBuf = (char *) malloc(bufSize);
+
+        if (!dynBuf)
+            return -1;
+
+        va_start(args, fmt);
+        byteCount = vsnprintf(dynBuf, bufSize, fmt, args);
+        va_end(args);
+
+        if (byteCount < 0 || byteCount >= bufSize) {
+            free(dynBuf);
+            return -1;
+        }
     }
+
     char reply[BUF_SIZE];
-    if (doCommand(ifname, buf, reply, sizeof(reply)) != 0) {
+    int ret = doCommand(ifname, dynBuf ? dynBuf : buf, reply, sizeof(reply));
+    if (dynBuf)
+        free(dynBuf);
+    if (ret) {
         return -1;
     }
     return static_cast<jint>(atoi(reply));
@@ -69,15 +91,38 @@ static jint doIntCommand(const char *ifname, const char* fmt, ...)
 static jboolean doBooleanCommand(const char *ifname, const char* expect, const char* fmt, ...)
 {
     char buf[BUF_SIZE];
+    char *dynBuf = NULL;
+    int bufSize;
     va_list args;
     va_start(args, fmt);
     int byteCount = vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
-    if (byteCount < 0 || byteCount >= BUF_SIZE) {
+    if (byteCount < 0) {
         return JNI_FALSE;
     }
+
+    if (byteCount >= BUF_SIZE) {
+        bufSize = byteCount + 1; // +1 for NULL at the end of string
+        dynBuf = (char *) malloc(bufSize);
+
+        if (!dynBuf)
+            return JNI_FALSE;
+
+        va_start(args, fmt);
+        byteCount = vsnprintf(dynBuf, bufSize, fmt, args);
+        va_end(args);
+
+        if (byteCount < 0 || byteCount >= bufSize) {
+            free(dynBuf);
+            return JNI_FALSE;
+        }
+    }
+
     char reply[BUF_SIZE];
-    if (doCommand(ifname, buf, reply, sizeof(reply)) != 0) {
+    int ret = doCommand(ifname, dynBuf ? dynBuf : buf, reply, sizeof(reply));
+    if (dynBuf)
+        free(dynBuf);
+    if (ret) {
         return JNI_FALSE;
     }
     return (strcmp(reply, expect) == 0);
@@ -86,15 +131,39 @@ static jboolean doBooleanCommand(const char *ifname, const char* expect, const c
 // Send a command to the supplicant, and return the reply as a String
 static jstring doStringCommand(JNIEnv* env, const char *ifname, const char* fmt, ...) {
     char buf[BUF_SIZE];
+    char *dynBuf = NULL;
+    int bufSize;
     va_list args;
     va_start(args, fmt);
     int byteCount = vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
-    if (byteCount < 0 || byteCount >= BUF_SIZE) {
+    if (byteCount < 0) {
         return NULL;
     }
-    char reply[4096];
-    if (doCommand(ifname, buf, reply, sizeof(reply)) != 0) {
+
+    if (byteCount >= BUF_SIZE) {
+        bufSize = byteCount + 1; // +1 for NULL at the end of string
+        dynBuf = (char *) malloc(bufSize);
+
+        if (!dynBuf)
+            return NULL;
+
+        va_start(args, fmt);
+        byteCount = vsnprintf(dynBuf, bufSize, fmt, args);
+        va_end(args);
+
+        if (byteCount < 0 || byteCount >= bufSize) {
+            free(dynBuf);
+            return NULL;
+        }
+    }
+
+    char reply[12288];
+    int ret = doCommand(ifname, dynBuf ? dynBuf : buf, reply, sizeof(reply));
+    if (dynBuf)
+        free(dynBuf);
+
+    if (ret) {
         return NULL;
     }
     // TODO: why not just NewStringUTF?
@@ -137,6 +206,35 @@ static void android_net_wifi_closeSupplicantConnection(JNIEnv* env, jobject, jst
 {
     ScopedUtfChars ifname(env, jIface);
     ::wifi_close_supplicant_connection(ifname.c_str());
+}
+
+static jboolean android_net_wifi_connectToHostapd(JNIEnv* env, jobject)
+{
+    return (jboolean)(::wifi_connect_to_hostapd() == 0);
+}
+
+static void android_net_wifi_closeHostapdConnection(JNIEnv* env, jobject)
+{
+    ::wifi_close_hostapd_connection();
+}
+
+static jstring android_net_wifi_getWifiApStationList(JNIEnv* env, jobject)
+{
+    char reply[4096];
+    size_t reply_len = sizeof(reply) - 1;
+
+    if (::wifi_get_AP_station_list( reply, &reply_len ) != 0 )
+        return NULL;
+    else {
+        // Strip off trailing newline
+        if (reply_len > 0 && reply[reply_len-1] == '\n')
+            reply[reply_len-1] = '\0';
+        else
+            reply[reply_len] = '\0';
+    }
+
+    String16 str((char *)reply);
+    return env->NewString((const jchar *)str.string(), str.size());
 }
 
 static jstring android_net_wifi_waitForEvent(JNIEnv* env, jobject, jstring jIface)
@@ -209,6 +307,10 @@ static JNINativeMethod gWifiMethods[] = {
             (void *)android_net_wifi_connectToSupplicant },
     { "closeSupplicantConnection", "(Ljava/lang/String;)V",
             (void *)android_net_wifi_closeSupplicantConnection },
+    { "connectToHostapd", "()Z",  (void *)android_net_wifi_connectToHostapd },
+    { "closeHostapdConnection", "()V",  (void *)android_net_wifi_closeHostapdConnection },
+    { "getWifiApStationList", "()Ljava/lang/String;",
+            (void *) android_net_wifi_getWifiApStationList },
     { "waitForEvent", "(Ljava/lang/String;)Ljava/lang/String;",
             (void*) android_net_wifi_waitForEvent },
     { "doBooleanCommand", "(Ljava/lang/String;Ljava/lang/String;)Z",

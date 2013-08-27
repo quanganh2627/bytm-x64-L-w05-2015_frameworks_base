@@ -72,14 +72,17 @@ public class Input {
             } else if (command.equals("swipe")) {
                 if (args.length == 5) {
                     sendSwipe(InputDevice.SOURCE_TOUCHSCREEN, Float.parseFloat(args[1]), Float.parseFloat(args[2]),
-                            Float.parseFloat(args[3]), Float.parseFloat(args[4]));
+                            Float.parseFloat(args[3]), Float.parseFloat(args[4]), -1);
                     return;
                 }
-            } else if (command.equals("touchscreen") || command.equals("touchpad")) {
+            } else if (command.equals("touchscreen") || command.equals("touchpad")
+                    || command.equals("touchnavigation")) {
                 // determine input source
                 int inputSource = InputDevice.SOURCE_TOUCHSCREEN;
                 if (command.equals("touchpad")) {
                     inputSource = InputDevice.SOURCE_TOUCHPAD;
+                } else if (command.equals("touchnavigation")) {
+                    inputSource = InputDevice.SOURCE_TOUCH_NAVIGATION;
                 }
                 // determine subcommand
                 if (args.length > 1) {
@@ -94,7 +97,12 @@ public class Input {
                         if (args.length == 6) {
                             sendSwipe(inputSource, Float.parseFloat(args[2]),
                                     Float.parseFloat(args[3]), Float.parseFloat(args[4]),
-                                    Float.parseFloat(args[5]));
+                                    Float.parseFloat(args[5]), -1);
+                            return;
+                        } else if (args.length == 7) {
+                            sendSwipe(inputSource, Float.parseFloat(args[2]),
+                                    Float.parseFloat(args[3]), Float.parseFloat(args[4]),
+                                    Float.parseFloat(args[5]), Integer.parseInt(args[6]));
                             return;
                         }
                     }
@@ -172,16 +180,22 @@ public class Input {
         injectMotionEvent(inputSource, MotionEvent.ACTION_UP, now, x, y, 0.0f);
     }
 
-    private void sendSwipe(int inputSource, float x1, float y1, float x2, float y2) {
-        final int NUM_STEPS = 11;
+    private void sendSwipe(int inputSource, float x1, float y1, float x2, float y2, int duration) {
+        if (duration < 0) {
+            duration = 300;
+        }
         long now = SystemClock.uptimeMillis();
         injectMotionEvent(inputSource, MotionEvent.ACTION_DOWN, now, x1, y1, 1.0f);
-        for (int i = 1; i < NUM_STEPS; i++) {
-            float alpha = (float) i / NUM_STEPS;
+        long startTime = now;
+        long endTime = startTime + duration;
+        while (now < endTime) {
+            long elapsedTime = now - startTime;
+            float alpha = (float) elapsedTime / duration;
             injectMotionEvent(inputSource, MotionEvent.ACTION_MOVE, now, lerp(x1, x2, alpha),
                     lerp(y1, y2, alpha), 1.0f);
+            now = SystemClock.uptimeMillis();
         }
-        injectMotionEvent(inputSource, MotionEvent.ACTION_UP, now, x1, y1, 0.0f);
+        injectMotionEvent(inputSource, MotionEvent.ACTION_UP, now, x2, y2, 0.0f);
     }
 
     /**
@@ -198,8 +212,13 @@ public class Input {
 
     private void injectKeyEvent(KeyEvent event) {
         Log.i(TAG, "injectKeyEvent: " + event);
-        InputManager.getInstance().injectInputEvent(event,
+        InputManager input = InputManager.getInstance();
+        if (input != null) {
+            input.injectInputEvent(event,
                 InputManager.INJECT_INPUT_EVENT_MODE_WAIT_FOR_FINISH);
+        } else {
+            System.err.println("InputManager service is not available.");
+        }
     }
 
     /**
@@ -224,8 +243,13 @@ public class Input {
                 DEFAULT_EDGE_FLAGS);
         event.setSource(inputSource);
         Log.i("Input", "injectMotionEvent: " + event);
-        InputManager.getInstance().injectInputEvent(event,
+        InputManager input = InputManager.getInstance();
+        if (input != null) {
+            input.injectInputEvent(event,
                 InputManager.INJECT_INPUT_EVENT_MODE_WAIT_FOR_FINISH);
+        } else {
+            System.err.println("InputManager service is not available.");
+        }
     }
 
     private static final float lerp(float a, float b, float alpha) {
@@ -236,8 +260,9 @@ public class Input {
         System.err.println("usage: input ...");
         System.err.println("       input text <string>");
         System.err.println("       input keyevent <key code number or name>");
-        System.err.println("       input [touchscreen|touchpad] tap <x> <y>");
-        System.err.println("       input [touchscreen|touchpad] swipe <x1> <y1> <x2> <y2>");
+        System.err.println("       input [touchscreen|touchpad|touchnavigation] tap <x> <y>");
+        System.err.println("       input [touchscreen|touchpad|touchnavigation] swipe "
+                + "<x1> <y1> <x2> <y2> [duration(ms)]");
         System.err.println("       input trackball press");
         System.err.println("       input trackball roll <dx> <dy>");
     }

@@ -43,11 +43,10 @@
 #include <signal.h>
 #include <dirent.h>
 #include <assert.h>
-
+#include <fcntl.h>                                                          |
+#include <errno.h>
 
 using namespace android;
-
-extern void register_BindTest();
 
 extern int register_android_os_Binder(JNIEnv* env);
 extern int register_android_os_Process(JNIEnv* env);
@@ -69,11 +68,13 @@ extern int register_android_graphics_YuvImage(JNIEnv* env);
 extern int register_com_google_android_gles_jni_EGLImpl(JNIEnv* env);
 extern int register_com_google_android_gles_jni_GLImpl(JNIEnv* env);
 extern int register_android_opengl_jni_EGL14(JNIEnv* env);
+extern int register_android_opengl_jni_EGLExt(JNIEnv* env);
 extern int register_android_opengl_jni_GLES10(JNIEnv* env);
 extern int register_android_opengl_jni_GLES10Ext(JNIEnv* env);
 extern int register_android_opengl_jni_GLES11(JNIEnv* env);
 extern int register_android_opengl_jni_GLES11Ext(JNIEnv* env);
 extern int register_android_opengl_jni_GLES20(JNIEnv* env);
+extern int register_android_opengl_jni_GLES30(JNIEnv* env);
 
 extern int register_android_hardware_Camera(JNIEnv *env);
 extern int register_android_hardware_SensorManager(JNIEnv *env);
@@ -121,6 +122,7 @@ extern int register_android_view_GLES20DisplayList(JNIEnv* env);
 extern int register_android_view_GLES20Canvas(JNIEnv* env);
 extern int register_android_view_HardwareRenderer(JNIEnv* env);
 extern int register_android_view_Surface(JNIEnv* env);
+extern int register_android_view_SurfaceControl(JNIEnv* env);
 extern int register_android_view_SurfaceSession(JNIEnv* env);
 extern int register_android_view_TextureView(JNIEnv* env);
 extern int register_android_database_CursorWindow(JNIEnv* env);
@@ -164,6 +166,8 @@ extern int register_android_media_RemoteDisplay(JNIEnv *env);
 extern int register_android_view_InputChannel(JNIEnv* env);
 extern int register_android_view_InputDevice(JNIEnv* env);
 extern int register_android_view_InputEventReceiver(JNIEnv* env);
+extern int register_android_view_InputEventSender(JNIEnv* env);
+extern int register_android_view_InputQueue(JNIEnv* env);
 extern int register_android_view_KeyCharacterMap(JNIEnv *env);
 extern int register_android_view_KeyEvent(JNIEnv* env);
 extern int register_android_view_MotionEvent(JNIEnv* env);
@@ -173,6 +177,7 @@ extern int register_android_content_res_ObbScanner(JNIEnv* env);
 extern int register_android_content_res_Configuration(JNIEnv* env);
 extern int register_android_animation_PropertyValuesHolder(JNIEnv *env);
 extern int register_com_android_internal_content_NativeLibraryHelper(JNIEnv *env);
+extern int register_com_android_internal_net_NetworkStatsFactory(JNIEnv *env);
 
 static AndroidRuntime* gCurRuntime = NULL;
 
@@ -398,6 +403,210 @@ static void readLocale(char* language, char* region)
     //ALOGD("language=%s region=%s\n", language, region);
 }
 
+#ifdef RETRIEVE_INGREDIENTS_VERSIONS
+/*
+ * Read IFWI version
+ */
+#define INTE_SCU_IPC_FW_REVISION_GET        0xB0
+#define INTE_SCU_IPC_FW_REVISION_EXT_GET    0xB1
+#define INTE_SCU_IPC_FW_PATH                "/dev/mid_ipc"
+
+#define INTE_SCU_FW_BUF_LENGTH              256
+#define INTE_SCU_IPC_FW_VERSION_LENGTH      16
+
+#define INTE_SCU_IPC_FW_REVISION_MAJ_REG    15
+#define INTE_SCU_IPC_FW_REVISION_MIN_REG    14
+#define INTE_SCU_IPC_SCU_RT_FW_REVISION_MAJ_REG    1
+#define INTE_SCU_IPC_SCU_RT_FW_REVISION_MIN_REG    0
+#define INTE_SCU_IPC_PUNIT_FW_REVISION_MAJ_REG     5
+#define INTE_SCU_IPC_PUNIT_FW_REVISION_MIN_REG     4
+#define INTE_SCU_IPC_IA32_FW_REVISION_MAJ_REG      7
+#define INTE_SCU_IPC_IA32_FW_REVISION_MIN_REG      6
+#define INTE_SCU_IPC_VALHOOKS_FW_REVISION_MAJ_REG  11
+#define INTE_SCU_IPC_VALHOOKS_FW_REVISION_MIN_REG  10
+
+#define INTE_SCU_IPC_SCU_BS_FW_REVISION_EXT_MIN_REG    0
+#define INTE_SCU_IPC_SCU_BS_FW_REVISION_EXT_MAJ_REG    2
+#define INTE_SCU_IPC_SCU_RT_FW_REVISION_EXT_MIN_REG    4
+#define INTE_SCU_IPC_SCU_RT_FW_REVISION_EXT_MAJ_REG    6
+#define INTE_SCU_IPC_IA32_FW_REVISION_EXT_MIN_REG      8
+#define INTE_SCU_IPC_IA32_FW_REVISION_EXT_MAJ_REG      10
+#define INTE_SCU_IPC_VALHOOKS_FW_REVISION_EXT_MIN_REG  12
+#define INTE_SCU_IPC_VALHOOKS_FW_REVISION_EXT_MAJ_REG  14
+
+#define INTE_SCU_IPC_FW_REVISION_EXT_MIN_REG           0
+#define INTE_SCU_IPC_FW_REVISION_EXT_MAJ_REG           2
+#define INTE_SCU_IPC_CHAABI_FW_REVISION_EXT_MIN_REG    4
+#define INTE_SCU_IPC_CHAABI_FW_REVISION_EXT_MAJ_REG    6
+#define INTE_SCU_IPC_MIA_FW_REVISION_EXT_MIN_REG       8
+#define INTE_SCU_IPC_MIA_FW_REVISION_EXT_MAJ_REG       10
+
+#define FORMAT_REV_4_DIGIT(ver,pos_maj,pos_min) snprintf(buf, INTE_SCU_FW_BUF_LENGTH, "%.4X.%.4X", ver.data[pos_maj+1] << 8 | ver.data[pos_maj], ver.data[pos_min+1] << 8 | ver.data[pos_min])
+#define FORMAT_REV_2_DIGIT(ver,pos_maj,pos_min) snprintf(buf, INTE_SCU_FW_BUF_LENGTH, "%.2X.%.2X", ver.data[pos_maj], ver.data[pos_min])
+
+struct scu_ipc_version {
+        unsigned int    count;    /* length of version info */
+        unsigned char   data[INTE_SCU_IPC_FW_VERSION_LENGTH]; /* version data */
+};
+
+static void readIfwiVersion()
+{
+    struct scu_ipc_version version, version_ext;
+    int devfd, ret, i;
+    char buf[INTE_SCU_FW_BUF_LENGTH];
+    char platform_value[PROPERTY_VALUE_MAX];
+    bool ifwi_rev_ext = false;
+
+    property_get("ro.board.platform", platform_value, "");
+    if (!strcmp(platform_value, "merrifield")) {
+        ifwi_rev_ext = true;
+    }
+
+    version.count = INTE_SCU_IPC_FW_VERSION_LENGTH;
+    devfd = open(INTE_SCU_IPC_FW_PATH, O_RDWR);
+    if (devfd < 0) {
+        LOGE("readIfwiVersion() open dev file error: %d",errno);
+        return;
+    }
+    ret = ioctl(devfd, INTE_SCU_IPC_FW_REVISION_GET, &version);
+    if (ret < 0) {
+        LOGE("readIfwiVersion() get version 0 error: %d",ret);
+        return ;
+    }
+    if (ifwi_rev_ext) {
+        version_ext.count = INTE_SCU_IPC_FW_VERSION_LENGTH;
+        ret = ioctl(devfd, INTE_SCU_IPC_FW_REVISION_EXT_GET, &version_ext);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get version 1 error: %d",ret);
+            return ;
+        }
+    }
+    close(devfd);
+
+    if (ifwi_rev_ext) {
+        FORMAT_REV_4_DIGIT(version,INTE_SCU_IPC_SCU_BS_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_SCU_BS_FW_REVISION_EXT_MIN_REG);
+        LOGI("SCU BS Version: %s", buf);
+        ret = property_set("sys.scubs.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version,INTE_SCU_IPC_SCU_RT_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_SCU_RT_FW_REVISION_EXT_MIN_REG);
+        LOGI("SCU RT Version: %s", buf);
+        ret = property_set("sys.scu.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version,INTE_SCU_IPC_IA32_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_IA32_FW_REVISION_EXT_MIN_REG);
+        LOGI("IA32FW Version: %s", buf);
+        ret = property_set("sys.ia32.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version,INTE_SCU_IPC_VALHOOKS_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_VALHOOKS_FW_REVISION_EXT_MIN_REG);
+        LOGI("ValHooks Version: %s", buf);
+        ret = property_set("sys.valhooks.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version_ext,INTE_SCU_IPC_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_FW_REVISION_EXT_MIN_REG);
+        LOGI("IFWI Version: %s", buf);
+        ret = property_set("sys.ifwi.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version_ext,INTE_SCU_IPC_CHAABI_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_CHAABI_FW_REVISION_EXT_MIN_REG);
+        LOGI("CHAABI Version: %s", buf);
+        ret = property_set("sys.chaabi.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version_ext,INTE_SCU_IPC_MIA_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_MIA_FW_REVISION_EXT_MIN_REG);
+        LOGI("mIA Version: %s", buf);
+        ret = property_set("sys.mia.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+
+    }
+    else {
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_FW_REVISION_MAJ_REG,INTE_SCU_IPC_FW_REVISION_MIN_REG);
+        LOGI("IFWI Version: %s", buf);
+        ret = property_set("sys.ifwi.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_SCU_RT_FW_REVISION_MAJ_REG,INTE_SCU_IPC_SCU_RT_FW_REVISION_MIN_REG);
+        LOGI("SCU Version: %s", buf);
+        ret = property_set("sys.scu.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_PUNIT_FW_REVISION_MAJ_REG,INTE_SCU_IPC_PUNIT_FW_REVISION_MIN_REG);
+        LOGI("PUnit Version: %s", buf);
+        ret = property_set("sys.punit.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_IA32_FW_REVISION_MAJ_REG,INTE_SCU_IPC_IA32_FW_REVISION_MIN_REG);
+        LOGI("IA32FW Version: %s", buf);
+        ret = property_set("sys.ia32.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_VALHOOKS_FW_REVISION_MAJ_REG,INTE_SCU_IPC_VALHOOKS_FW_REVISION_MIN_REG);
+        LOGI("ValHooks Version: %s", buf);
+        ret = property_set("sys.valhooks.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+    }
+    return;
+}
+
+/*
+ * Read Kernel Release version
+ */
+#define KERNEL_OSRELEASE_VERSION_PATH     "/proc/sys/kernel/osrelease"
+
+static void readKernelReleaseVersion()
+{
+    int fd, ret;
+    char buf[PROPERTY_VALUE_MAX+1];
+
+    fd = open(KERNEL_OSRELEASE_VERSION_PATH, O_RDONLY);
+    if (fd < 0) {
+        LOGE("readKernelReleaseVersion() open proc file error: %d", errno);
+        return;
+    }
+    ret = read(fd, buf, PROPERTY_VALUE_MAX);
+    close(fd);
+    if (ret > 0) {
+        buf[ret-1] = '\0';
+        LOGI("Kernel Release Version: %s", buf);
+        ret = property_set("sys.kernel.version", buf);
+        if (ret < 0) {
+            LOGE("readKernelReleaseVersion() set property error: %d", ret);
+            return;
+        }
+        return;
+    } else {
+        LOGE("readKernelReleaseVersion() read value error: %d", ret);
+        return;
+    }
+}
+#endif
 /*
  * Parse a property containing space-separated options that should be
  * passed directly to the VM, e.g. "-Xmx32m -verbose:gc -Xregenmap".
@@ -465,9 +674,7 @@ int AndroidRuntime::startVm(JavaVM** pJavaVM, JNIEnv** pEnv)
       kEMDefault,
       kEMIntPortable,
       kEMIntFast,
-#if defined(WITH_JIT)
       kEMJitCompiler,
-#endif
     } executionMode = kEMDefault;
 
 
@@ -487,10 +694,8 @@ int AndroidRuntime::startVm(JavaVM** pJavaVM, JNIEnv** pEnv)
         executionMode = kEMIntPortable;
     } else if (strcmp(propBuf, "int:fast") == 0) {
         executionMode = kEMIntFast;
-#if defined(WITH_JIT)
     } else if (strcmp(propBuf, "int:jit") == 0) {
         executionMode = kEMJitCompiler;
-#endif
     }
 
     property_get("dalvik.vm.stack-trace-file", stackTraceFileBuf, "");
@@ -660,7 +865,6 @@ int AndroidRuntime::startVm(JavaVM** pJavaVM, JNIEnv** pEnv)
       mOptions.add(opt);
     }
 
-#if defined(WITH_JIT)
     /* Force interpreter-only mode for selected opcodes. Eg "1-0a,3c,f1-ff" */
     char jitOpBuf[sizeof("-Xjitop:") + PROPERTY_VALUE_MAX];
     property_get("dalvik.vm.jit.op", propBuf, "");
@@ -680,7 +884,6 @@ int AndroidRuntime::startVm(JavaVM** pJavaVM, JNIEnv** pEnv)
         opt.optionString = jitMethodBuf;
         mOptions.add(opt);
     }
-#endif
 
     if (executionMode == kEMIntPortable) {
         opt.optionString = "-Xint:portable";
@@ -688,11 +891,9 @@ int AndroidRuntime::startVm(JavaVM** pJavaVM, JNIEnv** pEnv)
     } else if (executionMode == kEMIntFast) {
         opt.optionString = "-Xint:fast";
         mOptions.add(opt);
-#if defined(WITH_JIT)
     } else if (executionMode == kEMJitCompiler) {
         opt.optionString = "-Xint:jit";
         mOptions.add(opt);
-#endif
     }
 
     if (checkDexSum) {
@@ -734,6 +935,10 @@ int AndroidRuntime::startVm(JavaVM** pJavaVM, JNIEnv** pEnv)
         opt.optionString = stackTraceFile;
         mOptions.add(opt);
     }
+#ifdef RETRIEVE_INGREDIENTS_VERSIONS
+    readIfwiVersion();
+    readKernelReleaseVersion();
+#endif
 
     /* extra options; parse this late so it overrides others */
     property_get("dalvik.vm.extra-opts", extraOptsBuf, "");
@@ -1120,16 +1325,19 @@ static const RegJNIRec gRegJNI[] = {
     REG_JNI(register_android_view_GLES20Canvas),
     REG_JNI(register_android_view_HardwareRenderer),
     REG_JNI(register_android_view_Surface),
+    REG_JNI(register_android_view_SurfaceControl),
     REG_JNI(register_android_view_SurfaceSession),
     REG_JNI(register_android_view_TextureView),
     REG_JNI(register_com_google_android_gles_jni_EGLImpl),
     REG_JNI(register_com_google_android_gles_jni_GLImpl),
     REG_JNI(register_android_opengl_jni_EGL14),
+    REG_JNI(register_android_opengl_jni_EGLExt),
     REG_JNI(register_android_opengl_jni_GLES10),
     REG_JNI(register_android_opengl_jni_GLES10Ext),
     REG_JNI(register_android_opengl_jni_GLES11),
     REG_JNI(register_android_opengl_jni_GLES11Ext),
     REG_JNI(register_android_opengl_jni_GLES20),
+    REG_JNI(register_android_opengl_jni_GLES30),
 
     REG_JNI(register_android_graphics_Bitmap),
     REG_JNI(register_android_graphics_BitmapFactory),
@@ -1202,6 +1410,8 @@ static const RegJNIRec gRegJNI[] = {
     REG_JNI(register_android_app_NativeActivity),
     REG_JNI(register_android_view_InputChannel),
     REG_JNI(register_android_view_InputEventReceiver),
+    REG_JNI(register_android_view_InputEventSender),
+    REG_JNI(register_android_view_InputQueue),
     REG_JNI(register_android_view_KeyEvent),
     REG_JNI(register_android_view_MotionEvent),
     REG_JNI(register_android_view_PointerIcon),
@@ -1212,6 +1422,7 @@ static const RegJNIRec gRegJNI[] = {
 
     REG_JNI(register_android_animation_PropertyValuesHolder),
     REG_JNI(register_com_android_internal_content_NativeLibraryHelper),
+    REG_JNI(register_com_android_internal_net_NetworkStatsFactory),
 };
 
 /*

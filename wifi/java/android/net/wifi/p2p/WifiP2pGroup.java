@@ -27,7 +27,9 @@ import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
 /**
- * A class representing a Wi-Fi P2p group
+ * A class representing a Wi-Fi P2p group. A p2p group consists of a single group
+ * owner and one or more clients. In the case of a group with only two devices, one
+ * will be the group owner and the other will be a group client.
  *
  * {@see WifiP2pManager}
  */
@@ -62,6 +64,9 @@ public class WifiP2pGroup implements Parcelable {
 
     /** The network id in the wpa_supplicant */
     private int mNetId;
+
+    /** The frequency */
+    private int mFrequency;
 
     /** P2P group started string pattern */
     private static final Pattern groupStartedPattern = Pattern.compile(
@@ -112,7 +117,7 @@ public class WifiP2pGroup implements Parcelable {
 
             mNetworkName = match.group(1);
             //freq and psk are unused right now
-            //int freq = Integer.parseInt(match.group(2));
+            mFrequency = Integer.parseInt(match.group(2));
             //String psk = match.group(3);
             mPassphrase = match.group(4);
             mOwner = new WifiP2pDevice(match.group(5));
@@ -260,6 +265,16 @@ public class WifiP2pGroup implements Parcelable {
         this.mNetId = netId;
     }
 
+    /** @hide */
+    public int getFrequency() {
+        return mFrequency;
+    }
+
+    /** @hide */
+    public void setFrequency(int frequency) {
+        this.mFrequency = frequency;
+    }
+
     public String toString() {
         StringBuffer sbuf = new StringBuffer();
         sbuf.append("network: ").append(mNetworkName);
@@ -270,6 +285,7 @@ public class WifiP2pGroup implements Parcelable {
         }
         sbuf.append("\n interface: ").append(mInterface);
         sbuf.append("\n networkId: ").append(mNetId);
+        sbuf.append("\n frequency: ").append(mFrequency);
         return sbuf.toString();
     }
 
@@ -288,6 +304,7 @@ public class WifiP2pGroup implements Parcelable {
             mPassphrase = source.getPassphrase();
             mInterface = source.getInterface();
             mNetId = source.getNetworkId();
+            mFrequency = source.getFrequency();
         }
     }
 
@@ -303,6 +320,7 @@ public class WifiP2pGroup implements Parcelable {
         dest.writeString(mPassphrase);
         dest.writeString(mInterface);
         dest.writeInt(mNetId);
+        dest.writeInt(mFrequency);
     }
 
     /** Implement the Parcelable interface */
@@ -320,6 +338,7 @@ public class WifiP2pGroup implements Parcelable {
                 group.setPassphrase(in.readString());
                 group.setInterface(in.readString());
                 group.setNetworkId(in.readInt());
+                group.setFrequency(in.readInt());
                 return group;
             }
 

@@ -128,10 +128,20 @@ public class FaceUnlock implements BiometricSensorUnlock, Handler.Callback {
         if (!mBoundToService) {
             Log.d(TAG, "Binding to Face Unlock service for user="
                     + mLockPatternUtils.getCurrentUser());
-            mContext.bindService(new Intent(IFaceLockInterface.class.getName()),
+            int option = mLockPatternUtils.getBiometricWeakOption();
+            String action = "";
+            if (option == LockPatternUtils.BIOMETRIC_WEAK_OPTION_FACE) {
+                action = IFaceLockInterface.class.getName();
+            } else if (option == LockPatternUtils.BIOMETRIC_WEAK_OPTION_VOICE) {
+                action = "aware.intent.action.VOICELOCK";
+            } else {
+                Log.e(TAG, "Unknown Biometric Weak Option: " + Integer.toString(option));
+                return false;
+            }
+            mContext.bindServiceAsUser(new Intent(action),
                     mConnection,
                     Context.BIND_AUTO_CREATE,
-                    mLockPatternUtils.getCurrentUser());
+                    new UserHandle(mLockPatternUtils.getCurrentUser()));
             mBoundToService = true;
         } else {
             Log.w(TAG, "Attempt to bind to Face Unlock when already bound");

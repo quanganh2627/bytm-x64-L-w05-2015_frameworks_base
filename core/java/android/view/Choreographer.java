@@ -114,6 +114,7 @@ public final class Choreographer {
     private static final int MSG_DO_FRAME = 0;
     private static final int MSG_DO_SCHEDULE_VSYNC = 1;
     private static final int MSG_DO_SCHEDULE_CALLBACK = 2;
+    private static final int MSG_FAKE_VSYNC = 3;
 
     // All frame callbacks posted by applications have this token.
     private static final Object FRAME_CALLBACK_TOKEN = new Object() {
@@ -135,6 +136,8 @@ public final class Choreographer {
     private final CallbackQueue[] mCallbackQueues;
 
     private boolean mFrameScheduled;
+    private boolean mVsyncDone = false;
+    private boolean mPendingFakeVsync = false;
     private boolean mCallbacksRunning;
     private long mLastFrameTimeNanos;
     private long mFrameIntervalNanos;
@@ -271,6 +274,19 @@ public final class Choreographer {
      */
     public void postCallback(int callbackType, Runnable action, Object token) {
         postCallbackDelayed(callbackType, action, token, 0);
+    }
+    /**
+     * @hide
+     */
+    public void sendFakeVsync() {
+       // prevent multiple Fake sync messsage from sending
+       if (!mPendingFakeVsync)
+       {
+            Message msg = mHandler.obtainMessage(MSG_FAKE_VSYNC);
+            msg.setAsynchronous(true);
+            mHandler.sendMessageDelayed(msg, 0);
+            mPendingFakeVsync = true;
+       }
     }
 
     /**
@@ -488,8 +504,21 @@ public final class Choreographer {
         }
     }
 
+    private void doFakeFrame(long frameTimeNanos, int frame) {
+        // Only do traversals ahead of actual vync
+        if (mVsyncDone)
+        {
+            if (DEBUG) {
+                Log.d(TAG, "scheduling a fake vsync");
+            }
+            doCallbacks(Choreographer.CALLBACK_TRAVERSAL, frameTimeNanos);
+            mVsyncDone = false;
+        }
+        mPendingFakeVsync = false;
+    }
     void doFrame(long frameTimeNanos, int frame) {
         final long startNanos;
+        mVsyncDone = true;
         synchronized (mLock) {
             if (!mFrameScheduled) {
                 return; // no work to do
@@ -669,7 +698,20 @@ public final class Choreographer {
                 case MSG_DO_SCHEDULE_CALLBACK:
                     doScheduleCallback(msg.arg1);
                     break;
+                case MSG_FAKE_VSYNC:
+                    doFakeFrame(0, 0);
+                    break;
             }
+        }
+
+        @Override
+        public String getMessageName(Message message) {
+            switch (message.what) {
+                case MSG_DO_FRAME: return "MSG_DO_FRAME";
+                case MSG_DO_SCHEDULE_VSYNC: return "MSG_DO_SCHEDULE_VSYNC";
+                case MSG_DO_SCHEDULE_CALLBACK: return "MSG_DO_SCHEDULE_CALLBACK";
+            }
+            return super.getMessageName(message);
         }
     }
 
@@ -693,7 +735,7 @@ public final class Choreographer {
             // At this time Surface Flinger won't send us vsyncs for secondary displays
             // but that could change in the future so let's log a message to help us remember
             // that we need to fix this.
-            if (builtInDisplayId != Surface.BUILT_IN_DISPLAY_ID_MAIN) {
+            if (builtInDisplayId != SurfaceControl.BUILT_IN_DISPLAY_ID_MAIN) {
                 Log.d(TAG, "Received vsync from secondary display, but we don't support "
                         + "this case yet.  Choreographer needs a way to explicitly request "
                         + "vsync for a specific display to ensure it doesn't lose track "

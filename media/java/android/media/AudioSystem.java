@@ -111,6 +111,14 @@ public class AudioSystem
     public static native boolean isStreamActive(int stream, int inPastMs);
 
     /*
+     * Checks whether the specified stream type is active on a remotely connected device. The notion
+     * of what constitutes a remote device is enforced by the audio policy manager of the platform.
+     *
+     * return true if any track playing on this stream is active on a remote device.
+     */
+    public static native boolean isStreamActiveRemotely(int stream, int inPastMs);
+
+    /*
      * Checks whether the specified audio source is active.
      *
      * return true if any recorder using this source is currently recording
@@ -221,7 +229,7 @@ public class AudioSystem
     public static final int DEVICE_OUT_REMOTE_SUBMIX = 0x8000;
 
     public static final int DEVICE_OUT_DEFAULT = DEVICE_BIT_DEFAULT;
-
+    public static final int DEVICE_OUT_WIDI = 0x1000000;
     public static final int DEVICE_OUT_ALL = (DEVICE_OUT_EARPIECE |
                                               DEVICE_OUT_SPEAKER |
                                               DEVICE_OUT_WIRED_HEADSET |
@@ -238,6 +246,7 @@ public class AudioSystem
                                               DEVICE_OUT_USB_ACCESSORY |
                                               DEVICE_OUT_USB_DEVICE |
                                               DEVICE_OUT_REMOTE_SUBMIX |
+                                              DEVICE_OUT_WIDI |
                                               DEVICE_OUT_DEFAULT);
     public static final int DEVICE_OUT_ALL_A2DP = (DEVICE_OUT_BLUETOOTH_A2DP |
                                                    DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES |
@@ -301,6 +310,7 @@ public class AudioSystem
     public static final String DEVICE_OUT_USB_ACCESSORY_NAME = "usb_accessory";
     public static final String DEVICE_OUT_USB_DEVICE_NAME = "usb_device";
     public static final String DEVICE_OUT_REMOTE_SUBMIX_NAME = "remote_submix";
+    public static final String DEVICE_OUT_WIDI_NAME = "widi_device";
 
     public static String getDeviceName(int device)
     {
@@ -337,7 +347,9 @@ public class AudioSystem
             return DEVICE_OUT_USB_DEVICE_NAME;
         case DEVICE_OUT_REMOTE_SUBMIX:
             return DEVICE_OUT_REMOTE_SUBMIX_NAME;
-        case DEVICE_OUT_DEFAULT:
+        case DEVICE_OUT_WIDI:
+            return DEVICE_OUT_WIDI_NAME;
+        case DEVICE_IN_DEFAULT:
         default:
             return "";
         }
@@ -393,5 +405,6 @@ public class AudioSystem
     // helpers for android.media.AudioManager.getProperty(), see description there for meaning
     public static native int getPrimaryOutputSamplingRate();
     public static native int getPrimaryOutputFrameCount();
+    public static native int getOutputLatency(int stream);
 
 }

@@ -43,7 +43,6 @@ import android.database.sqlite.SQLiteDebug;
 import android.database.sqlite.SQLiteDebug.DbStats;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.hardware.display.DisplayManager;
 import android.hardware.display.DisplayManagerGlobal;
 import android.net.IConnectivityManager;
 import android.net.Proxy;
@@ -72,8 +71,10 @@ import android.os.UserHandle;
 import android.util.AndroidRuntimeException;
 import android.util.DisplayMetrics;
 import android.util.EventLog;
+import android.util.LocalLog;
 import android.util.Log;
 import android.util.LogPrinter;
+import android.util.LogWriter;
 import android.util.PrintWriterPrinter;
 import android.util.Slog;
 import android.view.CompatibilityInfoHolder;
@@ -87,6 +88,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.view.WindowManagerGlobal;
 import android.renderscript.RenderScript;
+import android.security.AndroidKeyStoreProvider;
 
 import com.android.internal.os.BinderInternal;
 import com.android.internal.os.RuntimeInit;
@@ -100,6 +102,7 @@ import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.security.Security;
@@ -187,7 +190,8 @@ public final class ActivityThread {
             = new ArrayList<Application>();
     // set of instantiated backup agents, keyed by package name
     final HashMap<String, BackupAgent> mBackupAgents = new HashMap<String, BackupAgent>();
-    static final ThreadLocal<ActivityThread> sThreadLocal = new ThreadLocal<ActivityThread>();
+    /** Reference to singleton {@link ActivityThread} */
+    private static ActivityThread sCurrentActivityThread;
     Instrumentation mInstrumentation;
     String mInstrumentationAppDir = null;
     String mInstrumentationAppLibraryDir = null;
@@ -196,6 +200,7 @@ public final class ActivityThread {
     String mInstrumentedAppLibraryDir = null;
     boolean mSystemThread = false;
     boolean mJitEnabled = false;
+    static LocalLog sLocalLog;
 
     // These can be accessed by multiple threads; mPackages is the lock.
     // XXX For now we keep around information about all packages we have
@@ -419,6 +424,7 @@ public final class ActivityThread {
         ComponentName instrumentationName;
         Bundle instrumentationArgs;
         IInstrumentationWatcher instrumentationWatcher;
+        IUiAutomationConnection instrumentationUiAutomationConnection;
         int debugMode;
         boolean enableOpenGlTrace;
         boolean restrictedBackupMode;
@@ -531,6 +537,12 @@ public final class ActivityThread {
     static final class UpdateCompatibilityData {
         String pkg;
         CompatibilityInfo info;
+    }
+
+    static final class RequestActivityExtras {
+        IBinder activityToken;
+        IBinder requestToken;
+        int requestType;
     }
     
     private native void dumpGraphicsInfo(FileDescriptor fd);
@@ -723,9 +735,10 @@ public final class ActivityThread {
                 ComponentName instrumentationName, String profileFile,
                 ParcelFileDescriptor profileFd, boolean autoStopProfiler,
                 Bundle instrumentationArgs, IInstrumentationWatcher instrumentationWatcher,
-                int debugMode, boolean enableOpenGlTrace, boolean isRestrictedBackupMode,
-                boolean persistent, Configuration config, CompatibilityInfo compatInfo,
-                Map<String, IBinder> services, Bundle coreSettings) {
+                IUiAutomationConnection instrumentationUiConnection, int debugMode,
+                boolean enableOpenGlTrace, boolean isRestrictedBackupMode, boolean persistent,
+                Configuration config, CompatibilityInfo compatInfo, Map<String, IBinder> services,
+                Bundle coreSettings) {
 
             if (services != null) {
                 // Setup the service cache in the ServiceManager
@@ -741,6 +754,7 @@ public final class ActivityThread {
             data.instrumentationName = instrumentationName;
             data.instrumentationArgs = instrumentationArgs;
             data.instrumentationWatcher = instrumentationWatcher;
+            data.instrumentationUiAutomationConnection = instrumentationUiConnection;
             data.debugMode = debugMode;
             data.enableOpenGlTrace = enableOpenGlTrace;
             data.restrictedBackupMode = isRestrictedBackupMode;
@@ -1107,6 +1121,16 @@ public final class ActivityThread {
             queueOrSendMessage(H.UNSTABLE_PROVIDER_DIED, provider);
         }
 
+        @Override
+        public void requestActivityExtras(IBinder activityToken, IBinder requestToken,
+                int requestType) {
+            RequestActivityExtras cmd = new RequestActivityExtras();
+            cmd.activityToken = activityToken;
+            cmd.requestToken = requestToken;
+            cmd.requestType = requestType;
+            queueOrSendMessage(H.REQUEST_ACTIVITY_EXTRAS, cmd);
+        }
+
         private void printRow(PrintWriter pw, String format, Object...objs) {
             pw.println(String.format(format, objs));
         }
@@ -1126,6 +1150,35 @@ public final class ActivityThread {
             queueOrSendMessage(H.TRIM_MEMORY, null, level);
         }
 
+        public void dumpLooperHistory() {
+            if (sLocalLog == null) return;
+            // upload to server in case app is killed before logcat is done.
+            final DropBoxManager db = (DropBoxManager) mInitialApplication.
+                    getSystemService(Context.DROPBOX_SERVICE);
+            if (db != null) {
+                StringWriter sw = new StringWriter();
+                PrintWriter pw = new PrintWriter(sw);
+                sLocalLog.dump(FileDescriptor.out, pw, new String[0]);
+                db.addText("ANR_LOOPER_HISTORY", sw.toString());
+                pw.close();
+            }
+
+            // sometimes dropbox is missing, so logcat it.
+            PrintWriter pw = new PrintWriter(new LogWriter(Log.DEBUG, TAG));
+            sLocalLog.dump(FileDescriptor.out, pw, new String[0]);
+            pw.close();
+        }
+
+        public void dumpANRInfo() {
+            // dump current message queue.
+            Log.d(TAG, "===MessageQueue.dump() of the mainLooper begin===");
+            getLooper().dump(new LogPrinter(Log.DEBUG, "ActivityThread"), "");
+            Log.d(TAG, "===MessageQueue.dump() of the mainLooper end===");
+            // dump dispatch history.
+            Log.d(TAG, "===Dispatch history of the mainLooper begin===");
+            dumpLooperHistory();
+            Log.d(TAG, "===Dispatch history of the mainLooper end===");
+        }
     }
 
     private class H extends Handler {
@@ -1172,6 +1225,13 @@ public final class ActivityThread {
         public static final int TRIM_MEMORY             = 140;
         public static final int DUMP_PROVIDER           = 141;
         public static final int UNSTABLE_PROVIDER_DIED  = 142;
+        public static final int REQUEST_ACTIVITY_EXTRAS = 143;
+
+        @Override
+        public String getMessageName(Message message) {
+            return codeToString(message.what);
+        }
+
         String codeToString(int code) {
             if (DEBUG_MESSAGES) {
                 switch (code) {
@@ -1218,6 +1278,7 @@ public final class ActivityThread {
                     case TRIM_MEMORY: return "TRIM_MEMORY";
                     case DUMP_PROVIDER: return "DUMP_PROVIDER";
                     case UNSTABLE_PROVIDER_DIED: return "UNSTABLE_PROVIDER_DIED";
+                    case REQUEST_ACTIVITY_EXTRAS: return "REQUEST_ACTIVITY_EXTRAS";
                 }
             }
             return Integer.toString(code);
@@ -1429,6 +1490,9 @@ public final class ActivityThread {
                 case UNSTABLE_PROVIDER_DIED:
                     handleUnstableProviderDied((IBinder)msg.obj, false);
                     break;
+                case REQUEST_ACTIVITY_EXTRAS:
+                    handleRequestActivityExtras((RequestActivityExtras)msg.obj);
+                    break;
             }
             if (DEBUG_MESSAGES) Slog.v(TAG, "<<< done: " + codeToString(msg.what));
         }
@@ -1564,10 +1628,16 @@ public final class ActivityThread {
     }
 
     public static ActivityThread currentActivityThread() {
-        return sThreadLocal.get();
+        return sCurrentActivityThread;
     }
 
     public static String currentPackageName() {
+        ActivityThread am = currentActivityThread();
+        return (am != null && am.mBoundApplication != null)
+            ? am.mBoundApplication.appInfo.packageName : null;
+    }
+
+    public static String currentProcessName() {
         ActivityThread am = currentActivityThread();
         return (am != null && am.mBoundApplication != null)
             ? am.mBoundApplication.processName : null;
@@ -2321,6 +2391,23 @@ public final class ActivityThread {
         performNewIntents(data.token, data.intents);
     }
 
+    public void handleRequestActivityExtras(RequestActivityExtras cmd) {
+        Bundle data = new Bundle();
+        ActivityClientRecord r = mActivities.get(cmd.activityToken);
+        if (r != null) {
+            r.activity.getApplication().dispatchOnProvideAssistData(r.activity, data);
+            r.activity.onProvideAssistData(data);
+        }
+        if (data.isEmpty()) {
+            data = null;
+        }
+        IActivityManager mgr = ActivityManagerNative.getDefault();
+        try {
+            mgr.reportTopActivityExtras(cmd.requestToken, data);
+        } catch (RemoteException e) {
+        }
+    }
+    
     private static final ThreadLocal<Intent> sCurrentBroadcastIntent = new ThreadLocal<Intent>();
 
     /**
@@ -4277,8 +4364,12 @@ public final class ActivityThread {
 
         // Enable OpenGL tracing if required
         if (data.enableOpenGlTrace) {
-            GLUtils.enableTracing();
+            GLUtils.setTracingLevel(1);
         }
+
+        // Allow application-generated systrace messages if we're debuggable.
+        boolean appTracingAllowed = (data.appInfo.flags&ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        Trace.setAppTracingAllowed(appTracingAllowed);
 
         /**
          * Initialize the default http proxy in this process for the reasons we set the time zone.
@@ -4336,7 +4427,8 @@ public final class ActivityThread {
             }
 
             mInstrumentation.init(this, instrContext, appContext,
-                    new ComponentName(ii.packageName, ii.name), data.instrumentationWatcher);
+                   new ComponentName(ii.packageName, ii.name), data.instrumentationWatcher,
+                   data.instrumentationUiAutomationConnection);
 
             if (mProfiler.profileFile != null && !ii.handleProfiling
                     && mProfiler.profileFd == null) {
@@ -4492,6 +4584,8 @@ public final class ActivityThread {
                                 + "snatched provider from the jaws of death");
                     }
                     prc.removePending = false;
+                    // There is a race! It fails to remove the message, which
+                    // will be handled in completeRemoveProvider().
                     mH.removeMessages(H.REMOVE_PROVIDER, prc);
                 } else {
                     unstableDelta = 0;
@@ -4670,6 +4764,11 @@ public final class ActivityThread {
                         + "provider still in use");
                 return;
             }
+
+            // More complicated race!! Some client managed to acquire the
+            // provider and release it before the removal was completed.
+            // Continue the removal, and abort the next remove message.
+            prc.removePending = false;
 
             final IBinder jBinder = prc.holder.provider.asBinder();
             ProviderRefCount existingPrc = mProviderRefCountMap.get(jBinder);
@@ -4894,7 +4993,7 @@ public final class ActivityThread {
     }
 
     private void attach(boolean system) {
-        sThreadLocal.set(this);
+        sCurrentActivityThread = this;
         mSystemThread = system;
         if (!system) {
             ViewRootImpl.addFirstDrawHandler(new Runnable() {
@@ -5020,6 +5119,8 @@ public final class ActivityThread {
         // Set the reporter for event logging in libcore
         EventLogger.setReporter(new EventLoggingReporter());
 
+        Security.addProvider(new AndroidKeyStoreProvider());
+
         Process.setArgV0("<pre-initialized>");
 
         Looper.prepareMainLooper();
@@ -5036,6 +5137,10 @@ public final class ActivityThread {
         if (false) {
             Looper.myLooper().setMessageLogging(new
                     LogPrinter(Log.DEBUG, "ActivityThread"));
+        }
+        if (!"user".equals(android.os.Build.TYPE)) {
+            sLocalLog = new LocalLog(128);
+            Looper.myLooper().setMessageLogging(sLocalLog);
         }
 
         Looper.loop();

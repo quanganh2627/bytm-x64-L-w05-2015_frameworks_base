@@ -24,6 +24,7 @@ import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.telephony.TelephonyManager;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -31,6 +32,7 @@ import android.text.method.DigitsKeyListener;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.TextView.OnEditorActionListener;
 
 import com.android.internal.R;
@@ -43,6 +45,8 @@ public class KeyguardSimPinView extends KeyguardAbsKeyInputView
 
     private ProgressDialog mSimUnlockProgressDialog = null;
     private volatile boolean mSimCheckInProgress;
+
+    InputMethodManager mImm;
 
     public KeyguardSimPinView(Context context) {
         this(context, null);
@@ -65,6 +69,9 @@ public class KeyguardSimPinView extends KeyguardAbsKeyInputView
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
+
+        mImm = (InputMethodManager) getContext().getSystemService(
+                Context.INPUT_METHOD_SERVICE);
 
         final View ok = findViewById(R.id.key_enter);
         if (ok != null) {
@@ -99,6 +106,8 @@ public class KeyguardSimPinView extends KeyguardAbsKeyInputView
                 }
             });
         }
+
+        mImm.hideSoftInputFromWindow(getWindowToken(), 0);
 
         mPasswordEntry.setKeyListener(DigitsKeyListener.getInstance());
         mPasswordEntry.setInputType(InputType.TYPE_CLASS_NUMBER
@@ -136,11 +145,18 @@ public class KeyguardSimPinView extends KeyguardAbsKeyInputView
         @Override
         public void run() {
             try {
-                final boolean result = ITelephony.Stub.asInterface(ServiceManager
+                boolean result = ITelephony.Stub.asInterface(ServiceManager
                         .checkService("phone")).supplyPin(mPin);
+                TelephonyManager tm = (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
+                final int state = tm.getSimState();
+                if (state == TelephonyManager.SIM_STATE_ABSENT ||
+                        state == TelephonyManager.SIM_STATE_UNKNOWN) {
+                    result = true;
+                }
+                final boolean success = result;
                 post(new Runnable() {
                     public void run() {
-                        onSimCheckResponse(result);
+                        onSimCheckResponse(success);
                     }
                 });
             } catch (RemoteException e) {

@@ -17,6 +17,7 @@
 package com.android.internal.app;
 
 import com.android.internal.os.BatteryStatsImpl;
+import com.android.internal.app.IBatteryStatsResetCallback;
 
 import android.os.WorkSource;
 import android.telephony.SignalStrength;
@@ -37,6 +38,8 @@ interface IBatteryStats {
     void noteStartWakelockFromSource(in WorkSource ws, int pid, String name, int type);
     void noteStopWakelockFromSource(in WorkSource ws, int pid, String name, int type);
 
+    void noteVibratorOn(int uid, long durationMillis);
+    void noteVibratorOff(int uid);
     void noteStartGps(int uid);
     void noteStopGps(int uid);
     void noteScreenOn();
@@ -72,4 +75,8 @@ interface IBatteryStats {
     void setBatteryState(int status, int health, int plugType, int level, int temp, int volt);
     long getAwakeTimeBattery();
     long getAwakeTimePlugged();
+    void resetStatistic(boolean wait);
+    byte[] getStatisticsBeforeReset();
+    void registerCallback(IBatteryStatsResetCallback callback);
+    void unregisterCallback(IBatteryStatsResetCallback callback);
 }

@@ -18,6 +18,7 @@ package android.os;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Formatter;
@@ -93,6 +94,11 @@ public abstract class BatteryStats implements Parcelable {
     public static final int VIDEO_TURNED_ON = 8;
 
     /**
+     * A constant indicating a vibrator on timer
+     */
+    public static final int VIBRATOR_ON = 9;
+
+    /**
      * Include all of the data in the stats, including previously saved data.
      */
     public static final int STATS_SINCE_CHARGED = 0;
@@ -131,6 +137,7 @@ public abstract class BatteryStats implements Parcelable {
     private static final String APK_DATA = "apk";
     private static final String PROCESS_DATA = "pr";
     private static final String SENSOR_DATA = "sr";
+    private static final String VIBRATOR_DATA = "vib";
     private static final String WAKELOCK_DATA = "wl";
     private static final String KERNEL_WAKELOCK_DATA = "kwl";
     private static final String NETWORK_DATA = "nt";
@@ -277,6 +284,7 @@ public abstract class BatteryStats implements Parcelable {
                                                   int which);
         public abstract long getAudioTurnedOnTime(long batteryRealtime, int which);
         public abstract long getVideoTurnedOnTime(long batteryRealtime, int which);
+        public abstract Timer getVibratorOnTimer();
 
         /**
          * Note that these must match the constants in android.os.PowerManager.
@@ -294,6 +302,11 @@ public abstract class BatteryStats implements Parcelable {
         public abstract int getUserActivityCount(int type, int which);
         
         public static abstract class Sensor {
+            /*
+             * FIXME: it's not correct to use this magic value because it
+             * could clash with a sensor handle (which are defined by
+             * the sensor HAL, and therefore out of our control
+             */
             // Magic sensor number for the GPS.
             public static final int GPS = -10000;
             
@@ -419,6 +432,7 @@ public abstract class BatteryStats implements Parcelable {
         public HistoryItem next;
         
         public long time;
+        public long absoluteTime;
         
         public static final byte CMD_NULL = 0;
         public static final byte CMD_UPDATE = 1;
@@ -476,6 +490,7 @@ public abstract class BatteryStats implements Parcelable {
         public int states;
 
         public HistoryItem() {
+            absoluteTime = Calendar.getInstance().getTimeInMillis();
         }
         
         public HistoryItem(long time, Parcel src) {
@@ -499,6 +514,7 @@ public abstract class BatteryStats implements Parcelable {
                     | ((((int)batteryVoltage)<<16)&0xffff0000);
             dest.writeInt(bat);
             dest.writeInt(states);
+            dest.writeLong(absoluteTime);
         }
 
         private void readFromParcel(Parcel src) {
@@ -512,6 +528,7 @@ public abstract class BatteryStats implements Parcelable {
             batteryTemperature = (char)(bat&0xffff);
             batteryVoltage = (char)((bat>>16)&0xffff);
             states = src.readInt();
+            absoluteTime = src.readLong();
         }
 
         // Part of initial delta int that specifies the time delta.
@@ -590,6 +607,9 @@ public abstract class BatteryStats implements Parcelable {
                         + " batteryPlugType=" + batteryPlugType
                         + " states=0x" + Integer.toHexString(states));
             }
+
+            //Write in AbsoluteTime anyway
+            dest.writeLong(Calendar.getInstance().getTimeInMillis());
         }
         
         private int buildBatteryLevelInt() {
@@ -655,6 +675,8 @@ public abstract class BatteryStats implements Parcelable {
             } else {
                 states = (firstToken&DELTA_STATE_MASK) | (states&(~DELTA_STATE_MASK));
             }
+
+            absoluteTime = src.readLong();
         }
 
         public void clear() {
@@ -667,6 +689,7 @@ public abstract class BatteryStats implements Parcelable {
             batteryTemperature = 0;
             batteryVoltage = 0;
             states = 0;
+            absoluteTime = 0;
         }
         
         public void setTo(HistoryItem o) {
@@ -679,6 +702,7 @@ public abstract class BatteryStats implements Parcelable {
             batteryTemperature = o.batteryTemperature;
             batteryVoltage = o.batteryVoltage;
             states = o.states;
+            absoluteTime = o.absoluteTime;
         }
 
         public void setTo(long time, byte cmd, HistoryItem o) {
@@ -691,6 +715,7 @@ public abstract class BatteryStats implements Parcelable {
             batteryTemperature = o.batteryTemperature;
             batteryVoltage = o.batteryVoltage;
             states = o.states;
+            absoluteTime = o.absoluteTime;
         }
 
         public boolean same(HistoryItem o) {
@@ -700,7 +725,8 @@ public abstract class BatteryStats implements Parcelable {
                     && batteryPlugType == o.batteryPlugType
                     && batteryTemperature == o.batteryTemperature
                     && batteryVoltage == o.batteryVoltage
-                    && states == o.states;
+                    && states == o.states
+                    && absoluteTime == o.absoluteTime;
         }
     }
     
@@ -1395,6 +1421,16 @@ public abstract class BatteryStats implements Parcelable {
                 }
             }
 
+            Timer vibTimer = u.getVibratorOnTimer();
+            if (vibTimer != null) {
+                // Convert from microseconds to milliseconds with rounding
+                long totalTime = (vibTimer.getTotalTimeLocked(batteryRealtime, which) + 500) / 1000;
+                int count = vibTimer.getCountLocked(which);
+                if (totalTime != 0) {
+                    dumpLine(pw, uid, category, VIBRATOR_DATA, totalTime, count);
+                }
+            }
+
             Map<String, ? extends BatteryStats.Uid.Proc> processStats = u.getProcessStats();
             if (processStats.size() > 0) {
                 for (Map.Entry<String, ? extends BatteryStats.Uid.Proc> ent
@@ -1914,6 +1950,26 @@ public abstract class BatteryStats implements Parcelable {
                         sb.append("(not used)");
                     }
 
+                    pw.println(sb.toString());
+                    uidActivity = true;
+                }
+            }
+
+            Timer vibTimer = u.getVibratorOnTimer();
+            if (vibTimer != null) {
+                // Convert from microseconds to milliseconds with rounding
+                long totalTime = (vibTimer.getTotalTimeLocked(
+                        batteryRealtime, which) + 500) / 1000;
+                int count = vibTimer.getCountLocked(which);
+                //timer.logState();
+                if (totalTime != 0) {
+                    sb.setLength(0);
+                    sb.append(prefix);
+                    sb.append("    Vibrator: ");
+                    formatTimeMs(sb, totalTime);
+                    sb.append("realtime (");
+                    sb.append(count);
+                    sb.append(" times)");
                     pw.println(sb.toString());
                     uidActivity = true;
                 }
