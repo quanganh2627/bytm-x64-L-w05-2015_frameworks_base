@@ -342,14 +342,6 @@ public final class DisplayManagerGlobal {
         }
     }
 
-    public void reconnectWifiDisplay() {
-        try {
-            mDm.reconnectWifiDisplay();
-        } catch (RemoteException ex) {
-            Log.e(TAG, "Failed to reconnect to Wifi display.", ex);
-        }
-    }
-
     public void renameWifiDisplay(String deviceAddress, String alias) {
         if (deviceAddress == null) {
             throw new IllegalArgumentException("deviceAddress must not be null");
