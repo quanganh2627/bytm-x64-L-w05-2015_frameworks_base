@@ -72,6 +72,8 @@ import com.intel.multidisplay.DisplayObserver;
 import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.io.File;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -514,6 +516,16 @@ class ServerThread extends Thread {
                 ServiceManager.addService(Context.WIFI_SERVICE, wifi);
             } catch (Throwable e) {
                 reportWtf("starting Wi-Fi Service", e);
+            }
+
+            if (true) {
+                Class[] ptype=new Class[]{Context.class};
+                Object[] obj=new Object[]{context};
+
+                String name = "com.intel.server.EthernetService";
+                registerService(name, ptype , obj);
+
+                Slog.i(TAG, "EthernetService");
             }
 
             try {
@@ -1052,6 +1064,24 @@ class ServerThread extends Thread {
         Slog.d(TAG, "Starting service: " + intent);
         context.startServiceAsUser(intent, UserHandle.OWNER);
     }
+
+    private Object registerService(String serviceClassName, java.lang.Class[] ptype,
+        java.lang.Object[] objArray) {
+        Object object = null;
+        Slog.d(TAG,"registerService service: " + serviceClassName);
+        try {
+            Class c = Class.forName(serviceClassName);
+            Method m = c.getMethod("main", ptype);
+            object = m.invoke(c, objArray);
+        } catch (IllegalAccessException iae) {
+            Slog.e(TAG,"Got expected PackageAccess complaint", iae);
+        } catch (InstantiationError ie) {
+            Slog.e(TAG,"Got expected InstantationError", ie);
+        } catch (Exception ex) {
+            Slog.e(TAG,"Got unexpected MaybeAbstract failure", ex);
+        }
+        return object;
+   }
 }
 
 public class SystemServer {

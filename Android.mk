@@ -230,6 +230,16 @@ LOCAL_SRC_FILES += \
 	voip/java/android/net/sip/ISipSession.aidl \
 	voip/java/android/net/sip/ISipSessionListener.aidl \
 	voip/java/android/net/sip/ISipService.aidl
+ifeq ($(strip $(INTEL_FEATURE_ETHERNET)),true)
+LOCAL_SRC_FILES += \
+       $(call find-other-java-files,../../vendor/intel/apps/EthernetSettings/ethernetlib/enabled/java,) \
+       ../../vendor/intel/apps/EthernetSettings/ethernetlib/enabled/java/com/intel/internal/ethernet/IEthernetManager.aidl
+LOCAL_AIDL_INCLUDES += vendor/intel/apps/EthernetSettings/ethernetlib/enabled/java
+else
+LOCAL_SRC_FILES += \
+       $(call find-other-java-files,../../vendor/intel/apps/EthernetSettings/ethernetlib/disabled/java,)
+endif
+
 #
 
 

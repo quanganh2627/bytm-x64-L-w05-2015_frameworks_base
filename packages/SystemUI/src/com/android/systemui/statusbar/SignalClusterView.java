@@ -26,7 +26,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 
 import com.android.systemui.statusbar.policy.NetworkController;
-
+import com.intel.systemui.statusbar.EthernetView;
 import com.android.systemui.R;
 
 // Intimately tied to the design of res/layout/signal_cluster_view.xml
@@ -50,6 +50,7 @@ public class SignalClusterView
     ViewGroup mWifiGroup, mMobileGroup;
     ImageView mWifi, mMobile, mWifiActivity, mMobileActivity, mMobileType, mAirplane;
     View mSpacer;
+    private EthernetView mEthernetView;
 
     public SignalClusterView(Context context) {
         this(context, null);
@@ -82,6 +83,7 @@ public class SignalClusterView
         mSpacer         =             findViewById(R.id.spacer);
         mAirplane       = (ImageView) findViewById(R.id.airplane);
 
+        if (mEthernetView != null) mEthernetView.onAttachedToWindow();
         apply();
     }
 
@@ -97,6 +99,7 @@ public class SignalClusterView
         mSpacer         = null;
         mAirplane       = null;
 
+        if (mEthernetView != null) mEthernetView.onDetachedFromWindow();
         super.onDetachedFromWindow();
     }
 
@@ -138,6 +141,7 @@ public class SignalClusterView
         // ignore content description, so populate manually
         if (mWifiVisible && mWifiGroup.getContentDescription() != null)
             event.getText().add(mWifiGroup.getContentDescription());
+        if (mEthernetView != null) mEthernetView.dispatchPopulateAccessibilityEvent(event);
         if (mMobileVisible && mMobileGroup.getContentDescription() != null)
             event.getText().add(mMobileGroup.getContentDescription());
         return super.dispatchPopulateAccessibilityEvent(event);
@@ -191,6 +195,17 @@ public class SignalClusterView
 
         mMobileType.setVisibility(
                 !mWifiVisible ? View.VISIBLE : View.GONE);
+        if (mEthernetView != null) {
+            mEthernetView.apply(mMobileVisible, mWifiVisible, mIsAirplaneMode,
+                                mMobileType, mSpacer);
+        }
+    }
+
+    @Override
+    public void setEthernetIndicators(boolean visible, int statusIcon,
+                                      int activityIcon, String contentDescription) {
+        mEthernetView.setEthernetIndicators(visible, statusIcon, activityIcon, contentDescription);
+
+        apply();
     }
 }
-

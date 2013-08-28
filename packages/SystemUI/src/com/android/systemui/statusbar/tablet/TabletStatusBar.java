@@ -272,6 +272,8 @@ public class TabletStatusBar extends BaseStatusBar implements
         mNetworkController.addWifiLabelView(
                 (TextView)mNotificationPanel.findViewById(R.id.wifi_text));
 
+        mNetworkController.addEthernetView(mNotificationPanel);
+
         mNetworkController.addDataTypeIconView(
                 (ImageView)mNotificationPanel.findViewById(R.id.mobile_type));
         mNetworkController.addMobileLabelView(

@@ -103,6 +103,7 @@ import com.android.server.connectivity.Tethering;
 import com.android.server.connectivity.Vpn;
 import com.android.server.net.BaseNetworkObserver;
 import com.android.server.net.LockdownVpnTracker;
+import com.intel.internal.ethernet.EthernetManager;
 import com.google.android.collect.Lists;
 import com.google.android.collect.Sets;
 
@@ -584,7 +585,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 case TYPE_WIMAX:
                     return makeWimaxStateTracker(mContext, mTrackerHandler);
                 case TYPE_ETHERNET:
-                    return EthernetDataTracker.getInstance();
+                    return (NetworkStateTracker) mContext.getSystemService(Context.ETHERNET_SERVICE);
                 default:
                     throw new IllegalArgumentException(
                             "Trying to create a NetworkStateTracker for an unknown radio type: "
