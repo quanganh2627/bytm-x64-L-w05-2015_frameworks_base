@@ -2003,14 +2003,17 @@ public class GpsLocationProvider implements LocationProviderInterface {
         @Override
         public void onSimAbsent() {
             super.onSimAbsent();
-            mUiccHslp = null;
-            if (DEBUG) Log.d(TAG, "Sim absent - resetting H-SLP");
 
-            if (mEnabled && mSuplServerHost != null) {
-                if (DEBUG) Log.d(TAG, "Using H-SLP read from the config file");
-                native_set_agps_server(AGPS_TYPE_SUPL,
-                        mSuplServerHost,
-                        mSuplServerPort);
+            if (mUiccHslp != null) {
+                mUiccHslp = null;
+                if (DEBUG) Log.d(TAG, "Sim absent - resetting H-SLP");
+
+                if (mEnabled && mSuplServerHost != null) {
+                    if (DEBUG) Log.d(TAG, "Using H-SLP read from the config file");
+                    native_set_agps_server(AGPS_TYPE_SUPL,
+                            mSuplServerHost,
+                            mSuplServerPort);
+                }
             }
         }
     }
