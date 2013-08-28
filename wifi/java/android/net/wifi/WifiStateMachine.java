@@ -2655,6 +2655,7 @@ public class WifiStateMachine extends StateMachine {
                     if (DBG) log("set frequency band " + band);
                     if (mWifiNative.setBand(band)) {
                         mFrequencyBand.set(band);
+                        mWifiNative.flushBSS();
                         //Fetch the latest scan results when frequency band is set
                         startScanNative(WifiNative.SCAN_WITH_CONNECTION_SETUP);
                     } else {
