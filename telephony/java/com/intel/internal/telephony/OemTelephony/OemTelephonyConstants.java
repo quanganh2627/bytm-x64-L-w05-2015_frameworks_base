@@ -153,4 +153,10 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_RAW_UNSOL_SIM_APP_ERR_IND = 0x000000DA;
     /* OEM hook specific to indicate call disconnect */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_CALL_DISCONNECTED = 0x000000DB;
+    /* OEM hook specific to indicate new bearer TFT information */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_BEARER_TFT_PARAMS = 0x000000DC;
+    /* OEM hook specific to indicate new bearer QOS information */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_BEARER_QOS_PARAMS = 0x000000DD;
+    /* OEM hook specific to indicate bearer deactivation */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_BEARER_DEACT = 0x000000DE;
 }
