@@ -25,7 +25,7 @@ import android.content.IntentFilter;
 import android.database.ContentObserver;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
-import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiApConfiguration;
 import android.net.wifi.WifiManager;
 import static android.net.wifi.WifiManager.WIFI_MODE_FULL;
 import static android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF;
@@ -413,7 +413,7 @@ class WifiController extends StateMachine {
                     break;
                 case CMD_SET_AP:
                     if (msg.arg1 == 1) {
-                        mWifiStateMachine.setHostApRunning((WifiConfiguration) msg.obj,
+                        mWifiStateMachine.setHostApRunning((WifiApConfiguration) msg.obj,
                                 true);
                         transitionTo(mApEnabledState);
                     }

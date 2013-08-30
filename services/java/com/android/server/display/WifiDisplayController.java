@@ -107,6 +107,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
     private final AudioManager mAudioManager;
 
+    private boolean mConnectRetryScheduled = false;
     private boolean mWifiP2pEnabled;
     private boolean mWfdEnabled;
     private boolean mWfdEnabling;
@@ -509,6 +510,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
         // Cheap hack.  Make a new instance of the device object so that we
         // can distinguish it from the previous connection attempt.
         // This will cause us to tear everything down before we try again.
+        mConnectRetryScheduled = true;
         mDesiredDevice = new WifiP2pDevice(mDesiredDevice);
         updateConnection();
     }
@@ -592,6 +594,10 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 @Override
                 public void onSuccess() {
                     Slog.i(TAG, "Canceled connection to Wifi display: " + oldDevice.deviceName);
+                    if (mConnectRetryScheduled) {
+                        mConnectRetryScheduled = false;
+                        mDesiredDevice = new WifiP2pDevice(mCancelingDevice);
+                    }
                     next();
                 }
 

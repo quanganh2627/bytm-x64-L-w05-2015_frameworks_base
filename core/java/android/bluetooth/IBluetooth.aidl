@@ -71,6 +71,7 @@ interface IBluetooth
     boolean setPasskey(in BluetoothDevice device, boolean accept, int len, in byte[]
     passkey);
     boolean setPairingConfirmation(in BluetoothDevice device, boolean accept);
+    boolean setChannelClassification(in byte[] BTChannelClassification, in byte[] LEChannelMap);
 
     void sendConnectionStateChange(in BluetoothDevice device, int profile, int state, int prevState);
 

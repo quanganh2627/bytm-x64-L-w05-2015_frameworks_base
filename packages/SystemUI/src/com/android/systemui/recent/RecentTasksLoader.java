@@ -291,11 +291,11 @@ public class RecentTasksLoader implements View.OnTouchListener {
         }
 
         if (mTaskLoader != null) {
-            mTaskLoader.cancel(false);
+            mTaskLoader.cancel(true);
             mTaskLoader = null;
         }
         if (mThumbnailLoader != null) {
-            mThumbnailLoader.cancel(false);
+            mThumbnailLoader.cancel(true);
             mThumbnailLoader = null;
         }
         mLoadedTasks = null;

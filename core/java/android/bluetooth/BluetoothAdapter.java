@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.BitSet;
 
 /**
  * Represents the local device Bluetooth adapter. The {@link BluetoothAdapter}
@@ -365,6 +366,9 @@ public final class BluetoothAdapter {
     private IBluetooth mService;
 
     private final Map<LeScanCallback, GattCallbackWrapper> mLeScanClients;
+
+    private static final int AFH_N_MIN_UNKNOWN = 20;
+    private static final int LE_N_MIN_UNKNOWN = 1;
 
     /**
      * Get a handle to the default local Bluetooth adapter.
@@ -903,6 +907,81 @@ public final class BluetoothAdapter {
         return BluetoothProfile.STATE_DISCONNECTED;
     }
 
+    private byte[] BitSet2ByteArray(BitSet bits, int maxSize) {
+        byte[] bytes = new byte[maxSize/8];
+        for (int i=0; i<bits.length(); i++) {
+            if (bits.get(i)) {
+                bytes[bytes.length-i/8-1] |= 1<<(i%8);
+            }
+        }
+        return bytes;
+    }
+
+    private int getUnknownbits(BitSet bits) {
+        int res = 0;
+        for (int i=0; i<bits.length(); i++) {
+            if (bits.get(i)) {
+                res++;
+            }
+        }
+        return res;
+    }
+
+    /**
+      * Set AFH Channel Classification to support LTE/BT coexistence and more.
+      * This can be used to set the AFH Channel Classification for both BT and LE
+      * to performance degradation due to coexistence issue
+      *
+      * <p> Use this function along with {@link #BluetoothPhoneService}
+      * service to set re-configure the AFH Channel mapping during the LTE/BT coexistence handling.
+      *
+      * @return true on success, false on error
+      *
+      * @hide
+      */
+    public boolean setChannelClassification(BitSet BTChannelClassification, BitSet LEChannelMap) {
+        if (getState() != STATE_ON) return false;
+        if (BTChannelClassification.length() == 0 || BTChannelClassification.length() > 80 ) {
+            Log.e(TAG, "setChannelClassification: BTChannelClassification length mismatch, should be between 1-80.");
+            return false;
+        }
+        /* Check MSB (bit 0) of AFH, should be set to 0 */
+        if (BTChannelClassification.get(0) != false) {
+            Log.e(TAG, "setChannelClassification: MSB of BTChannelClassification is reserved and should be set to 0.");
+            return false;
+        }
+        /* check if BTChannelClassification has at least AFH_N_MIN(20) unknown channels */
+        if (getUnknownbits(BTChannelClassification) < AFH_N_MIN_UNKNOWN) {
+            Log.e(TAG, "setChannelClassification: BTChannelClassification has less than 20 unknown channels.");
+            return false;
+        }
+
+        if (LEChannelMap.length() == 0 || LEChannelMap.length() > 40 ) {
+
+            Log.e(TAG, "setChannelClassification: LEChannelMap length mismatch, should be between 1-40");
+            return false;
+        }
+        /* check MSB (bit 0) of LE, should be set to 0 */
+        if (LEChannelMap.get(0) != false) {
+            Log.e(TAG, "setChannelClassification: MSB of LEChannelMap is reserved and should be set to 0.");
+            return false;
+        }
+        /* check if BTChannelClassification has at least LE_N_MIN(1) unknown channels */
+        if (getUnknownbits(LEChannelMap) < LE_N_MIN_UNKNOWN) {
+            Log.e(TAG, "setChannelClassification: BTChannelClassification has less than 20 unknown channels.");
+            return false;
+        }
+
+        byte[] BTChannel = BitSet2ByteArray(BTChannelClassification, 80);
+        byte[] LEChannel = BitSet2ByteArray(LEChannelMap,40);
+        try {
+            synchronized(mManagerCallback) {
+                if (mService != null) return mService.setChannelClassification(BTChannel, LEChannel);
+            }
+         } catch (RemoteException e) {Log.e(TAG, "setChannelClassification:", e);}
+        return false;
+    }
+
     /**
      * Create a listening, secure RFCOMM Bluetooth socket.
      * <p>A remote device connecting to this socket will be authenticated and
@@ -1227,7 +1306,7 @@ public final class BluetoothAdapter {
     final private IBluetoothManagerCallback mManagerCallback =
         new IBluetoothManagerCallback.Stub() {
             public void onBluetoothServiceUp(IBluetooth bluetoothService) {
-                if (VDBG) Log.d(TAG, "onBluetoothServiceUp: " + bluetoothService);
+                if (DBG) Log.d(TAG, "onBluetoothServiceUp: " + bluetoothService);
                 synchronized (mManagerCallback) {
                     mService = bluetoothService;
                     for (IBluetoothManagerCallback cb : mProxyServiceStateCallbacks ){
@@ -1243,7 +1322,7 @@ public final class BluetoothAdapter {
             }
 
             public void onBluetoothServiceDown() {
-                if (VDBG) Log.d(TAG, "onBluetoothServiceDown: " + mService);
+                if (DBG) Log.d(TAG, "onBluetoothServiceDown: " + mService);
                 synchronized (mManagerCallback) {
                     mService = null;
                     for (IBluetoothManagerCallback cb : mProxyServiceStateCallbacks ){

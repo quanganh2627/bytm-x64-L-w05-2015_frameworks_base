@@ -118,6 +118,8 @@ public class WifiStateMachine extends StateMachine {
     private final boolean mP2pSupported;
     private final AtomicBoolean mP2pConnecting = new AtomicBoolean(false);
     private final AtomicBoolean mP2pConnected = new AtomicBoolean(false);
+    private final AtomicBoolean mSoftApErrorDetected = new AtomicBoolean(false);
+    private WifiApConfiguration mLastWifiApConfig = null;
     private boolean mTemporarilyDisconnectWifi = false;
     private final String mPrimaryDeviceType;
 
@@ -781,7 +783,7 @@ public class WifiStateMachine extends StateMachine {
     /**
      * TODO: doc
      */
-    public void setHostApRunning(WifiConfiguration wifiConfig, boolean enable) {
+    public void setHostApRunning(WifiApConfiguration wifiConfig, boolean enable) {
         if (enable) {
             sendMessage(CMD_START_AP, wifiConfig);
         } else {
@@ -789,13 +791,13 @@ public class WifiStateMachine extends StateMachine {
         }
     }
 
-    public void setWifiApConfiguration(WifiConfiguration config) {
+    public void setWifiApConfiguration(WifiApConfiguration config) {
         mWifiApConfigChannel.sendMessage(CMD_SET_AP_CONFIG, config);
     }
 
-    public WifiConfiguration syncGetWifiApConfiguration() {
+    public WifiApConfiguration syncGetWifiApConfiguration() {
         Message resultMsg = mWifiApConfigChannel.sendMessageSynchronously(CMD_REQUEST_AP_CONFIG);
-        WifiConfiguration ret = (WifiConfiguration) resultMsg.obj;
+        WifiApConfiguration ret = (WifiApConfiguration) resultMsg.obj;
         resultMsg.recycle();
         return ret;
     }
@@ -1080,14 +1082,19 @@ public class WifiStateMachine extends StateMachine {
                     Settings.Global.WIFI_FREQUENCY_BAND,
                     band);
         }
-        sendMessage(CMD_SET_FREQUENCY_BAND, band, 0);
+        sendMessage(CMD_SET_FREQUENCY_BAND, band, persist?1:0);
     }
 
     /**
      * Returns the operational frequency band
      */
     public int getFrequencyBand() {
-        return mFrequencyBand.get();
+        if (mWifiState.get() == WIFI_STATE_ENABLED)
+            return mFrequencyBand.get();
+        else
+            return Settings.Global.getInt(mContext.getContentResolver(),
+                    Settings.Global.WIFI_FREQUENCY_BAND,
+                    WifiManager.WIFI_FREQUENCY_BAND_AUTO);
     }
 
     /**
@@ -1168,6 +1175,23 @@ public class WifiStateMachine extends StateMachine {
            getConnectedDeviceInfo(tokens[i], DeviceList);
         }
         return DeviceList;
+    }
+
+    /* Wifi_Hotspot */
+    public List<WifiChannel> getWifiAuthorizedChannels() {
+        String rawList = mWifiNative.getWifiApChannelList();
+        List<WifiChannel> resultList = new ArrayList<WifiChannel>();
+
+        if (rawList == null)
+            return null;
+        // Extract elements from the list and skip duplicates if any
+        String[] items = rawList.split(" ");
+        for (String item : items) {
+            WifiChannel channel = new WifiChannel(item);
+            if (!resultList.contains(channel))
+                resultList.add(channel);
+        }
+        return resultList;
     }
 
    /* Wifi_Hotspot */
@@ -1350,10 +1374,12 @@ public class WifiStateMachine extends StateMachine {
     }
 
     /**
-     * Set the frequency band to the current value.
+     * Set the frequency band from the system setting value, if any.
      */
     private void setFrequencyBand() {
-        setFrequencyBand(mFrequencyBand.get(), false);
+        int band = Settings.Global.getInt(mContext.getContentResolver(),
+                Settings.Global.WIFI_FREQUENCY_BAND, WifiManager.WIFI_FREQUENCY_BAND_AUTO);
+        setFrequencyBand(band, false);
     }
 
     private void setSuspendOptimizationsNative(int reason, boolean enabled) {
@@ -1942,7 +1968,8 @@ public class WifiStateMachine extends StateMachine {
      * TODO: Add control channel setup through hostapd that allows changing config
      * on a running daemon
      */
-    private void startSoftApWithConfig(final WifiConfiguration config) {
+    private void startSoftApWithConfig(final WifiApConfiguration config) {
+        mLastWifiApConfig = config;
         // start hostapd on a seperate thread
         new Thread(new Runnable() {
             public void run() {
@@ -2176,11 +2203,6 @@ public class WifiStateMachine extends StateMachine {
                 mWifiApConfigChannel.connectSync(mContext, getHandler(),
                         wifiApConfigStore.getMessenger());
             }
-
-            // Init the current frequency band value from the system setting value, if any
-            mFrequencyBand.set(Settings.Global.getInt(mContext.getContentResolver(),
-                Settings.Global.WIFI_FREQUENCY_BAND, WifiManager.WIFI_FREQUENCY_BAND_AUTO));
-
         }
         @Override
         public boolean processMessage(Message message) {
@@ -2254,6 +2276,14 @@ public class WifiStateMachine extends StateMachine {
                         transitionTo(mSoftApStartingState);
                     } else {
                         loge("Failed to load driver for softap");
+            if (mSoftApErrorDetected.get()) {
+                mSoftApErrorDetected.set(false);
+                if (mLastWifiApConfig != null && !mLastWifiApConfig.isRadioDefault()) {
+                    if (DBG) log("Restart softAP with default radio configuration");
+                    mLastWifiApConfig.resetRadioConfig();
+                    setHostApRunning(mLastWifiApConfig, true);
+                }
+            }
                     }
                 default:
                     return NOT_HANDLED;
@@ -2621,6 +2651,7 @@ public class WifiStateMachine extends StateMachine {
                     break;
                 case CMD_SET_FREQUENCY_BAND:
                     int band =  message.arg1;
+                    boolean persist = (message.arg2 == 1);
                     if (DBG) log("set frequency band " + band);
                     if (mWifiNative.setBand(band)) {
                         mFrequencyBand.set(band);
@@ -2628,6 +2659,10 @@ public class WifiStateMachine extends StateMachine {
                         startScanNative(WifiNative.SCAN_WITH_CONNECTION_SETUP);
                     } else {
                         loge("Failed to set frequency band " + band);
+                        if (persist)
+                            Settings.Global.putInt(mContext.getContentResolver(),
+                                    Settings.Global.WIFI_FREQUENCY_BAND,
+                                    mFrequencyBand.get());
                     }
                     break;
                 case CMD_BLUETOOTH_ADAPTER_STATE_CHANGE:
@@ -3691,7 +3726,7 @@ public class WifiStateMachine extends StateMachine {
         public void enter() {
             final Message message = getCurrentMessage();
             if (message.what == CMD_START_AP) {
-                final WifiConfiguration config = (WifiConfiguration) message.obj;
+                final WifiApConfiguration config = (WifiApConfiguration) message.obj;
 
                 if (config == null) {
                     mWifiApConfigChannel.sendMessage(CMD_REQUEST_AP_CONFIG);
@@ -3721,7 +3756,7 @@ public class WifiStateMachine extends StateMachine {
                     deferMessage(message);
                     break;
                 case WifiStateMachine.CMD_RESPONSE_AP_CONFIG:
-                    WifiConfiguration config = (WifiConfiguration) message.obj;
+                    WifiApConfiguration config = (WifiApConfiguration) message.obj;
                     if (config != null) {
                         startSoftApWithConfig(config);
                     } else {
@@ -3860,8 +3895,14 @@ public class WifiStateMachine extends StateMachine {
                     TetherStateChange stateChange = (TetherStateChange) message.obj;
                     if (!isWifiTethered(stateChange.active)) {
                         loge("Tethering reports wifi as untethered!, shut down soft Ap");
+                        mSoftApErrorDetected.set(true);
                         setHostApRunning(null, false);
                     }
+                    return HANDLED;
+                case WifiMonitor.AP_CONNECTION_FAIL:
+                    mSoftApErrorDetected.set(true);
+                    setHostApRunning(null, false);
+                    loge("WifiMonitor reports a connection failure!, reset soft Ap");
                     return HANDLED;
                 case CMD_STOP_AP:
                     if (DBG) log("Untethering before stopping AP");
