@@ -44,8 +44,6 @@ import android.os.Vibrator;
 import android.os.SystemVibrator;
 import android.os.storage.IMountService;
 import android.os.storage.IMountShutdownObserver;
-import android.os.BatteryManager;
-import android.os.SystemProperties;
 
 import com.android.internal.telephony.ITelephony;
 import com.intel.internal.telephony.OemTelephony.IOemTelephony;
@@ -80,12 +78,6 @@ public final class ShutdownThread extends Thread {
 
     // Indicates whether we are rebooting into safe mode
     public static final String REBOOT_SAFEMODE_PROPERTY = "persist.sys.safemode";
-
-    // Indicates whether a force shutdown is ongoing.
-    private static final String FORCE_SHUTDOWN_ACTION_PROPERTY = "sys.property_forcedshutdown";
-
-    // Indicates whether we a reboot to charger mode is needed.
-    private static final String REBOOT_CHARGERMODE_PROPERTY = "ro.rebootchargermode";
 
     // static instance of this thread
     private static final ShutdownThread sInstance = new ShutdownThread();
@@ -395,19 +387,6 @@ public final class ShutdownThread extends Thread {
                 }
             }
         }
-
-        String sRebootCharger = SystemProperties.get(REBOOT_CHARGERMODE_PROPERTY);
-
-        String sForcedShutdown = SystemProperties.get(FORCE_SHUTDOWN_ACTION_PROPERTY);
-
-        if (sRebootCharger.equals("true") && (mReboot == false) &&
-            (!sForcedShutdown.equals("1")) && PowerManagerService.isPoweredPlugged()) {
-                // Power supply is plugged. Reboot to charger mode is needed and can
-                // be done as not force shutdown is ongoing.
-                mReboot = true;
-                mRebootReason = "charging";
-        }
-
         Log.i(TAG, "[SHTDWN] run, "
             + (mReboot ? "reboot" : "shutdown") + " requested "
             + "reason=" + (mRebootReason != null ? mRebootReason : "null"));

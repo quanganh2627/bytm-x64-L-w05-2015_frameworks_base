@@ -266,7 +266,7 @@ public final class PowerManagerService extends IPowerManager.Stub
     private boolean mBootCompleted;
 
     // True if the device is plugged into a power source.
-    private static boolean mIsPowered;
+    private boolean mIsPowered;
 
     // The current plug type, such as BatteryManager.BATTERY_PLUGGED_WIRELESS.
     private int mPlugType;
@@ -2250,11 +2250,6 @@ public final class PowerManagerService extends IPowerManager.Stub
      */
     public static void lowLevelReboot(String reason) throws IOException {
         nativeReboot(reason);
-    }
-
-    public static boolean isPoweredPlugged() {
-        // Return status of battery service if something is plugged.
-        return mIsPowered;
     }
 
     @Override // Watchdog.Monitor implementation
