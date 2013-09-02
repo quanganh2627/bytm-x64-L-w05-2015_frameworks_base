@@ -235,8 +235,8 @@ public final class MessageQueue {
             } else {
                 removeAllMessagesLocked();
             }
+            nativeWake(mPtr);
         }
-        nativeWake(mPtr);
     }
 
     int enqueueSyncBarrier(long when) {
