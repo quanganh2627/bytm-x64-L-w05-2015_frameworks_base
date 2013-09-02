@@ -537,6 +537,14 @@ public class TelephonyManager {
         return ret;
     }
 
+    /** @hide */
+    public static boolean getImsOnApStatic() {
+        int mode = SystemProperties.getInt(TelephonyProperties.PROPERTY_IMS_MODE, 0);
+        Rlog.d(TAG, TelephonyProperties.PROPERTY_IMS_MODE + " is " + mode);
+        /* See TelephonyProperties.PROPERTY_IMS_MODE for supported values */
+        return (mode == 2);
+    }
+
     //
     //
     // Current Network
