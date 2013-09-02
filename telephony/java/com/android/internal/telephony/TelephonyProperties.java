@@ -197,4 +197,12 @@ public interface TelephonyProperties
      * This property when set to true, the platform supports LTE and GSM specific features.
      */
     static final String PROPERTY_LTE_ON_GSM_DEVICE = "persist.tel.lteOnGsmDevice";
+
+    /**
+     * This property sets the supported IMS mode.
+     * 0: IMS not supported
+     * 1: IMS Modem Centric supported
+     * 2: IMS AP Centric supported
+     */
+    static final String PROPERTY_IMS_MODE = "persist.ims_support";
 }
