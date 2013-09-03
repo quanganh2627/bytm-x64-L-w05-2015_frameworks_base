@@ -59,8 +59,6 @@ interface IWifiManager
 
     boolean setWifiEnabled(boolean enable);
 
-    boolean setWifiEnabledPersist(boolean enable, boolean persist);
-
     int getWifiEnabledState();
 
     void setCountryCode(String country, boolean persist);
@@ -102,6 +100,8 @@ interface IWifiManager
     void startWifi();
 
     void stopWifi();
+
+    void haltWifi();
 
     void addToBlacklist(String bssid);
 
