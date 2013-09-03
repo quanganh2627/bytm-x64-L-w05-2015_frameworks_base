@@ -315,7 +315,8 @@ public class WindowManagerService extends IWindowManager.Stub
                 if (updateOrientationFromAppTokensLocked(false)) {
                     Configuration config = null;
                     config = computeNewConfiguration();
-                    setNewConfiguration(config);
+                    if (config != null)
+                        setNewConfiguration(config);
                 }
                 Slog.d(TAG, forceToLandscape ? "Force to landscape." : "Screen can rotate.");
             }
