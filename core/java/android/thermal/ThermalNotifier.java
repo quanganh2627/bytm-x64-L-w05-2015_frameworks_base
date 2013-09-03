@@ -116,6 +116,7 @@ public class ThermalNotifier {
             // Initiate Shutdown
             Log.i(TAG, "Platform shutdown initiated from ThermalService.");
             SysfsManager.writeSysfs(THERMAL_SHUTDOWN_NOTIFY_PATH, 1);
+            SystemProperties.set("sys.property_forcedshutdown", "1");
             Intent criticalIntent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
             criticalIntent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
             criticalIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
