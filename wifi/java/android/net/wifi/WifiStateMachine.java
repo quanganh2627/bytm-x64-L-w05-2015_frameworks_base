@@ -917,6 +917,16 @@ public class WifiStateMachine extends StateMachine {
         }
     }
 
+    /**
+     * Disable interface to avoid any wifi operation
+     */
+    public void halt() {
+        mInDelayedStop = true;
+        mAlarmManager.cancel(mDriverStopIntent);
+        // stop the driver now
+        sendMessage(obtainMessage(CMD_DELAYED_STOP_DRIVER, ++mDelayedStopCounter, 0));
+    }
+
     public void captivePortalCheckComplete() {
         sendMessage(obtainMessage(CMD_CAPTIVE_CHECK_COMPLETE));
     }

@@ -25,6 +25,7 @@ import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.IBluetoothManager;
 import android.net.wifi.IWifiManager;
+import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiManager;
 import android.nfc.NfcAdapter;
 import android.nfc.INfcAdapter;
@@ -488,8 +489,7 @@ public final class ShutdownThread extends Thread {
                             wifi.getWifiEnabledState() == WifiManager.WIFI_STATE_DISABLED;
                     if (!wifiOff) {
                         Log.w(TAG, "Turning off Wifi...");
-                        if (wifi != null)
-                            wifi.setWifiEnabledPersist(false, false);
+                        wifi.haltWifi();
                     }
                 } catch (RemoteException ex) {
                     Log.e(TAG, "RemoteException during wifi shutdown", ex);
@@ -536,8 +536,8 @@ public final class ShutdownThread extends Thread {
                     }
                     if (!wifiOff) {
                         try {
-                            if (wifi != null)
-                                wifiOff = wifi.getWifiEnabledState() == WifiManager.WIFI_STATE_DISABLED;
+                            SupplicantState ss = wifi.getConnectionInfo().getSupplicantState();
+                            wifiOff = ss == SupplicantState.INTERFACE_DISABLED;
                         } catch (RemoteException ex) {
                             Log.e(TAG, "RemoteException during Wifi shutdown", ex);
                             wifiOff = true;
@@ -547,7 +547,7 @@ public final class ShutdownThread extends Thread {
                         }
                     }
 
-                    if (radioOff && bluetoothOff && nfcOff & wifiOff) {
+                    if (radioOff && bluetoothOff && nfcOff && wifiOff) {
                         Log.i(TAG, "NFC, Radio, Bluetooth and Wifi shutdown complete.");
                         done[0] = true;
                         break;
