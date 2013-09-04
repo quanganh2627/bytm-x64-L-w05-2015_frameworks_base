@@ -584,7 +584,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
                                 WifiInfo info = wifi.getConnectionInfo();
                                 String bssid = info.getBSSID();
 
-                                if (bssid != null)
+                                if (bssid != null && !("00:00:00:00:00:00".equals(bssid)))
                                     native_agps_set_ref_location(new String(String.valueOf(AGPS_REF_LOCATION_TYPE_MAC)
                                                                         + ":" + bssid));
                             }
