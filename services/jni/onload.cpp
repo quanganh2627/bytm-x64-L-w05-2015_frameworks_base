@@ -37,11 +37,23 @@ int register_android_server_location_GpsLocationProvider(JNIEnv* env);
 int register_android_server_connectivity_Vpn(JNIEnv* env);
 int register_android_server_thermal_ThermalManager(JNIEnv* env);
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
+#ifndef USE_MDS_LEGACY
+namespace intel {
 int register_intel_multidisplay_DisplaySetting(JNIEnv *env);
+};
+#else
+int register_intel_multidisplay_DisplaySetting(JNIEnv *env);
+#endif
 #endif
 };
 
 using namespace android;
+
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+#ifndef USE_MDS_LEGACY
+using namespace android::intel;
+#endif
+#endif
 
 extern "C" jint JNI_OnLoad(JavaVM* vm, void* reserved)
 {
