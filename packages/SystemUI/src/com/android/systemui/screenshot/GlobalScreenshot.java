@@ -236,14 +236,15 @@ class SaveImageInBackgroundTask extends AsyncTask<SaveImageInBackgroundData, Voi
             // update file size in the database
             values.clear();
             InputStream in = resolver.openInputStream(uri);
-            if (in != null ) {
+            try {
                 int size = in.available();
                 values.put(MediaStore.Images.ImageColumns.SIZE, size);
-                in.close();
-            } else {
+            } catch (Exception e) {
                 values.put(MediaStore.Images.ImageColumns.SIZE, new File(mImageFilePath).length());
+            } finally {
+                resolver.update(uri, values, null, null);
+                in.close();
             }
-            resolver.update(uri, values, null, null);
 
             params[0].imageUri = uri;
             params[0].image = null;
