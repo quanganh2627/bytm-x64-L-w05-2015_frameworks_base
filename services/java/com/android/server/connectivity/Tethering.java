@@ -484,7 +484,7 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
         mTetheredNotification.setLatestEventInfo(mContext, title, message, pi);
 
         notificationManager.notifyAsUser(null, mTetheredNotification.icon,
-                mTetheredNotification, UserHandle.ALL);
+                mTetheredNotification, UserHandle.CURRENT);
     }
 
     private void clearTetheredNotification() {
