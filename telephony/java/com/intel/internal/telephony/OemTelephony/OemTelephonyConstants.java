@@ -149,4 +149,6 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_RAW_UNSOL_COEX_INFO = 0x000000D8;
     /* OEM hook specific to indicate network APN information */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_NETWORK_APN_IND = 0x000000D9;
+    /* OEM hook specific to indicate SIM appliation error */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_SIM_APP_ERR_IND = 0x000000DA;
 }
