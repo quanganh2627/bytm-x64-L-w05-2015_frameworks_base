@@ -86,6 +86,7 @@ import static com.android.server.wifi.WifiController.CMD_SCREEN_ON;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_USER_PRESENT;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
+import static com.android.server.wifi.WifiController.CMD_DEVICE_IDLE;
 /**
  * WifiService handles remote WiFi operation requests by implementing
  * the IWifiManager interface.
@@ -1137,6 +1138,8 @@ public final class WifiService extends IWifiManager.Stub {
             } else if (action.equals(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED)) {
                 boolean emergencyMode = intent.getBooleanExtra("phoneinECMState", false);
                 mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, emergencyMode ? 1 : 0, 0);
+            } else if (action.equals(WifiStateMachine.SHUT_DOWN_WIFI_ACTION)) {
+                mWifiController.sendMessage(CMD_DEVICE_IDLE);
             }
         }
     };
@@ -1167,6 +1170,7 @@ public final class WifiService extends IWifiManager.Stub {
         intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         intentFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
+        intentFilter.addAction(WifiStateMachine.SHUT_DOWN_WIFI_ACTION);
         mContext.registerReceiver(mReceiver, intentFilter);
     }
 
