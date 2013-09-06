@@ -196,6 +196,9 @@ public class WifiStateMachine extends StateMachine {
      */
     private static final int DRIVER_START_TIME_OUT_MSECS = 10000;
 
+    public static final String SHUT_DOWN_WIFI_ACTION =
+            "android.net.wifi.SET_DEVICE_IDLE_AND_UPDATE";
+
     /* Tracks sequence number on a driver time out */
     private int mDriverStartToken = 0;
 
@@ -2003,6 +2006,22 @@ public class WifiStateMachine extends StateMachine {
     }
 
 
+    private void enableBackgroundScanOrTurnOffWifi() {
+        List<WifiConfiguration> configs = mWifiConfigStore.getConfiguredNetworks();
+        if (configs != null) {
+            if (configs.size() != 0) {
+                mWifiNative.enableBackgroundScan(true);
+            } else {
+                // No remembered SSID, turn off Wifi immediately
+                log("No remembered SSID, turn off wifi");
+                mContext.sendBroadcast(new Intent(SHUT_DOWN_WIFI_ACTION));
+                mEnableBackgroundScan = false;
+            }
+        } else {
+            loge("Impossible to get the configured networks when considering PNO enabling");
+        }
+    }
+
    /* Wifi_Hotspot: dnsmasq.leases file need to be deleted in order to avoid
      * the unnecessary old event from dnsmasq daemon when tethering starts and ends.
      */
@@ -3495,7 +3514,7 @@ public class WifiStateMachine extends StateMachine {
                  * cleared
                  */
                 if (!mScanResultIsPending) {
-                    mWifiNative.enableBackgroundScan(true);
+                    enableBackgroundScanOrTurnOffWifi();
                 }
             } else {
                 setScanAlarm(true);
@@ -3542,7 +3561,7 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_ENABLE_BACKGROUND_SCAN:
                     mEnableBackgroundScan = (message.arg1 == 1);
                     if (mEnableBackgroundScan) {
-                        mWifiNative.enableBackgroundScan(true);
+                        enableBackgroundScanOrTurnOffWifi();
                         setScanAlarm(false);
                     } else {
                         mWifiNative.enableBackgroundScan(false);
@@ -3572,7 +3591,7 @@ public class WifiStateMachine extends StateMachine {
                 case WifiMonitor.SCAN_RESULTS_EVENT:
                     /* Re-enable background scan when a pending scan result is received */
                     if (mEnableBackgroundScan && mScanResultIsPending) {
-                        mWifiNative.enableBackgroundScan(true);
+                        enableBackgroundScanOrTurnOffWifi();
                     }
                     /* Handled in parent state */
                     ret = NOT_HANDLED;
