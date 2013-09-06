@@ -488,7 +488,8 @@ public final class ShutdownThread extends Thread {
                             wifi.getWifiEnabledState() == WifiManager.WIFI_STATE_DISABLED;
                     if (!wifiOff) {
                         Log.w(TAG, "Turning off Wifi...");
-                        wifi.setWifiEnabledPersist(false, false);
+                        if (wifi != null)
+                            wifi.setWifiEnabledPersist(false, false);
                     }
                 } catch (RemoteException ex) {
                     Log.e(TAG, "RemoteException during wifi shutdown", ex);
@@ -500,7 +501,8 @@ public final class ShutdownThread extends Thread {
                 while (SystemClock.elapsedRealtime() < endTime) {
                     if (!bluetoothOff) {
                         try {
-                            bluetoothOff = !bluetooth.isEnabled();
+                            if (bluetooth != null)
+                                bluetoothOff = !bluetooth.isEnabled();
                         } catch (RemoteException ex) {
                             Log.e(TAG, "RemoteException during bluetooth shutdown", ex);
                             bluetoothOff = true;
@@ -511,7 +513,8 @@ public final class ShutdownThread extends Thread {
                     }
                     if (!radioOff) {
                         try {
-                            radioOff = !phone.isRadioOn();
+                            if (phone != null)
+                                radioOff = !phone.isRadioOn();
                         } catch (RemoteException ex) {
                             Log.e(TAG, "RemoteException during radio shutdown", ex);
                             radioOff = true;
@@ -533,7 +536,8 @@ public final class ShutdownThread extends Thread {
                     }
                     if (!wifiOff) {
                         try {
-                            wifiOff = wifi.getWifiEnabledState() == WifiManager.WIFI_STATE_DISABLED;
+                            if (wifi != null)
+                                wifiOff = wifi.getWifiEnabledState() == WifiManager.WIFI_STATE_DISABLED;
                         } catch (RemoteException ex) {
                             Log.e(TAG, "RemoteException during Wifi shutdown", ex);
                             wifiOff = true;

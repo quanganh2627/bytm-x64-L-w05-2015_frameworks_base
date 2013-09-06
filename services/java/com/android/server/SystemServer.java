@@ -65,6 +65,7 @@ import com.android.server.power.ShutdownThread;
 import com.android.server.search.SearchManagerService;
 import com.android.server.usb.UsbService;
 import com.android.server.wifi.WifiService;
+import com.android.server.wifi.CsmWifiOffloadSystemService;
 import com.android.server.wm.WindowManagerService;
 import com.intel.multidisplay.DisplayObserver;
 
@@ -491,6 +492,14 @@ class ServerThread extends Thread {
                 ServiceManager.addService(Context.NETWORK_POLICY_SERVICE, networkPolicy);
             } catch (Throwable e) {
                 reportWtf("starting NetworkPolicy Service", e);
+            }
+
+           try {
+                Slog.i(TAG, "CSM Wifi Offload Service");
+                CsmWifiOffloadSystemService csmWifiOffload = new CsmWifiOffloadSystemService(context);
+                ServiceManager.addService("CsmWifiOffloadService", csmWifiOffload);
+            } catch (Throwable e) {
+                reportWtf("starting CSM Wifi Offload system service", e);
             }
 
            try {
