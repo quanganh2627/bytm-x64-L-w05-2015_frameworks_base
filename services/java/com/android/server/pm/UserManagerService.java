@@ -427,7 +427,13 @@ public class UserManagerService extends IUserManager.Stub {
      * Check if we've hit the limit of how many users can be created.
      */
     private boolean isUserLimitReachedLocked() {
-        int nUsers = mUsers.size();
+        int nUsers = 0;
+        for (int i = 0; i < mUsers.size(); i++) {
+            UserInfo ui = mUsers.valueAt(i);
+            if (mRemovingUserIds.get(ui.id))
+                continue;
+            nUsers++;
+        }
         return nUsers >= UserManager.getMaxSupportedUsers();
     }
 
