@@ -130,6 +130,7 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
     private boolean mRndisEnabled;       // track the RNDIS function enabled state
     private boolean mUsbTetherRequested; // true if USB tethering should be started
                                          // when RNDIS is enabled
+    private boolean mUntetherFinished;   // true if USB untethering is finished
 
     public Tethering(Context context, INetworkManagementService nmService,
             INetworkStatsService statsService, IConnectivityManager connService, Looper looper) {
@@ -138,6 +139,7 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
         mStatsService = statsService;
         mConnService = connService;
         mLooper = looper;
+        mUntetherFinished = true;
 
         mPublicSync = new Object();
 
@@ -604,11 +606,12 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
             if (enable) {
                 if (mRndisEnabled) {
                     tetherUsb(true);
-                } else {
+                } else if (mUntetherFinished) {
                     mUsbTetherRequested = true;
                     usbManager.setCurrentFunction(UsbManager.USB_FUNCTION_RNDIS, false);
                 }
             } else {
+                mUntetherFinished = false;
                 tetherUsb(false);
                 if (mRndisEnabled) {
                     usbManager.setCurrentFunction(null, false);
@@ -1088,6 +1091,7 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
                 setAvailable(false);
                 setLastError(ConnectivityManager.TETHER_ERROR_NO_ERROR);
                 setTethered(false);
+                mUntetherFinished = true;
                 sendTetherStateChangedBroadcast();
             }
             @Override
