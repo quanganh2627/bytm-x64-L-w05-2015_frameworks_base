@@ -25,6 +25,7 @@ import android.content.IntentFilter;
 import android.database.ContentObserver;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.NetworkInfo.DetailedState;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import static android.net.wifi.WifiManager.WIFI_MODE_FULL;
@@ -46,6 +47,7 @@ import com.android.server.wifi.WifiService.LockList;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 
 class WifiController extends StateMachine {
     private static final String TAG = "WifiController";
@@ -62,6 +64,9 @@ class WifiController extends StateMachine {
     private AlarmManager mAlarmManager;
     private PendingIntent mIdleIntent;
     private static final int IDLE_REQUEST = 0;
+
+    // true if USB tethering is enabled
+    private boolean mTetherUsbOn = false;
 
     /**
      * See {@link Settings.Global#WIFI_IDLE_MS}. This is the default value if a
@@ -179,10 +184,44 @@ class WifiController extends StateMachine {
                     }
                 },
                 new IntentFilter(filter));
+        mContext.registerReceiver(
+                new BroadcastReceiver() {
+                    @Override
+                    public void onReceive(Context context, Intent intent) {
+                        ArrayList<String> active = intent.getStringArrayListExtra(
+                                ConnectivityManager.EXTRA_ACTIVE_TETHER);
+                        updateTetherUsbState(active);
+                    }
+                },new IntentFilter(ConnectivityManager.ACTION_TETHER_STATE_CHANGED));
 
         initializeAndRegisterForSettingsChange(looper);
     }
 
+    private void updateTetherUsbState(ArrayList<String> tethered) {
+        /*  Set the mTetheUsbOn according with the USB tethering service status */
+        /* If USB tethering  is enabled, the Wifi sleep policy is disabled */
+        ConnectivityManager mCm = (ConnectivityManager)mContext.
+                getSystemService(Context.CONNECTIVITY_SERVICE);
+        String[] usbRegexs = mCm.getTetherableUsbRegexs();
+        for (String intf : tethered) {
+            for (String regex : usbRegexs) {
+                if (intf.matches(regex)) {
+                    if (mTetherUsbOn == false) {
+                        Slog.i(TAG,"Usb tether is enabled, disable sleep policy");
+                        mAlarmManager.cancel(mIdleIntent);
+                        mTetherUsbOn = true;
+                        return;
+                    }
+                }
+            }
+        }
+
+        if (mTetherUsbOn) {
+            Slog.i(TAG,"Usb tether is disabled, eneable sleep policy");
+            mTetherUsbOn = false;
+            return;
+        }
+    }
     private void initializeAndRegisterForSettingsChange(Looper looper) {
         Handler handler = new Handler(looper);
         readStayAwakeConditions();
@@ -324,14 +363,17 @@ class WifiController extends StateMachine {
                     * or plugged in to AC).
                     */
                     if (!shouldWifiStayAwake(mPluggedType)) {
-                        //Delayed shutdown if wifi is connected
-                        if (mNetworkInfo.getDetailedState() ==
-                                NetworkInfo.DetailedState.CONNECTED) {
-                            if (DBG) Slog.d(TAG, "set idle timer: " + mIdleMillis + " ms");
-                            mAlarmManager.set(AlarmManager.RTC_WAKEUP,
-                                    System.currentTimeMillis() + mIdleMillis, mIdleIntent);
-                        } else {
-                            sendMessage(CMD_DEVICE_IDLE);
+                     // Apply sleep policy only if usb tethering is disabled
+                        if (!mTetherUsbOn) {
+                            //Delayed shutdown if wifi is connected
+                            if (mNetworkInfo.getDetailedState() ==
+                                    NetworkInfo.DetailedState.CONNECTED) {
+                                if (DBG) Slog.d(TAG, "set idle timer: " + mIdleMillis + " ms");
+                                mAlarmManager.set(AlarmManager.RTC_WAKEUP,
+                                        System.currentTimeMillis() + mIdleMillis, mIdleIntent);
+                            } else {
+                                sendMessage(CMD_DEVICE_IDLE);
+                            }
                         }
                     }
                     break;
@@ -352,8 +394,13 @@ class WifiController extends StateMachine {
                     if (mScreenOff && shouldWifiStayAwake(mPluggedType) &&
                             !shouldWifiStayAwake(pluggedType)) {
                         long triggerTime = System.currentTimeMillis() + mIdleMillis;
-                        if (DBG) Slog.d(TAG, "set idle timer for " + mIdleMillis + "ms");
-                        mAlarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, mIdleIntent);
+                        if (mNetworkInfo.getDetailedState() == DetailedState.CONNECTED
+                                && !mTetherUsbOn) {
+                            if (DBG) Slog.d(TAG, "set idle timer for " + mIdleMillis + "ms");
+                            mAlarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, mIdleIntent);
+                        } else {
+                            sendMessage(CMD_DEVICE_IDLE);
+                        }
                     }
 
                     mPluggedType = pluggedType;
