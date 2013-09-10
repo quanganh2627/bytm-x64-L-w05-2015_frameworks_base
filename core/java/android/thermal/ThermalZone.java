@@ -227,8 +227,8 @@ public class ThermalZone {
     }
 
     public boolean isZoneStateChanged() {
-        int newMaxSensorState = -1;
-        int tempSensorState = -1;
+        int newMaxSensorState = -2;
+        int tempSensorState = -2;
         int currMaxTemp = ThermalManager.INVALID_TEMP;
         int oldZoneState = mCurrThermalState;
 
@@ -271,8 +271,8 @@ public class ThermalZone {
 
     /* overloaded fucniton */
     public boolean isZoneStateChanged(ThermalSensor s, int temp) {
-        int newMaxSensorState = -1;
-        int tempSensorState = -1;
+        int newMaxSensorState = -2;
+        int tempSensorState = -2;
         int currMaxTemp = ThermalManager.INVALID_TEMP;
         int oldZoneState = mCurrThermalState;
         /**
@@ -291,6 +291,8 @@ public class ThermalZone {
             }
         }
 
+        /*if final max temp is invalid, it means all sensors returned invalid temp */
+        if (currMaxTemp == ThermalManager.INVALID_TEMP) return false;
         /**
         * zone state is always max of sensor states. newMaxSensorState is
         * supposed to be new zone state. But if zone is already in that state,
