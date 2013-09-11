@@ -139,7 +139,7 @@ public class WifiStateMachine extends StateMachine {
 
     /* Chipset supports background scan */
     private final boolean mBackgroundScanSupported;
-
+    private boolean mBackgroundScanAutoTurnOffEnabled;
     private String mInterfaceName;
     private static final String mP2pInterfaceName = "p2p0";
     private static final String[] mP2pRegexs = {"p2p-p2p0-\\d"};
@@ -702,7 +702,7 @@ public class WifiStateMachine extends StateMachine {
 
         mBackgroundScanSupported = mContext.getResources().getBoolean(
                 R.bool.config_wifi_background_scan_support);
-
+        mBackgroundScanAutoTurnOffEnabled = true;
         mPrimaryDeviceType = mContext.getResources().getString(
                 R.string.config_wifi_p2p_device_type);
 
@@ -1518,8 +1518,10 @@ public class WifiStateMachine extends StateMachine {
        sendMessage(CMD_ENABLE_RSSI_POLL, enabled ? 1 : 0, 0);
     }
 
-    public void enableBackgroundScanCommand(boolean enabled) {
-       sendMessage(CMD_ENABLE_BACKGROUND_SCAN, enabled ? 1 : 0, 0);
+    public void enableBackgroundScanCommand(boolean enabled, int syncWifiState) {
+       sendMessage(CMD_ENABLE_BACKGROUND_SCAN, enabled ? 1 : 0,
+               ((syncWifiState == WIFI_STATE_ENABLING)
+               || (syncWifiState == WIFI_STATE_ENABLED)) ? 1:0 );
     }
 
     public void enableAllNetworks() {
@@ -1724,7 +1726,7 @@ public class WifiStateMachine extends StateMachine {
         if (DBG) log("handleScreenStateChanged: " + screenOn);
         enableRssiPolling(screenOn);
         if (mBackgroundScanSupported) {
-            enableBackgroundScanCommand(screenOn == false);
+            enableBackgroundScanCommand(screenOn == false, syncGetWifiState());
         }
 
         if (screenOn) enableAllNetworks();
@@ -2522,10 +2524,16 @@ public class WifiStateMachine extends StateMachine {
             if (configs.size() != 0) {
                 mWifiNative.enableBackgroundScan(true);
             } else {
-                // No remembered SSID, turn off Wifi immediately
-                log("No remembered SSID, turn off wifi");
-                mContext.sendBroadcast(new Intent(SHUT_DOWN_WIFI_ACTION));
                 mEnableBackgroundScan = false;
+                if (mP2pConnected.get()) {
+                    log("No remembered SSID, but P2P Connected. Do not turn WiFi OFF");
+                    mBackgroundScanAutoTurnOffEnabled  = false;
+                }
+                if (mBackgroundScanAutoTurnOffEnabled) {
+                    // No remembered SSID, and auto turn off authorized, request to turn off Wifi
+                    log("No remembered SSID, turn off wifi");
+                    mContext.sendBroadcast(new Intent(SHUT_DOWN_WIFI_ACTION));
+                }
             }
         } else {
             loge("Impossible to get the configured networks when considering PNO enabling");
@@ -2573,6 +2581,7 @@ public class WifiStateMachine extends StateMachine {
                     break;
                 case CMD_ENABLE_BACKGROUND_SCAN:
                     mEnableBackgroundScan = (message.arg1 == 1);
+                    mBackgroundScanAutoTurnOffEnabled = (message.arg2 == 1);
                     break;
                 case CMD_SET_HIGH_PERF_MODE:
                     if (message.arg1 == 1) {
@@ -4128,6 +4137,7 @@ public class WifiStateMachine extends StateMachine {
                     break;
                 case CMD_ENABLE_BACKGROUND_SCAN:
                     mEnableBackgroundScan = (message.arg1 == 1);
+                    mBackgroundScanAutoTurnOffEnabled = (message.arg2 == 1);
                     if (mEnableBackgroundScan) {
                         enableBackgroundScanOrTurnOffWifi();
                         setScanAlarm(false);
