@@ -21,6 +21,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.BaseNetworkStateTracker;
+import android.net.ConnectivityManager;
 import android.net.LinkCapabilities;
 import android.net.LinkQualityInfo;
 import android.net.LinkProperties;
@@ -28,9 +29,11 @@ import android.net.NetworkInfo;
 import android.net.NetworkInfo.DetailedState;
 import android.net.SamplingDataTracker;
 import android.net.WifiLinkQualityInfo;
+import android.net.wifi.p2p.WifiP2pManager;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Messenger;
+import android.util.Log;
 import android.util.Slog;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -59,10 +62,12 @@ public class WifiStateTracker extends BaseNetworkStateTracker {
     private Handler mCsHandler;
     private BroadcastReceiver mWifiStateReceiver;
     private WifiManager mWifiManager;
+    private int mTrackedNetwork; // To make the difference between wifi and wifip2p
 
     private SamplingDataTracker mSamplingDataTracker = new SamplingDataTracker();
 
     public WifiStateTracker(int netType, String networkName) {
+        mTrackedNetwork = netType;
         mNetworkInfo = new NetworkInfo(netType, 0, networkName, "");
         mLinkProperties = new LinkProperties();
         mLinkCapabilities = new LinkCapabilities();
@@ -81,7 +86,7 @@ public class WifiStateTracker extends BaseNetworkStateTracker {
     }
 
     /**
-     * Begin monitoring wifi connectivity
+     * Begin monitoring wifi or wifip2p connectivity
      */
     public void startMonitoring(Context context, Handler target) {
         mCsHandler = target;
@@ -89,10 +94,18 @@ public class WifiStateTracker extends BaseNetworkStateTracker {
 
         mWifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
         IntentFilter filter = new IntentFilter();
-        filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
-        filter.addAction(WifiManager.LINK_CONFIGURATION_CHANGED_ACTION);
+        if (mTrackedNetwork == ConnectivityManager.TYPE_WIFI) {
+            filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
+            filter.addAction(WifiManager.LINK_CONFIGURATION_CHANGED_ACTION);
+            mWifiStateReceiver = new WifiStateReceiver();
+        } else if (mTrackedNetwork == ConnectivityManager.TYPE_WIFI_P2P) {
+            filter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
+            mWifiStateReceiver = new WifiP2pStateReceiver();
+        } else {
+            Log.e(TAG, "The wifistate tracker is only for wifi or wifip2p network type");
+            return;
+        }
 
-        mWifiStateReceiver = new WifiStateReceiver();
         mContext.registerReceiver(mWifiStateReceiver, filter);
     }
 
@@ -297,6 +310,35 @@ public class WifiStateTracker extends BaseNetworkStateTracker {
             } else if (intent.getAction().equals(WifiManager.LINK_CONFIGURATION_CHANGED_ACTION)) {
                 mLinkProperties = intent.getParcelableExtra(WifiManager.EXTRA_LINK_PROPERTIES);
                 Message msg = mCsHandler.obtainMessage(EVENT_CONFIGURATION_CHANGED, mNetworkInfo);
+                msg.sendToTarget();
+            }
+        }
+    }
+
+    private class WifiP2pStateReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+
+            if (intent.getAction().equals(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)) {
+                mNetworkInfo = (NetworkInfo) intent.getParcelableExtra(
+                        WifiP2pManager.EXTRA_NETWORK_INFO);
+                if (mLinkProperties == null) {
+                    mLinkProperties = new LinkProperties();
+                }
+                if (mLinkCapabilities == null) {
+                    mLinkCapabilities = new LinkCapabilities();
+                }
+                // don't want to send redundent state messages
+                // but send portal check detailed state notice
+                NetworkInfo.State state = mNetworkInfo.getState();
+                if (mLastState == state &&
+                        mNetworkInfo.getDetailedState() != DetailedState.CAPTIVE_PORTAL_CHECK) {
+                    return;
+                } else {
+                    mLastState = state;
+                }
+                Message msg = mCsHandler.obtainMessage(EVENT_STATE_CHANGED,
+                        new NetworkInfo(mNetworkInfo));
                 msg.sendToTarget();
             }
         }
