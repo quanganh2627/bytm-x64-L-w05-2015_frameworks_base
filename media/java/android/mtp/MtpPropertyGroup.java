@@ -354,6 +354,14 @@ class MtpPropertyGroup {
                             // protection status is always 0
                             result.append(handle, propertyCode, MtpConstants.TYPE_UINT16, 0);
                             break;
+                        case MtpConstants.PROPERTY_OBJECT_SIZE:
+                            // use the size by reading from filesystem
+                            long size = mDatabase.getObjectSize(handle);
+                            if (size >= 0) {
+                                result.append(handle, propertyCode, MtpConstants.TYPE_UINT64, size);
+                            } else
+                                result.setResult(MtpConstants.RESPONSE_GENERAL_ERROR);
+                            break;
                         case MtpConstants.PROPERTY_OBJECT_FILE_NAME:
                             // special case - need to extract file name from full path
                             String value = c.getString(column);

@@ -986,6 +986,17 @@ public class MtpDatabase {
         }
     }
 
+    public long getObjectSize(int handle) {
+        int ret;
+        char[] outFilePath = new char[256];
+        long[] outFileLengthFormat = new long[2];
+
+        ret = getObjectFilePath(handle, outFilePath, outFileLengthFormat);
+        if (ret != MtpConstants.RESPONSE_OK)
+            return -1;
+        return outFileLengthFormat[0];
+    }
+
     private int deleteFile(int handle) {
         mDatabaseModified = true;
         String path = null;
