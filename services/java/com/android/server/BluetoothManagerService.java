@@ -34,6 +34,7 @@ import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -46,7 +47,10 @@ import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
 import com.intel.cws.cwsservicemanagerclient.CsmClient;
+import com.intel.cws.cwsservicemanager.CsmCoexMgr;
 import com.intel.cws.cwsservicemanager.CsmException;
+import java.lang.Math;
+import java.util.BitSet;
 
 class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final String TAG = "BluetoothManagerService";
@@ -205,9 +209,97 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     mAirplanePending = false;
                     handleAirplaneModeStateChange();
                 }
+            } else if (CsmCoexMgr.ACTION_COEX_SAFECHANNELS_INFO.equals(action)) {
+
+                if (DBG) Log.d(TAG, "COEX_SAFECHANNELS : Information received");
+
+                Bundle bundle = intent.getBundleExtra(CsmCoexMgr.COEX_SAFECHANNELS_EXTRA);
+                int minFreq = bundle.getInt(CsmCoexMgr.COEX_SAFECHANNELS_BT_MIN_KEY);
+                int maxFreq = bundle.getInt(CsmCoexMgr.COEX_SAFECHANNELS_BT_MAX_KEY);
+
+                if (DBG) Log.d(TAG, "COEX_SAFECHANNELS : [" + minFreq + ", " + maxFreq + "]");
+
+                handleCoexSafeChannels(minFreq, maxFreq);
             }
         }
     };
+
+    private void handleCoexSafeChannels(int minFreq, int maxFreq) {
+        final int BT_LO_FREQ = 2402;
+        final int BT_HI_FREQ = 2480;
+        final int AFH_CLASSIFICATION_SIZE = 79;
+        final int LE_CLASSIFICATION_SIZE = 37;
+
+        // Refine bounds to BT
+        if (minFreq > BT_HI_FREQ || maxFreq < BT_LO_FREQ) {
+            minFreq = BT_LO_FREQ;
+            maxFreq = BT_HI_FREQ;
+        } else {
+            minFreq = Math.max(minFreq, BT_LO_FREQ);
+            maxFreq = Math.min(maxFreq, BT_HI_FREQ);
+        }
+
+        if (DBG) {
+            Log.d(TAG, "COEX_SAFECHANNELS : Building BR/EDR Channel Range for [" + minFreq + ", "
+                    + maxFreq + "]");
+        }
+
+        // BT AFH Host Channel Classification (79 1-bit field).
+        //    - [0-78] Bad: 0 or Unknown: 1
+        // Refer to BT Core Spec Vol. 2, Part E - HCI 7.3.46
+        BitSet BtChannels = new BitSet(AFH_CLASSIFICATION_SIZE);
+
+        // All channels are unknown
+        BtChannels.set(0, AFH_CLASSIFICATION_SIZE);
+
+        // Compute BT safe channels Range
+        // f=2402+k MHz, k=0,...,78
+        int BtLowerChannel = minFreq - BT_LO_FREQ;
+        int BtUpperChannel = maxFreq - BT_LO_FREQ;
+
+
+        if (BtLowerChannel > 0) {
+            BtChannels.clear(0, BtLowerChannel);
+        }
+
+        if (BtUpperChannel < AFH_CLASSIFICATION_SIZE - 1) {
+            BtChannels.clear(BtUpperChannel + 1, AFH_CLASSIFICATION_SIZE);
+        }
+
+        if (DBG) {
+            Log.d(TAG, "COEX_SAFECHANNELS : BR/EDR Channel Range : [" + BtLowerChannel + ", "
+                    + BtUpperChannel + "]");
+        }
+
+        // LE Host Channel Classification (37 1-bit field)
+        //    - [0-36] ad: 0 or Unknown: 1
+        // Refer to BT Core Spec Vol.2, Part E - HCI 7.8.19
+        BitSet LeChannels = new BitSet(LE_CLASSIFICATION_SIZE);
+        LeChannels.set(0, LE_CLASSIFICATION_SIZE);
+
+        // Compute LE safe channels :
+        // RF channels arrangement 2402 + k * 2 MHz, where k = 0, ..., 39.
+        int LeLowerChannel = ((minFreq - BT_LO_FREQ) + 1) / 2;
+        int LeUpperChannel = ((maxFreq - BT_LO_FREQ)  + 1) / 2;
+        if (LeLowerChannel > 0) {
+            LeChannels.clear(0, LeLowerChannel);
+        }
+        if (LeUpperChannel < LE_CLASSIFICATION_SIZE - 1) {
+            LeChannels.clear(LeUpperChannel + 1, LE_CLASSIFICATION_SIZE);
+        }
+        if (DBG) {
+            Log.d(TAG, "COEX_SAFECHANNELS : LE Channel Range : [" + LeLowerChannel + ", "
+                    + LeUpperChannel + "]");
+        }
+        if (mAdapter == null) {
+            mAdapter = BluetoothAdapter.getDefaultAdapter();
+        }
+        if (mAdapter != null) {
+            if (false == mAdapter.setChannelClassification(BtChannels, LeChannels)) {
+                Log.e(TAG, "COEX_SAFECHANNELS : setChannelClassification() failed");
+            }
+        }
+    }
 
     private void handleAirplaneModeStateChange() {
         synchronized(mReceiver) {
@@ -252,6 +344,8 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         IntentFilter filter = new IntentFilter(Intent.ACTION_BOOT_COMPLETED);
         filter.addAction(BluetoothAdapter.ACTION_LOCAL_NAME_CHANGED);
         filter.addAction(Intent.ACTION_USER_SWITCHED);
+        if (DBG) Log.d(TAG, "COEX_SAFECHANNELS : Add Intent Filter");
+        filter.addAction(CsmCoexMgr.ACTION_COEX_SAFECHANNELS_INFO);
         registerForAirplaneMode(filter);
         mContext.registerReceiver(mReceiver, filter);
         loadStoredNameAndAddress();
