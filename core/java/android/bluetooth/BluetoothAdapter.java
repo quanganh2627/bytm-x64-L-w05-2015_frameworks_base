@@ -369,6 +369,10 @@ public final class BluetoothAdapter {
 
     private static final int AFH_N_MIN_UNKNOWN = 20;
     private static final int LE_N_MIN_UNKNOWN = 1;
+    private static final int AFH_CHANNEL_MAP_MEANINGFUL_BITS = 79;
+    private static final int AFH_CHANNEL_MAP_RESERVED_MSB = 1;
+    private static final int LE_CHANNEL_MAP_MEANINGFUL_BITS = 37;
+    private static final int LE_CHANNEL_MAP_RESERVED_MSB = 3;
 
     /**
      * Get a handle to the default local Bluetooth adapter.
@@ -926,24 +930,17 @@ public final class BluetoothAdapter {
         return BluetoothProfile.STATE_DISCONNECTED;
     }
 
-    private byte[] BitSet2ByteArray(BitSet bits, int maxSize) {
-        byte[] bytes = new byte[maxSize/8];
+    private byte[] BitSet2ByteArray(BitSet bits, int size) {
+        byte[] bytes = new byte[size / 8];
+
+        // All bytes of byte[] are set to 0 at construction.
+        // Now set each bit individually:
         for (int i=0; i<bits.length(); i++) {
             if (bits.get(i)) {
-                bytes[bytes.length-i/8-1] |= 1<<(i%8);
+                bytes[bytes.length - 1 - (i / 8)] |= 1 << (i % 8);
             }
         }
         return bytes;
-    }
-
-    private int getUnknownbits(BitSet bits) {
-        int res = 0;
-        for (int i=0; i<bits.length(); i++) {
-            if (bits.get(i)) {
-                res++;
-            }
-        }
-        return res;
     }
 
     /**
@@ -958,52 +955,51 @@ public final class BluetoothAdapter {
       *
       * @hide
       */
-    public boolean setChannelClassification(BitSet BTChannelClassification, BitSet LEChannelMap) {
+    public boolean setChannelClassification(BitSet BTChannelClassification,
+            BitSet LEChannelClassification) {
+
+        if (DBG) {
+            Log.d(TAG, "setChannelClassification(): BT " + BTChannelClassification.toString()
+                    + ", LE " + LEChannelClassification.toString());
+        }
+
         if (getState() != STATE_ON) return false;
-        if (BTChannelClassification.length() == 0 || BTChannelClassification.length() > 80 ) {
-            Log.e(TAG, "setChannelClassification: BTChannelClassification length is " +
-                       BTChannelClassification.length() + " whereas it should be between 1-80.");
-            return false;
-        }
-        /* Check MSB (bit 0) of AFH, should be set to 0 */
-        if (BTChannelClassification.get(0) != false) {
-            Log.e(TAG, "setChannelClassification: MSB (bit 0) of BTChannelClassification is " +
-                       "reserved and should be set to 0.");
-            return false;
-        }
-        /* check if BTChannelClassification has at least AFH_N_MIN(20) unknown channels */
-        if (getUnknownbits(BTChannelClassification) < AFH_N_MIN_UNKNOWN) {
-            Log.e(TAG, "setChannelClassification: BTChannelClassification has less than " +
-                       AFH_N_MIN_UNKNOWN + " unknown channels.");
+
+        if (BTChannelClassification.length() > AFH_CHANNEL_MAP_MEANINGFUL_BITS ||
+                LEChannelClassification.length() > LE_CHANNEL_MAP_MEANINGFUL_BITS) {
+            Log.e(TAG, "setChannelClassification(): Invalid Parameters - " + "length mismatch BT "
+                    + BTChannelClassification.length() + " / LE "
+                    + LEChannelClassification.length());
             return false;
         }
 
-        if (LEChannelMap.length() == 0 || LEChannelMap.length() > 40 ) {
-
-            Log.e(TAG, "setChannelClassification: LEChannelMap length is " +
-                       LEChannelMap.length() + " whereas it should be between 1-40");
-            return false;
-        }
-        /* check MSB (bit 0) of LE, should be set to 0 */
-        if (LEChannelMap.get(0) != false) {
-            Log.e(TAG, "setChannelClassification: MSB (bit 0) of LEChannelMap is reserved and " +
-                       "should be set to 0.");
-            return false;
-        }
-        /* check if BTChannelClassification has at least LE_N_MIN(1) unknown channels */
-        if (getUnknownbits(LEChannelMap) < LE_N_MIN_UNKNOWN) {
-            Log.e(TAG, "setChannelClassification: BTChannelClassification has less than " +
-                       LE_N_MIN_UNKNOWN + " unknown channels.");
+        if (BTChannelClassification.cardinality() < AFH_N_MIN_UNKNOWN ||
+                LEChannelClassification.cardinality() < LE_N_MIN_UNKNOWN) {
+            Log.e(TAG, "setChannelClassification(): Invalid Parameters - "
+                    + "Insufficient number of unknown channels. BT "
+                    + BTChannelClassification.cardinality() + " / LE "
+                    + LEChannelClassification.cardinality());
             return false;
         }
 
-        byte[] BTChannel = BitSet2ByteArray(BTChannelClassification, 80);
-        byte[] LEChannel = BitSet2ByteArray(LEChannelMap,40);
+        // Convert bitset to an HCI Param bytes Array
+        // BT: 10 octets / MSB reserved (0) (Refer to BT Core Spec Vol. 2, Part E - HCI 7.3.46)
+        // LE: 5 octets / 3 MSBs reserved (0) (Refer to BT Core Spec Vol.2, Part E - HCI 7.8.19)
+        byte[] BTChannelMap =
+                BitSet2ByteArray(BTChannelClassification,
+                        AFH_CHANNEL_MAP_MEANINGFUL_BITS + AFH_CHANNEL_MAP_RESERVED_MSB);
+        byte[] LEChannelMap =
+                BitSet2ByteArray(LEChannelClassification,
+                        LE_CHANNEL_MAP_MEANINGFUL_BITS + LE_CHANNEL_MAP_RESERVED_MSB);
         try {
             synchronized(mManagerCallback) {
-                if (mService != null) return mService.setChannelClassification(BTChannel, LEChannel);
+                if (mService != null) {
+                    return mService.setChannelClassification(BTChannelMap, LEChannelMap);
+                }
             }
-         } catch (RemoteException e) {Log.e(TAG, "setChannelClassification:", e);}
+        } catch (RemoteException e) {
+            Log.e(TAG, "setChannelClassification:", e);
+        }
         return false;
     }
 
