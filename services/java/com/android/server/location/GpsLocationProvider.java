@@ -221,6 +221,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
     private Object mLock = new Object();
     private Object mCellLocationLock = new Object();
+    private Boolean mWaitingRefLocations = false;
 
     private int mLocationFlags = LOCATION_INVALID;
 
@@ -558,6 +559,10 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
                         int phoneType = mTelephonyManager.getPhoneType(networkMode);
 
+                        synchronized(mWaitingRefLocations) {
+                            mWaitingRefLocations = true;
+                        }
+
                         try {
                             if ((flags & AGPS_REQUEST_REFLOC_CELLID) == AGPS_REQUEST_REFLOC_CELLID) {
                                 if (phoneType == TelephonyManager.PHONE_TYPE_GSM) {
@@ -565,7 +570,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
                                     CellLocation.requestLocationUpdate();
                                     synchronized(mCellLocationLock) {
                                         try {
-                                            mCellLocationLock.wait(5000);
+                                            mCellLocationLock.wait(3000);
                                         } catch (InterruptedException ie) {
                                             // restore the interrupted status
                                             Thread.currentThread().interrupt();
@@ -586,7 +591,11 @@ public class GpsLocationProvider implements LocationProviderInterface {
                                                                         + ":" + bssid));
                             }
                         } finally {
-                            native_agps_set_ref_location(new String(String.valueOf(AGPS_REF_LOCATION_END) + ":"));
+                            synchronized(mWaitingRefLocations) {
+                                native_agps_set_ref_location(new String(String.valueOf(
+                                        AGPS_REF_LOCATION_END) + ":"));
+                                mWaitingRefLocations = false;
+                            }
                         }
                     }
                 };
@@ -1757,8 +1766,12 @@ public class GpsLocationProvider implements LocationProviderInterface {
                     type = AGPS_REF_LOCATION_TYPE_GSM_CELLID;
                 }
 
-                native_agps_set_ref_location(new String(String.valueOf(type) + ":" + mcc + ":"
-                                + mnc + ":" + gsm_cell.getLac() + ":" + gsm_cell.getCid()));
+                synchronized(mWaitingRefLocations) {
+                    if (mWaitingRefLocations.booleanValue())
+                        native_agps_set_ref_location(new String(String.valueOf(type) + ":" + mcc
+                                + ":" + mnc + ":" + gsm_cell.getLac() + ":" + gsm_cell.getCid()));
+                }
+
             } else {
                 Log.i(TAG, "no network operators");
             }
