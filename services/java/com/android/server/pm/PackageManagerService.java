@@ -4329,7 +4329,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                                         writeAppwithABI2Neon();
                                     }
                                 }
-                            } else if (ENABLE_HOUDINI && copyRet == PackageManager.INSTALL_ABI2_SUCCEEDED && !mPackagesMatchABI2.containsKey(pkgUidInt)) {
+                            } else if (ENABLE_HOUDINI && copyRet == PackageManager.INSTALL_ABI2_SUCCEEDED) {
                                 ICheckExt check = new CheckExt();
                                 if(check.doCheck(pkgName, new String("filter"))) {
                                     Slog.i(TAG, "Package with second ABI is in black list: " + pkgUidInt + pkg.applicationInfo.processName);
@@ -4368,7 +4368,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                                 writeAppwithABI2Neon();
                             }
                         }
-                    } else if (ENABLE_HOUDINI && result == PackageManager.INSTALL_ABI2_SUCCEEDED && !mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
+                    } else if (ENABLE_HOUDINI && result == PackageManager.INSTALL_ABI2_SUCCEEDED) {
                         ICheckExt check = new CheckExt();
                         if (check.doCheck(pkgName, new String("filter"))) {
                             Slog.i(TAG, "Package with second ABI is in black list: " + pkg.applicationInfo.uid + pkg.applicationInfo.processName);
