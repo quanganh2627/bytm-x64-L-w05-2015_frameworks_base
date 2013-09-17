@@ -2,37 +2,47 @@ package android.nfc;
 
 import android.os.Parcel;
 import android.os.Parcelable;
-
 /**
+ * Represents Routing information for single routing table entry.
  * @hide
  */
 public class MultiSERoutingInfo implements Parcelable {
-
+    /** Route Type */
     public static byte ROUTE_DEFAULT = 0x00;
     public static byte ROUTE_AID = 0x01;
     public static byte ROUTE_PROTOCOL = 0x02;
     public static byte ROUTE_TECHNOLOGY = 0x03;
-
-    public static byte LOCATION_UICC = 0x01;
-    public static byte LOCATION_ESE = 0x02;
+    /** Location */
+    public static byte LOCATION_UICC = 0x02;
+    public static byte LOCATION_ESE = 0x01;
     public static byte LOCATION_HOST = 0x04;
-
-    public static byte POWER_STATE_LOW = 0x02;
-    public static byte POWER_STATE_FULL = 0x01;
-    public static byte POWER_STATE_BOTH = 0x03;
-
+    /** Power State in which Route is valid */
+    public static byte POWER_STATE_BATTERY_OFF  = 0x04;
+    public static byte POWER_STATE_SWITCHED_OFF = 0x02;
+    public static byte POWER_STATE_SWITCHED_ON  = 0x01;
+    /** Protocol */
     public static byte PROTOCOL_MIFARE = 0x01;
+    /** Technology */
+    public static byte TECHNOLOGY_A = 0x01;
+    public static byte TECHNOLOGY_B = 0x02;
+    public static byte TECHNOLOGY_F = 0x04;
 
+    /** Type of Route entry - AID/PROTOCOL/DEFAULT
+     * AID is the hexadecimal stream representation of AID
+     * */
     private byte mRouteType;
-    private int[] mRouteDetail;
+    /** Type=AID then contains AID, Type=PROTOCOL then contains PROTOCOL, Type=DEFAULT then ignored */
+    private byte[] mRouteDetail;
+    /**Route destination UICC/ESE/HOST */
     private byte mLocation;
+    /** BATTERY_OFF/SWITCHED_ON/SWITCHED_OFF */
     private byte mPowerState;
 
     public MultiSERoutingInfo() {
 
     }
 
-    public MultiSERoutingInfo(byte routeType, int[] routeDetail, byte location, byte powerState) {
+    public MultiSERoutingInfo(byte routeType, byte[] routeDetail, byte location, byte powerState) {
         this.mRouteType = routeType;
         this.mRouteDetail = routeDetail;
         this.mLocation = location;
@@ -47,11 +57,11 @@ public class MultiSERoutingInfo implements Parcelable {
         this.mRouteType = mRouteType;
     }
 
-    public int[] getRouteDetail() {
+    public byte[] getRouteDetail() {
         return mRouteDetail;
     }
 
-    public void setRouteDetail(int[] mRouteDetail) {
+    public void setRouteDetail(byte[] mRouteDetail) {
         this.mRouteDetail = mRouteDetail;
     }
 
@@ -83,7 +93,7 @@ public class MultiSERoutingInfo implements Parcelable {
         dest.writeInt(mRouteType);
         if (null != mRouteDetail) {
             dest.writeInt(mRouteDetail.length);
-            dest.writeIntArray(mRouteDetail);
+            dest.writeByteArray(mRouteDetail);
         }
     }
 
@@ -94,8 +104,8 @@ public class MultiSERoutingInfo implements Parcelable {
                     byte powerState = (byte) in.readInt();
                     byte routeType = (byte) in.readInt();
                     int routeDetailLength = in.readInt();
-                    int[] routeDetail = new int[routeDetailLength];
-                    in.readIntArray(routeDetail);
+                    byte[] routeDetail = new byte[routeDetailLength];
+                    in.readByteArray(routeDetail);
 
                     return new MultiSERoutingInfo(routeType, routeDetail, location, powerState);
                 }

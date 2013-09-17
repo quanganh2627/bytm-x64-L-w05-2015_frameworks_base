@@ -30,4 +30,6 @@ interface INfcAdapterExtras {
     void setCardEmulationRoute(in String pkg, int route);
     void authenticate(in String pkg, in byte[] token);
     String getDriverName(in String pkg);
+    int[] getSecureElementTechList(in String pkg);
+    byte[] getSecureElementUid(in String pkg);
 }
