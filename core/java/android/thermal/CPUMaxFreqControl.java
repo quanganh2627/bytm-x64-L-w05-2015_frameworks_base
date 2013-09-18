@@ -56,6 +56,7 @@ public class CPUMaxFreqControl {
         {"0002",    "8000",     "any"},     // CTP   RHB       -
         {"0002",    "8001",     "any"},     // CTP   VB        -
         {"0002",    "any",      "any"},     // CTP     -       -
+        {"0007",    "8001",     "0000"},     // BYT M platform
         {"0007",    "8000",     "any"},     // BYT Tablet FFRD10 PR1.1
         {"0007",    "any",      "any"},     // BYT     -       -
         {"0004",    "any",     "any"},      // MRFLD Phone   -
@@ -74,6 +75,7 @@ public class CPUMaxFreqControl {
         {1600000,   1333000,    933000},    // CTP   RHB frequencies
         {1866000,   1333000,    933000},    // CTP   VB  frequencies
         {1866000,   1333000,    933000},    // CTP   default frequencies
+        {1909000,   1826000,    996000},    // BYT M platform
         {1100000,   1000000,    900000},    // BYT    Tablet  FFRD10 PR1.1
         {1100000,   1000000,    900000},    // BYT default frequencies
         {1333000,   1066000,    666000},    // MRFLD  Phone
