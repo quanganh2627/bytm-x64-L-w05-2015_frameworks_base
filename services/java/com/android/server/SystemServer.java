@@ -660,6 +660,13 @@ class ServerThread {
                     reportWtf("starting WiredAccessoryManager", e);
                 }
             }
+            try {
+                Slog.i(TAG, "HardwareMuteSwitch");
+                // Listen for hardware mute switch changes
+                new HardwareMuteSwitch(context, inputManager);
+            } catch (Throwable e) {
+                reportWtf("starting HardwareMuteSwitch", e);
+            }
 
             if (!disableNonCoreServices) {
                 try {
