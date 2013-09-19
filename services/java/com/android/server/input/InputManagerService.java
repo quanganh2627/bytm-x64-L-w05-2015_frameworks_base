@@ -256,6 +256,10 @@ public class InputManagerService extends IInputManager.Stub
         mPtr = nativeInit(this, mContext, mHandler.getLooper().getQueue());
     }
 
+    public  WindowManagerCallbacks getWindowManagerCallbacks() {
+        return mWindowManagerCallbacks;
+    }
+
     public void setWindowManagerCallbacks(WindowManagerCallbacks callbacks) {
         mWindowManagerCallbacks = callbacks;
     }
