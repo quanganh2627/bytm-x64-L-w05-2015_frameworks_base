@@ -3750,14 +3750,14 @@ public class AudioService extends IAudioService.Stub {
                     break;
                 case MSG_MUTE_HW_SWITCH_TOAST:
                     if (mIsHwRingerMuted) {
-                        Toast.makeText(mContext, "Mute HW switch to on ", Toast.LENGTH_LONG).show();
+                        Toast.makeText(mContext, "Mute HW switch ON", Toast.LENGTH_LONG).show();
                     } else {
-                        Toast.makeText(mContext, "Mute HW switch to off ", Toast.LENGTH_LONG).show();
+                        Toast.makeText(mContext, "Mute HW switch OFF", Toast.LENGTH_LONG).show();
                     }
                     break;
                 case MSG_MUTE_HW_TOAST:
                     if (mIsHwRingerMuted) {
-                        Toast.makeText(mContext, "Mute HW is on, can't change the ringer mode ", Toast.LENGTH_LONG).show();
+                        Toast.makeText(mContext, "Mute HW is ON, can't change the ringer mode", Toast.LENGTH_LONG).show();
                     }
                     break;
             }
