@@ -126,8 +126,7 @@ public class PowerUI extends SystemUI {
                 final boolean plugged = mPlugType != 0;
                 final boolean oldPlugged = oldPlugType != 0;
 
-                if (mBatteryLevel < oldBatteryLevel && (mBatteryStatus == BatteryManager.BATTERY_STATUS_CHARGING || mBatteryStatus == BatteryManager.BATTERY_STATUS_FULL) &&
-                        (oldBatteryStatus == BatteryManager.BATTERY_STATUS_CHARGING || oldBatteryStatus == BatteryManager.BATTERY_STATUS_FULL)) {
+                if (mBatteryLevel < oldBatteryLevel && mBatteryStatus == BatteryManager.BATTERY_STATUS_CHARGING && oldBatteryStatus == BatteryManager.BATTERY_STATUS_CHARGING) {
                     Toast.makeText(mContext.getApplicationContext(), "Insufficient charger current!!!", Toast.LENGTH_SHORT).show();
                 }
 
