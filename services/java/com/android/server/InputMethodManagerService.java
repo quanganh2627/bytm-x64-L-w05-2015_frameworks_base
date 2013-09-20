@@ -790,7 +790,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 true /* resetDefaultImeLocked */);
     }
 
-    private void switchUserLocked(int newUserId) {
+    protected void switchUserLocked(int newUserId) {
         mSettings.setCurrentUserId(newUserId);
         // InputMethodFileManager should be reset when the user is changed
         mFileManager = new InputMethodFileManager(mMethodMap, newUserId);
@@ -891,7 +891,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
     // Check whether or not this is a valid IPC. Assumes an IPC is valid when either
     // 1) it comes from the system process
     // 2) the calling process' user id is identical to the current user id IMMS thinks.
-    private boolean calledFromValidUser() {
+    protected boolean calledFromValidUser() {
         final int uid = Binder.getCallingUid();
         final int userId = UserHandle.getUserId(uid);
         if (DEBUG) {
@@ -1115,6 +1115,9 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
         return startInputUncheckedLocked(cs, inputContext, attribute, controlFlags);
     }
 
+    protected void checkAndShowSystemImeForContainer() {
+    }
+
     InputBindResult startInputUncheckedLocked(ClientState cs,
             IInputContext inputContext, EditorInfo attribute, int controlFlags) {
         // If no method is currently selected, do nothing.
@@ -1128,6 +1131,8 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 Slog.v(TAG, "New bind. keyguard = " +  mInputBoundToKeyguard);
             }
         }
+
+        checkAndShowSystemImeForContainer();
 
         if (mCurClient != cs) {
             // If the client is changing, we need to switch over to the new
@@ -2583,7 +2588,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
         mContext.startActivityAsUser(intent, null, UserHandle.CURRENT);
     }
 
-    private boolean isScreenLocked() {
+    protected boolean isScreenLocked() {
         return mKeyguardManager != null
                 && mKeyguardManager.isKeyguardLocked() && mKeyguardManager.isKeyguardSecure();
     }

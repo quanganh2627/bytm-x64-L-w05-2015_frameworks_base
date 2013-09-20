@@ -32,6 +32,7 @@ import android.util.LogPrinter;
 import com.android.internal.util.FastXmlSerializer;
 import com.android.internal.util.JournaledFile;
 import com.android.internal.util.XmlUtils;
+import com.android.server.am.ActivityManagerService;
 import com.android.server.pm.PackageManagerService.DumpState;
 
 import org.xmlpull.v1.XmlPullParser;
@@ -84,7 +85,7 @@ import libcore.io.IoUtils;
 /**
  * Holds information about dynamic settings.
  */
-final class Settings {
+class Settings {
     private static final String TAG = "PackageSettings";
 
     private static final boolean DEBUG_STOPPED = false;
@@ -441,6 +442,8 @@ final class Settings {
                     List<UserInfo> users = getAllUsers();
                     if (users != null && allowInstall) {
                         for (UserInfo user : users) {
+                            // Arkham - 596, don't do this for container user.
+                            if (!user.isContainer()) {
                             // By default we consider this app to be installed
                             // for the user if no user has been specified (which
                             // means to leave it at its original value, and the
@@ -456,6 +459,7 @@ final class Settings {
                                     true, // notLaunched
                                     null, null, null);
                             writePackageRestrictionsLPr(user.id);
+                            }
                         }
                     }
                 }
@@ -764,7 +768,10 @@ final class Settings {
         if (users == null) return;
 
         for (UserInfo user : users) {
-            writePackageRestrictionsLPr(user.id);
+            // ARKHAM - 596, don't do this for container user @ boot.
+            if (!(user.isContainer() && ActivityManagerService.self().isBooting())) {
+                writePackageRestrictionsLPr(user.id);
+            }
         }
     }
 
@@ -1760,7 +1767,9 @@ final class Settings {
                 readPackageRestrictionsLPr(0);
             } else {
                 for (UserInfo user : users) {
-                    readPackageRestrictionsLPr(user.id);
+                    // Arkham - 596, don't do this for container user.
+                    if (!user.isContainer())
+                        readPackageRestrictionsLPr(user.id);
                 }
             }
         }
@@ -2952,5 +2961,11 @@ final class Settings {
     void dumpReadMessagesLPr(PrintWriter pw, DumpState dumpState) {
         pw.println("Settings parse messages:");
         pw.print(mReadMessages.toString());
+    }
+
+    // ARKHAM-433 pass UserInfo instead of user handle
+    void createNewUserLILPw(PackageManagerService service, Installer installer, UserInfo userInfo,
+            File path) {
+        createNewUserLILPw(service, installer, userInfo.id, path);
     }
 }

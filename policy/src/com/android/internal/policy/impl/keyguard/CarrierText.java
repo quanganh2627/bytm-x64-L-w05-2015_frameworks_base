@@ -25,6 +25,7 @@ import com.android.internal.R;
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.IccCardConstants.State;
 import com.android.internal.widget.LockPatternUtils;
+import com.intel.arkham.ContainerPolicyCommons;
 
 public class CarrierText extends TextView {
     private static CharSequence mSeparator;
@@ -75,6 +76,7 @@ public class CarrierText extends TextView {
 
     protected void updateCarrierText(State simState, CharSequence plmn, CharSequence spn) {
         CharSequence text = getCarrierTextForSimState(simState, plmn, spn);
+        text = ContainerPolicyCommons.updateCarrierText(getContext(), mLockPatternUtils, text);
         if (KeyguardViewManager.USE_UPPER_CASE) {
             setText(text != null ? text.toString().toUpperCase() : null);
         } else {

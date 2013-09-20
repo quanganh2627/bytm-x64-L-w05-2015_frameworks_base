@@ -42,6 +42,7 @@ import android.widget.FrameLayout;
 
 import com.android.internal.R;
 import com.android.internal.widget.LockPatternUtils;
+import com.intel.config.FeatureConfig;
 
 /**
  * Manages creating, showing, hiding and resetting the keyguard.  Calls back
@@ -161,6 +162,11 @@ public class KeyguardViewManager {
                     if (keyCode == KeyEvent.KEYCODE_BACK && mKeyguardView.handleBackKey()) {
                         return true;
                     } else if (keyCode == KeyEvent.KEYCODE_MENU && mKeyguardView.handleMenuKey()) {
+                        return true;
+                    }
+                    // ARKHAM-1088:dismiss container keyguard on home key.
+                    else if (FeatureConfig.INTEL_FEATURE_ARKHAM && keyCode == KeyEvent.KEYCODE_HOME
+                            && mKeyguardView.handleHomeKey()) {
                         return true;
                     }
                 }

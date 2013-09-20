@@ -595,6 +595,7 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                             mGroup != null ? new WifiP2pGroup(mGroup) : null);
                     break;
                 case WifiP2pManager.REQUEST_PERSISTENT_GROUP_INFO:
+                    updatePersistentNetworks(NO_RELOAD);
                     replyToMessage(message, WifiP2pManager.RESPONSE_PERSISTENT_GROUP_INFO,
                             new WifiP2pGroupList(mGroups, null));
                     break;
@@ -2173,6 +2174,8 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
             }
 
             if (mGroups.contains(netId)) {
+                if (updateClientList(netId))
+                    isSaveRequired = true;
                 continue;
             }
 
@@ -2189,6 +2192,12 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                 WifiP2pDevice device = new WifiP2pDevice();
                 device.deviceAddress = bssid;
                 group.setOwner(device);
+            }
+            String[] p2pClientList = getClientList(netId);
+            if (p2pClientList != null) {
+                for (String client : p2pClientList) {
+                    group.addClient(client);
+                }
             }
             mGroups.add(group);
             isSaveRequired = true;
@@ -2342,6 +2351,47 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
         }
         return p2pClients.split(" ");
     }
+
+    /**
+     * Update client list of group with the specified network id.
+     * @param netId network id.
+     * @return whether the client list has been updated or not
+     */
+    private boolean updateClientList(int netId) {
+        boolean updated = false;
+
+        Collection<WifiP2pGroup> groups = mGroups.getGroupList();
+        for (WifiP2pGroup group : groups) {
+            if (group.getNetworkId() == netId) {
+                Collection<WifiP2pDevice> savedClientList = group.getClientList();
+                Collection<WifiP2pDevice> currentClientList = new ArrayList<WifiP2pDevice>();
+
+                String[] p2pClientList = getClientList(netId);
+                if (p2pClientList != null) {
+                    for (String client : p2pClientList) {
+                        currentClientList.add(new WifiP2pDevice(client));
+                    }
+                }
+
+                for (WifiP2pDevice client : savedClientList) {
+                    if (!currentClientList.contains(client)) {
+                        group.removeClient(client);
+                        updated = true;
+                    }
+                }
+
+                for (WifiP2pDevice client : currentClientList) {
+                    if (!savedClientList.contains(client)) {
+                        group.addClient(client);
+                        updated = true;
+                    }
+                }
+                break;
+            }
+        }
+        return updated;
+    }
+
 
     /**
      * Remove the specified p2p client from the specified profile.

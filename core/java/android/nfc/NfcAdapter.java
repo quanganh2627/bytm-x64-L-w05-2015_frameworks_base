@@ -294,7 +294,7 @@ public final class NfcAdapter {
      * Broadcast Action: a transaction with a secure element has been detected.
      * <p>
      * Always contains the extra field
-     * {@link com.nxp.NfcAdapter#EXTRA_AID}
+     * {@link android.nfc.NfcAdapter#EXTRA_AID}
      * @hide
      */
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
@@ -312,7 +312,7 @@ public final class NfcAdapter {
 
     /**
      * Mandatory byte array extra field in
-     * {@link com.nxp.NfcAdapter#ACTION_TRANSACTION_DETECTED}.
+     * {@link android.nfc.NfcAdapter#ACTION_TRANSACTION_DETECTED}.
      * <p>
      * Contains the AID of the applet involved in the transaction.
      * @hide
@@ -321,7 +321,7 @@ public final class NfcAdapter {
 
     /**
      * Mandatory byte array extra field in
-     * {@link com.nxp.NfcAdapter#ACTION_TRANSACTION_DETECTED}.
+     * {@link android.nfc.NfcAdapter#ACTION_TRANSACTION_DETECTED}.
      * <p>
      * Contains the extra data of the applet involved in the transaction.
      * @hide
@@ -415,6 +415,11 @@ public final class NfcAdapter {
     // TODO javadoc
     public interface CreateBeamUrisCallback {
         public Uri[] createBeamUris(NfcEvent event);
+    }
+
+    private boolean isPn544PCEnable() {
+        return mContext.getResources().getBoolean(
+                com.android.internal.R.bool.clf_is_pn544pc);
     }
 
     /**
@@ -1399,18 +1404,18 @@ public final class NfcAdapter {
         boolean seSelected = false;
 
         if (seId.equals(UICC_ID)) {
-            if (!isPn547Enable()) {
+            if (!isPn547Enable() && !isPn544PCEnable()) {
                 seID = 0xABCDF0;
             } else {
                 seID = UICC_ID_TYPE;
             }
         } else if (seId.equals(SMART_MX_ID)) {
-            if (!isPn547Enable()) {
+            if (!isPn547Enable() && !isPn544PCEnable()) {
                 seID = 0xABCDEF;
             } else {
                 seID = SMART_MX_ID_TYPE;
             }
-        } else if ((seId.equals(ALL_SE_ID)) && (isPn547Enable())) {
+        } else if (seId.equals(ALL_SE_ID)) {
             seID = ALL_SE_ID_TYPE;
         } else {
             Log.e(TAG, "selectDefaultSecureElement: wrong Secure Element ID");
@@ -1419,8 +1424,14 @@ public final class NfcAdapter {
 
         /* Deselect already selected SE if ALL_SE_ID is not selected*/
         try {
-            if(sService.getSelectedSecureElement() != seID) {
-                sService.deselectSecureElement();
+            if (!isPn544PCEnable()) {
+                if (sService.getSelectedSecureElement() != seID) {
+                    sService.deselectSecureElement();
+                }
+            } else {
+                if (seId.compareTo(ALL_SE_ID) != 0 && sService.getSelectedSecureElement() != seID) {
+                    sService.deselectSecureElement();
+                }
             }
         } catch (RemoteException e) {
             Log.e(TAG, "selectDefaultSecureElement: getSelectedSecureElement failed", e);
@@ -1428,10 +1439,11 @@ public final class NfcAdapter {
         }
 
         /* Get the list of the detected Secure Element */
+
         try {
             seList = sService.getSecureElementList();
             if ((seList != null && seList.length != 0)) {
-                if (!isPn547Enable()) {
+                if (!isPn547Enable() && !isPn544PCEnable()) {
                     for (int i = 0; i < seList.length; i++) {
                         if (seList[i] == seID) {
                             /* Select the Secure Element */
@@ -1456,6 +1468,7 @@ public final class NfcAdapter {
                 }
             }
 
+            // FIXME: This should be done in case of SE selection.
             if (!seSelected) {
                 if (seId.equals(NfcAdapter.UICC_ID)) {
                     sService.storeSePreference(seID);
@@ -1463,7 +1476,7 @@ public final class NfcAdapter {
                 } else if (seId.equals(NfcAdapter.SMART_MX_ID)) {
                     sService.storeSePreference(seID);
                     throw new IOException("SMART_MX not detected");
-                } else if ((isPn547Enable()) && (seId.equals(NfcAdapter.ALL_SE_ID))) {
+                } else if (seId.equals(NfcAdapter.ALL_SE_ID)) {
                     sService.storeSePreference(seID);
                     throw new IOException("ALL_SE not detected");
                 }
@@ -1485,9 +1498,16 @@ public final class NfcAdapter {
 
         String seID = getDefaultSelectedSecureElement();
 
-        /* Check if UICC is selected */
-        if (seID.compareTo(UICC_ID) != 0) {
-            throw new IllegalStateException("UICC is not selected");
+        if (!isPn544PCEnable()) {
+            /* Check if UICC is selected */
+            if (seID.compareTo(UICC_ID) != 0) {
+                throw new IllegalStateException("UICC is not selected");
+            }
+        } else {
+            /* Check if ALL_SE and UICC is selected */
+            if (seID.compareTo(ALL_SE_ID) != 0 && seID.compareTo(UICC_ID) != 0) {
+                throw new IllegalStateException("UICC is not selected");
+            }
         }
 
         try {
@@ -1497,8 +1517,28 @@ public final class NfcAdapter {
             throw new IOException("activeSwp failed");
         }
     }
-
+/*MultiSE*/
     /**
+     * Update the application Aid.
+     * <p>Requires {@link android.Manifest.permission#NFC} permission.
+     *
+     * @throws IllegalStateException If the UICC is not selected
+     * @throws IOException If a failure occurred during the Secure Element selection
+     * @hide
+     */
+   public boolean setMultiSERoutingTable(String pkg,MultiSERoutingInfo[] routingInfo) throws IOException {
+        try {
+            boolean result = sService.setMultiSERoutingTable(pkg,routingInfo);
+            Log.d(TAG,"setMultiSERoutingTable - result = " + result);
+            return result;
+        } catch (RemoteException e) {
+            Log.e(TAG, "setMultiSERoutingTable failed", e);
+            throw new IOException("setMultiSERoutingTable failed");
+        }
+    }
+/*MultiSE*/
+
+   /**
      * Get the ID of the Secure Element selected
      * <p>Requires {@link android.Manifest.permission#NFC} permission.
      *
@@ -1512,7 +1552,7 @@ public final class NfcAdapter {
         /* Get Selected Secure Element */
         try {
             seID = sService.getSelectedSecureElement();
-            if (!isPn547Enable()) {
+            if (!isPn547Enable() && !isPn544PCEnable()) {
                 if (seID == 0xABCDF0) {
                     return UICC_ID;
                 } else if (seID == 0xABCDEF) {

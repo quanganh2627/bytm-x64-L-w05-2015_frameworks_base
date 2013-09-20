@@ -35,6 +35,7 @@ import android.net.wifi.WifiStateMachine;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiWatchdogStateMachine;
 import android.net.wifi.WifiApConnectedDevice;
+import android.net.wifi.WifiNative;
 import android.net.DhcpInfo;
 import android.net.DhcpResults;
 import android.net.LinkAddress;
@@ -63,6 +64,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.intel.cws.cwsservicemanager.CsmException;
+
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.telephony.TelephonyIntents;
@@ -83,11 +86,12 @@ import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
  *
  * @hide
  */
-public final class WifiService extends IWifiManager.Stub {
+public class WifiService extends IWifiManager.Stub {
     private static final String TAG = "WifiService";
     private static final boolean DBG = false;
 
-    final WifiStateMachine mWifiStateMachine;
+    protected final WifiStateMachine mWifiStateMachine;
+    private final WifiNative mWifiNative;
 
     private final Context mContext;
 
@@ -116,6 +120,8 @@ public final class WifiService extends IWifiManager.Stub {
     private WifiTrafficPoller mTrafficPoller;
     /* Tracks the persisted states for wi-fi & airplane mode */
     final WifiSettingsStore mSettingsStore;
+
+    WifiCsmClient mWifiCsmClient;
 
     /**
      * Asynchronous channel to WifiStateMachine
@@ -227,8 +233,17 @@ public final class WifiService extends IWifiManager.Stub {
 
         mInterfaceName =  SystemProperties.get("wifi.interface", "wlan0");
 
+        try {
+            mWifiCsmClient = new WifiCsmClient(mContext, this);
+        } catch (CsmException e) {
+            Log.e(TAG, "Unable to create WifiCsmClient.", e);
+        }
+
         mWifiStateMachine = new WifiStateMachine(mContext, mInterfaceName);
         mWifiStateMachine.enableRssiPolling(true);
+
+        mWifiNative = new WifiNative(mInterfaceName);
+
         mBatteryStats = BatteryStatsService.getService();
         mAppOps = (AppOpsManager)context.getSystemService(Context.APP_OPS_SERVICE);
 
@@ -262,6 +277,15 @@ public final class WifiService extends IWifiManager.Stub {
     }
 
     private WifiController mWifiController;
+
+
+    public String setSafeChannel(int safeChannelBitmap) {
+       return mWifiNative.setSafeChannel(safeChannelBitmap);
+    }
+
+    public String setRTCoexMode(int enable, int safeChannelBitmap) {
+       return mWifiNative.setRTCoexMode(enable,safeChannelBitmap);
+    }
 
     /**
      * Check if Wi-Fi needs to be enabled and start
@@ -306,7 +330,7 @@ public final class WifiService extends IWifiManager.Stub {
         mWifiStateMachine.startScan(Binder.getCallingUid());
     }
 
-    private void enforceAccessPermission() {
+    protected void enforceAccessPermission() {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.ACCESS_WIFI_STATE,
                                                 "WifiService");
     }
@@ -335,18 +359,7 @@ public final class WifiService extends IWifiManager.Stub {
      * @return {@code true} if the enable/disable operation was
      *         started or is already in the queue.
      */
-    public boolean setWifiEnabled(boolean enable) {
-        return setWifiEnabledPersist(enable, true);
-    }
-
-    /**
-     * see {@link android.net.wifi.WifiManager#setWifiEnabledPersist(boolean, boolean)}
-     * @param enable {@code true} to enable, {@code false} to disable.
-     * @param persist {@code true} if the setting should be remembered.
-     * @return {@code true} if the enable/disable operation was
-     *         started or is already in the queue.
-     */
-    public synchronized boolean setWifiEnabledPersist(boolean enable, boolean persist) {
+    public synchronized boolean setWifiEnabled(boolean enable) {
         enforceChangePermission();
         Slog.d(TAG, "setWifiEnabled: " + enable + " pid=" + Binder.getCallingPid()
                     + ", uid=" + Binder.getCallingUid());
@@ -358,17 +371,14 @@ public final class WifiService extends IWifiManager.Stub {
         * Caller might not have WRITE_SECURE_SETTINGS,
         * only CHANGE_WIFI_STATE is enforced
         */
-
-        if (persist) {
-            long ident = Binder.clearCallingIdentity();
-            try {
-                if (! mSettingsStore.handleWifiToggled(enable)) {
-                    // Nothing to do if wifi cannot be toggled
-                    return true;
-                }
-            } finally {
-                Binder.restoreCallingIdentity(ident);
+        long ident = Binder.clearCallingIdentity();
+        try {
+            if (! mSettingsStore.handleWifiToggled(enable)) {
+                // Nothing to do if wifi cannot be toggled
+                return true;
             }
+        } finally {
+            Binder.restoreCallingIdentity(ident);
         }
 
         mWifiController.sendMessage(CMD_WIFI_TOGGLED);
@@ -739,6 +749,11 @@ public final class WifiService extends IWifiManager.Stub {
 
         mWifiStateMachine.setDriverStart(true);
         mWifiStateMachine.reconnectCommand();
+    }
+
+    public void haltWifi() {
+        enforceConnectivityInternalPermission();
+        mWifiStateMachine.halt();
     }
 
     public void captivePortalCheckComplete() {

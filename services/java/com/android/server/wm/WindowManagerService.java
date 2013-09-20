@@ -62,6 +62,8 @@ import com.android.server.input.InputManagerService;
 import com.android.server.power.PowerManagerService;
 import com.android.server.power.ShutdownThread;
 
+import com.intel.config.FeatureConfig;
+
 import android.Manifest;
 import android.app.ActivityManagerNative;
 import android.app.IActivityManager;
@@ -2611,6 +2613,15 @@ public class WindowManagerService extends IWindowManager.Stub
         }
     }
 
+    /* ARKHAM-424: START - Set the timeout password period based on device activity
+     * Public function needed by ContainerManagerService to get the current WindowManagerPolicy,
+     * which is PhoneWindowManager.
+     */
+    public WindowManagerPolicy getPolicy() {
+        return mPolicy;
+    }
+    // ARKHAM-424: END
+
     public void setWindowWallpaperPositionLocked(WindowState window, float x, float y,
             float xStep, float yStep) {
         if (window.mWallpaperX != x || window.mWallpaperY != y)  {
@@ -3060,6 +3071,9 @@ public class WindowManagerService extends IWindowManager.Stub
                                 WindowManagerPolicy.FINISH_LAYOUT_REDO_WALLPAPER;
                     }
                     win.mDisplayContent.layoutNeeded = true;
+                    if (win.mAppToken != null && win.mAppToken.waitForDrawingComplete) {
+                         win.mAppToken.waitForDrawingComplete = false;
+                     }
                     requestTraversalLocked();
                 }
             }
@@ -3543,6 +3557,7 @@ public class WindowManagerService extends IWindowManager.Stub
                 AppWindowToken atoken = findAppWindowToken(freezeThisOneIfNeeded);
                 if (atoken != null) {
                     startAppFreezingScreenLocked(atoken, ActivityInfo.CONFIG_ORIENTATION);
+                    atoken.waitForDrawingComplete = true;
                 }
             }
             config = computeNewConfigurationLocked();
@@ -5538,7 +5553,15 @@ public class WindowManagerService extends IWindowManager.Stub
             return null;
         }
 
-        Bitmap bm = Bitmap.createBitmap(width, height, rawss.getConfig());
+        // ARKHAM: REVERT-ME: Saltbay workaround
+        Bitmap.Config config = rawss.getConfig();
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM == true) {
+            if (config == null) {
+                config = Bitmap.Config.ARGB_8888;
+            }
+        }
+        Bitmap bm = Bitmap.createBitmap(width, height, config);
+        // ARKHAM: end changes
         Matrix matrix = new Matrix();
         ScreenRotationAnimation.createRotationMatrix(rot, dw, dh, matrix);
         matrix.postTranslate(-FloatMath.ceil(frame.left*scale), -FloatMath.ceil(frame.top*scale));

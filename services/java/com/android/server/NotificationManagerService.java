@@ -163,7 +163,7 @@ public class NotificationManagerService extends INotificationManager.Stub
     private boolean mNotificationPulseEnabled;
 
     // used as a mutex for access to all active notifications & listeners
-    private final ArrayList<NotificationRecord> mNotificationList =
+    protected final ArrayList<NotificationRecord> mNotificationList =
             new ArrayList<NotificationRecord>();
 
     private ArrayList<ToastRecord> mToastQueue;
@@ -1610,6 +1610,18 @@ public class NotificationManagerService extends INotificationManager.Stub
 
         userId = ActivityManager.handleIncomingUser(callingPid,
                 callingUid, userId, true, false, "enqueueNotification", pkg);
+
+        // ARKHAM-160 START Notifications from container apps to be displayed in
+        // container owner
+        if (isContainerUser(userId)) {
+            // Change the tag to differentiate container user's notification
+            // from primary user
+            tag = buildNotificationTag(tag, userId);
+            // Add to container owner's notification list
+            userId = getContainerOwner(userId);
+        }
+        // ARKHAM-160 END
+
         final UserHandle user = new UserHandle(userId);
 
         // Limit the number of notifications that any given package except the android
@@ -1912,7 +1924,7 @@ public class NotificationManagerService extends INotificationManager.Stub
         manager.sendAccessibilityEvent(event);
     }
 
-    private void cancelNotificationLocked(NotificationRecord r, boolean sendDelete) {
+    protected void cancelNotificationLocked(NotificationRecord r, boolean sendDelete) {
         // tell the app
         if (sendDelete) {
             if (r.getNotification().deleteIntent != null) {
@@ -1980,7 +1992,7 @@ public class NotificationManagerService extends INotificationManager.Stub
      * Cancels a notification ONLY if it has all of the {@code mustHaveFlags}
      * and none of the {@code mustNotHaveFlags}.
      */
-    private void cancelNotification(String pkg, String tag, int id, int mustHaveFlags,
+    protected void cancelNotification(String pkg, String tag, int id, int mustHaveFlags,
             int mustNotHaveFlags, boolean sendDelete, int userId) {
         EventLog.writeEvent(EventLogTags.NOTIFICATION_CANCEL, pkg, id, tag, userId,
                 mustHaveFlags, mustNotHaveFlags);
@@ -2142,7 +2154,7 @@ public class NotificationManagerService extends INotificationManager.Stub
     }
 
     // lock on mNotificationList
-    private void updateLightsLocked()
+    protected void updateLightsLocked()
     {
         // handle notification lights
         if (mLedNotification == null) {
@@ -2282,4 +2294,19 @@ public class NotificationManagerService extends INotificationManager.Stub
 
         }
     }
+
+    // ARKHAM-160 START Notifications from container apps to be displayed in
+    // container owner
+    protected boolean isContainerUser(int userId) {
+        return false;
+    }
+
+    protected int getContainerOwner(int userId) {
+        return UserHandle.USER_OWNER;
+    }
+
+    protected String buildNotificationTag(String tag, int userId) {
+        return tag;
+    }
+    // ARKHAM-160 END
 }

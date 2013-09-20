@@ -417,7 +417,11 @@ public class FaceUnlock implements BiometricSensorUnlock, Handler.Callback {
                 try {
                     mService.stopUi();
                 } catch (RemoteException e) {
-                    Log.e(TAG, "Caught exception stopping Face Unlock: " + e.toString());
+                    Log.e(TAG, "Caught remote exception stopping Face Unlock: " + e.toString());
+                    return;
+                } catch (RuntimeException e) {
+                    Log.e(TAG, "Caught runtime exception stopping Face Unlock: " + e.toString());
+                    return;
                 }
                 mServiceRunning = false;
             } else {

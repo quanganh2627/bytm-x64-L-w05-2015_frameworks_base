@@ -188,8 +188,8 @@ class MountService extends IMountService.Stub
         public static final int FstrimCompleted                = 700;
     }
 
-    private Context mContext;
-    private NativeDaemonConnector mConnector;
+    protected Context mContext;
+    protected NativeDaemonConnector mConnector;
 
     private final Object mVolumesLock = new Object();
 
@@ -505,7 +505,7 @@ class MountService extends IMountService.Stub
         waitForLatch(mAsecsScanned);
     }
 
-    private void waitForReady() {
+    protected void waitForReady() {
         waitForLatch(mConnectedSignal);
     }
 
@@ -1198,7 +1198,7 @@ class MountService extends IMountService.Stub
                 UserHandle.ALL);
     }
 
-    private void validatePermission(String perm) {
+    protected void validatePermission(String perm) {
         if (mContext.checkCallingOrSelfPermission(perm) != PackageManager.PERMISSION_GRANTED) {
             throw new SecurityException(String.format("Requires %s permission", perm));
         }

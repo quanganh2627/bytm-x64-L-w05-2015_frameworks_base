@@ -60,8 +60,6 @@ interface IWifiManager
 
     boolean setWifiEnabled(boolean enable);
 
-    boolean setWifiEnabledPersist(boolean enable, boolean persist);
-
     int getWifiEnabledState();
 
     void setCountryCode(String country, boolean persist);
@@ -104,6 +102,8 @@ interface IWifiManager
 
     void stopWifi();
 
+    void haltWifi();
+
     void addToBlacklist(String bssid);
 
     void clearBlacklist();
@@ -119,5 +119,9 @@ interface IWifiManager
     List<WifiApConnectedDevice> getWifiApConnectedList();
 
     List<WifiChannel> getWifiAuthorizedChannels();
+
+    String setRTCoexMode(int enable, int safeChannelBitmap);
+
+    String setSafeChannel(int safeChannelBitmap);
 }
 

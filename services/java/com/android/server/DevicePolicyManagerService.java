@@ -48,6 +48,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.Signature;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.ResolveInfo;
+import android.content.pm.UserInfo;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
@@ -96,7 +97,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
 
     private static final String TAG = "DevicePolicyManagerService";
 
-    private static final String DEVICE_POLICIES_XML = "device_policies.xml";
+    protected static final String DEVICE_POLICIES_XML = "device_policies.xml";
 
     private static final int REQUEST_EXPIRE_PASSWORD = 5571;
 
@@ -752,7 +753,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
         return new JournaledFile(new File(base), new File(base + ".tmp"));
     }
 
-    private void saveSettingsLocked(int userHandle) {
+    protected void saveSettingsLocked(int userHandle) {
         DevicePolicyData policy = getUserData(userHandle);
         JournaledFile journal = makeJournaledFile(userHandle);
         FileOutputStream stream = null;
@@ -833,7 +834,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
         }
     }
 
-    private void loadSettingsLocked(DevicePolicyData policy, int userHandle) {
+    protected void loadSettingsLocked(DevicePolicyData policy, int userHandle) {
         JournaledFile journal = makeJournaledFile(userHandle);
         FileInputStream stream = null;
         File file = journal.chooseForRead();
@@ -1851,7 +1852,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
         }
     }
 
-    private void lockNowUnchecked() {
+    protected void lockNowUnchecked() {
         long ident = Binder.clearCallingIdentity();
         try {
             // Power off the display
@@ -1907,6 +1908,9 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
         }
     }
 
+    protected boolean removeContainerUser(int userHandle) {
+        return false;
+    }
     private void wipeDeviceOrUserLocked(int flags, final int userHandle) {
         if (userHandle == UserHandle.USER_OWNER) {
             wipeDataLocked(flags);
@@ -1916,8 +1920,10 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
                 public void run() {
                     try {
                         ActivityManagerNative.getDefault().switchUser(UserHandle.USER_OWNER);
-                        ((UserManager) mContext.getSystemService(Context.USER_SERVICE))
-                                .removeUser(userHandle);
+                        if (!removeContainerUser(userHandle)) {
+                            ((UserManager) mContext.getSystemService(Context.USER_SERVICE))
+                                    .removeUser(userHandle);
+                        }
                     } catch (RemoteException re) {
                         // Shouldn't happen
                     }
@@ -1970,8 +1976,6 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
                     || p.mActivePasswordUpperCase != uppercase
                     || p.mActivePasswordLowerCase != lowercase || p.mActivePasswordNumeric != numbers
                     || p.mActivePasswordSymbols != symbols || p.mActivePasswordNonLetter != nonletter) {
-                long ident = Binder.clearCallingIdentity();
-                try {
                     p.mActivePasswordQuality = quality;
                     p.mActivePasswordLength = length;
                     p.mActivePasswordLetters = letters;
@@ -1982,14 +1986,18 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
                     p.mActivePasswordNonLetter = nonletter;
                     p.mFailedPasswordAttempts = 0;
                     saveSettingsLocked(userHandle);
-                    updatePasswordExpirationsLocked(userHandle);
-                    setExpirationAlarmCheckLocked(mContext, p);
-                    sendAdminCommandLocked(DeviceAdminReceiver.ACTION_PASSWORD_CHANGED,
-                            DeviceAdminInfo.USES_POLICY_LIMIT_PASSWORD, userHandle);
-                } finally {
-                    Binder.restoreCallingIdentity(ident);
-                }
             }
+            // ARKHAM - 413, Fixing change password Notification, does not appear sometimes.
+            long ident = Binder.clearCallingIdentity();
+            try {
+                updatePasswordExpirationsLocked(userHandle);
+                setExpirationAlarmCheckLocked(mContext, p);
+                sendAdminCommandLocked(DeviceAdminReceiver.ACTION_PASSWORD_CHANGED,
+                        DeviceAdminInfo.USES_POLICY_LIMIT_PASSWORD, userHandle);
+            } finally {
+                Binder.restoreCallingIdentity(ident);
+            }
+            // ARKHAM - 413, Changes End.
         }
     }
 

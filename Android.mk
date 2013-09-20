@@ -57,6 +57,7 @@ LOCAL_SRC_FILES := $(filter-out \
 ## across process boundaries.
 ##
 ## READ ME: ########################################################
+## ARKHAM-242 add container policy service and container manager
 LOCAL_SRC_FILES += \
 	core/java/android/accessibilityservice/IAccessibilityServiceConnection.aidl \
 	core/java/android/accessibilityservice/IAccessibilityServiceClient.aidl \
@@ -138,6 +139,7 @@ LOCAL_SRC_FILES += \
 	core/java/android/nfc/INdefPushCallback.aidl \
 	core/java/android/nfc/INfcAdapter.aidl \
 	core/java/android/nfc/INfcAdapterExtras.aidl \
+	core/java/android/nfc/INfcCEFromHost.aidl \
 	core/java/android/nfc/INfcSecureElement.aidl \
 	core/java/android/nfc/INfcCEFromHost.aidl \
 	core/java/android/nfc/INfcTag.aidl \
@@ -239,6 +241,19 @@ LOCAL_SRC_FILES += \
         telephony/java/com/intel/internal/telephony/OemTelephony/IOemTelephony.aidl \
 	wifi/java/android/net/wifi/IWifiManager.aidl \
 	wifi/java/android/net/wifi/p2p/IWifiP2pManager.aidl
+LOCAL_ARKHAM_PATH := vendor/intel/arkham
+ifeq ($(strip $(INTEL_FEATURE_ARKHAM)),true)
+LOCAL_SRC_FILES += \
+       $(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java,) \
+       $(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/keystore/java,) \
+       ../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java/com/intel/arkham/IContainerManager.aidl \
+       ../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java/com/intel/arkham/IContainerPolicyManager.aidl
+LOCAL_AIDL_INCLUDES += $(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java
+else
+LOCAL_SRC_FILES += \
+       $(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/core/java,) \
+       $(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/keystore/java,)
+endif
 #
 
 
@@ -252,6 +267,7 @@ LOCAL_INTERMEDIATE_SOURCES := \
 
 LOCAL_NO_STANDARD_LIBRARIES := true
 LOCAL_JAVA_LIBRARIES := bouncycastle core core-junit ext
+LOCAL_JAVA_LIBRARIES += com.intel.config
 
 LOCAL_MODULE := framework
 LOCAL_MODULE_CLASS := JAVA_LIBRARIES
@@ -301,6 +317,7 @@ aidl_files := \
 	frameworks/base/core/java/android/nfc/NdefMessage.aidl \
 	frameworks/base/core/java/android/nfc/NdefRecord.aidl \
 	frameworks/base/core/java/android/nfc/Tag.aidl \
+	frameworks/base/core/java/android/nfc/MultiSERoutingInfo.aidl \
 	frameworks/base/core/java/android/os/Bundle.aidl \
 	frameworks/base/core/java/android/os/DropBoxManager.aidl \
 	frameworks/base/core/java/android/os/ParcelFileDescriptor.aidl \

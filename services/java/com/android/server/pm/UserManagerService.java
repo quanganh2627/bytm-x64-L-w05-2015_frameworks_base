@@ -34,11 +34,14 @@ import android.graphics.BitmapFactory;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Environment.UserEnvironment;
 import android.os.FileUtils;
 import android.os.Handler;
+import android.os.IPowerManager;
 import android.os.IUserManager;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.AtomicFile;
@@ -77,6 +80,8 @@ public class UserManagerService extends IUserManager.Stub {
     private static final String ATTR_ICON_PATH = "icon";
     private static final String ATTR_ID = "id";
     private static final String ATTR_CREATION_TIME = "created";
+    // ARKHAM - 347, including container owner field
+    private static final String ATTR_CONTAINER_OWNER = "containerowner";
     private static final String ATTR_LAST_LOGGED_IN_TIME = "lastLoggedIn";
     private static final String ATTR_SERIAL_NO = "serialNumber";
     private static final String ATTR_NEXT_SERIAL_NO = "nextSerialNumber";
@@ -108,7 +113,7 @@ public class UserManagerService extends IUserManager.Stub {
     private static final long EPOCH_PLUS_30_YEARS = 30L * 365 * 24 * 60 * 60 * 1000L; // ms
 
     private final Context mContext;
-    private final PackageManagerService mPm;
+    protected final PackageManagerService mPm;
     private final Object mInstallLock;
     private final Object mPackagesLock;
 
@@ -116,9 +121,9 @@ public class UserManagerService extends IUserManager.Stub {
 
     private final File mUsersDir;
     private final File mUserListFile;
-    private final File mBaseUserPath;
+    protected final File mBaseUserPath;
 
-    private final SparseArray<UserInfo> mUsers = new SparseArray<UserInfo>();
+    protected final SparseArray<UserInfo> mUsers = new SparseArray<UserInfo>();
     private final SparseArray<Bundle> mUserRestrictions = new SparseArray<Bundle>();
 
     /**
@@ -212,6 +217,10 @@ public class UserManagerService extends IUserManager.Stub {
             for (int i = 0; i < mUsers.size(); i++) {
                 UserInfo ui = mUsers.valueAt(i);
                 if (ui.partial) {
+                    continue;
+                }
+                // ARKHAM-733: skip locked containers
+                if (isContainerUserAndLocked(ui)) {
                     continue;
                 }
                 if (!excludeDying || !mRemovingUserIds.get(ui.id)) {
@@ -389,8 +398,14 @@ public class UserManagerService extends IUserManager.Stub {
     /**
      * Check if we've hit the limit of how many users can be created.
      */
-    private boolean isUserLimitReachedLocked() {
-        int nUsers = mUsers.size();
+    protected boolean isUserLimitReachedLocked() {
+        int nUsers = 0;
+        for (int i = 0; i < mUsers.size(); i++) {
+            UserInfo ui = mUsers.valueAt(i);
+            if (mRemovingUserIds.get(ui.id))
+                continue;
+            nUsers++;
+        }
         return nUsers >= UserManager.getMaxSupportedUsers();
     }
 
@@ -438,14 +453,16 @@ public class UserManagerService extends IUserManager.Stub {
     }
 
     /**
-     * Returns an array of user ids. This array is cached here for quick access, so do not modify or
-     * cache it elsewhere.
+     * Returns an array of user ids.
      * @return the array of user ids.
      */
     public int[] getUserIds() {
-        synchronized (mPackagesLock) {
-            return mUserIds;
+        List<UserInfo> users = getUsers(false);
+        int[] validUsers = new int[users.size()];
+        for (int i = 0; i < users.size(); i++) {
+            validUsers[i] = users.get(i).id;
         }
+        return validUsers;
     }
 
     int[] getUserIdsLPr() {
@@ -602,6 +619,8 @@ public class UserManagerService extends IUserManager.Stub {
             serializer.attribute(null, ATTR_SERIAL_NO, Integer.toString(userInfo.serialNumber));
             serializer.attribute(null, ATTR_FLAGS, Integer.toString(userInfo.flags));
             serializer.attribute(null, ATTR_CREATION_TIME, Long.toString(userInfo.creationTime));
+            // ARKHAM - 347
+            serializer.attribute(null, ATTR_CONTAINER_OWNER, Long.toString(userInfo.containerOwner));
             serializer.attribute(null, ATTR_LAST_LOGGED_IN_TIME,
                     Long.toString(userInfo.lastLoggedInTime));
             if (userInfo.iconPath != null) {
@@ -689,6 +708,8 @@ public class UserManagerService extends IUserManager.Stub {
         String name = null;
         String iconPath = null;
         long creationTime = 0L;
+        // ARKHAM - 347
+        int containerOwner = -1;
         long lastLoggedInTime = 0L;
         boolean partial = false;
         Bundle restrictions = new Bundle();
@@ -721,6 +742,8 @@ public class UserManagerService extends IUserManager.Stub {
                 flags = readIntAttribute(parser, ATTR_FLAGS, 0);
                 iconPath = parser.getAttributeValue(null, ATTR_ICON_PATH);
                 creationTime = readLongAttribute(parser, ATTR_CREATION_TIME, 0);
+                // ARKHAM - 347
+                containerOwner = readIntAttribute(parser, ATTR_CONTAINER_OWNER, -1);
                 lastLoggedInTime = readLongAttribute(parser, ATTR_LAST_LOGGED_IN_TIME, 0);
                 String valueString = parser.getAttributeValue(null, ATTR_PARTIAL);
                 if ("true".equals(valueString)) {
@@ -758,6 +781,8 @@ public class UserManagerService extends IUserManager.Stub {
             UserInfo userInfo = new UserInfo(id, name, iconPath, flags);
             userInfo.serialNumber = serialNumber;
             userInfo.creationTime = creationTime;
+            // ARKHAM - 347
+            userInfo.containerOwner = containerOwner;
             userInfo.lastLoggedInTime = lastLoggedInTime;
             userInfo.partial = partial;
             mUserRestrictions.append(id, restrictions);
@@ -812,18 +837,35 @@ public class UserManagerService extends IUserManager.Stub {
         }
     }
 
+    // ARKHAM - 754 Add createContainerUser(name, flags, callingUserId)
+    // This is done to update the container owner correctly because
+    // binder identity is cleared before creating a container user.
     @Override
     public UserInfo createUser(String name, int flags) {
-        checkManageUsersPermission("Only the system can create users");
+        return createContainerUser(name, flags, -1);
+    }
 
+    /** @hide */
+    public UserInfo createContainerUser(String name, int flags, int callingUserId) {
+        checkManageUsersPermission("Only the system can create users");
+        // ARKHAM - 347 Unify settings for primary and container users
+        final int callingUser = (callingUserId < 0) ? UserHandle.getCallingUserId() : callingUserId;
         final long ident = Binder.clearCallingIdentity();
         final UserInfo userInfo;
         try {
             synchronized (mInstallLock) {
                 synchronized (mPackagesLock) {
-                    if (isUserLimitReachedLocked()) return null;
+                    // ARKHAM - 353, If user is container, ignore the user limit and create user
+                    if ((flags & UserInfo.FLAG_CONTAINER) != UserInfo.FLAG_CONTAINER
+                            && isUserLimitReachedLocked()) {
+                        return null;
+                    }
                     int userId = getNextAvailableIdLocked();
                     userInfo = new UserInfo(userId, name, null, flags);
+                    // ARKHAM - 347, included condition & container owner field constructor.
+                    if ((flags & UserInfo.FLAG_CONTAINER) == UserInfo.FLAG_CONTAINER) {
+                        userInfo.containerOwner = callingUser;
+                    }
                     File userPath = new File(mBaseUserPath, Integer.toString(userId));
                     userInfo.serialNumber = mNextSerialNumber++;
                     long now = System.currentTimeMillis();
@@ -833,7 +875,13 @@ public class UserManagerService extends IUserManager.Stub {
                     mUsers.put(userId, userInfo);
                     writeUserListLocked();
                     writeUserLocked(userInfo);
-                    mPm.createNewUserLILPw(userId, userPath);
+                    /* ARKHAM-433 pass UserInfo instead of user
+                     * handle. We need userInfo down the stack to
+                     * determine if this is a container or not. We
+                     * can't use getUserInfo(userHandle) since the
+                     * user is not fully created now getUserInfo
+                     * skips the partially create users. */
+                    mPm.createNewUserLILPw(userInfo, userPath);
                     userInfo.partial = false;
                     writeUserLocked(userInfo);
                     updateUserIdsLocked();
@@ -846,11 +894,15 @@ public class UserManagerService extends IUserManager.Stub {
                 addedIntent.putExtra(Intent.EXTRA_USER_HANDLE, userInfo.id);
                 mContext.sendBroadcastAsUser(addedIntent, UserHandle.ALL,
                         android.Manifest.permission.MANAGE_USERS);
+                disableApkForNonContainerUser(userInfo, flags);
             }
         } finally {
             Binder.restoreCallingIdentity(ident);
         }
         return userInfo;
+    }
+
+    protected void disableApkForNonContainerUser(UserInfo userInfo, int flags) {
     }
 
     /**
@@ -930,7 +982,7 @@ public class UserManagerService extends IUserManager.Stub {
         }
     }
 
-    private void removeUserStateLocked(final int userHandle) {
+    protected void removeUserStateLocked(final int userHandle) {
         // Cleanup package manager settings
         mPm.cleanUpUserLILPw(userHandle);
 
@@ -1248,5 +1300,8 @@ public class UserManagerService extends IUserManager.Stub {
                 }
             }
         }
+    }
+    protected boolean isContainerUserAndLocked(UserInfo userInfo) {
+        return false;
     }
 }

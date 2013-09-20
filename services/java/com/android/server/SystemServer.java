@@ -33,6 +33,7 @@ import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.storage.IMountService;
 import android.os.StrictMode;
 import android.os.SystemClock;
 import android.os.SystemProperties;
@@ -64,8 +65,9 @@ import com.android.server.power.PowerManagerService;
 import com.android.server.power.ShutdownThread;
 import com.android.server.search.SearchManagerService;
 import com.android.server.usb.UsbService;
-import com.android.server.wifi.WifiService;
 import com.android.server.wifi.CsmWifiOffloadSystemService;
+import com.android.server.wifi.ExtendWifiService;
+import com.android.server.wifi.WifiService;
 import com.android.server.wm.WindowManagerService;
 import com.intel.multidisplay.DisplayObserver;
 
@@ -73,8 +75,13 @@ import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
 
 import java.io.File;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.util.Timer;
 import java.util.TimerTask;
+
+import com.intel.config.FeatureConfig;
+import com.intel.arkham.ExtendAccountManagerService;
 
 class ServerThread extends Thread {
     private static final String TAG = "SystemServer";
@@ -272,7 +279,7 @@ class ServerThread extends Thread {
             // The AccountManager must come before the ContentService
             try {
                 Slog.i(TAG, "Account Manager");
-                accountManager = new AccountManagerService(context);
+                accountManager = new ExtendAccountManagerService(context);
                 ServiceManager.addService(Context.ACCOUNT_SERVICE, accountManager);
             } catch (Throwable e) {
                 Slog.e(TAG, "Failure starting Account Manager", e);
@@ -378,7 +385,7 @@ class ServerThread extends Thread {
         if (factoryTest != SystemServer.FACTORY_TEST_LOW_LEVEL) {
             try {
                 Slog.i(TAG, "Input Method Service");
-                imm = new InputMethodManagerService(context, wm);
+                imm = new ExtendInputMethodManagerService(context, wm);
                 ServiceManager.addService(Context.INPUT_METHOD_SERVICE, imm);
             } catch (Throwable e) {
                 reportWtf("starting Input Manager Service", e);
@@ -421,7 +428,7 @@ class ServerThread extends Thread {
                      * (for media / usb notifications) so we must start MountService first.
                      */
                     Slog.i(TAG, "Mount Service");
-                    mountService = new MountService(context);
+                    mountService = new ExtendMountService(context);
                     ServiceManager.addService("mount", mountService);
                 } catch (Throwable e) {
                     reportWtf("starting Mount Service", e);
@@ -438,7 +445,7 @@ class ServerThread extends Thread {
 
             try {
                 Slog.i(TAG, "Device Policy");
-                devicePolicy = new DevicePolicyManagerService(context);
+                devicePolicy = new ExtendDevicePolicyManagerService(context);
                 ServiceManager.addService(Context.DEVICE_POLICY_SERVICE, devicePolicy);
             } catch (Throwable e) {
                 reportWtf("starting DevicePolicyService", e);
@@ -455,7 +462,7 @@ class ServerThread extends Thread {
             try {
                 Slog.i(TAG, "Clipboard Service");
                 ServiceManager.addService(Context.CLIPBOARD_SERVICE,
-                        new ClipboardService(context));
+                        new ExtendClipboardService(context));
             } catch (Throwable e) {
                 reportWtf("starting Clipboard Service", e);
             }
@@ -512,7 +519,7 @@ class ServerThread extends Thread {
 
            try {
                 Slog.i(TAG, "Wi-Fi Service");
-                wifi = new WifiService(context);
+                wifi = new ExtendWifiService(context);
                 ServiceManager.addService(Context.WIFI_SERVICE, wifi);
             } catch (Throwable e) {
                 reportWtf("starting Wi-Fi Service", e);
@@ -574,7 +581,7 @@ class ServerThread extends Thread {
 
             try {
                 Slog.i(TAG, "Notification Manager");
-                notification = new NotificationManagerService(context, statusBar, lights);
+                notification = new ExtendNotificationManagerService(context, statusBar, lights);
                 ServiceManager.addService(Context.NOTIFICATION_SERVICE, notification);
                 networkPolicy.bindNotificationManager(notification);
             } catch (Throwable e) {
@@ -782,6 +789,25 @@ class ServerThread extends Thread {
                 new IdleMaintenanceService(context, battery);
             } catch (Throwable e) {
                 reportWtf("starting IdleMaintenanceService", e);
+            }
+
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM &&
+                !ENCRYPTED_STATE.equals(SystemProperties.get("vold.decrypt")) &&
+                !ENCRYPTING_STATE.equals(SystemProperties.get("vold.decrypt"))) {
+                Class[] ptype=new Class[]{Context.class};
+                Object[] obj=new Object[]{context};
+
+                String name = "com.intel.arkham.ContainerPolicyManagerService";
+                Object containerPolicy = registerService(name, ptype , obj);
+
+                ptype=new Class[]{Context.class, java.lang.Object.class,
+                                  PackageManagerService.class, WindowManagerService.class};
+                obj=new Object[]{context, containerPolicy,
+                                 (PackageManagerService)pm, wm};
+                name = "com.intel.arkham.ContainerManagerService";
+                Object containerManager = registerService(name, ptype , obj);
+
+                Slog.i(TAG, "Container Services");
             }
         }
 
@@ -1041,6 +1067,24 @@ class ServerThread extends Thread {
                     "com.android.systemui.SystemUIService"));
         //Slog.d(TAG, "Starting service: " + intent);
         context.startServiceAsUser(intent, UserHandle.OWNER);
+    }
+
+    private Object registerService(String serviceClassName, java.lang.Class[] ptype,
+        java.lang.Object[] objArray) {
+        Object object = null;
+        Slog.d(TAG,"registerService service: " + serviceClassName);
+        try {
+            Class c = Class.forName(serviceClassName);
+            Method m = c.getMethod("main", ptype);
+            object = m.invoke(c, objArray);
+        } catch (IllegalAccessException iae) {
+            Slog.e(TAG,"Got expected PackageAccess complaint", iae);
+        } catch (InstantiationError ie) {
+            Slog.e(TAG,"Got expected InstantationError", ie);
+        } catch (Exception ex) {
+            Slog.e(TAG,"Got unexpected MaybeAbstract failure", ex);
+        }
+        return object;
     }
 }
 

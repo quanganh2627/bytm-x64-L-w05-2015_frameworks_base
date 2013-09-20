@@ -120,7 +120,10 @@ abstract class BasicTagTechnology implements TagTechnology {
              * but just reconnect to it to reset its state
              */
             mTag.getTagService().resetTimeouts();
-            mTag.getTagService().reconnect(mTag.getServiceHandle());
+            int result  = mTag.getTagService().reconnect(mTag.getServiceHandle());
+            if (ErrorCodes.SUCCESS != result) {
+                throw new IOException("Tag is lost.");
+            }
         } catch (RemoteException e) {
             Log.e(TAG, "NFC service dead", e);
         } finally {
