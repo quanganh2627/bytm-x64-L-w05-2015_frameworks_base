@@ -307,9 +307,6 @@
     <!-- Flag indicating whether the we should enable the automatic brightness in Settings.
          Software implementation will be used if config_hardware_auto_brightness_available is not set -->
     <bool name="config_automatic_brightness_available">false</bool>
-    <bool name="config_button_automatic_brightness_available">false</bool>
-    <bool name="config_button_led_brightness_available">false</bool>
-    <bool name="config_proximityScreenOffAvailable">true</bool>
 
     <!-- Don't name config resources like this.  It should look like config_annoyDianne -->
     <bool name="config_annoy_dianne">true</bool>
@@ -387,10 +384,6 @@
          screen orientation.  This defaults to true because putting a device in
          a car dock make the accelerometer more a physical input (like a lid). -->
     <bool name="config_carDockEnablesAccelerometer">true</bool>
-
-    <!-- Controls whether window orientation should use non-polling mode accelerometer.
-         set default to false to use polling mode. -->
-    <bool name="config_nonPollingWindowOrientation">false</bool>
 
     <!-- Indicate whether the lid state impacts the accessibility of
          the physical keyboard.  0 means it doesn't, 1 means it is accessible
@@ -722,11 +715,7 @@
         <item>com.android.location.fused</item>
     </string-array>
 
-    <!-- Boolean indicating if current platform is using NXP PN547 for clf -->
-    <bool name="clf_is_pn547">false</bool>
 
-    <!-- Boolean indicating if current platform is using NXP PN544PC for clf -->
-    <bool name="clf_is_pn544pc">false</bool>
 
     <!-- Boolean indicating if current platform supports bluetooth SCO for off call
     use cases -->
@@ -1072,7 +1061,7 @@
 
     <!-- When true use the linux /dev/input/event subsystem to detect the switch changes
          on the headphone/microphone jack. When false use the older uevent framework. -->
-    <bool name="config_useDevInputEventForAudioJack">true</bool>
+    <bool name="config_useDevInputEventForAudioJack">false</bool>
 
     <!-- Whether safe headphone volume is enabled or not (country specific). -->
     <bool name="config_safe_media_volume_enabled">true</bool>
@@ -1156,24 +1145,4 @@
         <item>com.android.inputmethod.latin</item>
     </string-array>
 
-    <!-- Flag indicating whether the current device supports
-         CAT aka STK handling. If true, this means that the
-         device supports handling of CAT messages from UICC.
-         Set to false if the device do not want to support CAT
-         aka STK feature -->
-    <bool name="config_cat_support">true</bool>
-
-    <!-- set to true if oem hooks are supported by framework -->
-    <bool name="config_usage_oem_hooks_supported">false</bool>
-    <!-- set the oemhook data state reporting property -->
-    <string name="oemhook_datastate_property"></string>
-    <!-- set the concurrent data support property -->
-    <string name="oemhook_concurrentdata_property"></string>
-    <!-- When set to false, the call status polling is disabled -->
-    <bool name="gsm_call_status_polling_enable">true</bool>
-    <!-- Flag indicating whether the operator should be part of the unique Identifier used to track
-         requests associated with a poll. If true, this means that the operator query is part of
-         the unique identifier used to track requests associated with a poll. If false, this means
-         that the operator query is not part of the unique identifier used to track requests. -->
-    <bool name="config_track_get_operator_polling">true</bool>
 </resources>
