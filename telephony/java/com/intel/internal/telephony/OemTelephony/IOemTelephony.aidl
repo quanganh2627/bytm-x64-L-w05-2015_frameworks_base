@@ -152,6 +152,28 @@ interface IOemTelephony {
      */
     oneway void setRFPowerCutbackTable(int table);
 
+    /*
+     * Set the current status for call available with IMS
+     * @param table the table to apply.
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#IMS_CALL_NOT_AVAILABLE},
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#IMS_CALL_AVAILABLE},
+     * {@hide}
+     */
+    oneway void setImsCallAvailable(boolean status);
+
+    /*
+     * Set the current status for sms available with IMS
+     * @param table the table to apply.
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#IMS_SMS_NOT_AVAILABLE},
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#IMS_SMS_AVAILABLE},
+     * {@hide}
+     */
+    oneway void setImsSmsAvailable(boolean status);
+
     /**
      * Powers off the modem
      *
