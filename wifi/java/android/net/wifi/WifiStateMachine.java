@@ -1574,6 +1574,22 @@ public class WifiStateMachine extends StateMachine {
     }
 
     /**
+     * Returns a list of supported frequency bands
+     */
+    public List<Integer> getSupportedBands() {
+        String capabilities = mWifiNative.getChannelsCapability();
+        if (capabilities == null) return null;
+        List<Integer> bandsList = new ArrayList<Integer>();
+        if (capabilities.contains("Mode[B]") || capabilities.contains("Mode[G]")) {
+            bandsList.add(WifiManager.WIFI_FREQUENCY_BAND_2GHZ);
+        }
+        if (capabilities.contains("Mode[A]")) {
+            bandsList.add(WifiManager.WIFI_FREQUENCY_BAND_5GHZ);
+        }
+        return bandsList;
+    }
+
+    /**
      * Returns the wifi configuration file
      */
     public String getConfigFile() {
