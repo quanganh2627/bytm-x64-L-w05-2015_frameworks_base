@@ -411,6 +411,15 @@ public class WifiNative {
         return doBooleanCommand("DRIVER SETBAND " + band);
     }
 
+    /**
+     * Get supported Wifi channels.
+     *
+     * @return The list of supported channels, can be null or empty if the request fails.
+     */
+    public String getChannelsCapability() {
+        return doStringCommand("GET_CAPABILITY channels");
+    }
+
    /**
      * Sets the bluetooth coexistence mode.
      *
