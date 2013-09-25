@@ -871,10 +871,30 @@ public final class WifiService extends IWifiManager.Stub {
         return mWifiStateMachine.getFrequencyBand();
     }
 
+    /**
+     * Check if current Wifi configuration supports both 2.4 and 5 GHz frequency bands.
+     * @return {@code true} if dual band is supported, {@code false} if only one band is supported.
+     */
     public boolean isDualBandSupported() {
-        //TODO: Should move towards adding a driver API that checks at runtime
-        return mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_wifi_dual_band_support);
+        /*
+         * If user had the opportunity to select a band different than Auto,
+         * this confirms that dual band is supported.
+         */
+        if (getFrequencyBand() != WifiManager.WIFI_FREQUENCY_BAND_AUTO) {
+            return true;
+        }
+
+        /*
+         * If Band is set to Auto, we ask to lower layers what are the capabilities of the device.
+         * And if state machine doesn't reply a consistent response, then we use the old method.
+         */
+        List<Integer> bandsList = mWifiStateMachine.getSupportedBands();
+        if (bandsList == null || bandsList.isEmpty()) {
+            return mContext.getResources().getBoolean(
+                    com.android.internal.R.bool.config_wifi_dual_band_support);
+        } else {
+            return (bandsList.size() > 1);
+        }
     }
 
     /**
