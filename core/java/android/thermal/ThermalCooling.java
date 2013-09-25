@@ -392,15 +392,16 @@ public class ThermalCooling {
     // Method to do actual shutdown. It writes a 1 in OSIP Sysfs and
     // sends the shutdown intent
     private void doShutdown() {
-
         /* Initialise class for message display during shutdown*/
-        new ThermalNotifier(mContext);
-
-        /* sending shutdown INTENT */
-        Intent statusIntent = new Intent();
-        statusIntent.setAction(Intent.ACTION_THERMAL_SHUTDOWN);
-        mContext.sendBroadcast(statusIntent);
+        int notificationMask = 0x0;
+        if (ThermalManager.sShutdownTone) notificationMask |= ThermalNotifier.TONE;
+        if (ThermalManager.sShutdownVibra) notificationMask |= ThermalNotifier.VIBRATE;
+        if (ThermalManager.sShutdownToast) notificationMask |= ThermalNotifier.TOAST;
+        if (ThermalManager.sShutdownToast) notificationMask |= ThermalNotifier.WAKESCREEN;
+        notificationMask |= ThermalNotifier.SHUTDOWN;
+        new ThermalNotifier(mContext, notificationMask).triggerNotification();
     }
+
     /* Method to handle the thermal event based on HIGH or LOW event*/
     public static boolean initiateShutdown(int zoneID) {
          ThermalManager.ZoneCoolerBindingInfo zone = ThermalManager.listOfZones.get(zoneID);

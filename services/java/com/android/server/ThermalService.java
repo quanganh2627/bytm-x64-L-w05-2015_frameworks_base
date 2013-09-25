@@ -375,7 +375,8 @@ public class ThermalService extends Binder {
 
             /* builds a map of active sensors */
             ThermalManager.buildSensorMap();
-
+            /* read persistent system properties for shutdown notification */
+            ThermalManager.readShutdownNotiferProperties();
             /* initialize the thermal notifier thread */
             Notify notifier = new Notify(ThermalServiceEventQueue.eventQueue);
             new Thread(notifier, "ThermalNotifier").start();
