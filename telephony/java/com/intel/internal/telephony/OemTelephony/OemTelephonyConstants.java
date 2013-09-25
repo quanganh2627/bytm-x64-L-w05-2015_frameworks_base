@@ -46,6 +46,12 @@ public interface OemTelephonyConstants {
     /* IMS registration status */
     public static final int IMS_STATUS_UNREGISTERED = 0;
     public static final int IMS_STATUS_REGISTERED = 1;
+    /* IMS call status */
+    public static final int IMS_CALL_NOT_AVAILABLE = 0;
+    public static final int IMS_CALL_AVAILABLE = 1;
+    /* IMS sms status */
+    public static final int IMS_SMS_NOT_AVAILABLE = 0;
+    public static final int IMS_SMS_AVAILABLE = 1;
 
     /**
      * Broadcast Action: Modem sensor has reached the set threshold temperature.
@@ -129,6 +135,10 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_STRING_SWAP_PS = 0x000000B2;
     /* OEM hook used to send direct AT commands to modem */
     public static final int RIL_OEM_HOOK_STRING_SEND_AT = 0x000000B3;
+    /* OEM hook specific to indicate call available with IMS */
+    public static final int RIL_OEM_HOOK_STRING_IMS_CALL_STATUS = 0x000000B4;
+    /* OEM hook specific to indicate sms available with IMS */
+    public static final int RIL_OEM_HOOK_STRING_IMS_SMS_STATUS = 0x000000B5;
     /* OEM hook to get the thermal alarm indication */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_THERMAL_ALARM_IND = 0x000000D0;
     /* OEM hook specific to DSDS for catching out of service URC */
