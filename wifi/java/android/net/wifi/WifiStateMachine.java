@@ -966,8 +966,11 @@ public class WifiStateMachine extends StateMachine {
     public boolean syncUpdateIccNetworks(AsyncChannel channel, boolean enable) {
         Message resultMsg = channel.sendMessageSynchronously(CMD_UPDATE_ICC_NETWORKS,
                 enable ? 1 : 0);
-        boolean result = (resultMsg.arg1 != FAILURE);
-        resultMsg.recycle();
+        boolean result = false;
+        if (resultMsg != null) {
+            result = (resultMsg.arg1 != FAILURE);
+            resultMsg.recycle();
+        }
         return result;
     }
 
