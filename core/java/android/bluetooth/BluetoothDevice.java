@@ -921,10 +921,10 @@ public final class BluetoothDevice implements Parcelable {
      *         or null on error
      */
      public ParcelUuid[] getUuids() {
-         if (sService == null) {
+        if (sService == null) {
             Log.e(TAG, "BT not enabled. Cannot get remote device Uuids");
-             return null;
-         }
+            return null;
+        }
         try {
             return sService.getRemoteUuids(this);
         } catch (RemoteException e) {Log.e(TAG, "", e);}
@@ -947,10 +947,15 @@ public final class BluetoothDevice implements Parcelable {
       *               was started.
       */
      public boolean fetchUuidsWithSdp() {
+        if (sService == null) {
+            Log.e(TAG, "BT not enabled. Cannot perform service discovery on " +
+                       "the remote device in order to get the UUIDs supported.");
+            return false;
+        }
         try {
             return sService.fetchRemoteUuids(this);
         } catch (RemoteException e) {Log.e(TAG, "", e);}
-            return false;
+        return false;
     }
 
     /** @hide */
