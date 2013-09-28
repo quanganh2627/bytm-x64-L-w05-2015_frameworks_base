@@ -62,4 +62,5 @@ interface INfcAdapter
     void storeSePreference(int seId);
 
     boolean setMultiSERoutingTable(in String pkg, in MultiSERoutingInfo[] routingInfo);
+    int setEmvCoPollProfile(boolean enable, int route);
 }

@@ -131,7 +131,7 @@ public class WifiStateMachine extends StateMachine {
 
     /* Chipset supports background scan */
     private final boolean mBackgroundScanSupported;
-
+    private boolean mBackgroundScanAutoTurnOffEnabled;
     private String mInterfaceName;
     private static final String mP2pInterfaceName = "p2p0";
     private static final String[] mP2pRegexs = {"p2p-p2p0-\\d"};
@@ -195,6 +195,9 @@ public class WifiStateMachine extends StateMachine {
      * Driver start time out.
      */
     private static final int DRIVER_START_TIME_OUT_MSECS = 10000;
+
+    public static final String SHUT_DOWN_WIFI_ACTION =
+            "android.net.wifi.SET_DEVICE_IDLE_AND_UPDATE";
 
     /* Tracks sequence number on a driver time out */
     private int mDriverStartToken = 0;
@@ -299,6 +302,9 @@ public class WifiStateMachine extends StateMachine {
     static final int CMD_SAVE_CONFIG                      = BASE + 58;
     /* Get configured networks*/
     static final int CMD_GET_CONFIGURED_NETWORKS          = BASE + 59;
+    /* Update )enable/disable) ICC related networks */
+    static final int CMD_UPDATE_ICC_NETWORKS              = BASE + 60;
+
 
     /* Supplicant commands after driver start*/
     /* Initiate a scan */
@@ -594,7 +600,7 @@ public class WifiStateMachine extends StateMachine {
 
         mBackgroundScanSupported = mContext.getResources().getBoolean(
                 R.bool.config_wifi_background_scan_support);
-
+        mBackgroundScanAutoTurnOffEnabled = true;
         mPrimaryDeviceType = mContext.getResources().getString(
                 R.string.config_wifi_p2p_device_type);
 
@@ -949,6 +955,22 @@ public class WifiStateMachine extends StateMachine {
         return result;
     }
 
+    /**
+     * Update all ICC related network (which use EAP-SIM/AKA) synchronously
+     * @param enable ,true/false to enable/disable networks that use security related to SIM/USIM
+     * (EAP-SIM/AKA)
+     *
+     * @return {@code true} if the operation succeeds, {@code false} otherwise
+     * @hide
+     */
+    public boolean syncUpdateIccNetworks(AsyncChannel channel, boolean enable) {
+        Message resultMsg = channel.sendMessageSynchronously(CMD_UPDATE_ICC_NETWORKS,
+                enable ? 1 : 0);
+        boolean result = (resultMsg.arg1 != FAILURE);
+        resultMsg.recycle();
+        return result;
+    }
+
     public List<WifiConfiguration> syncGetConfiguredNetworks(AsyncChannel channel) {
         Message resultMsg = channel.sendMessageSynchronously(CMD_GET_CONFIGURED_NETWORKS);
         List<WifiConfiguration> result = (List<WifiConfiguration>) resultMsg.obj;
@@ -1018,8 +1040,10 @@ public class WifiStateMachine extends StateMachine {
        sendMessage(CMD_ENABLE_RSSI_POLL, enabled ? 1 : 0, 0);
     }
 
-    public void enableBackgroundScanCommand(boolean enabled) {
-       sendMessage(CMD_ENABLE_BACKGROUND_SCAN, enabled ? 1 : 0, 0);
+    public void enableBackgroundScanCommand(boolean enabled, int syncWifiState) {
+       sendMessage(CMD_ENABLE_BACKGROUND_SCAN, enabled ? 1 : 0,
+               ((syncWifiState == WIFI_STATE_ENABLING) || (syncWifiState == WIFI_STATE_ENABLED
+                       )) ? 1:0 );
     }
 
     public void enableAllNetworks() {
@@ -1265,7 +1289,7 @@ public class WifiStateMachine extends StateMachine {
         if (DBG) log("handleScreenStateChanged: " + screenOn);
         enableRssiPolling(screenOn);
         if (mBackgroundScanSupported) {
-            enableBackgroundScanCommand(screenOn == false);
+            enableBackgroundScanCommand(screenOn == false, syncGetWifiState());
         }
 
         if (screenOn) enableAllNetworks();
@@ -2003,6 +2027,28 @@ public class WifiStateMachine extends StateMachine {
     }
 
 
+    private void enableBackgroundScanOrTurnOffWifi() {
+        List<WifiConfiguration> configs = mWifiConfigStore.getConfiguredNetworks();
+        if (configs != null) {
+            if (configs.size() != 0) {
+                mWifiNative.enableBackgroundScan(true);
+            } else {
+                mEnableBackgroundScan = false;
+                if (mP2pConnected.get()) {
+                    log("No remembered SSID, but P2P Connected. Do not turn WiFi OFF");
+                    mBackgroundScanAutoTurnOffEnabled  = false;
+                }
+                if (mBackgroundScanAutoTurnOffEnabled) {
+                    // No remembered SSID, and auto turn off authorized, request to turn off Wifi
+                    log("No remembered SSID, turn off wifi");
+                    mContext.sendBroadcast(new Intent(SHUT_DOWN_WIFI_ACTION));
+                }
+            }
+        } else {
+            loge("Impossible to get the configured networks when considering PNO enabling");
+        }
+    }
+
    /* Wifi_Hotspot: dnsmasq.leases file need to be deleted in order to avoid
      * the unnecessary old event from dnsmasq daemon when tethering starts and ends.
      */
@@ -2058,6 +2104,7 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_ADD_OR_UPDATE_NETWORK:
                 case CMD_REMOVE_NETWORK:
                 case CMD_SAVE_CONFIG:
+                case CMD_UPDATE_ICC_NETWORKS:
                     replyToMessage(message, message.what, FAILURE);
                     break;
                 case CMD_GET_CONFIGURED_NETWORKS:
@@ -2068,6 +2115,7 @@ public class WifiStateMachine extends StateMachine {
                     break;
                 case CMD_ENABLE_BACKGROUND_SCAN:
                     mEnableBackgroundScan = (message.arg1 == 1);
+                    mBackgroundScanAutoTurnOffEnabled = (message.arg2 == 1);
                     break;
                 case CMD_SET_HIGH_PERF_MODE:
                     if (message.arg1 == 1) {
@@ -2991,6 +3039,11 @@ public class WifiStateMachine extends StateMachine {
                     replyToMessage(message, CMD_ADD_OR_UPDATE_NETWORK,
                             mWifiConfigStore.addOrUpdateNetwork(config));
                     break;
+                case CMD_UPDATE_ICC_NETWORKS:
+                    int enable = (int) message.arg1;
+                    mWifiConfigStore.updateIccNetworks(enable == 1 ? true: false);
+                    replyToMessage(message, CMD_UPDATE_ICC_NETWORKS, SUCCESS);
+                    break;
                 case CMD_REMOVE_NETWORK:
                     ok = mWifiConfigStore.removeNetwork(message.arg1);
                     replyToMessage(message, message.what, ok ? SUCCESS : FAILURE);
@@ -3495,7 +3548,7 @@ public class WifiStateMachine extends StateMachine {
                  * cleared
                  */
                 if (!mScanResultIsPending) {
-                    mWifiNative.enableBackgroundScan(true);
+                    enableBackgroundScanOrTurnOffWifi();
                 }
             } else {
                 setScanAlarm(true);
@@ -3541,8 +3594,9 @@ public class WifiStateMachine extends StateMachine {
                     break;
                 case CMD_ENABLE_BACKGROUND_SCAN:
                     mEnableBackgroundScan = (message.arg1 == 1);
+                    mBackgroundScanAutoTurnOffEnabled = (message.arg2 == 1);
                     if (mEnableBackgroundScan) {
-                        mWifiNative.enableBackgroundScan(true);
+                        enableBackgroundScanOrTurnOffWifi();
                         setScanAlarm(false);
                     } else {
                         mWifiNative.enableBackgroundScan(false);
@@ -3572,7 +3626,7 @@ public class WifiStateMachine extends StateMachine {
                 case WifiMonitor.SCAN_RESULTS_EVENT:
                     /* Re-enable background scan when a pending scan result is received */
                     if (mEnableBackgroundScan && mScanResultIsPending) {
-                        mWifiNative.enableBackgroundScan(true);
+                        enableBackgroundScanOrTurnOffWifi();
                     }
                     /* Handled in parent state */
                     ret = NOT_HANDLED;

@@ -109,7 +109,12 @@ public final class GeofenceProxy {
 
     private void setGeofenceHardwareInProvider() {
         try {
-            getGeofenceProviderService().setGeofenceHardware(mGeofenceHardware);
+            IGeofenceProvider provider = getGeofenceProviderService();
+            if (null != provider) {
+                provider.setGeofenceHardware(mGeofenceHardware);
+            } else {
+                Log.w(TAG, "GeofenceProvider is not available");
+            }
         } catch (RemoteException e) {
             Log.e(TAG, "Remote Exception: setGeofenceHardwareInProvider: " + e);
         }

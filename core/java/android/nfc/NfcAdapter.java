@@ -56,6 +56,7 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.util.Log;
+import android.nfc.MultiSERoutingInfo;
 
 /**
  * Represents the local NFC adapter.
@@ -253,7 +254,7 @@ public final class NfcAdapter {
     public static final int UICC_ID_TYPE = 2;
 
     /**
-     * UICC ID to be able to select it as the default Secure Element
+     * eSE ID to be able to select it as the default Secure Element
      * @hide
      */
     public static final String SMART_MX_ID = "com.nxp.smart_mx.ID";
@@ -268,6 +269,12 @@ public final class NfcAdapter {
 
     /** @hide */
     public static final int ALL_SE_ID_TYPE = 3;
+
+    /**
+     * Route ID for Device Host
+     * @hide
+     */
+    public static final int EMVCO_ROUTE_DH = 0;
 
     /**
      * Intent received when the Card Emulation From Host feature detected a
@@ -327,6 +334,30 @@ public final class NfcAdapter {
      * @hide
      */
     public static final String EXTRA_DATA = "com.nxp.extra.DATA";
+
+    /** @hide */
+    @SdkConstant(SdkConstantType.ACTIVITY_INTENT_ACTION)
+    public static final String ACTION_SWP_READER_REQUESTED = "com.nxp.nfc_extras.ACTION_SWP_READER_REQUESTED";
+
+    /**
+     * Mandatory extra containing the reader type.
+     *@hide
+     */
+    public static final String EXTRA_SWP_READER_TECH = "com.nxp.nfc_extras.extra.EXTRA_SWP_READER_TECH";
+
+    /**
+     * Intent received when the SWP Reader is connected to card.
+     *@hide
+     */
+    @SdkConstant(SdkConstantType.ACTIVITY_INTENT_ACTION)
+    public static final String ACTION_SWP_READER_ACTIVATED = "com.nxp.nfc_extras.ACTION_SWP_READER_ACTIVATED";
+
+    /**
+     * Intent received when the SWP Reader is disconnected from card.
+     *@hide
+     */
+    @SdkConstant(SdkConstantType.ACTIVITY_INTENT_ACTION)
+    public static final String ACTION_SWP_READER_DEACTIVATED = "com.nxp.nfc_extras.ACTION_SWP_READER_DEACTIVATED";
 
     // Guarded by NfcAdapter.class
     static boolean sIsInitialized = false;
@@ -1647,6 +1678,35 @@ public final class NfcAdapter {
              Log.e(TAG, "createNfcCEFromHost failed", e);
              return null;
          }
+    }
+
+/**
+     * Allows to enable/disable the EMV-CO profile from host or uicc or ese.
+     * Note: When EMVCO profile is enabled the NFC Fourm profile is disabled.
+     *       At present only emv-co profile from DH only supported.
+     *
+     * <p>Requires {@link android.Manifest.permission#NFC} permission.
+     *
+     * @param enable enable/disable the emv-co profile
+     * @param route the endpoint {@link NfcAdapter#EMVCO_ROUTE_DH}
+     * @return 0 in case of success, otherwise fail.
+     *
+     * @throws IOException If a failure occurred during emvco profile setup.
+     * @hide
+     */
+     public int enableEmvcoPolling(boolean enable, int route) throws IOException {
+        // Perform Receive
+        try {
+            int response = sService.setEmvCoPollProfile(enable, route);
+            // Handle potential errors
+            if(response < 0){
+                throw new IOException("Emv-Co poll profile failed");
+    }
+            return response;
+        } catch (RemoteException e) {
+            Log.e(TAG, "RemoteException in setEmvCoPollProfile(): ", e);
+            throw new IOException("RemoteException in setEmvCoPollProfile()");
+        }
     }
     /**
      * Create an Nfc Secure Element Connection

@@ -52,7 +52,9 @@ import android.os.RemoteException;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.WorkSource;
+import android.preference.CheckBoxPreference;
 import android.provider.Settings;
+import android.provider.Settings.Global;
 import android.util.Log;
 import android.util.Slog;
 
@@ -68,6 +70,7 @@ import com.intel.cws.cwsservicemanager.CsmException;
 
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
+import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
 import com.android.server.am.BatteryStatsService;
@@ -80,6 +83,7 @@ import static com.android.server.wifi.WifiController.CMD_SCREEN_OFF;
 import static com.android.server.wifi.WifiController.CMD_SCREEN_ON;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
+import static com.android.server.wifi.WifiController.CMD_DEVICE_IDLE;
 /**
  * WifiService handles remote WiFi operation requests by implementing
  * the IWifiManager interface.
@@ -120,6 +124,7 @@ public class WifiService extends IWifiManager.Stub {
     private WifiTrafficPoller mTrafficPoller;
     /* Tracks the persisted states for wi-fi & airplane mode */
     final WifiSettingsStore mSettingsStore;
+    private final WizardFinishedObserver mwizardFinishedObserver;
 
     WifiCsmClient mWifiCsmClient;
 
@@ -274,6 +279,26 @@ public class WifiService extends IWifiManager.Stub {
         // can result in race conditions when apps toggle wifi in the background
         // without active user involvement. Always receive broadcasts.
         registerForBroadcasts();
+        mwizardFinishedObserver = new WizardFinishedObserver();
+    }
+
+    private class WizardFinishedObserver extends ContentObserver {
+        WizardFinishedObserver() {
+            super(new Handler());
+            mContext.getContentResolver().registerContentObserver(Settings.Global.getUriFor(
+                    Settings.Global.DEVICE_PROVISIONED), false, this);
+        }
+
+        @Override
+        public void onChange(boolean selfChange) {
+            if (Settings.Global.getInt(mContext.getContentResolver(),
+                    Settings.Global.DEVICE_PROVISIONED, 0) != 0) {
+                Log.i("WizardFinishedObserver","Device Provisionned!!!");
+                Global.putInt(mContext.getContentResolver(),
+                        Global.WIFI_SCAN_ALWAYS_AVAILABLE,
+                        (0));
+            }
+        }
     }
 
     private WifiController mWifiController;
@@ -516,6 +541,23 @@ public class WifiService extends IWifiManager.Stub {
         } else {
             Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
             return -1;
+        }
+    }
+
+    /**
+     * see {@link android.net.wifi.WifiManager#updateIccNetworks(boolean)}
+     * @param enable true/false to enable/disable networks configured
+     * with an enterprise security related to SIM/USIM card (EAP-SIM/AKA)
+     * @return {@code true} if the operation succeeded
+     * @hide
+     */
+    public boolean updateIccNetworks(boolean enable) {
+        enforceChangePermission();
+        if (mWifiStateMachineChannel != null) {
+            return mWifiStateMachine.syncUpdateIccNetworks(mWifiStateMachineChannel, enable);
+        } else {
+            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
+            return false;
         }
     }
 
@@ -837,6 +879,18 @@ public class WifiService extends IWifiManager.Stub {
             } else if (action.equals(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED)) {
                 boolean emergencyMode = intent.getBooleanExtra("phoneinECMState", false);
                 mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, emergencyMode ? 1 : 0, 0);
+            } else if (action.equals(WifiStateMachine.SHUT_DOWN_WIFI_ACTION)) {
+                mWifiController.sendMessage(CMD_DEVICE_IDLE);
+            } else if (action.equals(TelephonyIntents.ACTION_SIM_STATE_CHANGED)) {
+                String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
+                if (IccCardConstants.INTENT_VALUE_ICC_LOADED.equals(stateExtra)) {
+                    if (DBG) Slog.d(TAG, "SIM Card inserted");
+                    updateIccNetworks(true);
+                } else if (IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra)
+                        || IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra)) {
+                    if (DBG) Slog.d(TAG, "SIM Card removed or not ready");
+                    updateIccNetworks(false);
+                }
             }
         }
     };
@@ -866,6 +920,8 @@ public class WifiService extends IWifiManager.Stub {
         intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         intentFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
+        intentFilter.addAction(WifiStateMachine.SHUT_DOWN_WIFI_ACTION);
+        intentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
         mContext.registerReceiver(mReceiver, intentFilter);
     }
 
