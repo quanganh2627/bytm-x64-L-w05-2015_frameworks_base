@@ -214,12 +214,14 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 if (DBG) Log.d(TAG, "COEX_SAFECHANNELS : Information received");
 
                 Bundle bundle = intent.getBundleExtra(CsmCoexMgr.COEX_SAFECHANNELS_EXTRA);
-                int minFreq = bundle.getInt(CsmCoexMgr.COEX_SAFECHANNELS_BT_MIN_KEY);
-                int maxFreq = bundle.getInt(CsmCoexMgr.COEX_SAFECHANNELS_BT_MAX_KEY);
+                if (bundle != null) {
+                    int minFreq = bundle.getInt(CsmCoexMgr.COEX_SAFECHANNELS_BT_MIN_KEY);
+                    int maxFreq = bundle.getInt(CsmCoexMgr.COEX_SAFECHANNELS_BT_MAX_KEY);
 
-                if (DBG) Log.d(TAG, "COEX_SAFECHANNELS : [" + minFreq + ", " + maxFreq + "]");
+                    if (DBG) Log.d(TAG, "COEX_SAFECHANNELS : [" + minFreq + ", " + maxFreq + "]");
 
-                handleCoexSafeChannels(minFreq, maxFreq);
+                    handleCoexSafeChannels(minFreq, maxFreq);
+                }
             }
         }
     };
