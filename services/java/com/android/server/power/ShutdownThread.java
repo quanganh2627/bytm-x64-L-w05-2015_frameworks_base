@@ -489,9 +489,10 @@ public final class ShutdownThread extends Thread {
                     wifiOff = wifi == null ||
                             wifi.getWifiEnabledState() == WifiManager.WIFI_STATE_DISABLED;
                     if (!wifiOff) {
-                        Log.w(TAG, "Turning off Wifi...");
-                        if (wifi != null)
-                            wifi.setWifiEnabledPersist(false, false);
+                        if (wifi != null) {
+                            Log.w(TAG, "Turning off Wifi...");
+                            wifi.haltWifi();
+                        }
                     }
                 } catch (RemoteException ex) {
                     Log.e(TAG, "RemoteException during wifi shutdown", ex);
@@ -538,8 +539,10 @@ public final class ShutdownThread extends Thread {
                     }
                     if (!wifiOff) {
                         try {
-                            if (wifi != null)
-                                wifiOff = wifi.getWifiEnabledState() == WifiManager.WIFI_STATE_DISABLED;
+                            if (wifi != null) {
+                                SupplicantState ss = wifi.getConnectionInfo().getSupplicantState();
+                                wifiOff = ss == SupplicantState.INTERFACE_DISABLED;
+                            }
                         } catch (RemoteException ex) {
                             Log.e(TAG, "RemoteException during Wifi shutdown", ex);
                             wifiOff = true;
