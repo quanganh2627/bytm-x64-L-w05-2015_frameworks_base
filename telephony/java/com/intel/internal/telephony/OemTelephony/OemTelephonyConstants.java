@@ -88,6 +88,11 @@ public interface OemTelephonyConstants {
     public static final String ACTION_COEX_INFO =
                                     "intel.intent.action.ACTION_COEX_INFO";
 
+    // Ciphering Indication Intents.
+    public static final String ACTION_CIPHERING_STATE_CHANGED =
+            "intel.intent.action.CIPHERING_STATE_CHANGED";
+    // The key for ciphering status
+    public static final String CIPHERING_STATUS_KEY = "CipheringStatus"; // ON/OFF
 
     // These enumerations should be in sync with what is used in
     // ril adaptation
@@ -169,4 +174,6 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_RAW_UNSOL_BEARER_QOS_PARAMS = 0x000000DD;
     /* OEM hook specific to indicate bearer deactivation */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_BEARER_DEACT = 0x000000DE;
+    /* OEM hook specific to ciphering indication */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_CIPHERING_IND = 0x000000DF;
 }
