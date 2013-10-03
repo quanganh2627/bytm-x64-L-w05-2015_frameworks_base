@@ -24117,6 +24117,7 @@ package android.thermal {
     method public static boolean configFilesExist();
     method public java.util.ArrayList<android.thermal.ThermalZone> getThermalZoneList();
     method public static void programSensorThresholds(android.thermal.ThermalSensor);
+    method public static void readShutdownNotiferProperties();
     method public static void registerUevent(android.thermal.ThermalZone);
     method public static void startMonitoringZones();
     field public static final int DETHROTTLE_MASK_ENABLE = 1; // 0x1
@@ -24146,6 +24147,9 @@ package android.thermal {
     field public static final java.lang.String mSysfsSensorBasePath = "/sys/class/thermal/thermal_zone";
     field public static final java.lang.String mSysfsSensorType = "/type";
     field public static java.util.ArrayList mThermalZonesList;
+    field public static boolean sShutdownToast;
+    field public static boolean sShutdownTone;
+    field public static boolean sShutdownVibra;
     field public static java.util.Hashtable sensorMap;
     field public static java.util.Hashtable sensorZoneMap;
     field public static java.util.ArrayList sensorsRegisteredToObserver;

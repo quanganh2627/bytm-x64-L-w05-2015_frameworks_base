@@ -1448,6 +1448,9 @@ final class WindowState implements WindowManagerPolicy.WindowState {
     private UserInfo getUserInfoLocked(int ownerUid) {
         IBinder b = ServiceManager.getService(Context.USER_SERVICE);
         UserManagerService um = (UserManagerService)IUserManager.Stub.asInterface(b);
+        if (um == null) {
+            return null;
+        }
         return um.getUserInfo(UserHandle.getUserId(ownerUid));
     }
 }

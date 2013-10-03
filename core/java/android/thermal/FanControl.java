@@ -17,7 +17,7 @@
 package android.thermal;
 
 import java.io.File;
-
+import android.content.Context;
 /**
  * The Fan Control class contains strings and constants used for values
  * in the {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED} Intent.
@@ -27,13 +27,15 @@ public class FanControl {
     private static final String TAG = "Thermal:FanControl";
     private static String mFanThrottlePath;
     private static boolean mIsFanDeviceExists = false;
+    private static Context  mContext;
 
     public static void throttleDevice(int thermalState) {
        if (mIsFanDeviceExists)
           SysfsManager.writeSysfs(mFanThrottlePath, thermalState);
     }
 
-    public static void init(String path) {
+    public static void init(Context context, String path) {
+       mContext = context;
        /* Cooling device throttle path information */
        String coolDeviceThrottlePath = "/sys/class/thermal/cooling_device";
        String coolDeviceState = "/cur_state";

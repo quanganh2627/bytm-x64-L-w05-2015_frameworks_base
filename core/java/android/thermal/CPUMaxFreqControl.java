@@ -16,6 +16,7 @@
 
 package android.thermal;
 
+import android.content.Context;
 import android.util.Log;
 import java.lang.Integer;
 /**
@@ -25,7 +26,7 @@ import java.lang.Integer;
  */
 public class CPUMaxFreqControl {
     private static final String TAG = "Thermal:CPUMaxFreqControl";
-
+    private static Context mContext;
     // Sysfs path for throttle devices
     private static final String mCPUDeviceSysfsPath = "/sys/devices/system/cpu/";
     private static final String mCPUThrottleSysfsPath = "/cpufreq/scaling_max_freq";
@@ -213,8 +214,9 @@ public class CPUMaxFreqControl {
         }
     }
 
-    public static void init(String path) {
+    public static void init(Context context, String path) {
        try {
+           mContext = context;
            readAvailFreq();
            getNumberOfProcessors();
            computeCpuMaxScalingFreqs();

@@ -528,9 +528,11 @@ public class Watchdog extends Thread {
             Thread dropboxThread = new Thread("watchdogWriteToDropbox") {
                 public void run() {
                     if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
+                            final String hbhthread = "Monitoring ran by " +
+                                    mHandler.getLooper().getThread().getName();
                             mActivity.addErrorToDropBox(
                                     "watchdog", null, "system_server", null, null,
-                                    name, null, stack, null, stackname);}
+                                    name, hbhthread, stack, null, stackname);}
                         else
                         {
                             mActivity.addErrorToDropBox(

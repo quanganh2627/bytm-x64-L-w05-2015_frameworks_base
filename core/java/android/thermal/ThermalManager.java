@@ -20,8 +20,10 @@ import android.thermal.ThermalZone;
 import android.thermal.ThermalSensor;
 import android.thermal.ThermalCoolingDevice;
 import android.thermal.SysfsManager;
+import android.thermal.ThermalNotifier;
 import android.util.Log;
 import android.os.UEventObserver;
+import android.os.SystemProperties;
 import java.util.Hashtable;
 import java.util.ArrayList;
 import java.io.IOException;
@@ -95,6 +97,10 @@ public class ThermalManager {
 
     private static final Object sLock = new Object();
 
+    /* thermal notifier system properties for shutdown action*/
+    public static boolean sShutdownTone = false;
+    public static boolean sShutdownToast = false;
+    public static boolean sShutdownVibra = false;
     /**
      * this class stores the zone throttle info.It contains the zoneID,
      * CriticalShutdown flag and CoolingDeviceInfo arraylist.
@@ -347,4 +353,21 @@ public class ThermalManager {
          return ((new File(SENSOR_FILE_PATH).exists()) &&
                 (new File(THROTTLE_FILE_PATH).exists()));
     }
+
+    public static void readShutdownNotiferProperties() {
+        try {
+            if ("1".equals(SystemProperties.get("persist.thermal.shutdown.msg", "0"))) {
+                sShutdownToast = true;
+            }
+            if ("1".equals(SystemProperties.get("persist.thermal.shutdown.tone", "0"))) {
+                sShutdownTone = true;
+            }
+            if ("1".equals(SystemProperties.get("persist.thermal.shutdown.vibra", "0"))) {
+                sShutdownVibra = true;
+            }
+        } catch (java.lang.IllegalArgumentException e) {
+            Log.e(TAG, "exception caught in reading thermal system properties");
+        }
+    }
+
 }

@@ -91,6 +91,10 @@ public class ModemZone extends ThermalZone {
     // in CRITICAL state, when one poliing interval for critical monitor
     // ends, user should not be notified that monitor is starting again.
     private int mLastKnownZoneState = ThermalManager.THERMAL_STATE_OFF;
+    // read from thermal throttle config, critical shutdown flag
+    // if shutdown flag is true, donot switch to AIRPLANE mode
+    private boolean isCriticalShutdownEnable = false;
+    private boolean isCriticalShutdownflagUpdated = false;
     public ModemZone(Context context) {
         super();
         mPhoneService = IOemTelephony.Stub.asInterface(ServiceManager.getService("oemtelephony"));
@@ -118,6 +122,17 @@ public class ModemZone extends ThermalZone {
         Log.i(TAG, "Modem thermal zone registered successfully");
     }
 
+    void updateCriticalShutdownFlag() {
+        // one time update
+        if (isCriticalShutdownflagUpdated ==  false) {
+            ThermalManager.ZoneCoolerBindingInfo zone = ThermalManager.listOfZones.get(getZoneId());
+            if (zone != null) {
+                isCriticalShutdownEnable = (zone.getCriticalActionShutdown() == 1) ? true : false;
+            }
+            isCriticalShutdownflagUpdated = true;
+        }
+    }
+
     // this method is triggered in two conditions:
     // a) service state chnages from OFF to active state
     // b) there is a change is service state within 0,1,2
@@ -140,6 +155,7 @@ public class ModemZone extends ThermalZone {
             return;
         }
 
+        updateCriticalShutdownFlag();
         debounceInterval = getDBInterval();
         for (ThermalSensor t : mThermalSensors) {
             t.UpdateSensorID();
@@ -570,6 +586,9 @@ public class ModemZone extends ThermalZone {
                 } else {
                     sCriticalMonitorPending = false;
                 }
+                // if critical shutdown enable , just exit. since an intent is sent
+                // to ThermalCooling to shutdown the platform
+                if (isCriticalShutdownEnable == true) return;
                 // if critical monitor is pending start a async task.
                 if (getCriticalMonitorStatus() == false) {
                     CriticalStateMonitor monitor = new CriticalStateMonitor();
@@ -617,6 +636,9 @@ public class ModemZone extends ThermalZone {
         boolean criticalMonitorStatus = getCriticalMonitorStatus();
         boolean onGoingEmergencyCall = isEmergencyCallOnGoing();
         if (onGoingEmergencyCall == false) {
+            // if critical shutdown enable , just exit. since an intent is sent
+            // to ThermalCooling to shutdown the platform
+            if (isCriticalShutdownEnable == true) return;
             if (criticalMonitorStatus == false) {
                 CriticalStateMonitor monitor = new CriticalStateMonitor();
                 monitor.execute();

@@ -245,11 +245,11 @@ public class ThermalCooling {
     public boolean init(Context context) {
        Log.i(TAG, "Thermal Cooling manager init() called");
 
+       mContext = context;
        ThermalParser parser = new ThermalParser(ThermalManager.THROTTLE_FILE_PATH);
        if (parser == null) return false;
        parser.parse();
 
-       mContext = context;
        // Register for thermal zone state changed notifications
        IntentFilter filter = new IntentFilter();
        filter.addAction(Intent.ACTION_THERMAL_ZONE_STATE_CHANGED);
@@ -352,11 +352,13 @@ public class ThermalCooling {
 
         /* Initialize the contributing device class */
         try {
-            Class partypes[] = new Class[1];
-            partypes[0] = String.class;
+            Class partypes[] = new Class[2];
+            partypes[0] = Context.class;
+            partypes[1] = String.class;
             Method init = cls.getMethod("init", partypes);
-            Object arglist[] = new Object[1];
-            arglist[0] = device.getThrottlePath();
+            Object arglist[] = new Object[2];
+            arglist[0] = mContext;
+            arglist[1] = device.getThrottlePath();
             init.invoke(cls, arglist);
         } catch (NoSuchMethodException e) {
             Log.i(TAG, "NoSuchMethodException caught in device class init: " + device.getClassPath());
@@ -390,15 +392,16 @@ public class ThermalCooling {
     // Method to do actual shutdown. It writes a 1 in OSIP Sysfs and
     // sends the shutdown intent
     private void doShutdown() {
-
         /* Initialise class for message display during shutdown*/
-        new ThermalNotifier(mContext);
-
-        /* sending shutdown INTENT */
-        Intent statusIntent = new Intent();
-        statusIntent.setAction(Intent.ACTION_THERMAL_SHUTDOWN);
-        mContext.sendBroadcast(statusIntent);
+        int notificationMask = 0x0;
+        if (ThermalManager.sShutdownTone) notificationMask |= ThermalNotifier.TONE;
+        if (ThermalManager.sShutdownVibra) notificationMask |= ThermalNotifier.VIBRATE;
+        if (ThermalManager.sShutdownToast) notificationMask |= ThermalNotifier.TOAST;
+        if (ThermalManager.sShutdownToast) notificationMask |= ThermalNotifier.WAKESCREEN;
+        notificationMask |= ThermalNotifier.SHUTDOWN;
+        new ThermalNotifier(mContext, notificationMask).triggerNotification();
     }
+
     /* Method to handle the thermal event based on HIGH or LOW event*/
     public static boolean initiateShutdown(int zoneID) {
          ThermalManager.ZoneCoolerBindingInfo zone = ThermalManager.listOfZones.get(zoneID);

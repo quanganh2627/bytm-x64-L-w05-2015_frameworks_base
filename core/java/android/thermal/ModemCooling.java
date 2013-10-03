@@ -15,16 +15,18 @@
  */
 
 package android.thermal;
+import android.content.Context;
 import android.util.Log;
 import android.thermal.ThermalManager;
-
 /**
  *Modem Cooling class
  *@hide
  */
 public class ModemCooling {
     private static final String TAG = "Thermal:ModemCooling";
-    public static void init(String path) {
+    private static Context mContext;
+    public static void init(Context context, String path) {
+        mContext = context;
     }
 
     public static void throttleDevice(int tstate) {

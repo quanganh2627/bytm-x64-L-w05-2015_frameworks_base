@@ -771,10 +771,12 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
                 UserHandle userHandle = new UserHandle(UserHandle.USER_CURRENT);
                 int containerId = ad.getContainerId();
                 if (containerId > 0) {
-                    UserManager um = (UserManager)
-                            context.getSystemService(Context.USER_SERVICE);
-                    UserInfo userInfo = um.getUserInfo(containerId);
-                    if (UserHandle.myUserId() == userInfo.containerOwner) {
+                    UserInfo userInfo = null;
+                    UserManager um = (UserManager) context.getSystemService(Context.USER_SERVICE);
+                    if (um != null) {
+                        userInfo = um.getUserInfo(containerId);
+                    }
+                    if (userInfo != null && UserHandle.myUserId() == userInfo.containerOwner) {
                         userHandle = new UserHandle(containerId);
                     }
                 }
