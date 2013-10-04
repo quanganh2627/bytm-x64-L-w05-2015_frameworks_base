@@ -26,7 +26,6 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 
 /**
  * Describes the properties of a network link.
@@ -433,34 +432,4 @@ public class LinkProperties implements Parcelable {
                 return new LinkProperties[size];
             }
         };
-
-    /**
-     * @hide
-     */
-    public void setLinkAddress(LinkAddress address) {
-        if (address != null) {
-            mLinkAddresses.clear();
-            addLinkAddress(address);
-        }
-    }
-
-    /**
-     * @hide
-     */
-    public void setDnses(Collection<InetAddress> dnses) {
-        mDnses = dnses;
-    }
-
-    /**
-     * @hide
-     */
-    public void setDefaultGateway(InetAddress gw) {
-        Iterator<RouteInfo> iter = mRoutes.iterator();
-        while (iter.hasNext()) {
-            RouteInfo route = iter.next();
-            if (route.isDefaultRoute()) {
-                iter.remove();
-            }
-        }
-    }
 }

@@ -6,14 +6,6 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_SRC_FILES := $(call all-java-files-under, src) \
     ../../../ex/carousel/java/com/android/ex/carousel/carousel.rs
 
-ifeq ($(strip $(INTEL_FEATURE_ETHERNET)),true)
-LOCAL_SRC_FILES += $(call all-java-files-under, \
-    ../../../../vendor/intel/apps/EthernetSettings/frameworks/packages/SystemUI/enabled/src)
-else
-LOCAL_SRC_FILES += $(call all-java-files-under, \
-    ../../../../vendor/intel/apps/EthernetSettings/frameworks/packages/SystemUI/disabled/src)
-endif
-
 LOCAL_JAVA_LIBRARIES := services telephony-common
 
 LOCAL_STATIC_JAVA_LIBRARIES := android-common-carousel
