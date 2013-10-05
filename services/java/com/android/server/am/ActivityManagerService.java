@@ -8075,7 +8075,87 @@ public class ActivityManagerService  extends ActivityManagerNative
             }
         }
     }
-    
+
+    // ASF launch timeout.  The system will ungracefully timeout at 20 seconds.
+    // To avoid this ungraceful timeout, we impose our own 15 second timeout
+    // for ASF launch.  (The ASF security manager service will itself impose a
+    // timeout of 10 seconds for ASF client launch.)
+    private static final long ONE_SECOND_MS = 1000;
+    private static final long ASF_LAUNCH_TIMEOUT = 15 * ONE_SECOND_MS;
+
+    /**
+     * Launch ASF by using a broadcast intent to launch the security
+     * manager service, which will in turn launch any ASF clients.  This
+     * method will block until the ASF launch has completed.
+     */
+    private void launchAsf() {
+        if (!AsfAosp.ENABLE) {
+            return;
+        }
+
+        // A class is needed to contain this variable, so that the
+        // object can be final (and accessible from the callback inner
+        // class) but the value be mutable.  We need a real
+        // java.lang.Object to use for locking, besides.
+        class CompletionCondition {
+            public boolean finished = false;
+        };
+        final CompletionCondition completionCondition =
+                new CompletionCondition();
+
+        // Launch the ASF security manager service.
+        Log.i(TAG, "Preparing to launch ASF security manager.");
+        Intent intent = AsfAosp.getLaunchIntent(new Runnable() {
+            public void run() {
+                // When the security manager service signals readiness,
+                // allow the activity manager to continue where we
+                // block, below.
+                synchronized(completionCondition) {
+                    completionCondition.finished = true;
+                    completionCondition.notify();
+                }
+            }
+        });
+
+        // Send the broadcast intent.
+        synchronized (this) {
+            broadcastIntentLocked(
+                    null, null, intent, null,
+                    null, 0, null, null,
+                    AsfAosp.LAUNCH_SECURITY_MANAGER_PERMISSION,
+                    AppOpsManager.OP_NONE,
+                    true, false,
+                    MY_PID, Process.SYSTEM_UID, UserHandle.USER_ALL
+            );
+        }
+
+        // Flush the broadcast queue so our intent is delivered
+        // immediately.  (Otherwise, ASF launch will be delayed during
+        // first boot.)
+        mFgBroadcastQueue.processNextBroadcast(true);
+
+        // Block until the ASF security manager service signals
+        // readiness.
+        synchronized(completionCondition) {
+            if (!completionCondition.finished) {
+                try {
+                    completionCondition.wait(ASF_LAUNCH_TIMEOUT);
+                } catch (InterruptedException e) {
+                    Log.e(
+                            TAG,
+                            "Interruption while waiting for completion of ASF launch.",
+                            e
+                    );
+                }
+            }
+            if (! completionCondition.finished) {
+                Log.e(TAG, "Timeout while launching ASF security manager.");
+            } else {
+                Log.i(TAG, "Finished launching ASF security manager.");
+            }
+        }
+    }
+
     public void systemReady(final Runnable goingCallback) {
         synchronized(this) {
             if (mSystemReady) {
@@ -8241,6 +8321,13 @@ public class ActivityManagerService  extends ActivityManagerNative
         }
 
         retrieveSettings();
+
+        // Launch the ASF security manager service and any client apps.
+        // This should happen before calling the goingCallback, so ASF
+        // can monitor the apps launched from the callback, and so the
+        // activity manager "storm" resulting from the callback will not
+        // adversely impact our synchronous launch scheme.
+        launchAsf();
 
         if (goingCallback != null) goingCallback.run();
         
