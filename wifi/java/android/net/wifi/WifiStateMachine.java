@@ -4052,6 +4052,7 @@ public class WifiStateMachine extends StateMachine {
                     // Ignore intermediate success, wait for full connection
                     break;
                 case WifiMonitor.NETWORK_CONNECTION_EVENT:
+                    mWifiConfigStore.selectNetwork(message.arg1);
                     replyToMessage(mSourceMessage, WifiManager.WPS_COMPLETED);
                     mSourceMessage.recycle();
                     mSourceMessage = null;
