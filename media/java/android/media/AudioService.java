@@ -172,6 +172,7 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
     private static final int BTA2DP_DOCK_TIMEOUT_MILLIS = 8000;
     // Timeout for connection to bluetooth headset service
     private static final int BT_HEADSET_CNCT_TIMEOUT_MS = 3000;
+    private static final int HEADSET_DISCONNECT_NOISY_INTENT_DELAY = 400;
 
     /** @see AudioSystemThread */
     private AudioSystemThread mAudioSystemThread;
@@ -3775,6 +3776,11 @@ public class AudioService extends IAudioService.Stub implements OnFinished {
                         null,
                         0);
                 delay = 1000;
+                // reducing the routing delay for headset and headphone removal
+                if((device == AudioSystem.DEVICE_OUT_WIRED_HEADSET) ||
+                   (device == AudioSystem.DEVICE_OUT_WIRED_HEADPHONE)) {
+                   delay = HEADSET_DISCONNECT_NOISY_INTENT_DELAY;
+                }
             }
         }
 
