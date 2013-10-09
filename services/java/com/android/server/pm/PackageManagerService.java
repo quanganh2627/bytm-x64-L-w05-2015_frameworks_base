@@ -4416,6 +4416,10 @@ public class PackageManagerService extends IPackageManager.Stub {
             
             if (mSettings.isDisabledSystemPackageLPr(pkg.packageName)) {
                 pkg.applicationInfo.flags |= ApplicationInfo.FLAG_UPDATED_SYSTEM_APP;
+                // ASF HOOK: system package update event
+                if (AsfAosp.ENABLE) {
+                    AsfAosp.sendSystemAppUpdateEvent(pkg);
+                }
             }
 
             if (mFoundPolicyFile) {
@@ -9632,6 +9636,14 @@ public class PackageManagerService extends IPackageManager.Stub {
                 for (int i = 0; i < allUserHandles.length; i++) {
                     Slog.d(TAG, "   u=" + allUserHandles[i] + " inst=" + perUserInstalled[i]);
                 }
+            }
+        }
+        // ASF HOOK: System package delete event
+        if (AsfAosp.ENABLE) {
+            PackageInfo packageInfo = getPackageInfo(
+                    newPs.name, AsfAosp.SECURITY_PACKAGEINFO_FLAGS, 0);
+            if (!AsfAosp.sendSystemAppDeleteEvent(packageInfo, newPs.pkg.mPath)) {
+                return false;
             }
         }
         // Delete the updated package
