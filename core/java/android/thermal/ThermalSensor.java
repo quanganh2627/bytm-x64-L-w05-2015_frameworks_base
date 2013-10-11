@@ -54,7 +54,6 @@ public class ThermalSensor {
     private int lowerLimit = 0;     /* intermediate upper threshold */
     private int mTempThresholds[];  /* array contain the temperature thresholds */
     private int mSensorState;
-    private static final int INVALID_TEMP = 0xDEADBEEF;
     private boolean mIsSensorActive = true;
 
     public boolean getSensorActiveStatus() {
@@ -94,7 +93,7 @@ public class ThermalSensor {
 
     public ThermalSensor() {
         mSensorState = ThermalManager.THERMAL_STATE_OFF;
-        mCurrTemp = INVALID_TEMP;
+        mCurrTemp = ThermalManager.INVALID_TEMP;
         /**
         * by default set uevent path to invalid. if uevent flag is set for a sensor,
         * but no uevent path tag is added in sensor, then mUEventDevPath will be invalid.
