@@ -676,6 +676,14 @@ class ServerThread extends Thread {
             }
 
             try {
+                Slog.i(TAG, "HardwareMuteSwitch");
+                // Listen for hardware mute switch changes
+                new HardwareMuteSwitch(context, inputManager);
+            } catch (Throwable e) {
+                reportWtf("starting HardwareMuteSwitch", e);
+            }
+
+            try {
                 Slog.i(TAG, "USB Service");
                 // Manage USB host and device support
                 usb = new UsbService(context);

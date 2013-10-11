@@ -77,6 +77,7 @@ import com.android.internal.location.ProviderRequest;
 import com.android.internal.location.GpsNetInitiatedHandler.GpsNiNotification;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.RILConstants;
 
 import com.intel.cws.cwsservicemanager.CsmException;
 import com.intel.cws.cwsservicemanagerclient.CsmClient;
@@ -551,10 +552,15 @@ public class GpsLocationProvider implements LocationProviderInterface {
                 mRefLocHandler = new Handler() {
                     public void handleMessage(Message msg) {
                         int flags = (int)msg.what;
+                        int preferredNetworkMode = RILConstants.PREFERRED_NETWORK_MODE;
+                        int networkMode = Settings.Global.getInt(mContext.getContentResolver(),
+                            Settings.Global.PREFERRED_NETWORK_MODE, preferredNetworkMode);
+
+                        int phoneType = mTelephonyManager.getPhoneType(networkMode);
 
                         try {
                             if ((flags & AGPS_REQUEST_REFLOC_CELLID) == AGPS_REQUEST_REFLOC_CELLID) {
-                                if (mTelephonyManager.getPhoneType() == TelephonyManager.PHONE_TYPE_GSM) {
+                                if (phoneType == TelephonyManager.PHONE_TYPE_GSM) {
                                     mRefLocationRequested = true;
                                     CellLocation.requestLocationUpdate();
                                     synchronized(mCellLocationLock) {
@@ -575,7 +581,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
                                 WifiInfo info = wifi.getConnectionInfo();
                                 String bssid = info.getBSSID();
 
-                                if (bssid != null)
+                                if (bssid != null && !("00:00:00:00:00:00".equals(bssid)))
                                     native_agps_set_ref_location(new String(String.valueOf(AGPS_REF_LOCATION_TYPE_MAC)
                                                                         + ":" + bssid));
                             }

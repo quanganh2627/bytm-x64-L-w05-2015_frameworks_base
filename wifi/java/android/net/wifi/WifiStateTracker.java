@@ -268,6 +268,7 @@ public class WifiStateTracker implements NetworkStateTracker {
             if (intent.getAction().equals(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)) {
                 mNetworkInfo = (NetworkInfo) intent.getParcelableExtra(
                         WifiP2pManager.EXTRA_NETWORK_INFO);
+                if (mNetworkInfo == null) return;
                 if (mLinkProperties == null) {
                     mLinkProperties = new LinkProperties();
                 }

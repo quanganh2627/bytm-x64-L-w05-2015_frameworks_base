@@ -48,6 +48,7 @@ import android.content.IntentFilter;
 import android.content.pm.IPackageManager;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.nfc.MultiSERoutingInfo;
 import android.nfc.tech.MifareClassic;
 import android.nfc.tech.Ndef;
 import android.nfc.tech.NfcA;
@@ -56,7 +57,7 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.util.Log;
-import android.nfc.MultiSERoutingInfo;
+
 
 /**
  * Represents the local NFC adapter.
@@ -284,7 +285,7 @@ public final class NfcAdapter {
      */
     @SdkConstant(SdkConstantType.ACTIVITY_INTENT_ACTION)
     public static final String ACTION_CEFROMHOST_LINK_STATE_CHANGED =
-                        "com.nxp.nfc_extras.action.CEFROMHOST_LINK_STATE_CHANGED";
+            "com.nxp.nfc_extras.action.CEFROMHOST_LINK_STATE_CHANGED";
 
     /**
      * Mandatory extra containing the state cefh link
@@ -295,7 +296,7 @@ public final class NfcAdapter {
      * @hide
      */
     public static final String EXTRA_CEFROMHOST_LINK_STATE =
-                        "com.nxp.nfc_extras.extra.CEFROMHOST_LINK_STATE";
+            "com.nxp.nfc_extras.extra.CEFROMHOST_LINK_STATE";
 
     /**
      * Broadcast Action: a transaction with a secure element has been detected.
@@ -335,29 +336,43 @@ public final class NfcAdapter {
      */
     public static final String EXTRA_DATA = "com.nxp.extra.DATA";
 
+    /**
+     * Mandatory string extra field in
+     * {@link android.nfc.NfcAdapter#ACTION_TRANSACTION_DETECTED} and
+     * {@link android.nfc.NfcAdapter#ACTION_CONNECTIVITY_EVENT_DETECTED}.
+     * <p>
+     * Contains the event source (UICC/ESE) of the transaction.
+     * @hide
+     */
+    public static final String EXTRA_SOURCE = "com.nxp.extra.SOURCE";
+
     /** @hide */
     @SdkConstant(SdkConstantType.ACTIVITY_INTENT_ACTION)
-    public static final String ACTION_SWP_READER_REQUESTED = "com.nxp.nfc_extras.ACTION_SWP_READER_REQUESTED";
+    public static final String ACTION_SWP_READER_REQUESTED =
+            "com.nxp.nfc_extras.ACTION_SWP_READER_REQUESTED";
 
     /**
      * Mandatory extra containing the reader type.
      *@hide
      */
-    public static final String EXTRA_SWP_READER_TECH = "com.nxp.nfc_extras.extra.EXTRA_SWP_READER_TECH";
+    public static final String EXTRA_SWP_READER_TECH =
+            "com.nxp.nfc_extras.extra.EXTRA_SWP_READER_TECH";
 
     /**
      * Intent received when the SWP Reader is connected to card.
      *@hide
      */
     @SdkConstant(SdkConstantType.ACTIVITY_INTENT_ACTION)
-    public static final String ACTION_SWP_READER_ACTIVATED = "com.nxp.nfc_extras.ACTION_SWP_READER_ACTIVATED";
+    public static final String ACTION_SWP_READER_ACTIVATED =
+            "com.nxp.nfc_extras.ACTION_SWP_READER_ACTIVATED";
 
     /**
      * Intent received when the SWP Reader is disconnected from card.
      *@hide
      */
     @SdkConstant(SdkConstantType.ACTIVITY_INTENT_ACTION)
-    public static final String ACTION_SWP_READER_DEACTIVATED = "com.nxp.nfc_extras.ACTION_SWP_READER_DEACTIVATED";
+    public static final String ACTION_SWP_READER_DEACTIVATED =
+            "com.nxp.nfc_extras.ACTION_SWP_READER_DEACTIVATED";
 
     // Guarded by NfcAdapter.class
     static boolean sIsInitialized = false;
@@ -1699,9 +1714,9 @@ public final class NfcAdapter {
         try {
             int response = sService.setEmvCoPollProfile(enable, route);
             // Handle potential errors
-            if(response < 0){
+            if (response < 0) {
                 throw new IOException("Emv-Co poll profile failed");
-    }
+            }
             return response;
         } catch (RemoteException e) {
             Log.e(TAG, "RemoteException in setEmvCoPollProfile(): ", e);
