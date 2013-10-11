@@ -120,6 +120,9 @@ public class CurrentMgmtService extends Binder {
                                 vbusIntent = new Intent(ACTION_USB_HOST_VBUS);
                                 switch (sCurState) {
                                     case 1:
+                                        vbusIntent.putExtra
+                                                (EXTRA_HOST_VBUS, USB_HOST_VBUS_WARNING);
+                                        break;
                                     case 2:
                                         vbusIntent.putExtra
                                                 (EXTRA_HOST_VBUS, USB_HOST_VBUS_ALERT);
