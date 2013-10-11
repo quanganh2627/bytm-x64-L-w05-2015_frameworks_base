@@ -2725,4 +2725,15 @@ public abstract class Context {
     public boolean isRestricted() {
         return false;
     }
+
+     /**
+     * Use with {@link #getSystemService} to retrieve a {@link
+     * android.net.ethernet.EthernetManager} for handling management of
+     * Ethernet access.
+     *
+     * @see #getSystemService
+     * @see android.net.ethernet.EthernetManager
+     * @hide
+     */
+    public static final String ETHERNET_SERVICE = "ethernet";
 }
