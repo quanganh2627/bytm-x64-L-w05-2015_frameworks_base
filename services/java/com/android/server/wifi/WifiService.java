@@ -137,11 +137,9 @@ public class WifiService extends IWifiManager.Stub {
      * Handles client connections
      */
     private class ClientHandler extends Handler {
-        private AsyncChannel ac;
 
         ClientHandler(android.os.Looper looper) {
             super(looper);
-            ac = new AsyncChannel();
         }
 
         @Override
@@ -168,6 +166,7 @@ public class WifiService extends IWifiManager.Stub {
                     break;
                 }
                 case AsyncChannel.CMD_CHANNEL_FULL_CONNECTION: {
+                    AsyncChannel ac = new AsyncChannel();
                     ac.connect(mContext, this, msg.replyTo);
                     break;
                 }
