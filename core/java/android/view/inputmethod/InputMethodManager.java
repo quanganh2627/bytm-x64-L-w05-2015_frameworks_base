@@ -375,7 +375,7 @@ public final class InputMethodManager {
                         Log.i(TAG, "handleMessage: MSG_BIND " + res.sequence + "," + res.id);
                     }
                     synchronized (mH) {
-                        if (mBindSequence < 0 || mBindSequence != res.sequence) {
+                        if (mBindSequence != res.sequence) {
                             Log.w(TAG, "Ignoring onBind: cur seq=" + mBindSequence
                                     + ", given seq=" + res.sequence);
                             if (res.channel != null && res.channel != mCurChannel) {
