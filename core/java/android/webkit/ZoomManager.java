@@ -1101,8 +1101,8 @@ class ZoomManager {
             // Set mInitialZoomOverview in case this is the first picture for non standard load,
             // so next new picture could be forced into overview mode if it's true.
             mInitialZoomOverview = mInZoomOverview;
-        } else if(drawData.mViewState != null) {
-            //in first picture, we ensure to zoom in over view mode
+        } else if((mInitialScale <= 0) && (drawData.mViewState != null)) {
+            //in first picture and don't init, we ensure to zoom in over view mode
             boolean  recordOverview = mInitialZoomOverview;
             ensureZoomOverview();
             mInitialZoomOverview = recordOverview;
