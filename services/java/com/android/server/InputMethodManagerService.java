@@ -1401,6 +1401,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 if (mCurClient != null) {
                     executeOrSendMessage(mCurClient.client, mCaller.obtainMessageIO(
                             MSG_UNBIND_METHOD, mCurSeq, mCurClient.client));
+                    mCurSeq = -1;
                 }
             }
         }
