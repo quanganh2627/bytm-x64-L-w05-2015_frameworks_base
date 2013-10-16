@@ -22,6 +22,7 @@ import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncTask;
+import android.os.SystemProperties;
 import android.view.WindowManager;
 import android.widget.Toast;
 import android.thermal.SysfsManager;
@@ -179,6 +180,7 @@ public class ThermalNotifier {
 
     private void notifyShutdown() {
         SysfsManager.writeSysfs(THERMAL_SHUTDOWN_NOTIFY_PATH, 1);
+        SystemProperties.set("sys.property_forcedshutdown", "1");
         Intent criticalIntent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
         criticalIntent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
         criticalIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
