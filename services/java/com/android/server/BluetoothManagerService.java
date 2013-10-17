@@ -222,6 +222,16 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
 
                     handleCoexSafeChannels(minFreq, maxFreq);
                 }
+            } else if (CsmCoexMgr.ACTION_COEX_RT_CONTROL.equals(action)) {
+
+                if (DBG) Log.d(TAG, "COEX_RT : Control recevied");
+                int coexRtState = intent.getIntExtra(
+                        CsmCoexMgr.COEX_RT_EXTRA_STATE,
+                        CsmCoexMgr.COEX_RT_STATE_OFF);
+
+                if (DBG) Log.d(TAG, "COEX_RT : new state = " + coexRtState);
+
+                handleCoexRtControl(coexRtState);
             }
         }
     };
@@ -234,6 +244,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
 
         // Refine bounds to BT
         if (minFreq > BT_HI_FREQ || maxFreq < BT_LO_FREQ) {
+            Log.e(TAG, "COEX_SAFECHANNELS : Invalid frequency. Reset to default safe channels");
             minFreq = BT_LO_FREQ;
             maxFreq = BT_HI_FREQ;
         } else {
@@ -303,6 +314,37 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         }
     }
 
+    private void handleCoexRtControl(int coexRtState) {
+        if (mAdapter == null) {
+            mAdapter = BluetoothAdapter.getDefaultAdapter();
+        }
+        if (mAdapter != null) {
+            int enable = (coexRtState == CsmCoexMgr.COEX_RT_STATE_ON) ? 1 : 0;
+
+            // To_MWS_Baud_Rate = From_MWS_Baud_Rate = 0x002DC6C0 (3000000) OR 0x001E8480 (2000000)
+            int toBaudRate = 0x002DC6C0;
+            int fromBaudRate = toBaudRate;
+
+            if (false == mAdapter.setMWSTransportLayer(
+                    0x02, // Transport_Layer : WCI-2
+                    toBaudRate,
+                    fromBaudRate)) {
+                Log.e(TAG, "COEX_RT : setMWSTransportLayer() failed");
+            }
+
+            if (false == mAdapter.setMWSChannelParameters(
+                    enable,
+                    0, // MWS_RX_Center_Frequency
+                    0, // MWS_TX_Center_Frequency
+                    0, // MWS_RX_Channel_Bandwidth
+                    0, // MWS_TX_Channel_Bandwidthint txChannelBandwidth,
+                    0) // MWS_Channel_Type: 0x00:TDD, 0x01: FDD
+                ) {
+                Log.e(TAG, "COEX_RT : setMWSTransportLayer() failed");
+            }
+        }
+    }
+
     private void handleAirplaneModeStateChange() {
         synchronized(mReceiver) {
             if (isBluetoothPersistedStateOn()) {
@@ -346,8 +388,8 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         IntentFilter filter = new IntentFilter(Intent.ACTION_BOOT_COMPLETED);
         filter.addAction(BluetoothAdapter.ACTION_LOCAL_NAME_CHANGED);
         filter.addAction(Intent.ACTION_USER_SWITCHED);
-        if (DBG) Log.d(TAG, "COEX_SAFECHANNELS : Add Intent Filter");
         filter.addAction(CsmCoexMgr.ACTION_COEX_SAFECHANNELS_INFO);
+        filter.addAction(CsmCoexMgr.ACTION_COEX_RT_CONTROL);
         registerForAirplaneMode(filter);
         mContext.registerReceiver(mReceiver, filter);
         loadStoredNameAndAddress();

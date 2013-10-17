@@ -1004,6 +1004,101 @@ public final class BluetoothAdapter {
     }
 
     /**
+      * Set MWS Channel Parameters to enable/disable Wireless Coexistence Interface.
+      *
+      * <p> Use this function along with {@link #BluetoothPhoneService}
+      * service to configure LTE/BT RT coexistence.
+      *
+      * @return true on success, false on error
+      *
+      * @hide
+      */
+    public boolean setMWSChannelParameters(
+            int enable,
+            int rxCenterFreq,
+            int txCenterFreq,
+            int rxChannelBandwidth,
+            int txChannelBandwidth,
+            int channelType) {
+
+        if (DBG) {
+             Log.d(TAG, "setMWSChannelParameters(): "
+                     + enable + ", "
+                     + rxCenterFreq + ", "
+                     + txCenterFreq + ", "
+                     + rxChannelBandwidth + ", "
+                     + txChannelBandwidth + ", "
+                     + channelType);
+        }
+
+        if (getState() != STATE_ON) return false;
+        if (enable != 0 && enable != 1) {
+            Log.e(TAG, "setMWSChannelParameters: Invalid Parameters - enable)");
+            return false;
+        }
+        try {
+            synchronized(mManagerCallback) {
+                if (mService != null) {
+                    return mService.setMWSChannelParameters(
+                            enable,
+                            rxCenterFreq,
+                            txCenterFreq,
+                            rxChannelBandwidth,
+                            txChannelBandwidth,
+                            channelType);
+                }
+            }
+         } catch (RemoteException e) {
+             Log.e(TAG, "setMWSChannelParameters:", e);
+         }
+
+         return false;
+    }
+
+    /**
+      * Set MWS Transport Layer of the Wireless Coexistence Interface.
+      *
+      * <p> Use this function along with {@link #BluetoothPhoneService}
+      * service to configure LTE/BT RT coexistence.
+      *
+      * @return true on success, false on error
+      *
+      * @hide
+      */
+    public boolean setMWSTransportLayer(
+            int transportLayer,
+            int toBaudRate,
+            int fromBaudRate) {
+
+        if (DBG) {
+            Log.d(TAG, "setMWSTransportLayer(): "
+                    + transportLayer + ", "
+                    + toBaudRate + ", "
+                    + fromBaudRate);
+        }
+
+        if (getState() != STATE_ON) return false;
+        if (transportLayer > 0xFF) {
+            Log.e(TAG, "setMWSTransportLayer: Invalid Parameters - transportLayer)");
+            return false;
+        }
+        try {
+            synchronized(mManagerCallback) {
+                if (mService != null) {
+                    return mService.setMWSTransportLayer(
+                            transportLayer,
+                            toBaudRate,
+                            fromBaudRate);
+                }
+            }
+         } catch (RemoteException e) {
+             Log.e(TAG, "setMWSTransportLayer:", e);
+         }
+
+         return false;
+    }
+
+    /**
      * Create a listening, secure RFCOMM Bluetooth socket.
      * <p>A remote device connecting to this socket will be authenticated and
      * communication on this socket will be encrypted.
