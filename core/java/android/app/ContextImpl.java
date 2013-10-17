@@ -110,6 +110,7 @@ import android.accounts.AccountManager;
 import android.accounts.IAccountManager;
 import android.app.admin.DevicePolicyManager;
 import com.android.internal.os.IDropBoxManagerService;
+import com.intel.internal.ethernet.EthernetManager;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -535,6 +536,11 @@ class ContextImpl extends Context {
                 IUserManager service = IUserManager.Stub.asInterface(b);
                 return new UserManager(ctx, service);
             }});
+
+        registerService(ETHERNET_SERVICE, new ServiceFetcher() {
+                public Object createService(ContextImpl ctx) {
+                    return EthernetManager.getEthernetManagerServiceInstance();
+                }});
     }
 
     static ContextImpl getImpl(Context context) {

@@ -25,6 +25,14 @@ else
 		../../../../vendor/intel/asf/platform/disabled)
 endif
 
+ifeq ($(strip $(INTEL_FEATURE_ETHERNET)),true)
+       LOCAL_SRC_FILES += $(call all-java-files-under, \
+               ../../../../vendor/intel/apps/EthernetSettings/services/enabled)
+else
+       LOCAL_SRC_FILES += $(call all-java-files-under, \
+               ../../../../vendor/intel/apps/EthernetSettings/services/disabled)
+endif
+
 include $(BUILD_JAVA_LIBRARY)
 
 include $(BUILD_DROIDDOC)
