@@ -127,6 +127,7 @@ import com.android.server.net.BaseNetworkObserver;
 import com.android.server.net.LockdownVpnTracker;
 import com.google.android.collect.Lists;
 import com.google.android.collect.Sets;
+import com.intel.cam.api.CamManager;
 
 import dalvik.system.DexClassLoader;
 
@@ -367,6 +368,18 @@ public class ConnectivityService extends IConnectivityManager.Stub {
      */
     private static final int EVENT_PROXY_HAS_CHANGED = 16;
 
+    /**
+     * Used internally to send a message when CAM requires WiFi network
+     * to be set and mobile network to be teardown
+     */
+    private static final int EVENT_SET_CAM_INTERFACE_CHANGE_ACTION = 17;
+
+    /**
+     * Used internally to send a message when CAM requires connecting to
+     * WWAN network before disconnecting WLAN network
+     */
+    private static final int EVENT_SET_CAM_CONNECT_WWAN = 18;
+
     /** Handler used for internal events. */
     private InternalHandler mHandler;
     /** Handler used for incoming {@link NetworkStateTracker} events. */
@@ -439,6 +452,15 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     private AtomicInteger mEnableFailFastMobileDataTag = new AtomicInteger(0);
 
     TelephonyManager mTelephonyManager;
+
+    /**
+     * Used internally to enable Application Continuity feature
+     * AppContinuity class uses these variables
+     */
+    private static final boolean APP_CONT_DBG = false;
+
+    // CAM
+    private CamApplicationContinuity mCamAppContinuityFeature;
 
     public ConnectivityService(Context context, INetworkManagementService netd,
             INetworkStatsService statsService, INetworkPolicyManager policyManager) {
@@ -702,6 +724,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         mContext.registerReceiver(mProvisioningReceiver, filter);
 
         mAppOpsManager = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
+
+        // CAM MODIFIED
+        mCamAppContinuityFeature = new CamApplicationContinuity(this);
+        mCamAppContinuityFeature.initializeAppContinuity();
     }
 
     /**
@@ -907,11 +933,20 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         }
     }
 
-    private boolean teardown(NetworkStateTracker netTracker) {
+    /* Modified the modifier to default instead of private to allow App Continuity feature to
+     * use it
+     */
+    boolean teardown(NetworkStateTracker netTracker) {
         if (netTracker.teardown()) {
+            if (APP_CONT_DBG) {
+                log("teardown() TRUE " + netTracker.getLinkProperties().getInterfaceName());
+            }
             netTracker.setTeardownRequested(true);
             return true;
         } else {
+            if (APP_CONT_DBG) {
+                log("teardown() FALSE");
+            }
             return false;
         }
     }
@@ -1888,6 +1923,12 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         enforceChangePermission();
         if (DBG) log("setMobileDataEnabled(" + enabled + ")");
 
+        // CAM MODIFIED
+        // For App Continuity changes
+        if (null != mCamAppContinuityFeature) {
+            mCamAppContinuityFeature.resetNeedToTearDown();
+        }
+
         mHandler.sendMessage(mHandler.obtainMessage(EVENT_SET_MOBILE_DATA,
                 (enabled ? ENABLED : DISABLED), 0));
     }
@@ -2009,6 +2050,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     private void handleDisconnect(NetworkInfo info) {
 
         int prevNetType = info.getType();
+
+        // CAM MODIFIED
+        // For App Continuity changes
+        mCamAppContinuityFeature.resetNeedToTearDown();
 
         mNetTrackers[prevNetType].setTeardownRequested(false);
 
@@ -2334,6 +2379,12 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     };
 
     private boolean isNewNetTypePreferredOverCurrentNetType(int type) {
+        if (APP_CONT_DBG) {
+            log("APPCONT:isNewNetTypePreferredOverCurrentNetType "
+                    + " type: " + type
+                    + " mNetworkPreference: " + mNetworkPreference
+                    + " mActiveDefaultNetwork: " + mActiveDefaultNetwork);
+        }
         if (((type != mNetworkPreference)
                       && (mNetConfigs[mActiveDefaultNetwork].priority > mNetConfigs[type].priority))
                    || (mNetworkPreference == mActiveDefaultNetwork)) {
@@ -2359,8 +2410,19 @@ public class ConnectivityService extends IConnectivityManager.Stub {
 
         // if this is a default net and other default is running
         // kill the one not preferred
+        // CAM MODIFIED
         if (mNetConfigs[newNetType].isDefault()) {
-            if (mActiveDefaultNetwork != -1 && mActiveDefaultNetwork != newNetType) {
+            if (APP_CONT_DBG) {
+                log("APPCONT:NewNetType is default: mActiveDefaultNetwork: "
+                        + mActiveDefaultNetwork + " newNetType: " + newNetType);
+            }
+            if (mActiveDefaultNetwork != -1
+                    && mActiveDefaultNetwork != newNetType
+                    && null != mCamAppContinuityFeature
+                    && true == mCamAppContinuityFeature.camNeedToTearDown(info)) {
+                if (APP_CONT_DBG) {
+                    log("APPCONT: handleConnect: App continuity is disabled/non-CAM connection");
+                }
                 if (isNewNetTypePreferredOverCurrentNetType(newNetType)) {
                     // tear down the other
                     NetworkStateTracker otherNet =
@@ -2382,6 +2444,11 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                         }
                         teardown(thisNet);
                         return;
+                }
+            }
+            else {
+                if (null != mCamAppContinuityFeature) {
+                    mCamAppContinuityFeature.handleNewDefaultConnection(newNetType, info);
                 }
             }
             synchronized (ConnectivityService.this) {
@@ -3206,6 +3273,21 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                     sendStickyBroadcast(intent);
                     break;
                 }
+                // CAM MODIFIED
+                case EVENT_SET_CAM_INTERFACE_CHANGE_ACTION:
+                {
+                    final int interfaceChange = msg.arg1;
+                    mCamAppContinuityFeature.handleInterfaceChangeEvents(
+                            EVENT_SET_CAM_INTERFACE_CHANGE_ACTION, interfaceChange);
+                    break;
+                }
+                case EVENT_SET_CAM_CONNECT_WWAN:
+                {
+                    mCamAppContinuityFeature.handleInterfaceChangeEvents(
+                            EVENT_SET_CAM_CONNECT_WWAN, -1);
+                    break;
+                }
+
                 case EVENT_SET_POLICY_DATA_ENABLE: {
                     final int networkType = msg.arg1;
                     final boolean enabled = msg.arg2 == ENABLED;
@@ -5097,5 +5179,41 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             mNetd.deleteIpSecSP(id);
         } catch (RemoteException e) {
         }
+    }
+
+    // MODIFIED CAM
+    /** CAM Application Continuity Specific Code **/
+
+    /**
+     * This method will be called from the CamApplicationContinuity code for sending events to
+     * InternalHandler of Connectivity service.
+     */
+    void sendCamMessage(String eventType, int value) {
+        if (eventType.equals(CamManager.CAM_INTERFACE_CHANGE_ACTION)) {
+            Message msg = new Message();
+            msg.what = EVENT_SET_CAM_INTERFACE_CHANGE_ACTION;
+            msg.arg1 = value;
+            mHandler.sendMessage(msg);
+        }
+        else if (eventType.equals(CamManager.CAM_CONNECT_WWAN_ACTION)) {
+            Message msg = new Message();
+            msg.what = EVENT_SET_CAM_CONNECT_WWAN;
+            mHandler.sendMessage(msg);
+        }
+    }
+
+    /**
+     * Required for sending broadcast event to CAM Service indicating the Bring-up of WWAN interface
+     */
+    Context getContext() {
+        return mContext;
+    }
+
+    /**
+     * We need to get the Mobile Network's NetworkStateTracker to teardown/bring-up of WWAN
+     * interface based on CAM events.
+     */
+    NetworkStateTracker getNetworkStateTrackerInfo() {
+        return mNetTrackers[ConnectivityManager.TYPE_MOBILE];
     }
 }
