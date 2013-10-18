@@ -244,8 +244,6 @@
   <java-symbol type="bool" name="action_bar_embed_tabs_pre_jb" />
   <java-symbol type="bool" name="action_bar_expanded_action_views_exclusive" />
   <java-symbol type="bool" name="config_allowActionMenuItemTextWithIcon" />
-  <java-symbol type="bool" name="clf_is_pn547" />
-  <java-symbol type="bool" name="clf_is_pn544pc" />
   <java-symbol type="bool" name="config_bluetooth_address_validation" />
   <java-symbol type="bool" name="config_bluetooth_sco_off_call" />
   <java-symbol type="bool" name="config_cellBroadcastAppLinks" />
@@ -280,10 +278,6 @@
   <java-symbol type="bool" name="config_dontPreferApn" />
   <java-symbol type="bool" name="config_speed_up_audio_on_mt_calls" />
   <java-symbol type="bool" name="config_useFixedVolume" />
-  <java-symbol type="bool" name="config_cat_support"/>
-  <java-symbol type="bool" name="config_usage_oem_hooks_supported"/>
-  <java-symbol type="bool" name="gsm_call_status_polling_enable" />
-  <java-symbol type="bool" name="config_track_get_operator_polling" />
 
   <java-symbol type="integer" name="config_cursorWindowSize" />
   <java-symbol type="integer" name="config_longPressOnPowerBehavior" />
@@ -464,13 +458,6 @@
   <java-symbol type="string" name="config_tether_apndata" />
   <java-symbol type="string" name="config_useragentprofile_url" />
   <java-symbol type="string" name="config_wifi_p2p_device_type" />
-  <java-symbol type="string" name="container_err_unknown"/>
-  <java-symbol type="string" name="container_err_no_service"/>
-  <java-symbol type="string" name="container_err_permission_denied"/>
-  <java-symbol type="string" name="container_err_disabled"/>
-  <java-symbol type="string" name="container_err_mount"/>
-  <java-symbol type="string" name="container_wiped"/>
-  <java-symbol type="string" name="change_password_failed"/>
   <java-symbol type="string" name="contentServiceSync" />
   <java-symbol type="string" name="contentServiceSyncNotificationTitle" />
   <java-symbol type="string" name="contentServiceTooManyDeletesNotificationDesc" />
@@ -901,12 +888,6 @@
   <java-symbol type="string" name="action_bar_home_subtitle_description_format" />
   <java-symbol type="string" name="wireless_display_route_description" />
 
-  <java-symbol type="string" name="hotspot_active" />
-  <java-symbol type="string" name="hotspot_no_connections" />
-  <java-symbol type="string" name="hotspot_multiple_devices_connected" />
-  <java-symbol type="string" name="hotspot_device_connected" />
-  <java-symbol type="string" name="hotspot_device_disconnected" />
-
   <java-symbol type="plurals" name="abbrev_in_num_days" />
   <java-symbol type="plurals" name="abbrev_in_num_hours" />
   <java-symbol type="plurals" name="abbrev_in_num_minutes" />
@@ -1022,8 +1003,6 @@
   <java-symbol type="drawable" name="picture_emergency" />
   <java-symbol type="drawable" name="platlogo" />
   <java-symbol type="drawable" name="platlogo_alt" />
-  <java-symbol type="drawable" name="stat_notify_large_wipe_container"/>
-  <java-symbol type="drawable" name="stat_notify_small_wipe_container"/>
   <java-symbol type="drawable" name="stat_notify_sync_error" />
   <java-symbol type="drawable" name="stat_notify_wifi_in_range" />
   <java-symbol type="drawable" name="stat_notify_rssi_in_range" />
@@ -1182,13 +1161,6 @@
   <java-symbol type="xml" name="sms_short_codes" />
   <java-symbol type="xml" name="audio_assets" />
   <java-symbol type="xml" name="global_keys" />
-  <java-symbol type="xml" name="thermal_sensor_config" />
-  <java-symbol type="xml" name="thermal_throttle_config" />
-
-  <!-- ARKHAM-180 Add XML file that describe container manager
-       properties set at build time. For now this contains the system
-       whitelist. -->
-  <java-symbol type="xml" name="container_manager" />
 
   <java-symbol type="raw" name="accessibility_gestures" />
   <java-symbol type="raw" name="incognito_mode_start_page" />
@@ -1270,7 +1242,6 @@
   <java-symbol type="bool" name="config_allowAllRotations" />
   <java-symbol type="bool" name="config_annoy_dianne" />
   <java-symbol type="bool" name="config_carDockEnablesAccelerometer" />
-  <java-symbol type="bool" name="config_nonPollingWindowOrientation" />
   <java-symbol type="bool" name="config_deskDockEnablesAccelerometer" />
   <java-symbol type="bool" name="config_disableMenuKeyInLockScreen" />
   <java-symbol type="bool" name="config_enableLockBeforeUnlockScreen" />
@@ -1471,7 +1442,6 @@
   <java-symbol type="string" name="lockscreen_permanent_disabled_sim_message_short" />
   <java-symbol type="string" name="lockscreen_permanent_disabled_sim_instructions" />
   <java-symbol type="string" name="lockscreen_plugged_in" />
-  <java-symbol type="string" name="lockscreen_not_charging"/>
   <java-symbol type="string" name="lockscreen_sim_locked_message" />
   <java-symbol type="string" name="lockscreen_sim_puk_locked_message" />
   <java-symbol type="string" name="lockscreen_sim_unlock_progress_dialog_message" />
@@ -1523,10 +1493,6 @@
   <java-symbol type="string" name="kg_enter_confirm_pin_hint" />
   <java-symbol type="string" name="kg_invalid_confirm_pin_hint" />
   <java-symbol type="string" name="kg_text_message_separator" />
-  <java-symbol type="string" name="lockscreen_network_puk_locked_message" />
-  <java-symbol type="string" name="lockscreen_network_puk_locked_instructions" />
-  <java-symbol type="string" name="oemhook_datastate_property"/>
-  <java-symbol type="string" name="oemhook_concurrentdata_property"/>
 
   <!-- From services -->
   <java-symbol type="anim" name="screen_rotate_0_enter" />
@@ -1577,9 +1543,6 @@
   <java-symbol type="bool" name="config_enableGeocoderOverlay" />
   <java-symbol type="bool" name="config_enableGeofenceOverlay" />
   <java-symbol type="bool" name="config_enableNetworkLocationOverlay" />
-  <java-symbol type="bool" name="config_button_automatic_brightness_available" />
-  <java-symbol type="bool" name="config_button_led_brightness_available" />
-  <java-symbol type="bool" name="config_proximityScreenOffAvailable" />
   <java-symbol type="bool" name="config_sf_limitedAlpha" />
   <java-symbol type="bool" name="config_unplugTurnsOnScreen" />
   <java-symbol type="bool" name="config_wifi_background_scan_support" />
@@ -1722,13 +1685,6 @@
   <java-symbol type="string" name="usb_notification_message" />
   <java-symbol type="string" name="use_physical_keyboard" />
   <java-symbol type="string" name="usb_ptp_notification_title" />
-  <java-symbol type="string" name="usb_warn_device_not_support" />
-  <java-symbol type="string" name="usb_warn_device_not_responding" />
-  <java-symbol type="string" name="usb_warn_device_vbus_invalid_title" />
-  <java-symbol type="string" name="usb_warn_device_vbus_invalid_message" />
-  <java-symbol type="string" name="usb_warn_hub_max_tier" />
-  <java-symbol type="string" name="usb_warn_insufficient_power_title" />
-  <java-symbol type="string" name="usb_warn_insufficient_power_message" />
   <java-symbol type="string" name="vpn_text" />
   <java-symbol type="string" name="vpn_text_long" />
   <java-symbol type="string" name="vpn_title" />
@@ -1741,12 +1697,6 @@
   <java-symbol type="string" name="wifi_display_notification_title" />
   <java-symbol type="string" name="wifi_display_notification_message" />
   <java-symbol type="string" name="wifi_display_notification_disconnect" />
-  <java-symbol type="string" name="usb_warn_host_onemore_ums_device_title" />
-  <java-symbol type="string" name="usb_warn_host_onemore_ums_device_message" />
-  <java-symbol type="string" name="usb_warn_usb_not_work_title" />
-  <java-symbol type="string" name="usb_warn_usb_not_work_message" />
-  <java-symbol type="string" name="usb_warn_usb_vbus_warn_title" />
-  <java-symbol type="string" name="usb_warn_usb_vbus_warn_message" />
   <java-symbol type="style" name="Theme.Dialog.AppError" />
   <java-symbol type="style" name="Theme.Toast" />
   <java-symbol type="xml" name="storage_list" />
@@ -1890,8 +1840,4 @@
   <java-symbol type="attr" name="actionModeWebSearchDrawable" />
   <java-symbol type="string" name="websearch" />
 
-  <!-- ARKHAM-676 -->
-  <java-symbol type="string" name="container_unlock_message" />
-  <!-- ARKHAM-620 -->
-  <java-symbol type="string" name="unlock_container_notification"/>
 </resources>

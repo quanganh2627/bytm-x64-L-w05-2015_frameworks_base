@@ -66,7 +66,7 @@ static JNINativeMethod method_table[] = {
 int register_android_server_CurrentMgmtService(JNIEnv *env)
 {
     int res;
-    res = jniRegisterNativeMethods(env, "com/android/server/CurrentMgmtService",
+    res = jniRegisterNativeMethods(env, "com/android/server/cms/CurrentMgmtService",
             method_table, NELEM(method_table));
     LOG_FATAL_IF(res < 0, "Unable to register native methods.");
     return 0;

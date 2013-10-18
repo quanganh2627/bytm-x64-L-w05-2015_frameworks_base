@@ -358,8 +358,7 @@ class MtpPropertyGroup {
                             // use the size by reading from filesystem
                             long size = mDatabase.getObjectSize(handle);
                             if (size >= 0) {
-                                size = size > 0xFFFFFFFFL ? 0xFFFFFFFFL : size;
-                                result.append(handle, propertyCode, MtpConstants.TYPE_UINT32, size);
+                                result.append(handle, propertyCode, MtpConstants.TYPE_UINT64, size);
                             } else
                                 result.setResult(MtpConstants.RESPONSE_GENERAL_ERROR);
                             break;

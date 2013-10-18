@@ -412,6 +412,12 @@ public class Allocation extends BaseObj {
         mRS.nAllocationIoReceive(getID(mRS));
     }
 
+    public void destroy() {
+        mRS.validate();
+        mRS.nAllocationDestroy(getID(mRS));
+        super.destroy();
+    }
+
     /**
      * Copy an array of RS objects to the Allocation.
      *
