@@ -57,6 +57,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.UserInfo;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
@@ -75,6 +76,8 @@ import android.os.UserHandle;
 import android.util.EventLog;
 import android.util.Slog;
 import android.view.Display;
+
+import com.intel.asf.AsfAosp;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -215,6 +218,12 @@ final class ActivityStack {
 
     long mLaunchStartTime = 0;
     long mFullyDrawnStartTime = 0;
+
+    // ASF HOOK
+    // To set the calling app package name
+    private String mCallingPackage = null;
+    // To set the calling app PID
+    private int mCallingPid = 0;
 
     /**
      * Save the most recent screenshot for reuse. This keeps Recents from taking two identical
@@ -1700,6 +1709,28 @@ final class ActivityStack {
             mWindowManager.moveTaskToTop(taskId);
         }
         TaskRecord task = null;
+
+        // ASF HOOK: Start Activity event
+        if (AsfAosp.ENABLE && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+            UserInfo userInfo = null;
+            try {
+                userInfo = mService.getCurrentUser();
+            } catch (SecurityException e) {
+                Slog.e(TAG, "SecurityException while retrieving userInfo: " + e);
+            }
+            if (!AsfAosp.sendStartActivityEvent(
+                    r.info,
+                    mCallingPackage,
+                    r.packageName,
+                    r.intent,
+                    r.userId,
+                    userInfo,
+                    mCallingPid)
+            ) {
+                throw new SecurityException("Activity start is disallowed by policy");
+            }
+        }
+
         if (!newTask) {
             // If starting in an existing task, find where that is...
             boolean startIt = true;
@@ -2132,6 +2163,10 @@ final class ActivityStack {
 
                 replyChainEnd = -1;
             }
+        // ASF HOOK
+        // Set calling app name and PID
+        //mCallingPackage = callingPackage;
+        //mCallingPid = callingPid;
         }
         return taskInsertionPoint;
     }
