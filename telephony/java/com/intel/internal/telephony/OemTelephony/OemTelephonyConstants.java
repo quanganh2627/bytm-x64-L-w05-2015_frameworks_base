@@ -144,6 +144,8 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_STRING_IMS_CALL_STATUS = 0x000000B4;
     /* OEM hook specific to indicate sms available with IMS */
     public static final int RIL_OEM_HOOK_STRING_IMS_SMS_STATUS = 0x000000B5;
+    /* OEM hook specific to get PC-CSCF information with IMS */
+    public static final int RIL_OEM_HOOK_STRING_IMS_GET_PCSCF = 0x000000B6;
     /* OEM hook to get the thermal alarm indication */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_THERMAL_ALARM_IND = 0x000000D0;
     /* OEM hook specific to DSDS for catching out of service URC */
