@@ -74,6 +74,7 @@ import com.android.server.pm.UserManagerService;
 import com.google.android.collect.Lists;
 import com.google.android.collect.Maps;
 
+import com.intel.asf.AsfAosp;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.File;
@@ -949,6 +950,14 @@ class MountService extends IMountService.Stub
                                     Environment.MEDIA_UNMOUNTABLE) && !getUmsEnabling()) {
                 if (DEBUG_EVENTS) Slog.i(TAG, "updating volume state for media bad removal nofs and unmountable");
                 updatePublicVolumeState(volume, Environment.MEDIA_UNMOUNTED);
+                if (AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+                    if (
+                            AsfAosp.sendMountUnmountEvents(AsfAosp.Type.UNMOUNT.ordinal(), label) ==
+                            false
+                    ) {
+                        return;
+                    }
+                }
                 action = Intent.ACTION_MEDIA_UNMOUNTED;
             }
         } else if (newState == VolumeState.Pending) {
@@ -959,6 +968,14 @@ class MountService extends IMountService.Stub
         } else if (newState == VolumeState.Mounted) {
             if (DEBUG_EVENTS) Slog.i(TAG, "updating volume state mounted");
             updatePublicVolumeState(volume, Environment.MEDIA_MOUNTED);
+            if (AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+                if (
+                        AsfAosp.sendMountUnmountEvents(AsfAosp.Type.MOUNT.ordinal(), label) ==
+                        false
+                ) {
+                    return;
+                }
+            }
             action = Intent.ACTION_MEDIA_MOUNTED;
         } else if (newState == VolumeState.Unmounting) {
             action = Intent.ACTION_MEDIA_EJECT;
@@ -967,6 +984,14 @@ class MountService extends IMountService.Stub
             if (DEBUG_EVENTS) Slog.i(TAG, "Updating volume state media mounted");
             /* Send the media unmounted event first */
             updatePublicVolumeState(volume, Environment.MEDIA_UNMOUNTED);
+            if (AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+                if (
+                        AsfAosp.sendMountUnmountEvents(AsfAosp.Type.UNMOUNT.ordinal(), label) ==
+                        false
+                ) {
+                    return;
+                }
+            }
             sendStorageIntent(Intent.ACTION_MEDIA_UNMOUNTED, volume, UserHandle.ALL);
 
             if (DEBUG_EVENTS) Slog.i(TAG, "Updating media shared");
