@@ -14,36 +14,44 @@
  * limitations under the License.
  */
 
-package android.thermal;
+package com.android.server.thermal;
 
-import java.util.ArrayList;
 import java.lang.reflect.Method;
-import android.util.Log;
+import java.util.ArrayList;
 
 /**
- * This class contains the cooling device specific information.
- * It also contains a reference to the actual throttle function.
- *@hide
+ * This class contains the cooling device specific information. It also contains
+ * a reference to the actual throttle function.
+ *
+ * @hide
  */
 public class ThermalCoolingDevice {
-    private static final String TAG = "ThermalCoolingDevice";
     private String mDeviceName;
+
     private String mClassPath;
+
     private String mThrottlePath;
+
     private int mCurrentThermalState;
+
     private int mDeviceId;
+
     private Class mDeviceClass;
+
     private Method mThrottleMethod;
-    /** Maintains list of zoneid's under which this coolingdevice falls. */
+
+    /* Maintains list of zoneid's under which this cooling device falls. */
     private ArrayList<Integer> mZoneIdList = new ArrayList<Integer>();
-    /** Maintains corresponding state of zone present in mZoneidList */
+
+    /* Maintains corresponding state of zone present in mZoneidList */
     private ArrayList<Integer> mZoneStateList = new ArrayList<Integer>();
 
+    /* List of values used to throttle this cooling device */
+    private ArrayList<Integer> mThrottleValues = null;
 
     public ThermalCoolingDevice() {
         mCurrentThermalState = 0;
     }
-
 
     public void setDeviceName(String Name) {
         mDeviceName = Name;
@@ -101,10 +109,17 @@ public class ThermalCoolingDevice {
         return mZoneStateList;
     }
 
+    public ArrayList<Integer> getThrottleValuesList() {
+        return mThrottleValues;
+    }
+
+    public void createNewThrottleValuesList() {
+        mThrottleValues = new ArrayList<Integer>();
+    }
+
     /**
-     * Sets the current thermal state of cooling device which
-     * will be maximum of all states of zones under which this
-     * cooling device falls.
+     * Sets the current thermal state of cooling device which will be maximum of
+     * all states of zones under which this cooling device falls.
      */
     private void updateCurrentThermalState() {
         int state = 0;
@@ -116,8 +131,8 @@ public class ThermalCoolingDevice {
 
     /**
      * Adds zoneID and its thermal state to mListOfZoneIDs and
-     * mListOfTStatesOfZones array. If zoneId exists then its thermal
-     * state is updated else zoneId and its state will be added to array.
+     * mListOfTStatesOfZones array. If zoneId exists then its thermal state is
+     * updated else zoneId and its state will be added to array.
      */
     public void updateZoneState(int zoneId, int state) {
         int index = -1;
@@ -140,4 +155,5 @@ public class ThermalCoolingDevice {
     public int getThermalState() {
         return mCurrentThermalState;
     }
+
 }

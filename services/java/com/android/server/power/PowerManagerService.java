@@ -430,7 +430,7 @@ public final class PowerManagerService extends IPowerManager.Stub
         // mScreenBrightnessSetting stores the current brightness value
         // set the new brightness only if its lesser than the current brightness
         if ((immediate) && (newBrightness < mScreenBrightnessSetting)) {
-                setScreenBrightnessOverrideFromWindowManager(newBrightness);
+            setScreenBrightnessOverrideFromWindowManager(newBrightness);
         }
     }
 

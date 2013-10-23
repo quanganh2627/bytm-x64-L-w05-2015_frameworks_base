@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package android.thermal;
+package com.android.server.thermal;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -22,43 +22,42 @@ import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncTask;
-import android.os.SystemProperties;
+import android.util.Log;
 import android.view.WindowManager;
 import android.widget.Toast;
-import android.thermal.SysfsManager;
-import android.util.Log;
 
 /**
  * This class is reponsible for any user notification
  * initiated by Thermal Service
- *@hide
+ *
+ * @hide
  */
 
 public class ThermalNotifier {
     private static final String TAG = "ThermalNotifier";
-    private static final String THERMAL_SHUTDOWN_NOTIFY_PATH = "/sys/module/intel_mid_osip/parameters/force_shutdown_occured";
+    private static final String THERMAL_SHUTDOWN_NOTIFY_PATH =
+            "/sys/module/intel_mid_osip/parameters/force_shutdown_occured";
     private NotificationManager mNotificationManager;
     private Context mContext;
-    private ProgressDialog pd;
+    private ProgressDialog mPd;
     private int DEFAULT_WAIT_TIME = 3000;// 3 secs after dialogue box display
     // mask
-    public static final int VIBRATE = (1 << 0);
-    public static final int TONE = (1 << 1);
-    public static final int TOAST = (1 << 2);
+    public static final int VIBRATE    = (1 << 0);
+    public static final int TONE       = (1 << 1);
+    public static final int TOAST      = (1 << 2);
     public static final int WAKESCREEN = (1 << 3);
-    public static final int SHUTDOWN = (1 << 4);
+    public static final int SHUTDOWN   = (1 << 4);
     public static final int BRIGHTNESS = (1 << 5);
     // flags
-    private boolean isVibrate = false;
-    private boolean isTone = false;
-    private boolean isToast = false;
-    private boolean isShutdownNotifier = false;
-    private boolean isDisplayNotifier = false;
-    private boolean isWakeScreen = false;
+    private boolean mIsVibrate          = false;
+    private boolean mIsTone             = false;
+    private boolean mIsToast            = false;
+    private boolean mIsShutdownNotifier = false;
+    private boolean mIsDisplayNotifier  = false;
+    private boolean mIsWakeScreen       = false;
     // index into various string arrays
     private static final int SHUTDOWN_STRING_INDEX = 0;
     private static final int DISPLAY_STRING_INDEX = 1;
-    // string arrays
     // toast string array
     private String mToastString[] = {"Shutting down due to Thermal critical event",
                                      "Throttling brightness due to Thermal event"};
@@ -67,7 +66,7 @@ public class ThermalNotifier {
     private String mDialogueBoxTitle[] = {"Thermal Shutdown"};
 
     ThermalNotifier(Context context) {
-        isToast = true;
+        mIsToast = true;
         mContext = context;
         mNotificationManager = (NotificationManager) mContext.getSystemService(
                 Context.NOTIFICATION_SERVICE);
@@ -75,28 +74,28 @@ public class ThermalNotifier {
 
     ThermalNotifier(Context context, int mask) {
         if ((mask & SHUTDOWN) != 0) {
-            isShutdownNotifier = true;
+            mIsShutdownNotifier = true;
         } else if ((mask & BRIGHTNESS) != 0) {
-            isDisplayNotifier = true;
+            mIsDisplayNotifier = true;
         }
 
         if ((mask & WAKESCREEN) != 0) {
-            isWakeScreen = true;
+            mIsWakeScreen = true;
         }
         if ((mask & VIBRATE) != 0) {
-            isVibrate = true;
+            mIsVibrate = true;
         }
         if ((mask & TONE) != 0) {
-            isTone = true;
+            mIsTone = true;
         }
         if ((mask & TOAST) != 0) {
-            isToast = true;
+            mIsToast = true;
         }
         mContext = context;
         mNotificationManager = (NotificationManager) mContext.getSystemService(
                 Context.NOTIFICATION_SERVICE);
-        if (isWakeScreen) {
-            pd = new ProgressDialog(mContext);
+        if (mIsWakeScreen) {
+            mPd = new ProgressDialog(mContext);
         }
     }
 
@@ -110,31 +109,31 @@ public class ThermalNotifier {
         @Override
         protected void onPreExecute() {
             super.onPreExecute();
-            if (isShutdownNotifier && isWakeScreen && pd != null) {
+            if (mIsShutdownNotifier && mIsWakeScreen && mPd != null) {
                 // put a progress dailogue
-                pd.setTitle(mDialogueBoxTitle[SHUTDOWN_STRING_INDEX]);
-                pd.setMessage(mDialogueBoxMsg[SHUTDOWN_STRING_INDEX]);
+                mPd.setTitle(mDialogueBoxTitle[SHUTDOWN_STRING_INDEX]);
+                mPd.setMessage(mDialogueBoxMsg[SHUTDOWN_STRING_INDEX]);
                 mTitleSet = true;
             }// can add more cases for other components like display, modem if needed
 
-            if (isWakeScreen && mTitleSet && pd != null) {
-                pd.setCancelable(false);
-                pd.getWindow().setType(WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG);
-                pd.getWindow().addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
-                pd.getWindow().addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
-                pd.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                pd.show();
+            if (mIsWakeScreen && mTitleSet && mPd != null) {
+                mPd.setCancelable(false);
+                mPd.getWindow().setType(WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG);
+                mPd.getWindow().addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+                mPd.getWindow().addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
+                mPd.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                mPd.show();
             }
         }
 
         @Override
         protected Integer doInBackground(Void... arg0) {
             // TODO Auto-generated method stub
-            if (isVibrate) {
+            if (mIsVibrate) {
                 mNotify.defaults |= Notification.DEFAULT_VIBRATE;
             }
 
-            if (isTone) {
+            if (mIsTone) {
                 mNotify.defaults |= Notification.DEFAULT_SOUND;
             }
 
@@ -142,14 +141,14 @@ public class ThermalNotifier {
                 mNotificationManager.notify(TAG, 0, mNotify);
             }
 
-            if (isShutdownNotifier) {
+            if (mIsShutdownNotifier) {
                 publishProgress(mToastString[SHUTDOWN_STRING_INDEX]);
                 // for shutdown, wait for certain period to display thermal specific
                 // toasts and dailogue box. then trigger platform shutdown
                 try {
                     Thread.sleep(DEFAULT_WAIT_TIME);
                 } catch (InterruptedException e) {}
-            } else if (isDisplayNotifier) {
+            } else if (mIsDisplayNotifier) {
                 publishProgress(mToastString[DISPLAY_STRING_INDEX]);
             }
             return 0;
@@ -159,7 +158,7 @@ public class ThermalNotifier {
         protected void onProgressUpdate(String ...arg) {
             super.onProgressUpdate(arg);
             String str = arg[0];
-            if (isToast) {
+            if (mIsToast) {
                 Toast.makeText(mContext, str, Toast.LENGTH_LONG).show();
             }
         }
@@ -167,11 +166,11 @@ public class ThermalNotifier {
         @Override
         protected void onPostExecute(Integer result) {
             super.onPostExecute(result);
-            if (isWakeScreen && mTitleSet && pd != null) {
-                pd.dismiss();
+            if (mIsWakeScreen && mTitleSet && mPd != null) {
+                mPd.dismiss();
             }
 
-            if (isShutdownNotifier) {
+            if (mIsShutdownNotifier) {
                 notifyShutdown();
             }
 
@@ -179,8 +178,7 @@ public class ThermalNotifier {
     }
 
     private void notifyShutdown() {
-        SysfsManager.writeSysfs(THERMAL_SHUTDOWN_NOTIFY_PATH, 1);
-        SystemProperties.set("sys.property_forcedshutdown", "1");
+        ThermalManager.writeSysfs(THERMAL_SHUTDOWN_NOTIFY_PATH, 1);
         Intent criticalIntent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
         criticalIntent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
         criticalIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

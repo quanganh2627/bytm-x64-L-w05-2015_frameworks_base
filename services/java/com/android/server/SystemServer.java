@@ -65,6 +65,7 @@ import com.android.server.pm.UserManagerService;
 import com.android.server.power.PowerManagerService;
 import com.android.server.power.ShutdownThread;
 import com.android.server.search.SearchManagerService;
+import com.android.server.thermal.ThermalService;
 import com.android.server.usb.UsbService;
 import com.android.server.wifi.CsmWifiOffloadSystemService;
 import com.android.server.wifi.ExtendWifiService;

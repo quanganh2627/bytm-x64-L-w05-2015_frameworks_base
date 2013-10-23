@@ -121,7 +121,8 @@ public class BridgePowerManager implements IPowerManager {
     }
 
     @Override
-    public void setThermalBrightnessLimit(int newBrightness, boolean immediate) throws RemoteException {
+    public void setThermalBrightnessLimit(int newBrightness, boolean immediate)
+            throws RemoteException {
         // pass for now.
     }
 }

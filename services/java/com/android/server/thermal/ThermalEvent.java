@@ -14,19 +14,30 @@
  * limitations under the License.
  */
 
-package android.thermal;
-
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ArrayBlockingQueue;
-import android.thermal.ThermalEvent;
+package com.android.server.thermal;
 
 /**
- * The ThermalServiceEventQueue class contains strings and constants used for values
- * in the {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED} Intent.
- *@hide
+ * The ThermalEvent class contains strings and constants used for values
+ * in the ACTION_THERMAL_ZONE_STATE_CHANGED Intent.
+ *
+ * @hide
  */
-public class ThermalServiceEventQueue {
-    private static int sizeOfEventQueue = 10;
-    /* blocking queue to hold thermal events from thermal zones */
-    public static BlockingQueue<ThermalEvent> eventQueue = new ArrayBlockingQueue<ThermalEvent>(sizeOfEventQueue);
+public class ThermalEvent {
+    public int zoneID;
+
+    public int eventType;
+
+    public int thermalLevel;
+
+    public int zoneTemp;
+
+    public String zoneName;
+
+    ThermalEvent(int zone, int type, int state, int temp, String name) {
+        zoneID = zone;
+        eventType = type;
+        thermalLevel = state;
+        zoneTemp = temp;
+        zoneName = name;
+    }
 }
