@@ -511,8 +511,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
         // Step 1. Before we try to connect to a new device, tell the system we
         // have disconnected from the old one.
         if (mRemoteDisplay != null && mConnectedDevice != mDesiredDevice) {
-            Slog.i(TAG, "Stopped listening for RTSP connection on " + mRemoteDisplayInterface
-                    + " from Wifi display: " + mConnectedDevice.deviceName);
+            if (mConnectedDevice != null)
+                Slog.i(TAG, "Stopped listening for RTSP connection on " + mRemoteDisplayInterface
+                        + " from Wifi display: " + mConnectedDevice.deviceName);
 
             mRemoteDisplay.dispose();
             mRemoteDisplay = null;
