@@ -91,6 +91,7 @@ import android.view.WindowManagerPolicy;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.widget.Toast;
 
 import com.android.internal.R;
 import com.android.internal.policy.PolicyManager;
@@ -736,6 +737,21 @@ public class PhoneWindowManager extends ParentPhoneWindowManager implements Wind
             int resolvedBehavior = mLongPressOnPowerBehavior;
             if (FactoryTest.isLongPressOnPowerOffEnabled()) {
                 resolvedBehavior = LONG_PRESS_POWER_SHUT_OFF_NO_CONFIRM;
+            }
+
+            if (!"".equals(SystemProperties.get("vold.encrypt_progress"))) {
+                // When encryption is running, the user is not allowed to do a graceful shutdown,
+                // only a hardware forced shutdown is authorized.
+                // The close dialog is not displayed and the mPowerLongLongPress callback is
+                // not scheduled.
+                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms:"
+                        + " encryption in progress, no shutdown authorized", mPowerKeyTimeout));
+                Toast.makeText(mContext,
+                        com.android.internal.R.string.forbid_shutdown_when_encrypt,
+                        Toast.LENGTH_SHORT).show();
+                mPowerKeyHandled = true;
+                lock.notify();
+                return;
             }
 
             switch (resolvedBehavior) {
