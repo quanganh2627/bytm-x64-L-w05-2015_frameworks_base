@@ -216,15 +216,21 @@ public class CurrentMgmtService extends Binder {
         }
     };
 
-    public void getLevels() {
+    public boolean getLevels() {
         mThrottleTriggers = mPcc.getThrottleTriggers();
         mCDevs = mPcc.getContributingDevices();
+
         int i, j;
         for (i = 0; i < mThrottleTriggers.size(); i++) {
             if (mThrottleTriggers.get(i).getName().equals("battLevel")) {
                 mLevelTrigger = mThrottleTriggers.get(i);
                 break;
             }
+        }
+
+        if (mLevelTrigger == null) {
+            Log.e(TAG, "Battery level trigger not found");
+            return false;
         }
 
         mLevelStates = mLevelTrigger.getStates();
@@ -240,23 +246,37 @@ public class CurrentMgmtService extends Binder {
             }
         }
 
+        if (mTempTrigger == null) {
+            Log.e(TAG, "Battery temperature trigger not found");
+            return false;
+        }
         mTempStates = mTempTrigger.getStates();
 
         for (j = 0; j < mTempStates.size(); j++) {
             mLevelsTemp.add(mTempStates.get(j).getLevel());
             mTemps.add(mTempStates.get(j).getTemp());
         }
+        return true;
     }
 
     public CurrentMgmtService(Context context) {
         Log.v(TAG, "CurrentMgmtService start");
         mContext = context;
         mPcc = new ParseCmsConfig();
+        if (mPcc == null) {
+            Log.e(TAG, "Cannot get Parser object");
+            return;
+        }
+
         if (!mPcc.parseCmsThrottleConfig() || !mPcc.parseCmsDeviceConfig()) {
             Log.e(TAG, "CMS Configuration XML not found");
             return;
         }
-        getLevels();
+
+        if (!getLevels()) {
+            Log.e(TAG, "Cannot load levels and states from XML");
+            return;
+        }
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_BATTERY_CHANGED);
