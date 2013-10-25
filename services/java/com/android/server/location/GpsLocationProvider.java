@@ -77,6 +77,7 @@ import com.android.internal.location.ProviderRequest;
 import com.android.internal.location.GpsNetInitiatedHandler.GpsNiNotification;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.RILConstants;
 
 import com.intel.cws.cwsservicemanager.CsmException;
 import com.intel.cws.cwsservicemanagerclient.CsmClient;
@@ -220,6 +221,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
     private Object mLock = new Object();
     private Object mCellLocationLock = new Object();
+    private Boolean mWaitingRefLocations = false;
 
     private int mLocationFlags = LOCATION_INVALID;
 
@@ -551,15 +553,24 @@ public class GpsLocationProvider implements LocationProviderInterface {
                 mRefLocHandler = new Handler() {
                     public void handleMessage(Message msg) {
                         int flags = (int)msg.what;
+                        int preferredNetworkMode = RILConstants.PREFERRED_NETWORK_MODE;
+                        int networkMode = Settings.Global.getInt(mContext.getContentResolver(),
+                                Settings.Global.PREFERRED_NETWORK_MODE, preferredNetworkMode);
+
+                        int phoneType = mTelephonyManager.getPhoneType(networkMode);
+
+                        synchronized(mWaitingRefLocations) {
+                            mWaitingRefLocations = true;
+                        }
 
                         try {
                             if ((flags & AGPS_REQUEST_REFLOC_CELLID) == AGPS_REQUEST_REFLOC_CELLID) {
-                                if (mTelephonyManager.getPhoneType() == TelephonyManager.PHONE_TYPE_GSM) {
+                                if (phoneType == TelephonyManager.PHONE_TYPE_GSM) {
                                     mRefLocationRequested = true;
                                     CellLocation.requestLocationUpdate();
                                     synchronized(mCellLocationLock) {
                                         try {
-                                            mCellLocationLock.wait(5000);
+                                            mCellLocationLock.wait(3000);
                                         } catch (InterruptedException ie) {
                                             // restore the interrupted status
                                             Thread.currentThread().interrupt();
@@ -580,7 +591,11 @@ public class GpsLocationProvider implements LocationProviderInterface {
                                                                         + ":" + bssid));
                             }
                         } finally {
-                            native_agps_set_ref_location(new String(String.valueOf(AGPS_REF_LOCATION_END) + ":"));
+                            synchronized(mWaitingRefLocations) {
+                                native_agps_set_ref_location(new String(String.valueOf(
+                                        AGPS_REF_LOCATION_END) + ":"));
+                                mWaitingRefLocations = false;
+                            }
                         }
                     }
                 };
@@ -1751,8 +1766,12 @@ public class GpsLocationProvider implements LocationProviderInterface {
                     type = AGPS_REF_LOCATION_TYPE_GSM_CELLID;
                 }
 
-                native_agps_set_ref_location(new String(String.valueOf(type) + ":" + mcc + ":"
-                                + mnc + ":" + gsm_cell.getLac() + ":" + gsm_cell.getCid()));
+                synchronized(mWaitingRefLocations) {
+                    if (mWaitingRefLocations.booleanValue())
+                        native_agps_set_ref_location(new String(String.valueOf(type) + ":" + mcc
+                                + ":" + mnc + ":" + gsm_cell.getLac() + ":" + gsm_cell.getCid()));
+                }
+
             } else {
                 Log.i(TAG, "no network operators");
             }

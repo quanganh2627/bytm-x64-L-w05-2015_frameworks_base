@@ -60,7 +60,7 @@ public class SysfsManager
     }
 
     public static int readSysfsAsInt(String path) {
-        int val = -1;
+        int val = ThermalManager.INVALID_TEMP;
         try {
             String tempStr = readSysfs(path);
             if (tempStr != null) {

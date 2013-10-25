@@ -17,6 +17,7 @@
 package android.thermal;
 
 import java.io.File;
+import android.content.Context;
 import android.util.Log;
 
 /**
@@ -26,28 +27,30 @@ import android.util.Log;
  */
 public class GPUMaxFreqControl {
     private static final String TAG = "Thermal:GPUMaxFreqControl";
-    private static String mGPUThrottlePath;
-    private static boolean mIsGPUDeviceExists = false;
+    private static String sGPUThrottlePath;
+    private static boolean sIsGPUDeviceExists = false;
+    private static Context sContext;
 
     public static void throttleDevice(int thermalState) {
-       if (mIsGPUDeviceExists) {
-          SysfsManager.writeSysfs(mGPUThrottlePath, thermalState);
+       if (sIsGPUDeviceExists) {
+          SysfsManager.writeSysfs(sGPUThrottlePath, thermalState);
        }
     }
 
-    public static void init(String path) {
+    public static void init(Context context, String path) {
        /* Cooling device throttle path information */
        String coolDeviceThrottlePath = "/sys/class/thermal/cooling_device";
        String coolDeviceState = "/cur_state";
        String coolDeviceType = "/type";
+       sContext = context;
        int i = 0;
 
        /* Search throttle path for gpu_burst cooling device */
        while (new File(coolDeviceThrottlePath + i + coolDeviceType).exists()) {
              String coolDeviceName = SysfsManager.readSysfs(coolDeviceThrottlePath + i + coolDeviceType);
              if ((coolDeviceName != null) && (coolDeviceName.equals("gpu_burst"))) {
-                          mGPUThrottlePath = coolDeviceThrottlePath + i + coolDeviceState;
-                          mIsGPUDeviceExists = true;
+                          sGPUThrottlePath = coolDeviceThrottlePath + i + coolDeviceState;
+                          sIsGPUDeviceExists = true;
              }
              i++;
        }
