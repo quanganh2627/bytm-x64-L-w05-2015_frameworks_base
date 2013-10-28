@@ -35,8 +35,6 @@ import com.android.server.pm.UserManagerService;
 import com.android.server.wm.AppTransition;
 import com.android.server.wm.WindowManagerService;
 import static com.android.internal.util.ArrayUtils.appendInt;
-import com.intel.arkham.ContainerConstants;
-import com.intel.arkham.ContainerInfo;
 
 import dalvik.system.Zygote;
 
@@ -5915,9 +5913,6 @@ public class ActivityManagerService  extends ActivityManagerNative
 
         return list;
     }
-    protected ContainerInfo getContainer(int userId) {
-        return null;
-    }
 
     protected boolean isUsersTask(TaskRecord tr, int userId) {
         if (tr.userId != userId)
@@ -5970,9 +5965,7 @@ public class ActivityManagerService  extends ActivityManagerNative
                     }
                     rti.origActivity = tr.origActivity;
                     rti.description = tr.lastDescription;
-                    ContainerInfo ci = getContainer(tr.userId);
-                    if (ci != null)
-                        rti.baseIntent.putExtra(ContainerConstants.EXTRA_CONTAINER_INFO, ci);
+                    rti.userId = tr.userId;
 
                     if ((flags&ActivityManager.RECENT_IGNORE_UNAVAILABLE) != 0) {
                         // Check whether this activity is currently available.

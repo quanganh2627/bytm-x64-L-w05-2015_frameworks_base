@@ -39,6 +39,7 @@ import com.android.systemui.R;
 import com.android.systemui.statusbar.phone.PhoneStatusBar;
 import com.android.systemui.statusbar.tablet.TabletStatusBar;
 
+import com.intel.arkham.ContainerInfo;
 import com.intel.arkham.ExtendRecentTasksLoader;
 import com.intel.arkham.ExtendTaskDescription;
 
@@ -160,21 +161,24 @@ public class RecentTasksLoader implements View.OnTouchListener {
             && homeInfo.name.equals(component.getClassName());
     }
 
-    protected ResolveInfo resolveActivity(Intent intent) {
-        return mContext.getPackageManager().resolveActivity(intent, 0);
+    protected ContainerInfo getContainer(int userId) {
+        return null;
     }
 
     // Create an TaskDescription, returning null if the title or icon is null
     TaskDescription createTaskDescription(int taskId, int persistentTaskId, Intent baseIntent,
-            ComponentName origActivity, CharSequence description) {
+            ComponentName origActivity, CharSequence description, int userId) {
         Intent intent = new Intent(baseIntent);
         if (origActivity != null) {
             intent.setComponent(origActivity);
         }
+        ContainerInfo cInfo = getContainer(userId);
         final PackageManager pm = mContext.getPackageManager();
         intent.setFlags((intent.getFlags()&~Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                 | Intent.FLAG_ACTIVITY_NEW_TASK);
-        final ResolveInfo resolveInfo = resolveActivity(intent);
+        final ResolveInfo resolveInfo = (cInfo == null
+                ? pm.resolveActivity(intent, 0)
+                : pm.resolveActivityAsUser(intent, 0, cInfo.getContainerId()));
         if (resolveInfo != null) {
             final ActivityInfo info = resolveInfo.activityInfo;
             final String title = info.loadLabel(pm).toString();
@@ -185,7 +189,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
 
                 TaskDescription item = new ExtendTaskDescription(taskId,
                         persistentTaskId, resolveInfo, baseIntent, info.packageName,
-                        description);
+                        description, cInfo);
                 item.setLabel(title);
 
                 return item;
@@ -400,7 +404,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
 
             item = createTaskDescription(recentInfo.id,
                     recentInfo.persistentId, recentInfo.baseIntent,
-                    recentInfo.origActivity, recentInfo.description);
+                    recentInfo.origActivity, recentInfo.description, recentInfo.userId);
             if (item != null) {
                 loadThumbnailAndIcon(item);
             }
@@ -486,7 +490,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
 
                     TaskDescription item = createTaskDescription(recentInfo.id,
                             recentInfo.persistentId, recentInfo.baseIntent,
-                            recentInfo.origActivity, recentInfo.description);
+                            recentInfo.origActivity, recentInfo.description, recentInfo.userId);
 
                     if (item != null) {
                         while (true) {

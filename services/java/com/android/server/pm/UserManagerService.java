@@ -112,7 +112,7 @@ public class UserManagerService extends IUserManager.Stub {
 
     private static final long EPOCH_PLUS_30_YEARS = 30L * 365 * 24 * 60 * 60 * 1000L; // ms
 
-    private final Context mContext;
+    protected final Context mContext;
     protected final PackageManagerService mPm;
     private final Object mInstallLock;
     private final Object mPackagesLock;

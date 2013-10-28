@@ -15,6 +15,7 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Region;
 import android.os.Debug;
+import android.os.UserHandle;
 import android.util.Slog;
 import android.view.Display;
 import android.view.DisplayInfo;
@@ -30,6 +31,7 @@ import android.view.animation.AnimationUtils;
 import android.view.animation.Transformation;
 
 import com.android.server.wm.WindowManagerService.H;
+import com.intel.arkham.ContainerCommons;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -646,6 +648,12 @@ class WindowStateAnimator {
             final WindowManager.LayoutParams attrs = mWin.mAttrs;
 
             if ((attrs.flags&WindowManager.LayoutParams.FLAG_SECURE) != 0) {
+                flags |= SurfaceControl.SECURE;
+            }
+            /**
+             * ARKHAM-1095 - Making all container surfaces as secure.
+             */
+            if (ContainerCommons.isContainerUser(mContext, UserHandle.getUserId(mWin.mOwnerUid))) {
                 flags |= SurfaceControl.SECURE;
             }
             if (WindowState.DEBUG_VISIBILITY) Slog.v(
