@@ -20,6 +20,7 @@ import android.content.Context;
 import android.os.IPowerManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.SystemProperties;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -42,6 +43,12 @@ public class BrightnessControl {
     private static Context sContext;
 
     private static int sBrightnessValuesPercentage[];
+
+    private static boolean sToast = false;
+
+    private static boolean sVibra = false;
+
+    private static int sNotificationMask = 0;
 
     private static void setDefaultBrightnessValues() {
         sBrightnessValuesPercentage = new int[ThermalManager.NUM_THERMAL_STATES - 1];
@@ -71,14 +78,14 @@ public class BrightnessControl {
             Log.d(TAG, "could not get interface to PowerManager");
             return;
         }
+        readDisplayThrottleNotifierProperties();
+        initializeNotifierProperties();
     }
 
     public static void throttleDevice(int tstate) {
         if (sPower == null || tstate < 0)
             return;
 
-        int notificationMask = ThermalNotifier.VIBRATE | ThermalNotifier.TOAST
-                | ThermalNotifier.BRIGHTNESS;
         int maxBrightnessAllowed = (sBrightnessValuesPercentage[tstate] * sFullBrightness) / 100;
 
         try {
@@ -90,6 +97,25 @@ public class BrightnessControl {
         // Notify user if we are limiting brightness
         if (tstate == ThermalManager.THERMAL_STATE_ALERT
                 || tstate == ThermalManager.THERMAL_STATE_CRITICAL)
-            new ThermalNotifier(sContext, notificationMask).triggerNotification();
+            new ThermalNotifier(sContext, sNotificationMask).triggerNotification();
     }
+
+    private static void readDisplayThrottleNotifierProperties() {
+        try {
+            if ("1".equals(SystemProperties.get("persist.thermal.display.msg", "0"))) {
+                sToast = true;
+            }
+            if ("1".equals(SystemProperties.get("persist.thermal.display.vibra", "0"))) {
+                sVibra = true;
+            }
+        } catch (java.lang.IllegalArgumentException e) {
+            Log.e(TAG, "exception caught in reading thermal system properties");
+        }
+    }
+
+   private static void initializeNotifierProperties() {
+        if (sVibra) sNotificationMask |= ThermalNotifier.VIBRATE;
+        if (sToast) sNotificationMask |= ThermalNotifier.TOAST;
+        sNotificationMask |= ThermalNotifier.BRIGHTNESS;
+   }
 }
