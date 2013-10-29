@@ -1220,12 +1220,17 @@ public class GpsLocationProvider implements LocationProviderInterface {
     }
 
     private void hibernate() {
-        // stop GPS until our next fix interval arrives
-        stopNavigating();
+        // Since stopNavigating() can take time, the mWakeupIntent shall be set
+        // in the mAlarmManager before the stopNavigating()
+        // In this way, if an application requests the stop of the GPS during
+        // stopNavigating() the intent can be cancelled and the GPS really stops
         mAlarmManager.cancel(mTimeoutIntent);
         mAlarmManager.cancel(mWakeupIntent);
         long now = SystemClock.elapsedRealtime();
         mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, now + mFixInterval, mWakeupIntent);
+
+        // stop GPS until our next fix interval arrives
+        stopNavigating();
     }
 
     private boolean hasCapability(int capability) {
