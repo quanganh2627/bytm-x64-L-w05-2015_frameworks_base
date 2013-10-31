@@ -72,11 +72,8 @@ public class BatteryController extends BroadcastReceiver {
                     BatteryManager.BATTERY_STATUS_UNKNOWN);
 
             boolean plugged = false;
-            switch (status) {
-                case BatteryManager.BATTERY_STATUS_CHARGING: 
-                case BatteryManager.BATTERY_STATUS_FULL:
-                    plugged = true;
-                    break;
+            if (status == BatteryManager.BATTERY_STATUS_CHARGING) {
+                plugged = true;
             }
 
             final int icon = plugged ? R.drawable.stat_sys_battery_charge
