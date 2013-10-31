@@ -73,6 +73,8 @@ public class ParseCmsConfig {
                                 mState = new State();
                             } else if (parser.getName().contains("level")) {
                                 mState.setLevel(Integer.parseInt(parser.nextText()));
+                            } else if (parser.getName().contains("temp")) {
+                                mState.setTemp(Integer.parseInt(parser.nextText()));
                             } else if (parser.getName().contains("devID")) {
                                 mState.addDevID(Integer.parseInt(parser.nextText()));
                             }

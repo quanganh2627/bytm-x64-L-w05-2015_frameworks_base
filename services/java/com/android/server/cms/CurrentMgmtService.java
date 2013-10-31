@@ -16,8 +16,6 @@
 
 package com.android.server.cms;
 
-import com.android.server.BatteryService;
-
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -35,6 +33,9 @@ import android.os.ServiceManager;
 import android.os.UserHandle;
 import android.os.UEventObserver;
 import android.util.Log;
+
+import com.android.server.BatteryService;
+import com.android.server.thermal.ThermalManager;
 
 import java.io.DataOutputStream;
 import java.io.BufferedReader;
@@ -65,39 +66,54 @@ public class CurrentMgmtService extends Binder {
     native static void nativeSubsystemThrottle(int subsystem, int level);
     native static void nativeInit();
     private static boolean sShutdownInitiated = false;
-    private static int sPrevState, sCurState;
-    ArrayList<Integer> mLevels = new ArrayList();
+    private static boolean sRecheckTempState = false;
+    private static int sPrevLevelState, sCurLevelState, sPrevTempState, sCurTempState;
+    private ArrayList<Integer> mLevels = new ArrayList();
+    private ArrayList<Integer> mTemps = new ArrayList();
+    private ArrayList<Integer> mLevelsTemp = new ArrayList();
     ParseCmsConfig mPcc = null;
-    ThrottleTrigger mTt = null;
+    ThrottleTrigger mLevelTrigger, mTempTrigger = null;
     private ArrayList<ThrottleTrigger> mThrottleTriggers;
     private ArrayList<ContributingDevice> mCDevs;
-    private ArrayList<State> mStates;
+    private ArrayList<State> mLevelStates;
+    private ArrayList<State> mTempStates;
 
     private final class BCUReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
             int i, j, k;
             int battLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, 0);
+            int battTemp = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) / 10;
             int plugType = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0);
             int status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, 0);
-            Intent vbusIntent;
+            Intent vbusIntent, thermalIntent;
 
             if (status == BatteryManager.BATTERY_STATUS_CHARGING &&
                     plugType != BatteryManager.BATTERY_PLUGGED_USB) {
-                    sCurState = 0;
+                sCurLevelState = 0;
             } else {
                 for (i = mLevels.size() - 1; i >= 0; i--) {
                     if (battLevel < mLevels.get(i)) {
-                        sCurState = i + 1;
+                        sCurLevelState = i + 1;
                         break;
                     }
-                    sCurState = 0;
+                    sCurLevelState = 0;
+                }
+                for (i = mTemps.size() - 1; i >= 0; i--) {
+                    if (battTemp < mTemps.get(i) && ((i < mTemps.size() - 1)
+                            && battLevel < mLevelsTemp.get(i + 1)
+                            || mLevelsTemp.get(i + 1) == 0)) {
+                        sCurTempState = i + 1;
+                        break;
+                    }
+                    sCurTempState = 0;
                 }
             }
 
-            if (sPrevState != sCurState) {
-                Log.i(TAG, "state changed:" + sCurState);
-                if (sCurState == 0) {
+            if (sPrevLevelState != sCurLevelState) {
+                Log.i(TAG, "Battery level state changed:" + sCurLevelState);
+                sRecheckTempState = true;
+                if (sCurLevelState == 0) {
                     for (i = 0; i < mCDevs.size(); i++) {
                         if (mCDevs.get(i).getID() != 4) {
                             nativeSubsystemThrottle(mCDevs.get(i).getID(), 0);
@@ -106,38 +122,80 @@ public class CurrentMgmtService extends Binder {
                     vbusIntent = new Intent(ACTION_USB_HOST_VBUS);
                     vbusIntent.putExtra(EXTRA_HOST_VBUS, USB_HOST_VBUS_NORMAL);
                     context.sendBroadcastAsUser(vbusIntent, UserHandle.ALL);
-                    sPrevState = sCurState;
-                    return;
-                }
-                for (j = 0; j < mStates.get(sCurState).getDevIDList().size(); j++) {
-                    for (k = 0; k < mCDevs.size(); k++) {
-                        if (mCDevs.get(k).getID() == mStates.get(sCurState).getDevIDList().get(j)) {
-                            if (mCDevs.get(k).getID() != 4) {
-                                nativeSubsystemThrottle(mCDevs.get(k).getID(),
-                                mCDevs.get(k).getThrottleTriggerByID(0).
-                                       getThrottleValue(0, sCurState));
-                            } else {
-                                vbusIntent = new Intent(ACTION_USB_HOST_VBUS);
-                                switch (sCurState) {
-                                    case 1:
-                                        vbusIntent.putExtra
-                                                (EXTRA_HOST_VBUS, USB_HOST_VBUS_WARNING);
-                                        break;
-                                    case 2:
-                                        vbusIntent.putExtra
-                                                (EXTRA_HOST_VBUS, USB_HOST_VBUS_ALERT);
-                                        break;
-                                    case 3:
-                                        vbusIntent.putExtra
-                                                (EXTRA_HOST_VBUS, USB_HOST_VBUS_CRITICAL);
-                                        break;
+                    thermalIntent = new Intent();
+                    thermalIntent.setAction(ThermalManager.ACTION_THERMAL_ZONE_STATE_CHANGED);
+                    thermalIntent.putExtra(ThermalManager.EXTRA_NAME, "CMS");
+                    thermalIntent.putExtra(ThermalManager.EXTRA_ZONE, 129);
+                    thermalIntent.putExtra(ThermalManager.EXTRA_EVENT,
+                            ThermalManager.THERMAL_HIGH_EVENT);
+                    thermalIntent.putExtra(ThermalManager.EXTRA_STATE,
+                            ThermalManager.THERMAL_STATE_NORMAL);
+                    context.sendBroadcastAsUser(thermalIntent, UserHandle.ALL);
+                } else {
+                    for (j = 0; j < mLevelStates.get(sCurLevelState).getDevIDList().size(); j++) {
+                        for (k = 0; k < mCDevs.size(); k++) {
+                            if (mCDevs.get(k).getID() ==
+                                   mLevelStates.get(sCurLevelState).getDevIDList().get(j)) {
+                                if (mCDevs.get(k).getID() != 4) {
+                                    nativeSubsystemThrottle(mCDevs.get(k).getID(),
+                                            mCDevs.get(k).getThrottleTriggerByID(0).
+                                            getThrottleValue(0, sCurLevelState));
+                                } else {
+                                    vbusIntent = new Intent(ACTION_USB_HOST_VBUS);
+                                    thermalIntent = new Intent();
+                                    thermalIntent.setAction(
+                                            ThermalManager.ACTION_THERMAL_ZONE_STATE_CHANGED);
+                                    thermalIntent.putExtra(ThermalManager.EXTRA_NAME, "CMS");
+                                    thermalIntent.putExtra(ThermalManager.EXTRA_ZONE, "129");
+                                    thermalIntent.putExtra(ThermalManager.EXTRA_EVENT,
+                                            ThermalManager.THERMAL_HIGH_EVENT);
+                                    switch (sCurLevelState) {
+                                        case 1:
+                                            vbusIntent.putExtra(
+                                                    EXTRA_HOST_VBUS, USB_HOST_VBUS_WARNING);
+                                            thermalIntent.putExtra(ThermalManager.EXTRA_STATE,
+                                                    ThermalManager.THERMAL_STATE_WARNING);
+                                            break;
+                                        case 2:
+                                            vbusIntent.putExtra(
+                                                    EXTRA_HOST_VBUS, USB_HOST_VBUS_ALERT);
+                                            thermalIntent.putExtra(ThermalManager.EXTRA_STATE,
+                                                    ThermalManager.THERMAL_STATE_ALERT);
+                                            break;
+                                        case 3:
+                                            vbusIntent.putExtra(
+                                                    EXTRA_HOST_VBUS, USB_HOST_VBUS_CRITICAL);
+                                            thermalIntent.putExtra(ThermalManager.EXTRA_STATE,
+                                                    ThermalManager.THERMAL_STATE_CRITICAL);
+                                            break;
+                                    }
+                                    context.sendBroadcastAsUser(vbusIntent, UserHandle.ALL);
+                                    context.sendBroadcastAsUser(thermalIntent, UserHandle.ALL);
                                 }
-                                context.sendBroadcastAsUser(vbusIntent, UserHandle.ALL);
                             }
                         }
                     }
                 }
-                sPrevState = sCurState;
+                sPrevLevelState = sCurLevelState;
+            }
+            if (sPrevTempState != sCurTempState || sRecheckTempState) {
+                Log.i(TAG, "Battery temperature state changed:" + sCurTempState);
+                sRecheckTempState = false;
+                for (j = 0; j < mTempStates.get(sCurTempState).getDevIDList().size(); j++) {
+                    for (k = 0; k < mCDevs.size(); k++) {
+                        if (mCDevs.get(k).getID() ==
+                                mTempStates.get(sCurTempState).getDevIDList().get(j)) {
+                            if (sCurTempState != 0) {
+                                nativeSubsystemThrottle(mCDevs.get(k).getID(),
+                                        mCDevs.get(k).getThrottleTriggerByID(1).
+                                        getThrottleValue(1, sCurTempState));
+                            } else if (sCurTempState == 0 && sCurLevelState == 0) {
+                                nativeSubsystemThrottle(mCDevs.get(k).getID(), 0);
+                            }
+                        }
+                    }
+                }
+                sPrevTempState = sCurTempState;
             }
         }
     }
@@ -161,17 +219,32 @@ public class CurrentMgmtService extends Binder {
     public void getLevels() {
         mThrottleTriggers = mPcc.getThrottleTriggers();
         mCDevs = mPcc.getContributingDevices();
-        for (int i = 0; i < mThrottleTriggers.size(); i++) {
-             if (mThrottleTriggers.get(i).getName().equals("battLevel")) {
-                 mTt = mThrottleTriggers.get(i);
-                 break;
-             }
+        int i, j;
+        for (i = 0; i < mThrottleTriggers.size(); i++) {
+            if (mThrottleTriggers.get(i).getName().equals("battLevel")) {
+                mLevelTrigger = mThrottleTriggers.get(i);
+                break;
+            }
         }
 
-        mStates = mTt.getStates();
+        mLevelStates = mLevelTrigger.getStates();
 
-        for (int j = 0; j < mStates.size(); j++) {
-             mLevels.add(mStates.get(j).getLevel());
+        for (j = 0; j < mLevelStates.size(); j++) {
+            mLevels.add(mLevelStates.get(j).getLevel());
+        }
+
+        for (i = 0; i < mThrottleTriggers.size(); i++) {
+            if (mThrottleTriggers.get(i).getName().equals("battTemp")) {
+                mTempTrigger = mThrottleTriggers.get(i);
+                break;
+            }
+        }
+
+        mTempStates = mTempTrigger.getStates();
+
+        for (j = 0; j < mTempStates.size(); j++) {
+            mLevelsTemp.add(mTempStates.get(j).getLevel());
+            mTemps.add(mTempStates.get(j).getTemp());
         }
     }
 

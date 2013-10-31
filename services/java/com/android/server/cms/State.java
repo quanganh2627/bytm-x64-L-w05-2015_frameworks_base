@@ -22,6 +22,7 @@ public class State {
     private static int mStateCnt = 0;
     private int mStateID;
     private int mLevel;
+    private int mTemp;
     private ArrayList<Integer> mDevIDs = new ArrayList<Integer>();
 
     public State() {
@@ -42,5 +43,13 @@ public class State {
 
     public void setLevel(int level) {
         this.mLevel = level;
+    }
+
+    public int getTemp() {
+        return mTemp;
+    }
+
+    public void setTemp(int temp) {
+        this.mTemp = temp;
     }
 }
