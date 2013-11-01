@@ -521,7 +521,8 @@ public class StorageNotification extends SystemUI {
             mMediaStorageNotification.tickerText = (CharSequence)tempTitle;
             if (pi == null) {
                 Intent intent = new Intent();
-                pi = PendingIntent.getBroadcast(mContext, 0, intent, 0);
+                pi = PendingIntent.getBroadcastAsUser(mContext, 0, intent, 0
+                        , UserHandle.CURRENT);
             }
 
             mMediaStorageNotification.icon = icon;
@@ -534,9 +535,10 @@ public class StorageNotification extends SystemUI {
 
         final int notificationId = mMediaStorageNotification.icon;
         if (visible) {
-            notificationManager.notify(mEventPath, notificationId, mMediaStorageNotification);
+            notificationManager.notifyAsUser(mEventPath, notificationId
+                    , mMediaStorageNotification, UserHandle.ALL);
         } else {
-            notificationManager.cancel(mEventPath, notificationId);
+            notificationManager.cancelAsUser(mEventPath, notificationId, UserHandle.ALL);
         }
    }
 }
