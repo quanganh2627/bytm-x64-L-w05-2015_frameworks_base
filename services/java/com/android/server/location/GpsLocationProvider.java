@@ -81,6 +81,7 @@ import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.RILConstants;
 
+import com.intel.asf.AsfAosp;
 import com.intel.cws.cwsservicemanager.CsmException;
 import com.intel.cws.cwsservicemanagerclient.CsmClient;
 import com.intel.cws.cwsservicemanagerclient.CsmEfBootstrap;
@@ -361,6 +362,11 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
     private String mUiccHslp = null;
 
+    // INTEL_FEATURE_ASF
+    private static int sPid;
+    private static int sUid;
+    // INTEL_FEATURE_ASF_END
+
     private final IGpsStatusProvider mGpsStatusProvider = new IGpsStatusProvider.Stub() {
         @Override
         public void addGpsStatusListener(IGpsStatusListener listener) throws RemoteException {
@@ -630,6 +636,24 @@ public class GpsLocationProvider implements LocationProviderInterface {
             }
         }).start();
     }
+
+    // INTEL_FEATURE_ASF
+    /**
+     * Utility Function by ASF for Location Manager Service to notify GPS access events
+     */
+    private static boolean notifyGpsCallback() {
+        boolean result = native_notify_gps_access(sPid, sUid);
+        return result;
+    }
+
+    /**
+     * This function fetches the pid and uid from java service
+     */
+    public static void setDeviceInfo(int pid, int uid) {
+        sPid = pid;
+        sUid = uid;
+    }
+    // INTEL_FEATURE_ASF_END
 
     private void listenForBroadcasts() {
         IntentFilter intentFilter = new IntentFilter();
@@ -1165,6 +1189,17 @@ public class GpsLocationProvider implements LocationProviderInterface {
             mPositionMode = GPS_POSITION_MODE_STANDALONE;
 
             try {
+                if (AsfAosp.ENABLE && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+                    // Place call to function that acts as a hook point for gps events
+                    boolean asfResult = GpsLocationProvider.notifyGpsCallback();
+                    // If response is false, deny access to requested application and return NULL.
+                    // If response is true, either ASF allowed access for location to update or if
+                    // ASF itself not running.
+
+                    if (!asfResult) {
+                        return;
+                    }
+                }
                 mCsmClient.startSync(CSM_START_TIMEOUT);
             } catch (CsmException e) {
                 if (e.getCsmCause() != CsmException.CAUSE_NO_MODEM) {
@@ -2132,7 +2167,9 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
     private native void native_update_network_state(boolean connected, int type,
             boolean roaming, boolean available, String extraInfo, String defaultAPN);
-
+    // INTEL_FEATURE_ASF
+    private static native boolean native_notify_gps_access(int pid, int uid);
+    // INTEL_FEATURE_ASF_END
     // Hardware Geofence support.
     private static native boolean native_is_geofence_supported();
     private static native boolean native_add_geofence(int geofenceId, double latitude,
