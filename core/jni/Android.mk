@@ -19,6 +19,9 @@ ifeq ($(USE_OPENGL_RENDERER),true)
 	LOCAL_CFLAGS += -DUSE_OPENGL_RENDERER
 endif
 
+ifeq ($(strip $(INTEL_FEATURE_ASF)),true)
+    LOCAL_CPPFLAGS += -DPLATFORM_ASF_VERSION=$(PLATFORM_ASF_VERSION)
+endif
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES
 
 LOCAL_SRC_FILES:= \
@@ -218,6 +221,15 @@ LOCAL_SHARED_LIBRARIES := \
 
 ifeq ($(USE_OPENGL_RENDERER),true)
 	LOCAL_SHARED_LIBRARIES += libhwui
+endif
+
+ifeq ($(strip $(INTEL_FEATURE_ASF)),true)
+ifneq ($(strip $(PLATFORM_ASF_VERSION)),1)
+ifneq ($(strip $(PLATFORM_ASF_VERSION)),0)
+    LOCAL_SHARED_LIBRARIES += libsecuritydeviceserviceclient
+    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/libsecuritydeviceserviceclient
+endif
+endif
 endif
 
 LOCAL_SHARED_LIBRARIES += \
