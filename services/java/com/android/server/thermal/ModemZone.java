@@ -44,9 +44,11 @@ import java.lang.Math;
  * @hide
  */
 
-// mCurrThermalState, mZoneTemp is the max of three modem sensors namely
-// PCB,BB,RF. These variable needs to be updated synchronously from the
+// mCurrThermalState is the sensor with max state,
+// ZoneTemp is temperature of the sensor with max state
+// These variable needs to be updated synchronously from the
 // intent receiver function
+// sensors - PCB,BB,RF.
 public class ModemZone extends ThermalZone {
     private static final String TAG = "Thermal:ModemZone";
     private IOemTelephony mPhoneService = null;
@@ -129,9 +131,9 @@ public class ModemZone extends ThermalZone {
 
     private boolean isDebounceConditionSatisfied(ThermalSensor t,
             int temp, int debounceInterval, int oldState) {
-       if (t == null) return false;
-       int lowTemp = t.getLowerThresholdTemp(oldState);
-       return (((lowTemp - temp) >= debounceInterval) ? true : false);
+        if (t == null) return false;
+        int lowTemp = t.getLowerThresholdTemp(oldState);
+        return (((lowTemp - temp) >= debounceInterval) ? true : false);
     }
 
     void updateCriticalShutdownFlag() {
@@ -270,8 +272,9 @@ public class ModemZone extends ThermalZone {
             if ((mCurrEventType == ThermalManager.THERMAL_HIGH_EVENT) ||
                     ((mCurrEventType == ThermalManager.THERMAL_LOW_EVENT) &&
                             (currMaxSensorState < mCurrThermalState))) {
-                updateZoneAttributes(getSensorIDwithMaxTemp(),
-                        currMaxSensorState, getMaxSensorTemp());
+                int sensorID = getSensorIdWithMaxState();
+                updateZoneAttributes(sensorID,
+                        currMaxSensorState, getSensorTempFromID(sensorID));
                 retVal = true;
             }
         }
@@ -396,30 +399,25 @@ public class ModemZone extends ThermalZone {
         return maxState;
     }
 
-    private int getMaxSensorTemp() {
-        int maxTemp = ThermalManager.INVALID_TEMP;
-        int currTemp;
-        for (ThermalSensor t : mThermalSensors) {
-            currTemp = t.getCurrTemp();
-            if (maxTemp < currTemp) maxTemp = currTemp;
-        }
-
-        return maxTemp;
-    }
-
-    private int getSensorIDwithMaxTemp() {
+    private int getSensorIdWithMaxState() {
         int maxIndex = 0;
-        int maxTemp = ThermalManager.INVALID_TEMP,currTemp;
+        int maxState = ThermalManager.THERMAL_STATE_OFF, currState;
         int sensorID = -1;
 
         for (ThermalSensor t : mThermalSensors) {
-            currTemp = t.getCurrTemp();
-            if (maxTemp < currTemp) {
-                maxTemp = currTemp;
+            currState = t.getSensorThermalState();
+            if (maxState < currState) {
+                maxState = currState;
                 sensorID = t.getSensorID();
             }
         }
         return sensorID;
+    }
+
+    private int getSensorTempFromID(int sensorID) {
+        ThermalSensor t = getThermalSensorObject(sensorID);
+        if (t == null) return ThermalManager.INVALID_TEMP;
+        return t.getCurrTemp();
     }
 
     private ThermalSensor getThermalSensorObject(int sensorID) {
