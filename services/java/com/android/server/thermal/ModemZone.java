@@ -127,6 +127,13 @@ public class ModemZone extends ThermalZone {
         if (mContext != null) mContext.unregisterReceiver(intentReceiver);
     }
 
+    private boolean isDebounceConditionSatisfied(ThermalSensor t,
+            int temp, int debounceInterval, int oldState) {
+       if (t == null) return false;
+       int lowTemp = t.getLowerThresholdTemp(oldState);
+       return (((lowTemp - temp) >= debounceInterval) ? true : false);
+    }
+
     void updateCriticalShutdownFlag() {
         // one time update
         if (isCriticalShutdownflagUpdated ==  false) {
@@ -150,7 +157,7 @@ public class ModemZone extends ThermalZone {
         int currMaxSensorState, sensorState = -1;
         int finalMaxTemp = ThermalManager.INVALID_TEMP;
         int debounceInterval = 0;
-
+        int oldState = ThermalManager.THERMAL_STATE_OFF;
         if (mPhoneService == null) {
             Log.i(TAG, "IOemTelephony interface handle is null");
             return;
@@ -168,9 +175,16 @@ public class ModemZone extends ThermalZone {
             temp = readModemSensorTemp(t);
             finalMaxTemp = Math.max(finalMaxTemp,temp);
             if (temp != ThermalManager.INVALID_TEMP) {
-                sensorState = t.getCurrState(temp * 10);
-                t.setSensorThermalState(sensorState);
                 t.setCurrTemp(temp * 10);
+                oldState = t.getSensorThermalState();
+                sensorState = t.getCurrState(temp * 10);
+                if ((sensorState < oldState) &&
+                        (!isDebounceConditionSatisfied(t, temp * 10, debounceInterval, oldState)))
+                    // update sensor state only if debounce condition statisfied
+                    // else retain old state
+                    continue;
+                Log.i(TAG, "updating sensor state:<old,new>=" + oldState + "," + sensorState);
+                t.setSensorThermalState(sensorState);
             }
         }
 
