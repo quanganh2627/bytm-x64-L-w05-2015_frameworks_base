@@ -3071,9 +3071,6 @@ public class WindowManagerService extends IWindowManager.Stub
                                 WindowManagerPolicy.FINISH_LAYOUT_REDO_WALLPAPER;
                     }
                     win.mDisplayContent.layoutNeeded = true;
-                    if (win.mAppToken != null && win.mAppToken.waitForDrawingComplete) {
-                         win.mAppToken.waitForDrawingComplete = false;
-                     }
                     requestTraversalLocked();
                 }
             }
@@ -3557,7 +3554,6 @@ public class WindowManagerService extends IWindowManager.Stub
                 AppWindowToken atoken = findAppWindowToken(freezeThisOneIfNeeded);
                 if (atoken != null) {
                     startAppFreezingScreenLocked(atoken, ActivityInfo.CONFIG_ORIENTATION);
-                    atoken.waitForDrawingComplete = true;
                 }
             }
             config = computeNewConfigurationLocked();

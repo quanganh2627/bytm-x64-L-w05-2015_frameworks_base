@@ -97,7 +97,6 @@ class AppWindowToken extends WindowToken {
     boolean startingMoved;
     boolean firstWindowDrawn;
 
-    boolean waitForDrawingComplete;
     // Input application handle used by the input dispatcher.
     final InputApplicationHandle mInputApplicationHandle;
 

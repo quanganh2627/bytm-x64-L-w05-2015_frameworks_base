@@ -1212,11 +1212,6 @@ class WindowStateAnimator {
 
     public void prepareSurfaceLocked(final boolean recoveringMemory) {
         final WindowState w = mWin;
-        if (w.mAppToken != null && w.mAppToken.waitForDrawingComplete) {
-             Slog.v(TAG, "waitForDrawingComplete == true ");
-             mAnimator.mBulkUpdateParams &= ~SET_ORIENTATION_CHANGE_COMPLETE;
-             mAnimator.mLastWindowFreezeSource = w;
-       }
         if (mSurfaceControl == null) {
             if (w.mOrientationChanging) {
                 if (DEBUG_ORIENTATION) {
