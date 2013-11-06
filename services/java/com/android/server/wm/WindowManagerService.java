@@ -4118,8 +4118,6 @@ public class WindowManagerService extends IWindowManager.Stub
             wtoken.hidden = wtoken.hiddenRequested = !visible;
             if (!visible) {
                 unsetAppFreezingScreenLocked(wtoken, true, true);
-                if (wtoken.waitForDrawingComplete)
-                    wtoken.waitForDrawingComplete = false;
             } else {
                 // If we are being set visible, and the starting window is
                 // not yet displayed, then make sure it doesn't get displayed.
