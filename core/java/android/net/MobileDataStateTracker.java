@@ -729,6 +729,10 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
                 return PhoneConstants.APN_TYPE_CBS;
             case ConnectivityManager.TYPE_MOBILE_IA:
                 return PhoneConstants.APN_TYPE_IA;
+            case ConnectivityManager.TYPE_MOBILE_BIP_GPRS1:
+                return PhoneConstants.APN_TYPE_BIP_GPRS1;
+            case ConnectivityManager.TYPE_MOBILE_BIP_GPRS2:
+                return PhoneConstants.APN_TYPE_BIP_GPRS2;
             default:
                 sloge("Error mapping networkType " + netType + " to apnType.");
                 return null;

@@ -3537,6 +3537,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 usedNetworkType = ConnectivityManager.TYPE_MOBILE_IMS;
             } else if (TextUtils.equals(feature, Phone.FEATURE_ENABLE_CBS)) {
                 usedNetworkType = ConnectivityManager.TYPE_MOBILE_CBS;
+            } else if (TextUtils.equals(feature, Phone.FEATURE_ENABLE_BIP_GPRS1)) {
+                usedNetworkType = ConnectivityManager.TYPE_MOBILE_BIP_GPRS1;
+            } else if (TextUtils.equals(feature, Phone.FEATURE_ENABLE_BIP_GPRS2)) {
+                usedNetworkType = ConnectivityManager.TYPE_MOBILE_BIP_GPRS2;
             } else {
                 Slog.e(TAG, "Can't match any mobile netTracker!");
             }
