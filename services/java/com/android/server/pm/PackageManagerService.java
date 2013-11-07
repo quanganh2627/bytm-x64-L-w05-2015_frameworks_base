@@ -4318,69 +4318,24 @@ public class PackageManagerService extends IPackageManager.Stub {
 
                         try {
                             int copyRet = copyNativeLibrariesForInternalApp(scanFile, nativeLibraryDir);
-                            Integer pkgUidInt = new Integer(pkg.applicationInfo.uid);
-                            if (copyRet == PackageManager.INSTALL_SUCCEEDED) {
-                                if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(pkgUidInt)) {
-                                    Slog.i(TAG, "Replace package with primary ABI Library");
-                                    mPackagesMatchABI2.remove(pkgUidInt);
-                                    writeAppwithABI2();
-                                    if (mPackagesMatchABI2Neon.containsKey(pkgUidInt)) {
-                                        mPackagesMatchABI2Neon.remove(pkgUidInt);
-                                        writeAppwithABI2Neon();
-                                    }
-                                }
-                            } else if (ENABLE_HOUDINI && copyRet == PackageManager.INSTALL_ABI2_SUCCEEDED) {
-                                ICheckExt check = new CheckExt();
-                                if(check.doCheck(pkgName, new String("filter"))) {
-                                    Slog.i(TAG, "Package with second ABI is in black list: " + pkgUidInt + pkg.applicationInfo.processName);
-                                    mLastScanError = PackageManager.INSTALL_FAILED_INVALID_APK;
+                            if (ENABLE_HOUDINI) {
+                                if (copyRet != PackageManager.INSTALL_SUCCEEDED &&
+                                        copyRet != PackageManager.INSTALL_ABI2_SUCCEEDED) {
+                                    Slog.e(TAG, "Unable to copy native libraries");
+                                    mLastScanError = PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
                                     return null;
                                 }
-                                Slog.i(TAG, "Package installed with second ABI Library: " + pkgUidInt + pkg.applicationInfo.processName);
-                                mPackagesMatchABI2.put(pkgUidInt, pkg.applicationInfo.processName);
-                                writeAppwithABI2();
-                                if (check.doCheck(pkgName, new String("neon"))) {
-                                    mPackagesMatchABI2Neon.put(pkgUidInt, pkg.applicationInfo.processName);
-                                    writeAppwithABI2Neon();
-                                }
                             } else {
-                                Slog.e(TAG, "Unable to copy native libraries");
-                                mLastScanError = PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
-                                return null;
+                                if (copyRet != PackageManager.INSTALL_SUCCEEDED) {
+                                    Slog.e(TAG, "Unable to copy native libraries");
+                                    mLastScanError = PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
+                                    return null;
+                                }
                             }
                         } catch (IOException e) {
                             Slog.e(TAG, "Unable to copy native libraries", e);
                             mLastScanError = PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
                             return null;
-                        }
-                    }
-
-                    // if the pkg doesn't go through copyNativeLibrariesForInternalApp path
-                    // Need check the apk whether contains ABI2 library.
-                    int result = NativeLibraryHelper.listNativeBinariesLI(scanFile);
-                    if (result == PackageManager.INSTALL_SUCCEEDED) {
-                        if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
-                            Slog.i(TAG, "Replace package with primary ABI Library");
-                            mPackagesMatchABI2.remove(pkg.applicationInfo.uid);
-                            writeAppwithABI2();
-                            if (mPackagesMatchABI2Neon.containsKey(pkg.applicationInfo.uid)) {
-                                mPackagesMatchABI2Neon.remove(pkg.applicationInfo.uid);
-                                writeAppwithABI2Neon();
-                            }
-                        }
-                    } else if (ENABLE_HOUDINI && result == PackageManager.INSTALL_ABI2_SUCCEEDED) {
-                        ICheckExt check = new CheckExt();
-                        if (check.doCheck(pkgName, new String("filter"))) {
-                            Slog.i(TAG, "Package with second ABI is in black list: " + pkg.applicationInfo.uid + pkg.applicationInfo.processName);
-                            mLastScanError = PackageManager.INSTALL_FAILED_INVALID_APK;
-                            return null;
-                        }
-                        Slog.i(TAG, "Package installed with second ABI Library: " + pkg.applicationInfo.uid + pkg.applicationInfo.processName);
-                        mPackagesMatchABI2.put(pkg.applicationInfo.uid, pkg.applicationInfo.processName);
-                        writeAppwithABI2();
-                        if (check.doCheck(pkgName, new String("neon"))) {
-                            mPackagesMatchABI2Neon.put(pkg.applicationInfo.uid, pkg.applicationInfo.processName);
-                            writeAppwithABI2Neon();
                         }
                     }
 
@@ -4395,6 +4350,40 @@ public class PackageManagerService extends IPackageManager.Stub {
                                 mLastScanError = PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
                                 return null;
                             }
+                        }
+                    }
+                }
+
+                // Check the apk to see whether it contains ABI2 library.
+                if (ENABLE_HOUDINI) {
+                    int result = NativeLibraryHelper.listNativeBinariesLI(scanFile);
+                    if (result == PackageManager.INSTALL_SUCCEEDED &&
+                            mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
+                        Slog.i(TAG, "Replace package with primary ABI Library");
+                        mPackagesMatchABI2.remove(pkg.applicationInfo.uid);
+                        writeAppwithABI2();
+                        if (mPackagesMatchABI2Neon.containsKey(pkg.applicationInfo.uid)) {
+                            mPackagesMatchABI2Neon.remove(pkg.applicationInfo.uid);
+                            writeAppwithABI2Neon();
+                        }
+                    } else if (result == PackageManager.INSTALL_ABI2_SUCCEEDED &&
+                                !mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
+                        ICheckExt check = new CheckExt();
+                        if (check.doCheck(pkgName, new String("filter"))) {
+                            Slog.i(TAG, "Package with second ABI is in black list: "
+                                    + pkg.applicationInfo.uid + pkg.applicationInfo.processName);
+                            mLastScanError = PackageManager.INSTALL_FAILED_INVALID_APK;
+                            return null;
+                        }
+                        Slog.i(TAG, "Package installed with second ABI Library: "
+                                + pkg.applicationInfo.uid + pkg.applicationInfo.processName);
+                        mPackagesMatchABI2.put(pkg.applicationInfo.uid,
+                                pkg.applicationInfo.processName);
+                        writeAppwithABI2();
+                        if (check.doCheck(pkgName, new String("neon"))) {
+                            mPackagesMatchABI2Neon.put(pkg.applicationInfo.uid,
+                                    pkg.applicationInfo.processName);
+                            writeAppwithABI2Neon();
                         }
                     }
                 }
