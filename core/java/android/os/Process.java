@@ -115,7 +115,7 @@ public class Process {
      * Defines the UID/GID for the SmartCard service process.
      * @hide
      */
-    public static final int SMARTCARD_UID = 1029;
+    public static final int SMARTCARD_UID = 1999;
 
     /**
      * Defines the UID/GID for the Bluetooth service process.
