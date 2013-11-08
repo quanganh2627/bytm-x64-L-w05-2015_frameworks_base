@@ -255,6 +255,7 @@ public final class MessageQueue {
             final Message msg = Message.obtain();
             msg.when = when;
             msg.arg1 = token;
+            msg.when = when;
 
             Message prev = null;
             Message p = mMessages;
@@ -297,6 +298,16 @@ public final class MessageQueue {
                 mMessages = p.next;
                 needWake = mMessages == null || mMessages.target != null;
             }
+            long vsyncLatency = SystemClock.uptimeMillis() - p.when;
+            // warn if the vsync barrier is removed 30 frames later.
+            if (vsyncLatency > 500) {
+                Looper myLooper = Looper.myLooper();
+                if (myLooper != null && myLooper.mLocalLog != null) {
+                    String msg = p.toString();
+                    myLooper.mLocalLog.log("WARNING! VSYNC callback delayed: " + msg);
+                    Log.d("MessageQueue", "VSYNC callback delayed: " + msg);
+                }
+            }
             p.recycle();
 
             // If the loop is quitting then it is already awake.
@@ -313,6 +324,11 @@ public final class MessageQueue {
         }
         if (msg.target == null) {
             throw new AndroidRuntimeException("Message must have a target.");
+        }
+
+        Looper myLooper = msg.target.mLooper;
+        if (myLooper != null && myLooper.mLocalLog != null) {
+            msg.fingerPrint = msg.toString();
         }
 
         synchronized (this) {
