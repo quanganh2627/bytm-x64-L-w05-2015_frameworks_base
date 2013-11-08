@@ -4423,7 +4423,8 @@ public class PackageManagerService extends IPackageManager.Stub {
                 pkg.applicationInfo.flags |= ApplicationInfo.FLAG_UPDATED_SYSTEM_APP;
                 // ASF HOOK: system package update event
                 if (AsfAosp.ENABLE) {
-                    AsfAosp.sendSystemAppUpdateEvent(pkg);
+                    AsfAosp.sendSystemAppUpdateEvent(pkg,
+                                                     sUserManager.getUserInfo(UserHandle.myUserId()));
                 }
             }
 
@@ -4516,7 +4517,8 @@ public class PackageManagerService extends IPackageManager.Stub {
                                 AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
                                 (user != null) ? UserHandle.getUserId(user.getIdentifier()) : 0
                         ),
-                        (scanMode & SCAN_UPDATE_TIME)!=0)
+                        (scanMode & SCAN_UPDATE_TIME)!=0,
+                        sUserManager.getUserInfo(UserHandle.myUserId()))
                 ) {
                     mLastScanError = PackageManager.INSTALL_FAILED_VERIFICATION_FAILURE;
                     return null;
@@ -9655,7 +9657,8 @@ public class PackageManagerService extends IPackageManager.Stub {
         if (AsfAosp.ENABLE) {
             PackageInfo packageInfo = getPackageInfo(
                     newPs.name, AsfAosp.SECURITY_PACKAGEINFO_FLAGS, 0);
-            if (!AsfAosp.sendSystemAppDeleteEvent(packageInfo, newPs.pkg.mPath)) {
+            if (!AsfAosp.sendSystemAppDeleteEvent(packageInfo, newPs.pkg.mPath,
+                    sUserManager.getUserInfo(UserHandle.myUserId()))) {
                 return false;
             }
         }
@@ -9766,7 +9769,8 @@ public class PackageManagerService extends IPackageManager.Stub {
                             packageName,
                             AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
                             (user != null) ? UserHandle.getUserId(user.getIdentifier()) : 0
-                    )
+                    ),
+                    sUserManager.getUserInfo(UserHandle.myUserId())
             )) {
                 return false;
             }
