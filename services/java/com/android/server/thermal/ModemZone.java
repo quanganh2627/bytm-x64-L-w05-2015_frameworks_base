@@ -13,36 +13,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package android.thermal;
+package com.android.server.thermal;
 
+import com.android.internal.telephony.TelephonyIntents;
+import com.intel.internal.telephony.OemTelephony.IOemTelephony;
+import com.intel.internal.telephony.OemTelephony.OemTelephonyConstants;
+
+import android.app.Notification;
+import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.UserHandle;
-import android.os.AsyncTask;
-import android.telephony.ServiceState;
-import com.android.internal.telephony.TelephonyIntents;
-import com.intel.internal.telephony.OemTelephony.IOemTelephony;
-import com.intel.internal.telephony.OemTelephony.OemTelephonyConstants;
-import android.thermal.ThermalSensor;
-import android.thermal.ThermalServiceEventQueue;
-import android.thermal.ThermalEvent;
-import android.thermal.ThermalCooling;
-import android.thermal.ThermalManager;
-import android.util.Log;
-import java.lang.Math;
-import java.util.ArrayList;
-import android.widget.Toast;
-import android.app.Notification;
-import android.app.NotificationManager;
 import android.provider.Settings;
+import android.telephony.ServiceState;
+import android.util.Log;
+import android.widget.Toast;
+
+import java.util.ArrayList;
+import java.lang.Math;
+
 /**
  * ModemZone class
- *@hide
+ *
+ * @hide
  */
 
 // mCurrThermalState, mZoneTemp is the max of three modem sensors namely
@@ -95,6 +94,7 @@ public class ModemZone extends ThermalZone {
     // if shutdown flag is true, donot switch to AIRPLANE mode
     private boolean isCriticalShutdownEnable = false;
     private boolean isCriticalShutdownflagUpdated = false;
+    private ModemStateBroadcastReceiver intentReceiver = new ModemStateBroadcastReceiver();
     public ModemZone(Context context) {
         super();
         mPhoneService = IOemTelephony.Stub.asInterface(ServiceManager.getService("oemtelephony"));
@@ -114,7 +114,7 @@ public class ModemZone extends ThermalZone {
         filter.addAction(OemTelephonyConstants.ACTION_MODEM_SENSOR_THRESHOLD_REACHED);
         filter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALL_STATUS_CHANGED);
 
-        mContext.registerReceiver(new ModemStateBroadcastReceiver(), filter);
+        mContext.registerReceiver(intentReceiver, filter);
 
         // initialize zone attributes
         updateZoneAttributes(-1, ThermalManager.THERMAL_STATE_OFF, ThermalManager.INVALID_TEMP);
@@ -122,10 +122,15 @@ public class ModemZone extends ThermalZone {
         Log.i(TAG, "Modem thermal zone registered successfully");
     }
 
+    public void unregisterReceiver() {
+        Log.i(TAG, "Modem zone unregister called");
+        if (mContext != null) mContext.unregisterReceiver(intentReceiver);
+    }
+
     void updateCriticalShutdownFlag() {
         // one time update
         if (isCriticalShutdownflagUpdated ==  false) {
-            ThermalManager.ZoneCoolerBindingInfo zone = ThermalManager.listOfZones.get(getZoneId());
+            ThermalManager.ZoneCoolerBindingInfo zone = ThermalManager.sListOfZones.get(getZoneId());
             if (zone != null) {
                 isCriticalShutdownEnable = (zone.getCriticalActionShutdown() == 1) ? true : false;
             }
@@ -139,6 +144,7 @@ public class ModemZone extends ThermalZone {
     // and no sensor thresholds are set.
     // startmonitoring updates all active sensor states and
     // resets thresholds.
+    @Override
     public void startMonitoring() {
         int minTemp = 0, maxTemp = 0, temp = 0;
         int currMaxSensorState, sensorState = -1;
@@ -177,7 +183,7 @@ public class ModemZone extends ThermalZone {
         updateLastKnownZoneState();
         currMaxSensorState = getMaxSensorState();
         if (isZoneStateChanged(currMaxSensorState)) {
-           sendThermalEvent(mCurrEventType, mCurrThermalState, mZoneTemp);
+            sendThermalEvent(mCurrEventType, mCurrThermalState, mZoneTemp);
         }
 
         if (currMaxSensorState == ThermalManager.THERMAL_STATE_CRITICAL) {
@@ -189,7 +195,7 @@ public class ModemZone extends ThermalZone {
             for (ThermalSensor t : mThermalSensors) {
                 sensorState = t.getSensorThermalState();
                 if (sensorState != ThermalManager.THERMAL_STATE_CRITICAL &&
-                    sensorState != ThermalManager.THERMAL_STATE_OFF) {
+                        sensorState != ThermalManager.THERMAL_STATE_OFF) {
                     minTemp = t.getLowerThresholdTemp(sensorState);
                     maxTemp = t.getUpperThresholdTemp(sensorState);
                     minTemp -= debounceInterval;
@@ -218,37 +224,40 @@ public class ModemZone extends ThermalZone {
     }
 
     private static void setServiceState(int val) {
-       synchronized(sMonitorStateLock) {
-           sServiceState = val;
-       }
+        synchronized(sMonitorStateLock) {
+            sServiceState = val;
+        }
     }
 
     private static int getServiceState() {
-       synchronized(sMonitorStateLock) {
-           return sServiceState;
-       }
+        synchronized(sMonitorStateLock) {
+            return sServiceState;
+        }
     }
 
     private static boolean getZoneMonitorStatus() {
-       synchronized(sMonitorStateLock) {
-           return sIsMonitoring;
-       }
+        synchronized(sMonitorStateLock) {
+            return sIsMonitoring;
+        }
     }
 
     private static void setZoneMonitorStatus(boolean flag) {
-       synchronized(sMonitorStateLock) {
-           sIsMonitoring = flag;
-       }
+        synchronized(sMonitorStateLock) {
+            sIsMonitoring = flag;
+        }
     }
 
     private boolean isZoneStateChanged(int currSensorstate) {
         boolean retVal = false;
         if (currSensorstate != mCurrThermalState) {
-            mCurrEventType = (currSensorstate < mCurrThermalState) ? ThermalManager.THERMAL_LOW_EVENT : ThermalManager.THERMAL_HIGH_EVENT;
+            mCurrEventType = (currSensorstate < mCurrThermalState) ?
+                    ThermalManager.THERMAL_LOW_EVENT : ThermalManager.THERMAL_HIGH_EVENT;
             int currMaxSensorState = getMaxSensorState();
             if ((mCurrEventType == ThermalManager.THERMAL_HIGH_EVENT) ||
-            ((mCurrEventType == ThermalManager.THERMAL_LOW_EVENT) && (currMaxSensorState < mCurrThermalState))) {
-                updateZoneAttributes(getSensorIDwithMaxTemp(), currMaxSensorState, getMaxSensorTemp());
+                    ((mCurrEventType == ThermalManager.THERMAL_LOW_EVENT) &&
+                            (currMaxSensorState < mCurrThermalState))) {
+                updateZoneAttributes(getSensorIDwithMaxTemp(),
+                        currMaxSensorState, getMaxSensorTemp());
                 retVal = true;
             }
         }
@@ -293,14 +302,15 @@ public class ModemZone extends ThermalZone {
             mSensorIDwithMaxTemp = sensorID;
             mCurrThermalState = state;
             mZoneTemp = temp;
-            Log.i(TAG, "updateZoneAttrib: lastState:" + mLastKnownZoneState + "currstate:" + mCurrThermalState);
+            Log.i(TAG, "updateZoneAttrib: lastState:" + mLastKnownZoneState +
+                    "currstate:" + mCurrThermalState);
         }
     }
 
     private void sendThermalEvent (int eventType, int thermalState, int temp) {
         ThermalEvent event = new ThermalEvent(mZoneID, eventType, thermalState, temp, mZoneName);
         try {
-            ThermalServiceEventQueue.eventQueue.put(event);
+            ThermalManager.sEventQueue.put(event);
         } catch (InterruptedException ex) {
             Log.i(TAG, "InterruptedException while sending thermal event");
         }
@@ -311,11 +321,12 @@ public class ModemZone extends ThermalZone {
         if (mPhoneService == null) return;
         try {
             Log.i(TAG,"Setting Thresholds for Modem Sensor: " +
-            t.getSensorName() + "--Min: " + minTemp + "Max: " + maxTemp);
+                    t.getSensorName() + "--Min: " + minTemp + "Max: " + maxTemp);
             // convert temp format from millidegrees to format expected by oemTelephony class
             minTemp = minTemp / 10;
             maxTemp = maxTemp / 10;
-            mPhoneService.ActivateThermalSensorNotification(flag, t.getSensorID(), minTemp, maxTemp);
+            mPhoneService.ActivateThermalSensorNotification(flag,
+                    t.getSensorID(), minTemp, maxTemp);
         } catch (RemoteException e) {
             Log.i(TAG, "remote exception while Setting Thresholds");
         }
@@ -353,7 +364,8 @@ public class ModemZone extends ThermalZone {
         if (finalval == ThermalManager.INVALID_TEMP) {
             Log.i(TAG, "readSensorTemp():finalval for sensor:"+ t.getSensorName() + " is invalid");
         } else {
-            Log.i(TAG, "readSensorTemp():finalval for sensor:"+ t.getSensorName() + " is " + finalval);
+            Log.i(TAG, "readSensorTemp():finalval for sensor:"+ t.getSensorName() + " is " +
+                    finalval);
         }
         return finalval;
     }
@@ -410,8 +422,8 @@ public class ModemZone extends ThermalZone {
 
         // Change the system setting
         Settings.Global.putInt(mContext.getContentResolver(),
-                               Settings.Global.AIRPLANE_MODE_ON,
-                               state);
+                Settings.Global.AIRPLANE_MODE_ON,
+                state);
         // Post the intent
         Log.i(TAG, "sending AIRPLANE_MODE_CHANGED INTENT with enable:" + enable);
         Intent intent = new Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED);
@@ -422,7 +434,7 @@ public class ModemZone extends ThermalZone {
     private boolean getAirplaneMode() {
         return (Settings.Global.getInt(mContext.getContentResolver(),
                 Settings.Global.AIRPLANE_MODE_ON, -1) == 1) ?
-                true : false;
+                        true : false;
     }
 
     // this fucntion is called in context of UI thread from a Async Task.
@@ -446,56 +458,57 @@ public class ModemZone extends ThermalZone {
     }
 
     private class CriticalStateMonitor extends AsyncTask<Void, String, Integer>{
-            @Override
-            protected Integer doInBackground(Void... arg0) {
-                if (getCriticalMonitorStatus() == true) {
-                    return STATUS_MONITOR_RUNNING;
-                }
-                setCriticalMonitorStatus(true);
-                // if last known state of zone was already CRITICAL,
-                // user need not be notified again, while the polling begins again.
-                if (getLastKnownZoneState() != ThermalManager.THERMAL_STATE_CRITICAL) {
-                    vibrate();
-                    publishProgress("Modem temperature critical!Switching to Airplane mode for sometime");
-                }
-                Log.i(TAG, "setting airplaneMode ON...");
-                setAirplaneMode(true);
-                sleep(DEFAULT_WAIT_POLL_TIME);
-                Log.i(TAG, "setting airplaneMode OFF...");
-                setAirplaneMode(false);
-                setCriticalMonitorStatus(false);
-                return STATUS_SUCCESS;
+        @Override
+        protected Integer doInBackground(Void... arg0) {
+            if (getCriticalMonitorStatus() == true) {
+                return STATUS_MONITOR_RUNNING;
             }
-
-            @Override
-            protected void onProgressUpdate(String ...arg){
-                String str = arg[0];
-                super.onProgressUpdate(arg);
-                Toast.makeText(mContext, str, Toast.LENGTH_LONG).show();
+            setCriticalMonitorStatus(true);
+            // if last known state of zone was already CRITICAL,
+            // user need not be notified again, while the polling begins again.
+            if (getLastKnownZoneState() != ThermalManager.THERMAL_STATE_CRITICAL) {
+                vibrate();
+                publishProgress("Modem temperature critical!Switching to Airplane mode for sometime");
             }
+            Log.i(TAG, "setting airplaneMode ON...");
+            setAirplaneMode(true);
+            sleep(DEFAULT_WAIT_POLL_TIME);
+            Log.i(TAG, "setting airplaneMode OFF...");
+            setAirplaneMode(false);
+            setCriticalMonitorStatus(false);
+            return STATUS_SUCCESS;
+        }
 
-            @Override
-            protected void onPostExecute(Integer result){
-                super.onPostExecute(result);
-                Log.i(TAG, "monitor return status = " + result);
-                if (result == STATUS_SUCCESS) {
-                    synchronized(sMonitorStateLock) {
-                        if (getServiceState() != ServiceState.STATE_POWER_OFF &&
+        @Override
+        protected void onProgressUpdate(String ...arg){
+            String str = arg[0];
+            super.onProgressUpdate(arg);
+            Toast.makeText(mContext, str, Toast.LENGTH_LONG).show();
+        }
+
+        @Override
+        protected void onPostExecute(Integer result){
+            super.onPostExecute(result);
+            Log.i(TAG, "monitor return status = " + result);
+            if (result == STATUS_SUCCESS) {
+                synchronized(sMonitorStateLock) {
+                    if (getServiceState() != ServiceState.STATE_POWER_OFF &&
                             getZoneMonitorStatus() == false) {
-                               // this handles a scenario where critical monitor turns ON ariplane mode,
-                               // but user forcefully turns it OFF, but modem temp is still critical.
-                               // startmonitoring doesnt set thresholds and doesnt call critical monitor
-                               // since one instance of the async task is already running. In that case
-                               // once the critical monitor finishes, no ACTION_SERVICE_STATE_CHANGE intent will
-                               // be sent, as system is already out of AIRPLANE mode.
-                               // to handle this, we shud check if service state is not OFF, and monitorStatus
-                               // is false . This check is syncronized with sMonitorStateLock.
-                               setZoneMonitorStatus(true);
-                               startMonitoring();
-                           }
+                        // this handles a scenario where critical monitor turns ON airplane mode,
+                        // but user forcefully turns it OFF, but modem temp is still critical.
+                        // start monitoring doesn't set thresholds and doesn't call critical monitor
+                        // since one instance of the async task is already running. In that case
+                        // once the critical monitor finishes, no ACTION_SERVICE_STATE_CHANGE intent
+                        // will be sent, as system is already out of AIRPLANE mode.
+                        // to handle this, we should check if service state is not OFF,
+                        // and monitorStatus is false .
+                        // This check is synchronized with sMonitorStateLock.
+                        setZoneMonitorStatus(true);
+                        startMonitoring();
                     }
                 }
             }
+        }
     }
 
     private void handleSensorThesholdReached(Intent intent) {
@@ -507,13 +520,13 @@ public class ModemZone extends ThermalZone {
         synchronized (sZoneAttribLock) {
             int sensorID = intent.getIntExtra(OemTelephonyConstants.MODEM_SENSOR_ID_KEY, 0);
             int temperature = intent.getIntExtra(
-                                OemTelephonyConstants.MODEM_SENSOR_TEMPERATURE_KEY, 0);
+                    OemTelephonyConstants.MODEM_SENSOR_TEMPERATURE_KEY, 0);
             temperature *= 10;// convert to millidegree celcius
             t = getThermalSensorObject(sensorID);
             if (t == null) return;
 
             Log.i(TAG, "Got notification for Sensor:" + t.getSensorName()
-                        + " with Current Temperature " + temperature);
+                    + " with Current Temperature " + temperature);
 
             // this method is triggered asynchonously for any sensor that trips the
             // threshold; The zone state, is the max of all the sensor states; If a
@@ -567,7 +580,7 @@ public class ModemZone extends ThermalZone {
             if (newServiceState == ServiceState.STATE_POWER_OFF) {
                 setZoneMonitorStatus(false);
             } else if (oldServiceState ==  ServiceState.STATE_POWER_OFF ||
-                monitorStatus == false) {
+                    monitorStatus == false) {
                 setZoneMonitorStatus(true);
                 startMonitoring();
             }
@@ -629,7 +642,7 @@ public class ModemZone extends ThermalZone {
     }
 
     private void triggerCriticalMonitor() {
-        // check for ongoing emergecnycall, if no call in progress start a new critical
+        // check for ongoing emergency call, if no call in progress start a new critical
         // monitor if not already started. if call in progress set the pending critical
         // monitor flag and exit. When emergency call exits, the intent handler checks
         // for this flag and starts a new monitor if needed.

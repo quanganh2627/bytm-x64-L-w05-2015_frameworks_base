@@ -14,107 +14,172 @@
  * limitations under the License.
  */
 
-package android.thermal;
+package com.android.server.thermal;
 
-import android.thermal.ThermalZone;
-import android.thermal.ThermalSensor;
-import android.thermal.ThermalCoolingDevice;
-import android.thermal.SysfsManager;
-import android.thermal.ThermalNotifier;
-import android.util.Log;
 import android.os.UEventObserver;
 import android.os.SystemProperties;
-import java.util.Hashtable;
-import java.util.ArrayList;
-import java.io.IOException;
-import java.lang.NumberFormatException;
-import java.io.File;
+import android.util.Log;
 
+import java.io.IOException;
+import java.io.File;
+import java.lang.NumberFormatException;
+import java.util.ArrayList;
+import java.util.Hashtable;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+
+/**
+ * The ThermalManager class contains data structures that are common to both
+ * Thermal Sensor/Zone and Cooling device parts.
+ *
+ * @hide
+ */
 public class ThermalManager {
-    public static final String SENSOR_FILE_PATH = "/system/etc/thermal_sensor_config.xml";
-    public static final String THROTTLE_FILE_PATH = "/system/etc/thermal_throttle_config.xml";
-    public static String uEventDevPath = "DEVPATH=/devices/virtual/thermal/thermal_zone";
-    public static PlatformInfo mPlatformInfo;
     private static final String TAG = "ThermalManager";
-    public static ArrayList<ThermalZone> mThermalZonesList;
-    public static Hashtable<Integer, ZoneCoolerBindingInfo> listOfZones = new Hashtable<Integer, ZoneCoolerBindingInfo>();
-    public static Hashtable<Integer, ThermalCoolingDevice> listOfCoolers = new Hashtable<Integer, ThermalCoolingDevice>();
-    public static Hashtable<String, ThermalSensor> sensorMap = new Hashtable<String, ThermalSensor>();
-    public static Hashtable<String, ThermalZone> sensorZoneMap = new Hashtable<String, ThermalZone>();
-    /* this array list tracks the sensors for which event observer has been added */
-    public static ArrayList<Integer> sensorsRegisteredToObserver = new ArrayList<Integer>();
-    /* this lock is to handle uevent callbacks synchronously */
-    private static final Object mLock = new Object();
+    public static final String SENSOR_FILE_PATH = "/system/etc/thermal_sensor_config.xml";
+
+    public static final String THROTTLE_FILE_PATH = "/system/etc/thermal_throttle_config.xml";
+
+    public static String sUEventDevPath = "DEVPATH=/devices/virtual/thermal/thermal_zone";
 
     /**
-     * Extra for {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED}:
+     * Thermal Zone State Changed Action: This is broadcast when the state of a
+     * thermal zone changes.
+     */
+    public static final String ACTION_THERMAL_ZONE_STATE_CHANGED =
+            "com.android.server.thermal.action.THERMAL_ZONE_STATE_CHANGED";
+    public static PlatformInfo sPlatformInfo;
+    /* List of all Thermal zones in the platform */
+    public static ArrayList<ThermalZone> sThermalZonesList;
+
+    /* Hashtable of (ZoneID and ZoneCoolerBindingInfo object) */
+    public static Hashtable<Integer, ZoneCoolerBindingInfo> sListOfZones =
+            new Hashtable<Integer, ZoneCoolerBindingInfo>();
+
+    /* Hashtable of (Cooling Device ID and ThermalCoolingDevice object) */
+    public static Hashtable<Integer, ThermalCoolingDevice> sListOfCoolers =
+            new Hashtable<Integer, ThermalCoolingDevice>();
+
+    /* Hashtable of (Sensor/Zone name and Sensor/Zone objects) */
+    public static Hashtable<String, ThermalSensor> sSensorMap =
+            new Hashtable<String, ThermalSensor>();
+
+    public static Hashtable<String, ThermalZone> sSensorZoneMap =
+            new Hashtable<String, ThermalZone>();
+
+    /* this array list tracks the sensors for which event observer has been added */
+    public static ArrayList<Integer> sSensorsRegisteredToObserver =
+            new ArrayList<Integer>();
+    /* Blocking queue to hold thermal events from thermal zones */
+    private static final int EVENT_QUEUE_SIZE = 10;
+
+    public static BlockingQueue<ThermalEvent> sEventQueue = new ArrayBlockingQueue<ThermalEvent>(EVENT_QUEUE_SIZE);
+    /* this lock is to handle uevent callbacks synchronously */
+    private static final Object sLock = new Object();
+
+    /**
+     * Extra for {@link ACTION_THERMAL_ZONE_STATE_CHANGED}:
      * integer containing the thermal zone.
      */
     public static final String EXTRA_ZONE = "zone";
+
     /**
-     * Extra for {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED}:
+     * Extra for {@link ACTION_THERMAL_ZONE_STATE_CHANGED}:
      * integer containing the thermal state of the zone.
      */
     public static final String EXTRA_STATE = "state";
+
     /**
-     * Extra for {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED}:
+     * Extra for {@link ACTION_THERMAL_ZONE_STATE_CHANGED}:
      * integer containing the thermal event type for the zone.
      */
     public static final String EXTRA_EVENT = "event";
+
     /**
-     * Extra for {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED}:
+     * Extra for {@link ACTION_THERMAL_ZONE_STATE_CHANGED}:
      * integer containing the temperature of the zone.
      */
     public static final String EXTRA_TEMP = "temp";
+
     /**
-     * Extra for {@link android.content.Intent#ACTION_THERMAL_ZONE_STATE_CHANGED}:
+     * Extra for {@link ACTION_THERMAL_ZONE_STATE_CHANGED}:
      * String containing the name of the zone.
      */
     public static final String EXTRA_NAME = "name";
 
     /* values for "STATE" field in the THERMAL_STATE_CHANGED Intent */
     public static final int THERMAL_STATE_OFF = -1;
+
     public static final int THERMAL_STATE_NORMAL = 0;
+
     public static final int THERMAL_STATE_WARNING = 1;
+
     public static final int THERMAL_STATE_ALERT = 2;
+
     public static final int THERMAL_STATE_CRITICAL = 3;
 
-    public static final String STATE_NAMES[] = {"OFF", "NORMAL", "WARNING", "ALERT", "CRITICAL"};
+    public static final int NUM_THERMAL_STATES = 5;
+
+    public static final String STATE_NAMES[] = {
+            "OFF", "NORMAL", "WARNING", "ALERT", "CRITICAL"
+    };
+
     /* values of the "EVENT" field in the THERMAL_STATE_CHANGED intent */
     /* Indicates type of event */
     public static final int THERMAL_LOW_EVENT = 0;
+
     public static final int THERMAL_HIGH_EVENT = 1;
 
     public static final int INVALID_TEMP = 0xDEADBEEF;
+
     /* base sysfs path for sensors */
-    public static final String mSysfsSensorBasePath = "/sys/class/thermal/thermal_zone";
-    public static final String mCoolingDeviceBasePath = "/sys/class/thermal/cooling_device";
-    public static final String mCoolingDeviceType = "/type";
-    public static final String mSysfsSensorType = "/type";
-    public static final String mCoolingDeviceState = "/cur_state";
+    public static final String sSysfsSensorBasePath = "/sys/class/thermal/thermal_zone";
+
+    public static final String sCoolingDeviceBasePath = "/sys/class/thermal/cooling_device";
+
+    public static final String sCoolingDeviceState = "/cur_state";
+
     public static final int THROTTLE_MASK_ENABLE = 1;
+
     public static final int DETHROTTLE_MASK_ENABLE = 1;
 
-    private static final Object sLock = new Object();
-
-    /* thermal notifier system properties for shutdown action*/
+    /* thermal notifier system properties for shutdown action */
     public static boolean sShutdownTone = false;
+
     public static boolean sShutdownToast = false;
+
     public static boolean sShutdownVibra = false;
+
+    /* Native methods to access Sysfs Interfaces */
+    private native static String native_readSysfs(String path);
+    private native static int native_writeSysfs(String path, int val);
+    private native static int native_getThermalZoneIndex(String name);
+    private native static int native_getThermalZoneIndexContains(String name);
+    private native static int native_getCoolingDeviceIndex(String name);
+    private native static int native_getCoolingDeviceIndexContains(String name);
+    private native static boolean native_isFileExists(String name);
+
     /**
-     * this class stores the zone throttle info.It contains the zoneID,
+     * This class stores the zone throttle info. It contains the zoneID,
      * CriticalShutdown flag and CoolingDeviceInfo arraylist.
      */
     public static class ZoneCoolerBindingInfo {
         private int mZoneID;
+
         private int mIsCriticalActionShutdown;
+
         /* cooler ID mask, 1 - throttle device, 0- no action, -1- dont care */
-        private ArrayList <CoolingDeviceInfo> mCoolingDeviceInfoList = null;
+        private ArrayList<CoolingDeviceInfo> mCoolingDeviceInfoList = null;
+
         private CoolingDeviceInfo lastCoolingDevInfoInstance = null;
+
         public class CoolingDeviceInfo {
             private int CDeviceID;
+
             private ArrayList<Integer> DeviceThrottleMask = new ArrayList<Integer>();
+
             private ArrayList<Integer> DeviceDethrottleMask = new ArrayList<Integer>();
+
             public CoolingDeviceInfo() {}
 
             public void createThrottleStateMask(String mask) {
@@ -152,17 +217,19 @@ public class ThermalManager {
             public ArrayList<Integer> getDeThrottleMaskList() {
                 return DeviceDethrottleMask;
             }
-            public void setThrottleMaskList (ArrayList<Integer> list) {
-                    this.DeviceThrottleMask = list;
+
+            public void setThrottleMaskList(ArrayList<Integer> list) {
+                this.DeviceThrottleMask = list;
             }
 
-            public void setDeThrottleMaskList (ArrayList<Integer> list) {
-                    this.DeviceDethrottleMask = list;
+            public void setDeThrottleMaskList(ArrayList<Integer> list) {
+                this.DeviceDethrottleMask = list;
             }
 
         }
 
-        public ZoneCoolerBindingInfo() {}
+        public ZoneCoolerBindingInfo() {
+        }
 
         public ArrayList<CoolingDeviceInfo> getCoolingDeviceInfoList() {
             return mCoolingDeviceInfoList;
@@ -176,12 +243,12 @@ public class ThermalManager {
             return lastCoolingDevInfoInstance;
         }
 
-        public void setCDeviceInfoMaskList(ArrayList <CoolingDeviceInfo> mList) {
+        public void setCDeviceInfoMaskList(ArrayList<CoolingDeviceInfo> mList) {
             mCoolingDeviceInfoList = mList;
         }
 
         public void setZoneID(int zoneID) {
-            this.mZoneID = zoneID;
+            mZoneID = zoneID;
         }
 
         public int getZoneID() {
@@ -189,7 +256,7 @@ public class ThermalManager {
         }
 
         public void setCriticalActionShutdown(int val) {
-            this.mIsCriticalActionShutdown = val;
+            mIsCriticalActionShutdown = val;
         }
 
         public int getCriticalActionShutdown() {
@@ -228,35 +295,100 @@ public class ThermalManager {
         // empty constructor
     }
 
-    public ArrayList<ThermalZone> getThermalZoneList() {
-        return mThermalZonesList;
+
+    // native methods to access kernel sysfs layer
+    public static String readSysfs(String path) {
+        try {
+            return native_readSysfs(path);
+        } catch (UnsatisfiedLinkError e) {
+            Log.i(TAG, "caught UnsatisfiedLinkError in readSysfs");
+            return null;
+        }
     }
 
-    /* this method builds a map of active sensors */
+    public static int writeSysfs(String path, int val) {
+        try {
+            return native_writeSysfs(path, val);
+        } catch (UnsatisfiedLinkError e) {
+            Log.i(TAG, "caught UnsatisfiedLinkError in writeSysfs");
+            return -1;
+        }
+    }
+
+    public static int getThermalZoneIndex(String name) {
+        try {
+            return native_getThermalZoneIndex(name);
+        } catch (UnsatisfiedLinkError e) {
+            Log.i(TAG, "caught UnsatisfiedLinkError in getThermalZoneIndex");
+            return -1;
+        }
+    }
+
+    public static int getThermalZoneIndexContains(String name) {
+        try {
+            return native_getThermalZoneIndexContains(name);
+        } catch (UnsatisfiedLinkError e) {
+            Log.i(TAG, "caught UnsatisfiedLinkError in getThermalZoneIndexContains");
+            return -1;
+        }
+    }
+
+    public static int getCoolingDeviceIndex(String name) {
+        try {
+            return native_getCoolingDeviceIndex(name);
+        } catch (UnsatisfiedLinkError e) {
+            Log.i(TAG, "caught UnsatisfiedLinkError in getCoolingDeviceIndex");
+            return -1;
+        }
+    }
+
+    public static int getCoolingDeviceIndexContains(String name) {
+        try {
+            return native_getCoolingDeviceIndexContains(name);
+        } catch (UnsatisfiedLinkError e) {
+            Log.i(TAG, "caught UnsatisfiedLinkError in getCoolingDeviceIndexContains");
+            return -1;
+        }
+    }
+
+    public static boolean isFileExists(String path) {
+        try {
+            return native_isFileExists(path);
+        } catch (UnsatisfiedLinkError e) {
+            Log.i(TAG, "caught UnsatisfiedLinkError in isFileExists");
+            return false;
+        }
+    }
+
+
+    public ArrayList<ThermalZone> getThermalZoneList() {
+        return sThermalZonesList;
+    }
+
+    // this method builds a map of active sensors
     public static void buildSensorMap() {
         ArrayList<ThermalSensor> tempSensorList;
-        for (ThermalZone t : mThermalZonesList) {
+        for (ThermalZone t : sThermalZonesList) {
             tempSensorList = t.getThermalSensorList();
             for (ThermalSensor s : tempSensorList) {
                 /* put only active sensors in hashtable */
-                if (s.getSensorActiveStatus() && !sensorMap.containsKey(s.getSensorName())) {
-                    sensorMap.put(s.getSensorName(),s);
-                    sensorZoneMap.put(s.getSensorName(), t);
+                if (s.getSensorActiveStatus() && !sSensorMap.containsKey(s.getSensorName())) {
+                    sSensorMap.put(s.getSensorName(), s);
+                    sSensorZoneMap.put(s.getSensorName(), t);
                 }
             }
         }
     }
 
     public static void programSensorThresholds(ThermalSensor s) {
-         int sensorState = s.getSensorThermalState();
-         int lowerTripPoint = s.getLowerThresholdTemp(sensorState);
-         int upperTripPoint = s.getUpperThresholdTemp(sensorState);
-         // write to sysfs
-         if (lowerTripPoint != -1 &&
-             upperTripPoint != -1) {
-             SysfsManager.writeSysfs(s.getSensorLowTempPath(), lowerTripPoint);
-             SysfsManager.writeSysfs(s.getSensorHighTempPath(), upperTripPoint);
-         }
+        int sensorState = s.getSensorThermalState();
+        int lowerTripPoint = s.getLowerThresholdTemp(sensorState);
+        int upperTripPoint = s.getUpperThresholdTemp(sensorState);
+        // write to sysfs
+        if (lowerTripPoint != -1 && upperTripPoint != -1) {
+            ThermalManager.writeSysfs(s.getSensorLowTempPath(), lowerTripPoint);
+            ThermalManager.writeSysfs(s.getSensorHighTempPath(), upperTripPoint);
+        }
     }
 
     private static UEventObserver mUEventObserver = new UEventObserver() {
@@ -265,7 +397,7 @@ public class ThermalManager {
             String sensorName;
             int sensorTemp, errorVal, eventType = -1;
             ThermalZone zone;
-            synchronized (mLock) {
+            synchronized (sLock) {
                 // Name of the sensor and current temperature are mandatory parameters of an UEvent
                 sensorName = event.get("NAME");
                 sensorTemp = Integer.parseInt(event.get("TEMP"));
@@ -278,7 +410,7 @@ public class ThermalManager {
 
                 // call isZoneStateChanged() for zones registered to this sensor
                 if (sensorName != null) {
-                    ThermalSensor s = sensorMap.get(sensorName);
+                    ThermalSensor s = sSensorMap.get(sensorName);
                     if (s == null) return;
 
                     // Adjust the sensor temperature based on the 'error correction' temperature.
@@ -287,15 +419,13 @@ public class ThermalManager {
                     if (eventType == THERMAL_HIGH_EVENT)
                        sensorTemp += errorVal;
 
-                    // for zone to which this sensor is mapped,
-                    // call iszonestatechanged
-                    zone = sensorZoneMap.get(sensorName);
-                    if (zone != null) {
-                        if (zone.isZoneStateChanged(s,sensorTemp)) {
-                            zone.update();
-                            // reprogram threshold
-                            programSensorThresholds(s);
-                        }
+                    // call iszonestatechanged for the zone to which this sensor
+                    // is mapped,
+                    zone = sSensorZoneMap.get(sensorName);
+                    if (zone != null && zone.isZoneStateChanged(s, sensorTemp)) {
+                        zone.update();
+                        // reprogram threshold
+                        programSensorThresholds(s);
                     }
                 }
             }
@@ -303,43 +433,41 @@ public class ThermalManager {
     };
 
     public static void registerUevent(ThermalZone z) {
-        /**
-        * browse through all the sensors in the zone and add the path
-        * to eventobserver
-        */
-        ArrayList<ThermalSensor> tempSensorList = z.getThermalSensorList();
-        boolean subsystemLevelObserver = false;
-        String devPath, sensorSysfs;
-        char count;
-        for (ThermalSensor s : tempSensorList) {
+        String devPath;
+        int indx;
+
+        for (ThermalSensor s : z.getThermalSensorList()) {
             /**
-            * If sensor is not already resgisterd and sensor is active,
-            * add a uevent listener
-            */
-            if (sensorsRegisteredToObserver.indexOf(s.getSensorID()) == -1 &&
-                s.getSensorActiveStatus() &&
-                !s.getUEventDevPath().equals("invalid")) {
+             * If sensor is not already registered and sensor is active, add a
+             * uevent listener
+             */
+            if (sSensorsRegisteredToObserver.indexOf(s.getSensorID()) == -1
+                    && s.getSensorActiveStatus() && !(s.getUEventDevPath().equals("invalid"))) {
                 String eventObserverPath = s.getUEventDevPath();
                 if (eventObserverPath.equals("auto")) {
-                    /* build the sensor listener path */
-                    sensorSysfs = s.getSensorSysfsPath();
-                    count = sensorSysfs.charAt(sensorSysfs.length() - 2);
-                    devPath = uEventDevPath + count;
+                    // build the sensor UEvent listener path
+                    indx = s.getSensorSysfsIndx();
+                    if (indx == -1) {
+                        Log.i(TAG, "Cannot build UEvent path for sensor:" + s.getSensorName());
+                        continue;
+                    } else {
+                        devPath = sUEventDevPath + indx;
+                    }
                 } else {
                     devPath = eventObserverPath;
                 }
 
-                sensorsRegisteredToObserver.add(s.getSensorID());
+                sSensorsRegisteredToObserver.add(s.getSensorID());
                 s.updateSensorAttributes(z.getDBInterval());
                 mUEventObserver.startObserving(devPath);
-                // program high low trip points for sensor
+                // program high and low trip points for sensor
                 programSensorThresholds(s);
             }
         }
     }
 
-     public static void startMonitoringZones() {
-        for (ThermalZone zone: mThermalZonesList) {
+    public static void startMonitoringZones() {
+        for (ThermalZone zone : sThermalZonesList) {
             if (zone.isUEventSupported()) {
                 registerUevent(zone);
             } else {
@@ -350,8 +478,8 @@ public class ThermalManager {
     }
 
     public static boolean configFilesExist() {
-         return ((new File(SENSOR_FILE_PATH).exists()) &&
-                (new File(THROTTLE_FILE_PATH).exists()));
+        return ThermalManager.isFileExists(SENSOR_FILE_PATH) &&
+                ThermalManager.isFileExists(THROTTLE_FILE_PATH);
     }
 
     public static void readShutdownNotiferProperties() {
@@ -370,4 +498,24 @@ public class ThermalManager {
         }
     }
 
+    /**
+     * This function scans through all the thermal zones and its associated
+     * sensors to check if at least one sensor is active. If no sensors are
+     * active, the Thermal service exits.
+     */
+    public static boolean isThermalServiceNeeded() {
+        for (ThermalZone z : sThermalZonesList) {
+            if (z != null && z.getZoneActiveStatus()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+   public static void unregisterZoneReceivers() {
+       for (ThermalZone z : sThermalZonesList) {
+           if (z == null) continue;
+           z.unregisterReceiver();
+       }
+   }
 }

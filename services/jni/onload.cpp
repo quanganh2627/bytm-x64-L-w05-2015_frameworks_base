@@ -35,6 +35,7 @@ int register_android_server_CurrentMgmtService(JNIEnv* env);
 int register_android_server_SystemServer(JNIEnv* env);
 int register_android_server_location_GpsLocationProvider(JNIEnv* env);
 int register_android_server_connectivity_Vpn(JNIEnv* env);
+int register_android_server_thermal_ThermalManager(JNIEnv* env);
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
 int register_intel_multidisplay_DisplaySetting(JNIEnv *env);
 #endif
@@ -68,6 +69,7 @@ extern "C" jint JNI_OnLoad(JavaVM* vm, void* reserved)
     register_android_server_SystemServer(env);
     register_android_server_location_GpsLocationProvider(env);
     register_android_server_connectivity_Vpn(env);
+    register_android_server_thermal_ThermalManager(env);
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
     register_intel_multidisplay_DisplaySetting(env);
 #endif

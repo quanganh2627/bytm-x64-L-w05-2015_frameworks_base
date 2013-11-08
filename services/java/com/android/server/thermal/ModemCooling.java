@@ -14,30 +14,34 @@
  * limitations under the License.
  */
 
-package android.thermal;
+package com.android.server.thermal;
+
 import android.content.Context;
 import android.util.Log;
-import android.thermal.ThermalManager;
+
+import java.util.ArrayList;
+
 /**
- *Modem Cooling class
- *@hide
+ * Modem Cooling class can be used to control modem as a
+ * cooling device
+ *
+ * @hide
  */
 public class ModemCooling {
     private static final String TAG = "Thermal:ModemCooling";
-    private static Context mContext;
-    public static void init(Context context, String path) {
-        mContext = context;
+    public static void init(Context context, String path, ArrayList<Integer> values) {
     }
 
     public static void throttleDevice(int tstate) {
         switch(tstate) {
-        case ThermalManager.THERMAL_STATE_NORMAL:
-        case ThermalManager.THERMAL_STATE_WARNING:
-        case ThermalManager.THERMAL_STATE_ALERT:
-        case ThermalManager.THERMAL_STATE_CRITICAL:
-        break;
-        default:
-            Log.i(TAG, "handling 'default' case in throttleDevice method, thermalState: "+ tstate);
+            case ThermalManager.THERMAL_STATE_NORMAL:
+            case ThermalManager.THERMAL_STATE_WARNING:
+            case ThermalManager.THERMAL_STATE_ALERT:
+            case ThermalManager.THERMAL_STATE_CRITICAL:
+                break;
+            default:
+                Log.i(TAG, "handling 'default' case in throttleDevice method, thermalState: "+
+                        tstate);
         }
     }
 }
