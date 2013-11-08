@@ -4023,6 +4023,16 @@ public final class ActivityManagerService extends ActivityManagerNative
                 }
             }
         }
+        // Dump message history on App side
+        if (!IS_USER_BUILD && app.thread != null) {
+            try {
+                // This is a one-way binder call, meaning that the caller returns immediately,
+                // without waiting for a result from the callee.
+                app.thread.dumpANRInfo();
+            } catch (RemoteException e) {
+                Slog.e(ActivityManagerService.TAG, "Exception in dumpANRInfo", e);
+            }
+        }
 
         // Log the ANR to the main log.
         StringBuilder info = new StringBuilder();
