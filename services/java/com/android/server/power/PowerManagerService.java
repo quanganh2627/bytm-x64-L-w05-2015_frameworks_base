@@ -313,6 +313,9 @@ public final class PowerManagerService extends IPowerManager.Stub
     // The screen off timeout setting value in milliseconds.
     private int mScreenOffTimeoutSetting;
 
+    // On charger-insert, display to be turned-on
+    private PowerManager.WakeLock mChargeScreen;
+
     // The maximum allowable screen off timeout according to the device
     // administration policy.  Overrides other settings.
     private int mMaximumScreenOffTimeoutFromDeviceAdmin = Integer.MAX_VALUE;
@@ -1212,6 +1215,22 @@ public final class PowerManagerService extends IPowerManager.Stub
                 // and it shuts off right away.
                 // Some devices also wake the device when plugged or unplugged because
                 // they don't have a charging LED.
+
+                // UsbDeviceManager acquires a wakelock on SDP/CDP insert and turns on screen.
+                // But, DCP insertion doesn't go through this flow; hence adding an
+                // additional flow to accomodate all charger-insertion to turn-on screen.
+                if (!wasPowered &&
+                        mDisplayPowerRequest.screenState == DisplayPowerRequest.SCREEN_STATE_OFF) {
+                    PowerManager powerManager
+                        = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
+                    mChargeScreen = powerManager.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK
+                                        | PowerManager.ACQUIRE_CAUSES_WAKEUP, "charger plug");
+                    mChargeScreen.setReferenceCounted(false);
+
+                    // Acquire short time wakelock same as keyguard
+                    mChargeScreen.acquire(10000);
+                }
+
                 final long now = SystemClock.uptimeMillis();
                 if (shouldWakeUpWhenPluggedOrUnpluggedLocked(wasPowered, oldPlugType,
                         dockedOnWirelessCharger)) {
