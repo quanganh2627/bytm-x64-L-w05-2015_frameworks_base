@@ -72,6 +72,7 @@ import com.android.server.usb.UsbService;
 import com.android.server.wifi.WifiService;
 import com.android.server.wifi.CsmWifiOffloadSystemService;
 import com.android.server.wm.WindowManagerService;
+import android.view.InputChannel;
 import com.intel.multidisplay.DisplayObserver;
 
 import dalvik.system.VMRuntime;
@@ -672,19 +673,19 @@ class ServerThread {
             try {
                 Slog.i(TAG, "Intel Display Observer");
                 // Listen for display changes
-                DisplayObserver dso = new DisplayObserver(context);
+                InputChannel input =
+                    inputManager.monitorInput("MultiDisplayView");
+                DisplayObserver dso = new DisplayObserver(context, input);
             } catch (Throwable e) {
                 reportWtf("starting Intel DisplayObserver", e);
             }
 
-            if (!disableNonCoreServices) {
-                try {
-                    Slog.i(TAG, "Dock Observer");
-                    // Listen for dock station changes
-                    dock = new DockObserver(context);
-                } catch (Throwable e) {
-                    reportWtf("starting DockObserver", e);
-                }
+            try {
+                Slog.i(TAG, "Dock Observer");
+                // Listen for dock station changes
+                dock = new DockObserver(context);
+            } catch (Throwable e) {
+                reportWtf("starting DockObserver", e);
             }
 
             if (!disableMedia) {
