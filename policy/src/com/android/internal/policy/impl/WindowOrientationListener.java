@@ -61,7 +61,15 @@ public abstract class WindowOrientationListener {
     /* Using Terminal Sensor to detect rotation first */
     private boolean mEnabledTerminal = false;
     private final int SENSOR_TYPE_TERMINAL = 103;
-    private final int ACCEL_EVENT_MAX = 60;
+    private final int TERMINAL_FACE_UP = 129;
+    private final int TERMINAL_FACE_DOWN = 130;
+    private final int TERMINAL_PORTRAIT_UP = 131;
+    private final int TERMINAL_PORTRAIT_DOWN = 132;
+    private final int TERMINAL_HORIZONTAL_UP = 133;
+    private final int TERMINAL_HORIZONTAL_DOWN = 134;
+    private final int TERMINAL_UNKNOWN = 135;
+    /* 8 seconds, SensorManager.SENSOR_DELAY_UI is 15HZ,  8 * 15 = 120 */
+    private final int ACCEL_EVENT_MAX = 120;
     private Sensor mTerminal;
     private TerminalEventListenerImpl mTerminalEventListener;
     private int mAccelEventCount = 0;
@@ -796,13 +804,18 @@ public abstract class WindowOrientationListener {
         @Override
         public void onSensorChanged(SensorEvent event) {
             synchronized (mLock) {
-                if (!mAccelRegistered) {
-                    mSensorManager.registerListener(mSensorEventListener, mSensor,
-                                                    SensorManager.SENSOR_DELAY_FASTEST,
-                                                    mHandler);
-                    mAccelRegistered = true;
+                if (event.values[0] == TERMINAL_PORTRAIT_UP ||
+                    event.values[0] == TERMINAL_PORTRAIT_DOWN ||
+                    event.values[0] == TERMINAL_HORIZONTAL_UP ||
+                    event.values[0] == TERMINAL_HORIZONTAL_DOWN) {
+                    if (!mAccelRegistered) {
+                        mSensorManager.registerListener(mSensorEventListener, mSensor,
+                                                        SensorManager.SENSOR_DELAY_UI,
+                                                        mHandler);
+                        mAccelRegistered = true;
+                    }
+                    mAccelEventCount = 0;
                 }
-                mAccelEventCount = 0;
             }
         }
     }
