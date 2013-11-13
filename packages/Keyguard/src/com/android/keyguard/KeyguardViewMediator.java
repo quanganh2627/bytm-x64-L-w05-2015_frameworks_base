@@ -391,6 +391,7 @@ public class KeyguardViewMediator {
                     break;
                 case PIN_REQUIRED:
                 case PUK_REQUIRED:
+                case NETWORK_LOCKED_PUK:
                     synchronized (this) {
                         if (!isShowing()) {
                             if (DEBUG) Log.d(TAG, "INTENT_VALUE_ICC_LOCKED and keygaurd isn't "
