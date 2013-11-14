@@ -569,6 +569,8 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
             mQSDataTypeIconId = TelephonyIcons.QS_DATA_4G[mInetCondition];
             mContentDescriptionDataType = mContext.getString(
                     R.string.accessibility_data_connection_4g);
+        } else if (!hasService() || mDataState != TelephonyManager.DATA_CONNECTED) {
+            mDataTypeIconId = 0;
         } else {
             switch (mDataNetType) {
                 case TelephonyManager.NETWORK_TYPE_UNKNOWN:
