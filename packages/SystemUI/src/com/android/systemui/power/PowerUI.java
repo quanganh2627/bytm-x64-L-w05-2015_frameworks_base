@@ -37,6 +37,7 @@ import android.util.Slog;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.android.systemui.R;
 import com.android.systemui.SystemUI;
@@ -56,6 +57,7 @@ public class PowerUI extends SystemUI {
     int mBatteryStatus = BatteryManager.BATTERY_STATUS_UNKNOWN;
     int mPlugType = 0;
     int mInvalidCharger = 0;
+    boolean mShowChargerWarning = true;
 
     int mLowBatteryAlertCloseLevel;
     int[] mLowBatteryReminderLevels = new int[2];
@@ -129,6 +131,22 @@ public class PowerUI extends SystemUI {
 
                 final boolean plugged = mPlugType != 0;
                 final boolean oldPlugged = oldPlugType != 0;
+
+                if (mBatteryStatus != oldBatteryStatus) {
+                    mShowChargerWarning = true;
+                }
+
+                if (mBatteryLevel < oldBatteryLevel &&
+                        (mBatteryStatus == BatteryManager.BATTERY_STATUS_CHARGING
+                        || mBatteryStatus == BatteryManager.BATTERY_STATUS_FULL)
+                        && (oldBatteryStatus == BatteryManager.BATTERY_STATUS_CHARGING
+                        || oldBatteryStatus == BatteryManager.BATTERY_STATUS_FULL)
+                        && mShowChargerWarning) {
+                    Toast.makeText(mContext.getApplicationContext(),
+                        "Insufficient charger current!!!", Toast.LENGTH_LONG).show();
+                    mShowChargerWarning = false;
+                    Slog.i(TAG, "Showing Charger Warning...");
+                }
 
                 int oldBucket = findBatteryLevelBucket(oldBatteryLevel);
                 int bucket = findBatteryLevelBucket(mBatteryLevel);
