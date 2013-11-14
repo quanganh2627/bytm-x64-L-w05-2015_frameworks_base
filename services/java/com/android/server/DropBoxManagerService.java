@@ -276,10 +276,11 @@ public final class DropBoxManagerService extends IDropBoxManagerService.Stub {
     }
 
     public synchronized DropBoxManager.Entry getNextEntry(String tag, long millis) {
+        /*
         if (mContext.checkCallingOrSelfPermission(android.Manifest.permission.READ_LOGS)
                 != PackageManager.PERMISSION_GRANTED) {
             throw new SecurityException("READ_LOGS permission required");
-        }
+        }*/
 
         try {
             init();
