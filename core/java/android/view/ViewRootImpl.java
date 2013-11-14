@@ -1479,7 +1479,7 @@ public final class ViewRootImpl implements ViewParent,
                                 mTranslator.translateCanvas(layerCanvas);
                             }
 
-                            DisplayList displayList = mView.mDisplayList;
+                            DisplayList displayList = mView.getDisplayList();
                             if (displayList != null && displayList.isValid()) {
                                 layerCanvas.drawDisplayList(displayList, null,
                                         DisplayList.FLAG_CLIP_CHILDREN);
