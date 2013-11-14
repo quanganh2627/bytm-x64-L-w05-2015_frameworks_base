@@ -726,6 +726,7 @@ void FontRenderer::removeFont(const Font* font) {
 }
 
 void FontRenderer::blurImage(uint8_t** image, int32_t width, int32_t height, int32_t radius) {
+    bool rsInitFailed = false;
 #ifdef ANDROID_ENABLE_RENDERSCRIPT
     if (width * height * radius >= RS_MIN_INPUT_CUTOFF) {
         uint8_t* outImage = (uint8_t*) memalign(RS_CPU_ALLOCATION_ALIGNMENT, width * height);
@@ -733,30 +734,34 @@ void FontRenderer::blurImage(uint8_t** image, int32_t width, int32_t height, int
         if (mRs == 0) {
             mRs = new RSC::RS();
             if (!mRs->init(RSC::RS_INIT_LOW_LATENCY | RSC::RS_INIT_SYNCHRONOUS)) {
+                rsInitFailed = true;
                 ALOGE("blur RS failed to init");
+            } else {
+                mRsElement = RSC::Element::A_8(mRs);
+                mRsScript = RSC::ScriptIntrinsicBlur::create(mRs, mRsElement);
             }
-
-            mRsElement = RSC::Element::A_8(mRs);
-            mRsScript = RSC::ScriptIntrinsicBlur::create(mRs, mRsElement);
         }
+        if (!rsInitFailed) {
+            RSC::sp<const RSC::Type> t = RSC::Type::create(mRs, mRsElement, width, height, 0);
+            RSC::sp<RSC::Allocation> ain = RSC::Allocation::createTyped(mRs, t,
+                    RS_ALLOCATION_MIPMAP_NONE,
+                    RS_ALLOCATION_USAGE_SCRIPT | RS_ALLOCATION_USAGE_SHARED,
+                    *image);
+            RSC::sp<RSC::Allocation> aout = RSC::Allocation::createTyped(mRs, t,
+                    RS_ALLOCATION_MIPMAP_NONE,
+                    RS_ALLOCATION_USAGE_SCRIPT | RS_ALLOCATION_USAGE_SHARED,
+                    outImage);
 
-        RSC::sp<const RSC::Type> t = RSC::Type::create(mRs, mRsElement, width, height, 0);
-        RSC::sp<RSC::Allocation> ain = RSC::Allocation::createTyped(mRs, t,
-                RS_ALLOCATION_MIPMAP_NONE, RS_ALLOCATION_USAGE_SCRIPT | RS_ALLOCATION_USAGE_SHARED,
-                *image);
-        RSC::sp<RSC::Allocation> aout = RSC::Allocation::createTyped(mRs, t,
-                RS_ALLOCATION_MIPMAP_NONE, RS_ALLOCATION_USAGE_SCRIPT | RS_ALLOCATION_USAGE_SHARED,
-                outImage);
+            mRsScript->setRadius(radius);
+            mRsScript->setInput(ain);
+            mRsScript->forEach(aout);
 
-        mRsScript->setRadius(radius);
-        mRsScript->setInput(ain);
-        mRsScript->forEach(aout);
+            // replace the original image's pointer, avoiding a copy back to the original buffer
+            free(*image);
+            *image = outImage;
 
-        // replace the original image's pointer, avoiding a copy back to the original buffer
-        free(*image);
-        *image = outImage;
-
-        return;
+            return;
+        }
     }
 #endif
 
