@@ -1908,10 +1908,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
         }
     }
 
-    protected boolean removeContainerUser(int userHandle) {
-        return false;
-    }
-    private void wipeDeviceOrUserLocked(int flags, final int userHandle) {
+    protected void wipeDeviceOrUserLocked(int flags, final int userHandle) {
         if (userHandle == UserHandle.USER_OWNER) {
             wipeDataLocked(flags);
         } else {
@@ -1920,10 +1917,8 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
                 public void run() {
                     try {
                         ActivityManagerNative.getDefault().switchUser(UserHandle.USER_OWNER);
-                        if (!removeContainerUser(userHandle)) {
-                            ((UserManager) mContext.getSystemService(Context.USER_SERVICE))
-                                    .removeUser(userHandle);
-                        }
+                        ((UserManager) mContext.getSystemService(Context.USER_SERVICE))
+                                .removeUser(userHandle);
                     } catch (RemoteException re) {
                         // Shouldn't happen
                     }
@@ -2428,7 +2423,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
                 Settings.Global.DEVICE_PROVISIONED, 0) > 0;
     }
 
-    private void enforceCrossUserPermission(int userHandle) {
+    protected void enforceCrossUserPermission(int userHandle) {
         if (userHandle < 0) {
             throw new IllegalArgumentException("Invalid userId " + userHandle);
         }

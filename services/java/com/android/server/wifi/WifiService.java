@@ -84,6 +84,9 @@ import static com.android.server.wifi.WifiController.CMD_SCREEN_ON;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
 import static com.android.server.wifi.WifiController.CMD_DEVICE_IDLE;
+
+import com.intel.arkham.ContainerCommons;
+
 /**
  * WifiService handles remote WiFi operation requests by implementing
  * the IWifiManager interface.
@@ -639,8 +642,10 @@ public class WifiService extends IWifiManager.Stub {
         }
         try {
             int currentUser = ActivityManager.getCurrentUser();
-            if (userId != currentUser) {
+            /* ARKHAM-621 Let WiFi networks be displayed in container Settings. */
+            if (userId != currentUser && !ContainerCommons.isContainerUser(mContext, userId)) {
                 return new ArrayList<ScanResult>();
+            /* END ARKHAM-621 changes. */
             } else {
                 return mWifiStateMachine.syncGetScanResultsList();
             }

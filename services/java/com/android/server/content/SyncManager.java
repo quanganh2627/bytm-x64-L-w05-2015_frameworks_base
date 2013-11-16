@@ -1014,6 +1014,10 @@ public class SyncManager extends ParentSyncManager {
         }
     }
 
+    protected SyncQueue getSyncQueue() {
+        return mSyncQueue;
+    }
+
     /**
      * @hide
      */

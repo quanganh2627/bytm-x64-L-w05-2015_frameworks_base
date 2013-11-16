@@ -47,7 +47,7 @@ import android.view.WindowManager;
 
 import com.android.internal.os.BinderInternal;
 import com.android.internal.os.SamplingProfilerIntegration;
-import com.android.server.accessibility.AccessibilityManagerService;
+import com.android.server.accessibility.ExtendAccessibilityManagerService;
 import com.android.server.accounts.AccountManagerService;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.am.BatteryStatsService;
@@ -396,7 +396,7 @@ class ServerThread extends Thread {
             try {
                 Slog.i(TAG, "Accessibility Manager");
                 ServiceManager.addService(Context.ACCESSIBILITY_SERVICE,
-                        new AccessibilityManagerService(context));
+                        new ExtendAccessibilityManagerService(context));
             } catch (Throwable e) {
                 reportWtf("starting Accessibility Manager", e);
             }

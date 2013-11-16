@@ -108,7 +108,10 @@ public class KeyguardViewManager {
         // useful on any keyguard screen but can be re-shown by dialogs or SHOW_WHEN_LOCKED
         // activities. Other disabled bits are handled by the KeyguardViewMediator talking
         // directly to the status bar service.
-        final int visFlags = View.STATUS_BAR_DISABLE_HOME;
+        /* For ARKHAM-1138: Replace the Back key with the Home key for container keyguard */
+        final int visFlags = (mLockPatternUtils.isContainerUserMode()
+                ? View.SYSTEM_UI_FLAG_VISIBLE : View.STATUS_BAR_DISABLE_HOME);
+        /* End ARKHAM-1138 */
         if (DEBUG) Log.v(TAG, "show:setSystemUiVisibility(" + Integer.toHexString(visFlags)+")");
         mKeyguardHost.setSystemUiVisibility(visFlags);
 

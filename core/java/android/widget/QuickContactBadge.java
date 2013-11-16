@@ -169,8 +169,6 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
      *            {@link Contacts#CONTENT_LOOKUP_URI} style URI.
      */
     public void assignContactUri(Uri contactUri) {
-        mPQCB.assignContactUri(contactUri);
-
         mContactUri = contactUri;
         mContactEmail = null;
         mContactPhone = null;

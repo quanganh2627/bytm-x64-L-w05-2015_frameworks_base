@@ -38,8 +38,11 @@ import android.view.accessibility.AccessibilityInteractionClient;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.IAccessibilityInteractionConnection;
 
+import com.intel.config.FeatureConfig;
+
 import java.util.ArrayList;
 import java.util.concurrent.TimeoutException;
+
 
 /**
  * Class for interacting with the device's UI by simulation user actions and
@@ -220,6 +223,10 @@ public final class UiAutomation {
      * @hide
      */
     public void disconnect() {
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM && !isConnectedLocked()) {
+            return;
+        }
+
         synchronized (mLock) {
             if (mIsConnecting) {
                 throw new IllegalStateException(
@@ -661,7 +668,8 @@ public final class UiAutomation {
         }
     }
 
-    private boolean isConnectedLocked() {
+    /** @hide */
+    public boolean isConnectedLocked() {
         return mConnectionId != CONNECTION_ID_UNDEFINED;
     }
 

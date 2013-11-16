@@ -434,7 +434,13 @@ public class ActivityManager {
          * The true identifier of this task, valid even if it is not running.
          */
         public int persistentId;
-        
+
+        /**
+         * The task userId
+         * @hide
+         */
+        public int userId;
+
         /**
          * The original Intent used to launch the task.  You can use this
          * Intent to re-launch the task (if it is no longer running) or bring
@@ -465,6 +471,7 @@ public class ActivityManager {
         public void writeToParcel(Parcel dest, int flags) {
             dest.writeInt(id);
             dest.writeInt(persistentId);
+            dest.writeInt(userId);
             if (baseIntent != null) {
                 dest.writeInt(1);
                 baseIntent.writeToParcel(dest, 0);
@@ -479,6 +486,7 @@ public class ActivityManager {
         public void readFromParcel(Parcel source) {
             id = source.readInt();
             persistentId = source.readInt();
+            userId = source.readInt();
             if (source.readInt() != 0) {
                 baseIntent = Intent.CREATOR.createFromParcel(source);
             } else {

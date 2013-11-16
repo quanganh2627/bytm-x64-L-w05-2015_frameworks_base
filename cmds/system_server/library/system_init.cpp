@@ -27,7 +27,10 @@
 #include <cutils/properties.h>
 
 #ifdef TARGET_HAS_MULTIPLE_DISPLAY
-#include <MultiDisplayService.h>
+#include <display/MultiDisplayService.h>
+#ifndef USE_MDS_LEGACY
+using namespace android::intel;
+#endif
 #endif
 
 using namespace android;

@@ -263,15 +263,9 @@ public abstract class KeyguardViewBase extends FrameLayout {
         super.dispatchSystemUiVisibilityChanged(visibility);
 
         if (!(mContext instanceof Activity)) {
-            setSystemUiVisibility(getStatusBarDisabledFlags());
+            setSystemUiVisibility(STATUS_BAR_DISABLE_BACK);
         }
     }
-
-    // ARKHAM-984 START - default implementation, overriden by KeyguardHostView.getStatusBarDisabledFlags method
-    protected int getStatusBarDisabledFlags() {
-        return STATUS_BAR_DISABLE_BACK;
-    }
-    // ARKHAM-984 END
 
     public void setViewMediatorCallback(
             KeyguardViewMediator.ViewMediatorCallback viewMediatorCallback) {

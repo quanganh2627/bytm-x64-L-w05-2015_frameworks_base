@@ -59,7 +59,7 @@ public class ClipboardService extends IClipboard.Stub {
     private final AppOpsManager mAppOps;
     private final IBinder mPermissionOwner;
 
-    private class ListenerInfo {
+    protected class ListenerInfo {
         final int mUid;
         final String mPackageName;
         ListenerInfo(int uid, String packageName) {

@@ -6241,6 +6241,14 @@ public class PackageManagerService extends IPackageManager.Stub {
                             }
                             addedPackage = p.applicationInfo.packageName;
                             addedAppId = UserHandle.getAppId(p.applicationInfo.uid);
+                            /**
+                             * ARKHAM-1042 Fixing launcher appearing in Container User space.
+                             */
+                            if (isContainerLauncher(fullPath)) {
+                                PackageSetting pkgSetting = mSettings.mPackages.get(addedPackage);
+                                pkgSetting.setEnabled(COMPONENT_ENABLED_STATE_DISABLED,
+                                        Integer.parseInt(getContainerId(fullPath)), null);
+                            }
                         }
                     }
                 }

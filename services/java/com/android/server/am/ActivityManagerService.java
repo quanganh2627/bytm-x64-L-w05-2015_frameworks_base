@@ -35,8 +35,6 @@ import com.android.server.pm.UserManagerService;
 import com.android.server.wm.AppTransition;
 import com.android.server.wm.WindowManagerService;
 import static com.android.internal.util.ArrayUtils.appendInt;
-import com.intel.arkham.ContainerConstants;
-import com.intel.arkham.ContainerInfo;
 
 import dalvik.system.Zygote;
 
@@ -5915,9 +5913,6 @@ public class ActivityManagerService  extends ActivityManagerNative
 
         return list;
     }
-    protected ContainerInfo getContainer(int userId) {
-        return null;
-    }
 
     protected boolean isUsersTask(TaskRecord tr, int userId) {
         if (tr.userId != userId)
@@ -5970,9 +5965,7 @@ public class ActivityManagerService  extends ActivityManagerNative
                     }
                     rti.origActivity = tr.origActivity;
                     rti.description = tr.lastDescription;
-                    ContainerInfo ci = getContainer(tr.userId);
-                    if (ci != null)
-                        rti.baseIntent.putExtra(ContainerConstants.EXTRA_CONTAINER_INFO, ci);
+                    rti.userId = tr.userId;
 
                     if ((flags&ActivityManager.RECENT_IGNORE_UNAVAILABLE) != 0) {
                         // Check whether this activity is currently available.
@@ -8089,69 +8082,71 @@ public class ActivityManagerService  extends ActivityManagerNative
      * method will block until the ASF launch has completed.
      */
     private void launchAsf() {
-        if (!AsfAosp.ENABLE) {
-            return;
-        }
-
-        // A class is needed to contain this variable, so that the
-        // object can be final (and accessible from the callback inner
-        // class) but the value be mutable.  We need a real
-        // java.lang.Object to use for locking, besides.
-        class CompletionCondition {
-            public boolean finished = false;
-        };
-        final CompletionCondition completionCondition =
+        if (AsfAosp.ENABLE) {
+            // A class is needed to contain this variable, so that the
+            // object can be final (and accessible from the callback inner
+            // class) but the value be mutable.  We need a real
+            // java.lang.Object to use for locking, besides.
+            class CompletionCondition {
+                public boolean finished = false;
+            };
+            final CompletionCondition completionCondition =
                 new CompletionCondition();
 
-        // Launch the ASF security manager service.
-        Log.i(TAG, "Preparing to launch ASF security manager.");
-        Intent intent = AsfAosp.getLaunchIntent(new Runnable() {
-            public void run() {
-                // When the security manager service signals readiness,
-                // allow the activity manager to continue where we
-                // block, below.
-                synchronized(completionCondition) {
-                    completionCondition.finished = true;
-                    completionCondition.notify();
+            // Launch the ASF security manager service.
+            Log.i(TAG, "Preparing to launch ASF security manager.");
+            Intent intent = AsfAosp.getLaunchIntent(new Runnable() {
+                public void run() {
+                    // When the security manager service signals readiness,
+                    // allow the activity manager to continue where we
+                    // block, below.
+                    synchronized(completionCondition) {
+                        completionCondition.finished = true;
+                        completionCondition.notify();
+                    }
                 }
+            });
+            if (intent == null) {
+                Log.e(TAG, "Unable to create 'ASF Launch' intent for launching "
+                        + "ASF security manager service.");
+                return;
             }
-        });
+            // Send the broadcast intent.
+            synchronized (this) {
+                broadcastIntentLocked(
+                                      null, null, intent, null,
+                                      null, 0, null, null,
+                                      AsfAosp.LAUNCH_SECURITY_MANAGER_PERMISSION,
+                                      AppOpsManager.OP_NONE,
+                                      true, false,
+                                      MY_PID, Process.SYSTEM_UID, UserHandle.USER_ALL
+                                      );
+            }
 
-        // Send the broadcast intent.
-        synchronized (this) {
-            broadcastIntentLocked(
-                    null, null, intent, null,
-                    null, 0, null, null,
-                    AsfAosp.LAUNCH_SECURITY_MANAGER_PERMISSION,
-                    AppOpsManager.OP_NONE,
-                    true, false,
-                    MY_PID, Process.SYSTEM_UID, UserHandle.USER_ALL
-            );
-        }
+            // Flush the broadcast queue so our intent is delivered
+            // immediately.  (Otherwise, ASF launch will be delayed during
+            // first boot.)
+            mFgBroadcastQueue.processNextBroadcast(true);
 
-        // Flush the broadcast queue so our intent is delivered
-        // immediately.  (Otherwise, ASF launch will be delayed during
-        // first boot.)
-        mFgBroadcastQueue.processNextBroadcast(true);
-
-        // Block until the ASF security manager service signals
-        // readiness.
-        synchronized(completionCondition) {
-            if (!completionCondition.finished) {
-                try {
-                    completionCondition.wait(ASF_LAUNCH_TIMEOUT);
-                } catch (InterruptedException e) {
-                    Log.e(
-                            TAG,
-                            "Interruption while waiting for completion of ASF launch.",
-                            e
-                    );
+            // Block until the ASF security manager service signals
+            // readiness.
+            synchronized(completionCondition) {
+                if (!completionCondition.finished) {
+                    try {
+                        completionCondition.wait(ASF_LAUNCH_TIMEOUT);
+                    } catch (InterruptedException e) {
+                        Log.e(
+                              TAG,
+                              "Interruption while waiting for completion of ASF launch.",
+                              e
+                              );
+                    }
                 }
-            }
-            if (! completionCondition.finished) {
-                Log.e(TAG, "Timeout while launching ASF security manager.");
-            } else {
-                Log.i(TAG, "Finished launching ASF security manager.");
+                if (!completionCondition.finished) {
+                    Log.e(TAG, "Timeout while launching ASF security manager.");
+                } else {
+                    Log.i(TAG, "Finished launching ASF security manager.");
+                }
             }
         }
     }
