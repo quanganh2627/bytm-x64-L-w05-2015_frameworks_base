@@ -162,6 +162,26 @@ public class WifiManager {
         "android.net.wifi.WIFI_AP_STATE_CHANGED";
 
     /**
+     * Wifi_Hotspot: This intent comes from dnsmaq daemon when tethering is done
+     * to deliver IP address and device name in real time.
+     * @hide
+     */
+    public static final String WIFI_AP_STA_TETHER_CONNECT_ACTION =
+    "android.net.wifi.WIFI_AP_STA_TETHER_CONNECT";
+
+     /**
+     * Wifi_Hotspot: This indicates the mac address of connected station.
+     * @hide
+     */
+    public static final String EXTRA_WIFI_AP_DEVICE_ADDRESS = "device_address";
+
+   /**
+     * Wifi_Hotspot: This is IP address of connected station.
+     * @hide
+     */
+    public static final String EXTRA_WIFI_AP_IP_ADDRESS = "ip_address";
+
+    /**
      * The lookup key for an int that indicates whether Wi-Fi AP is enabled,
      * disabled, enabling, disabling, or failed.  Retrieve it with
      * {@link android.content.Intent#getIntExtra(String,int)}.
