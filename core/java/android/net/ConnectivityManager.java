@@ -383,7 +383,7 @@ public class ConnectivityManager {
     public static final int MAX_RADIO_TYPE   = TYPE_MOBILE_BIP_GPRS2;
 
     /** {@hide} */
-    public static final int MAX_NETWORK_TYPE = TYPE_MOBILE_IA;
+    public static final int MAX_NETWORK_TYPE = TYPE_MOBILE_BIP_GPRS2;
 
     /**
      * If you want to set the default network preference,you can directly
