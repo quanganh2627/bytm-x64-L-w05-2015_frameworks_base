@@ -43,7 +43,9 @@
 #include <signal.h>
 #include <dirent.h>
 #include <assert.h>
-
+#ifdef RETRIEVE_INGREDIENTS_VERSIONS
+#include <fcntl.h>
+#endif
 
 using namespace android;
 
