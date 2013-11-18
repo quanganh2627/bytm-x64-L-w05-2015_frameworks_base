@@ -451,7 +451,7 @@ final class WifiDisplayAdapter extends DisplayAdapter {
             if (mActiveDisplayState != WifiDisplayStatus.DISPLAY_STATE_DISCONNECTING) {
                 mLastConnectedAdapterName = mDisplayDevice.mName;
                 notifyConnectionLost();
-                requestScanLocked();
+                requestStartScanLocked();
             }
             mDisplayDevice = null;
         }
@@ -665,7 +665,7 @@ final class WifiDisplayAdapter extends DisplayAdapter {
                     mActiveDisplayState = WifiDisplayStatus.DISPLAY_STATE_NOT_CONNECTED;
                     mActiveDisplay = null;
                     // Initiate a p2p scan after disconnection
-                    requestScanLocked();
+                    requestStartScanLocked();
                     scheduleStatusChangedBroadcastLocked();
                     scheduleUpdateNotificationLocked();
                 }

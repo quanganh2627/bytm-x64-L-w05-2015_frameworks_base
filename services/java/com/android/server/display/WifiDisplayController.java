@@ -496,7 +496,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
     private void restartDiscoverPeers() {
         mDiscoverPeersScheduled = true;
-        stopDiscoverPeers();
+        stopPeerDiscovery();
     }
 
     private void requestPeers() {
