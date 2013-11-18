@@ -171,6 +171,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 // length of vibration before shutting down is started on long power key press
     private static final int SHUTDOWN_VIBRATE_MS = 500;
 
+    // private lock for thread sync
+    private Object lock = new Object();
+
     /**
      * Keyguard stuff
      */
@@ -686,16 +689,20 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     private boolean interceptPowerKeyUp(boolean canceled) {
+        synchronized(lock) {
         if (!mPowerKeyHandled) {
             // Cancel pending action scheduled in interceptPowerKeyDown
             Log.i(TAG, "interceptPowerKeyUp: key up event: remove pending callbacks for long press");
             mHandler.removeCallbacks(mPowerLongPress);
+            lock.notify();
             return !canceled;
         }
         // Cancel pending action scheduled in interceptPowerKeyDown
         Log.i(TAG, "interceptPowerKeyUp: key up event: remove pending callbacks for very long press");
         mHandler.removeCallbacks(mPowerLongLongPress);
+        lock.notify();
         return false;
+        }
     }
 
     private void cancelPendingPowerKeyAction() {
@@ -739,6 +746,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private final Runnable mPowerLongPress = new Runnable() {
         @Override
         public void run() {
+            synchronized(lock) {
             // The context isn't read
             if (mLongPressOnPowerBehavior < 0) {
                 mLongPressOnPowerBehavior = mContext.getResources().getInteger(
@@ -773,6 +781,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             }
             mHandler.postDelayed(mPowerLongLongPress,
                     ViewConfiguration.getGlobalActionKeyShutdownTimeout());
+            lock.notify();
+            }
         }
     };
 
