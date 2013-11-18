@@ -168,6 +168,12 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private int mAdvertisedDisplayHeight;
     private int mAdvertisedDisplayFlags;
 
+    /* For WFD certification TC 5.1.3.
+     * The variables will not be used outside of certification scope.
+     */
+    private String mSigmaWfdAutogo;
+    private NetworkInfo mSigmaNetworkInfo;
+
     // Certification
     private boolean mWifiDisplayCertMode;
     private int mWifiDisplayWpsConfig = WpsInfo.INVALID;
@@ -588,6 +594,15 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
         mDesiredDevice = device;
         mReconnectDesiredDevice = null;
+        mSigmaWfdAutogo = SystemProperties.get("sigma.wfd.autogo", "");
+        if (!mSigmaWfdAutogo.equals("")) {
+            if (mSigmaNetworkInfo != null) {
+                handleConnectionChanged(mSigmaNetworkInfo);
+            }
+            // Do not call updateConnection() for now, will be done
+            // from handleConnectionChanged()
+            return;
+        }
         mConnectionRetriesLeft = CONNECT_MAX_RETRIES;
         updateConnection();
     }
@@ -931,6 +946,11 @@ final class WifiDisplayController implements DumpUtils.Dump {
                             return;
                         }
 
+                        mSigmaWfdAutogo = SystemProperties.get("sigma.wfd.autogo", "");
+                        if (!mSigmaWfdAutogo.equals("")) {
+                            mConnectingDevice = mDesiredDevice;
+                        }
+
                         if (mWifiDisplayCertMode) {
                             boolean owner = info.getOwner().deviceAddress
                                     .equals(mThisDevice.deviceAddress);
@@ -1158,6 +1178,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
             } else if (action.equals(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)) {
                 NetworkInfo networkInfo = (NetworkInfo)intent.getParcelableExtra(
                         WifiP2pManager.EXTRA_NETWORK_INFO);
+                mSigmaNetworkInfo = (NetworkInfo)intent.getParcelableExtra(
+                        WifiP2pManager.EXTRA_NETWORK_INFO); // Remember latest info received
                 if (DEBUG) {
                     Slog.d(TAG, "Received WIFI_P2P_CONNECTION_CHANGED_ACTION: networkInfo="
                             + networkInfo);
