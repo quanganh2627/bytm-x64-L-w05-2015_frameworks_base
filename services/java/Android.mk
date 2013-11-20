@@ -13,7 +13,7 @@ LOCAL_STATIC_JAVA_LIBRARIES := CwsServiceMgr CsmClient
 
 LOCAL_MODULE:= services
 
-LOCAL_JAVA_LIBRARIES := android.policy conscrypt telephony-common com.intel.multidisplay
+LOCAL_JAVA_LIBRARIES := android.policy conscrypt telephony-common
 
 include $(BUILD_JAVA_LIBRARY)
 
