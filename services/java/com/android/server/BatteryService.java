@@ -731,16 +731,10 @@ public final class BatteryService extends Binder {
     private int getIconLocked(int level) {
         if (mBatteryProps.batteryStatus == BatteryManager.BATTERY_STATUS_CHARGING) {
             return com.android.internal.R.drawable.stat_sys_battery_charge;
-        } else if (mBatteryProps.batteryStatus == BatteryManager.BATTERY_STATUS_DISCHARGING) {
-            return com.android.internal.R.drawable.stat_sys_battery;
-        } else if (mBatteryProps.batteryStatus == BatteryManager.BATTERY_STATUS_NOT_CHARGING
+        } else if (mBatteryProps.batteryStatus == BatteryManager.BATTERY_STATUS_DISCHARGING
+                || mBatteryProps.batteryStatus == BatteryManager.BATTERY_STATUS_NOT_CHARGING
                 || mBatteryProps.batteryStatus == BatteryManager.BATTERY_STATUS_FULL) {
-            if (isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY)
-                    && mBatteryProps.batteryLevel >= 100) {
-                return com.android.internal.R.drawable.stat_sys_battery_charge;
-            } else {
-                return com.android.internal.R.drawable.stat_sys_battery;
-            }
+            return com.android.internal.R.drawable.stat_sys_battery;
         } else {
             return com.android.internal.R.drawable.stat_sys_battery_unknown;
         }
