@@ -427,7 +427,7 @@ public class TelephonyManager {
      * @see #PHONE_TYPE_SIP
      */
     public int getPhoneType() {
-        if (!isVoiceCapable()) {
+        if (!isVoiceCapable() && !isSmsCapable()) {
             return PHONE_TYPE_NONE;
         }
         return getCurrentPhoneType();
