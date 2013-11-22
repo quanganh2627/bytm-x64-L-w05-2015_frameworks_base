@@ -52,10 +52,8 @@ import android.os.RemoteException;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.WorkSource;
-import android.preference.CheckBoxPreference;
 import android.os.AsyncTask;
 import android.provider.Settings;
-import android.provider.Settings.Global;
 import android.util.Log;
 import android.util.Slog;
 
@@ -139,8 +137,6 @@ public class WifiService extends IWifiManager.Stub {
     final WifiSettingsStore mSettingsStore;
 
     WifiCsmClient mWifiCsmClient;
-
-    private final WizardFinishedObserver mwizardFinishedObserver;
 
     final boolean mBatchedScanSupported;
 
@@ -338,26 +334,6 @@ public class WifiService extends IWifiManager.Stub {
         // can result in race conditions when apps toggle wifi in the background
         // without active user involvement. Always receive broadcasts.
         registerForBroadcasts();
-        mwizardFinishedObserver = new WizardFinishedObserver();
-    }
-
-    private class WizardFinishedObserver extends ContentObserver {
-        WizardFinishedObserver() {
-            super(new Handler());
-            mContext.getContentResolver().registerContentObserver(Settings.Global.getUriFor(
-                    Settings.Global.DEVICE_PROVISIONED), false, this);
-        }
-
-        @Override
-        public void onChange(boolean selfChange) {
-            if (Settings.Global.getInt(mContext.getContentResolver(),
-                    Settings.Global.DEVICE_PROVISIONED, 0) != 0) {
-                Log.i("WizardFinishedObserver","Device Provisionned!!!");
-                Global.putInt(mContext.getContentResolver(),
-                        Global.WIFI_SCAN_ALWAYS_AVAILABLE,
-                        (0));
-            }
-        }
     }
 
     private WifiController mWifiController;
