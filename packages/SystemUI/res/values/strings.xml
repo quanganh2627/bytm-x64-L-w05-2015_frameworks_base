@@ -62,7 +62,7 @@
     <string name="battery_low_title">Connect charger</string>
 
     <!-- When the battery is low, this is displayed to the user in a dialog. The subtitle of the low battery alert. [CHAR LIMIT=NONE] -->
-    <string name="battery_low_subtitle">The battery is getting low.</string>
+    <string name="battery_low_subtitle">The battery is getting low.\nSome features may not be functional in low battery mode.</string>
 
     <!-- A message that appears when the battery level is getting low in a dialog.  This is
         appened to the subtitle of the low battery alert.  "number" is the percentage of battery
