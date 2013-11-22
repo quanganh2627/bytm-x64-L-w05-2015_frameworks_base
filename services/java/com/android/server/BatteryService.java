@@ -21,9 +21,11 @@ import com.android.internal.app.IBatteryStats;
 import com.android.server.am.BatteryStatsService;
 
 import android.app.ActivityManagerNative;
+import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.BatteryManager;
 import android.os.BatteryProperties;
@@ -137,6 +139,10 @@ public final class BatteryService extends Binder {
     private BatteryListener mBatteryPropertiesListener;
     private IBatteryPropertiesRegistrar mBatteryPropertiesRegistrar;
 
+    // Variables to represent the last saved state of fuel gauge config data
+    private int mLastSavedLevel;
+    private int mLastSavedState;
+
     // Variables used to check if battery is discharging, by taking voltage samples
     private static int sDischargeCount = 0;
     private static int sVoltPrev = -1;
@@ -173,6 +179,44 @@ public final class BatteryService extends Binder {
             mBatteryPropertiesRegistrar.registerListener(mBatteryPropertiesListener);
         } catch (RemoteException e) {
             // Should never happen.
+        }
+
+        // register for shutdown intent
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_SHUTDOWN);
+        mContext.registerReceiver(new ShutDownReceiver(), filter);
+    }
+
+    private final class ShutDownReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            try {
+                if (!new File("/system/bin/fg_conf").exists()) {
+                    return;
+                }
+                Runtime.getRuntime().exec("/system/bin/fg_conf -r");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private final void updateConfigDataIfAvailable() {
+        if (!new File("/system/bin/fg_conf").exists()) {
+            return;
+        }
+        try {
+            if (((mBatteryProps.batteryLevel != mLastSavedLevel) &&
+                (mBatteryProps.batteryLevel == 70 || mBatteryProps.batteryLevel == 5)) ||
+                ((mBatteryProps.batteryStatus != mLastSavedState) &&
+                (mBatteryProps.batteryStatus == BatteryManager.BATTERY_STATUS_FULL ||
+                mBatteryProps.batteryStatus == BatteryManager.BATTERY_STATUS_DISCHARGING))) {
+                Runtime.getRuntime().exec("/system/bin/fg_conf -r");
+                mLastSavedState = mBatteryProps.batteryStatus;
+                mLastSavedLevel = mBatteryProps.batteryLevel;
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -384,6 +428,7 @@ public final class BatteryService extends Binder {
             // Should never happen.
         }
 
+        updateConfigDataIfAvailable();
         shutdownIfNoPowerLocked();
         shutdownIfOverTempLocked();
 
