@@ -137,6 +137,12 @@ public final class BatteryService extends Binder {
     private BatteryListener mBatteryPropertiesListener;
     private IBatteryPropertiesRegistrar mBatteryPropertiesRegistrar;
 
+    // Variables used to check if battery is discharging, by taking voltage samples
+    private static int sDischargeCount = 0;
+    private static int sVoltPrev = -1;
+    private static final int MAX_DISCHARGE_COUNT = 3;
+    private static boolean sBatteryLevelZero = false;
+
     public BatteryService(Context context, LightsService lights) {
         mContext = context;
         mHandler = new Handler(true /*async*/);
@@ -167,6 +173,50 @@ public final class BatteryService extends Binder {
             mBatteryPropertiesRegistrar.registerListener(mBatteryPropertiesListener);
         } catch (RemoteException e) {
             // Should never happen.
+        }
+    }
+
+    private final boolean isDischarging() {
+    // If the voltage is dropping during consecutive readings, report that battery is discharging.
+    // Reset the discharge count if the current voltage is greater than the previous voltage
+        if ((mBatteryProps.batteryVoltage < sVoltPrev) && (sVoltPrev != -1)) {
+            sDischargeCount++;
+        } else if (mBatteryProps.batteryVoltage > sVoltPrev) {
+            sDischargeCount = 0;
+        }
+        sVoltPrev = mBatteryProps.batteryVoltage;
+        return (sDischargeCount >= MAX_DISCHARGE_COUNT);
+    }
+
+    private void initiateShutdown() {
+        // wait until the system has booted before attempting to display the shutdown dialog.
+        if (ActivityManagerNative.isSystemReady()) {
+            Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
+            intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mContext.startActivityAsUser(intent, UserHandle.CURRENT);
+        }
+    }
+
+    /**
+     * Thread initiates 0% shutdown intent when charger connected
+     * and significant 3 consecutive voltage drops
+     */
+    public class ShutDownZeroChargerConnect implements Runnable {
+        public void run() {
+            while (mBatteryProps.batteryLevel == 0) {
+                try {
+                    if (isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY) && isDischarging()) {
+                        initiateShutdown();
+                    }
+                    Slog.d(TAG, "ShutDownZeroChargerConnect thread running\n");
+                    Thread.sleep(60000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            sBatteryLevelZero = false;
+            Slog.d(TAG, "ShutDownZeroChargerConnect thread exited:" + sBatteryLevelZero);
         }
     }
 
@@ -242,20 +292,24 @@ public final class BatteryService extends Binder {
     }
 
     private void shutdownIfNoPowerLocked() {
-        // shut down gracefully if our battery is critically low and we are not powered.
-        // wait until the system has booted before attempting to display the shutdown dialog.
-        if (mBatteryProps.batteryLevel == 0 && !isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY)) {
-            mHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    if (ActivityManagerNative.isSystemReady()) {
-                        Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
-                        intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
-                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        mContext.startActivityAsUser(intent, UserHandle.CURRENT);
+        if (mBatteryProps.batteryLevel == 0) {
+            // spawn a thread if charger is connected at 0% capacity for disharge condition
+            if (sBatteryLevelZero == false
+                    && isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY)) {
+                Slog.d(TAG, "shutdownIfNoPowerLocked- Start a Thread: sBatteryLevelZero:"
+                        + sBatteryLevelZero);
+                sBatteryLevelZero = true;
+                new Thread(new ShutDownZeroChargerConnect()).start();
+            }
+            // shut down gracefully if our battery is critically low and we are not powered.
+            else if (!isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY)) {
+                mHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        initiateShutdown();
                     }
-                }
-            });
+                });
+            }
         }
     }
 
