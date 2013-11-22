@@ -31,6 +31,7 @@ int register_android_server_SerialService(JNIEnv* env);
 int register_android_server_UsbDeviceManager(JNIEnv* env);
 int register_android_server_UsbHostManager(JNIEnv* env);
 int register_android_server_VibratorService(JNIEnv* env);
+int register_android_server_CurrentMgmtService(JNIEnv* env);
 int register_android_server_SystemServer(JNIEnv* env);
 int register_android_server_location_GpsLocationProvider(JNIEnv* env);
 int register_android_server_location_FlpHardwareProvider(JNIEnv* env);
@@ -76,6 +77,7 @@ extern "C" jint JNI_OnLoad(JavaVM* vm, void* reserved)
     register_android_server_UsbDeviceManager(env);
     register_android_server_UsbHostManager(env);
     register_android_server_VibratorService(env);
+    register_android_server_CurrentMgmtService(env);
     register_android_server_SystemServer(env);
     register_android_server_location_GpsLocationProvider(env);
     register_android_server_location_FlpHardwareProvider(env);

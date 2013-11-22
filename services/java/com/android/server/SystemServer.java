@@ -51,6 +51,7 @@ import com.android.server.accessibility.AccessibilityManagerService;
 import com.android.server.accounts.AccountManagerService;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.am.BatteryStatsService;
+import com.android.server.cms.CurrentMgmtService;
 import com.android.server.content.ContentService;
 import com.android.server.display.DisplayManagerService;
 import com.android.server.dreams.DreamManagerService;
@@ -133,6 +134,7 @@ class ServerThread {
         PowerManagerService power = null;
         DisplayManagerService display = null;
         BatteryService battery = null;
+        CurrentMgmtService current = null;
         VibratorService vibrator = null;
         AlarmManagerService alarm = null;
         MountService mountService = null;
@@ -282,6 +284,10 @@ class ServerThread {
             Slog.i(TAG, "Battery Service");
             battery = new BatteryService(context, lights);
             ServiceManager.addService("battery", battery);
+
+            Slog.i(TAG, "Current Mgmt Service");
+            current = new CurrentMgmtService(context);
+            ServiceManager.addService("current", current);
 
             Slog.i(TAG, "Vibrator Service");
             vibrator = new VibratorService(context);
