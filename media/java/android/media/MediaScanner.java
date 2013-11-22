@@ -540,7 +540,7 @@ public class MediaScanner
                     if (noMedia) {
                         result = endFile(entry, false, false, false, false, false);
                     } else {
-                        String lowpath = path.toLowerCase();
+                        String lowpath = path.toLowerCase(Locale.ROOT);
                         boolean ringtones = (lowpath.indexOf(RINGTONES_DIR) > 0);
                         boolean notifications = (lowpath.indexOf(NOTIFICATIONS_DIR) > 0);
                         boolean alarms = (lowpath.indexOf(ALARMS_DIR) > 0);
@@ -1123,6 +1123,16 @@ public class MediaScanner
                         long lastModified = c.getLong(FILES_PRESCAN_DATE_MODIFIED_COLUMN_INDEX);
                         lastId = rowId;
 
+                        // In some condition, there is a race when MediaProvider's
+                        // mUnmountReceiver processing external storage's database
+                        // cleanup at shutdown procedure: if the database is too big,
+                        // system power down after db.update, but didn't do db.delete,
+                        // there will be many elements with null filename in the datebase.
+                        // We'd better delete thus elements here, otherwise,
+                        // duplicated files and folders would be shown in MTP.
+                        if (path != null && path.length() == 0)
+                            deleter.delete(rowId);
+
                         // Only consider entries with absolute path names.
                         // This allows storing URIs in the database without the
                         // media scanner removing them.
@@ -1411,7 +1421,7 @@ public class MediaScanner
         int offset = 1;
         while (offset >= 0) {
             int slashIndex = path.indexOf('/', offset);
-            if (slashIndex > offset) {
+            if (slashIndex >= offset) {
                 slashIndex++; // move past slash
                 File file = new File(path.substring(0, slashIndex) + ".nomedia");
                 if (file.exists()) {

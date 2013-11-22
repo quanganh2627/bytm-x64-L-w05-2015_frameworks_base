@@ -39,7 +39,7 @@ public final class MessageQueue {
     Message mMessages;
     private final ArrayList<IdleHandler> mIdleHandlers = new ArrayList<IdleHandler>();
     private IdleHandler[] mPendingIdleHandlers;
-    private boolean mQuiting;
+    private boolean mQuitting;
 
     // Indicates whether next() is blocked waiting in pollOnce() with a non-zero timeout.
     private boolean mBlocked;
@@ -52,6 +52,7 @@ public final class MessageQueue {
     private native static void nativeDestroy(int ptr);
     private native static void nativePollOnce(int ptr, int timeoutMillis);
     private native static void nativeWake(int ptr);
+    private native static boolean nativeIsIdling(int ptr);
 
     /**
      * Callback interface for discovering when a thread is going to block
@@ -114,6 +115,8 @@ public final class MessageQueue {
         }
     }
 
+    // Disposes of the underlying message queue.
+    // Must only be called on the looper thread or the finalizer.
     private void dispose() {
         if (mPtr != 0) {
             nativeDestroy(mPtr);
@@ -124,11 +127,13 @@ public final class MessageQueue {
     Message next() {
         int pendingIdleHandlerCount = -1; // -1 only during first iteration
         int nextPollTimeoutMillis = 0;
-
         for (;;) {
             if (nextPollTimeoutMillis != 0) {
                 Binder.flushPendingCommands();
             }
+
+            // We can assume mPtr != 0 because the loop is obviously still running.
+            // The looper will not call this method after the loop quits.
             nativePollOnce(mPtr, nextPollTimeoutMillis);
 
             synchronized (this) {
@@ -166,7 +171,7 @@ public final class MessageQueue {
                 }
 
                 // Process the quit message now that all pending messages have been handled.
-                if (mQuiting) {
+                if (mQuitting) {
                     dispose();
                     return null;
                 }
@@ -225,18 +230,20 @@ public final class MessageQueue {
         }
 
         synchronized (this) {
-            if (mQuiting) {
+            if (mQuitting) {
                 return;
             }
-            mQuiting = true;
+            mQuitting = true;
 
             if (safe) {
                 removeAllFutureMessagesLocked();
             } else {
                 removeAllMessagesLocked();
             }
+
+            // We can assume mPtr != 0 because mQuitting was previously false.
+            nativeWake(mPtr);
         }
-        nativeWake(mPtr);
     }
 
     int enqueueSyncBarrier(long when) {
@@ -246,6 +253,7 @@ public final class MessageQueue {
             final int token = mNextBarrierToken++;
             final Message msg = Message.obtain();
             msg.arg1 = token;
+            msg.when = when;
 
             Message prev = null;
             Message p = mMessages;
@@ -269,7 +277,6 @@ public final class MessageQueue {
     void removeSyncBarrier(int token) {
         // Remove a sync barrier token from the queue.
         // If the queue is no longer stalled by a barrier then wake it.
-        final boolean needWake;
         synchronized (this) {
             Message prev = null;
             Message p = mMessages;
@@ -281,6 +288,7 @@ public final class MessageQueue {
                 throw new IllegalStateException("The specified message queue synchronization "
                         + " barrier token has not been posted or has already been removed.");
             }
+            final boolean needWake;
             if (prev != null) {
                 prev.next = p.next;
                 needWake = false;
@@ -288,10 +296,23 @@ public final class MessageQueue {
                 mMessages = p.next;
                 needWake = mMessages == null || mMessages.target != null;
             }
+            long vsyncLatency = SystemClock.uptimeMillis() - p.when;
+            // warn if the vsync barrier is removed 30 frames later.
+            if (vsyncLatency > 500) {
+                Looper myLooper = Looper.myLooper();
+                if (myLooper != null && myLooper.mLocalLog != null) {
+                    String msg = p.toString();
+                    myLooper.mLocalLog.log("WARNING! VSYNC callback delayed: " + msg);
+                    Log.d("MessageQueue", "VSYNC callback delayed: " + msg);
+                }
+            }
             p.recycle();
-        }
-        if (needWake) {
-            nativeWake(mPtr);
+
+            // If the loop is quitting then it is already awake.
+            // We can assume mPtr != 0 when mQuitting is false.
+            if (needWake && !mQuitting) {
+                nativeWake(mPtr);
+            }
         }
     }
 
@@ -303,9 +324,13 @@ public final class MessageQueue {
             throw new AndroidRuntimeException("Message must have a target.");
         }
 
-        boolean needWake;
+        Looper myLooper = msg.target.mLooper;
+        if (myLooper != null && myLooper.mLocalLog != null) {
+            msg.fingerPrint = msg.toString();
+        }
+
         synchronized (this) {
-            if (mQuiting) {
+            if (mQuitting) {
                 RuntimeException e = new RuntimeException(
                         msg.target + " sending message to a Handler on a dead thread");
                 Log.w("MessageQueue", e.getMessage(), e);
@@ -314,6 +339,7 @@ public final class MessageQueue {
 
             msg.when = when;
             Message p = mMessages;
+            boolean needWake;
             if (p == null || when == 0 || when < p.when) {
                 // New head, wake up the event queue if blocked.
                 msg.next = p;
@@ -338,9 +364,11 @@ public final class MessageQueue {
                 msg.next = p; // invariant: p == prev.next
                 prev.next = msg;
             }
-        }
-        if (needWake) {
-            nativeWake(mPtr);
+
+            // We can assume mPtr != 0 because mQuitting is false.
+            if (needWake) {
+                nativeWake(mPtr);
+            }
         }
         return true;
     }
@@ -376,6 +404,14 @@ public final class MessageQueue {
                 p = p.next;
             }
             return false;
+        }
+    }
+
+    boolean isIdling() {
+        synchronized (this) {
+            // If the loop is quitting then it must not be idling.
+            // We can assume mPtr != 0 when mQuitting is false.
+            return !mQuitting && nativeIsIdling(mPtr);
         }
     }
 

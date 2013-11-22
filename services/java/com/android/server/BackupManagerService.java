@@ -70,6 +70,7 @@ import android.os.UserHandle;
 import android.os.WorkSource;
 import android.os.Environment.UserEnvironment;
 import android.os.storage.IMountService;
+import android.os.SystemProperties;
 import android.provider.Settings;
 import android.util.EventLog;
 import android.util.Log;
@@ -171,6 +172,17 @@ class BackupManagerService extends IBackupManager.Stub {
     private static final int MSG_RESTORE_TIMEOUT = 8;
     private static final int MSG_FULL_CONFIRMATION_TIMEOUT = 9;
     private static final int MSG_RUN_FULL_RESTORE = 10;
+
+    // Use a property to get the state of the backup/restore for debug builds (eng, userdebug)
+    private static final String STATE_IDLE = "idle";
+    private static final String STATE_RUNNING = "running";
+    private static final String STATE_COMPLETE = "completed";
+    private void debugBackupState (String backupState) {
+        if (SystemProperties.get("ro.debuggable").equals("1")) {
+            // Update the backup status property
+            SystemProperties.set("sys.backup_status", backupState);
+        }
+    }
 
     // backup task state machine tick
     static final int MSG_BACKUP_RESTORE_STEP = 20;
@@ -1305,9 +1317,6 @@ class BackupManagerService extends IBackupManager.Stub {
                 mTransports.put(name, transport);
             } else {
                 mTransports.remove(name);
-                if ((mCurrentTransport != null) && mCurrentTransport.equals(name)) {
-                    mCurrentTransport = null;
-                }
                 // Nothing further to do in the unregistration case
                 return;
             }
@@ -1991,6 +2000,15 @@ class BackupManagerService extends IBackupManager.Stub {
                     Slog.i(TAG, "Package " + request.packageName
                             + " no longer supports backup; skipping");
                     addBackupTrace("skipping - no agent, completion is noop");
+                    executeNextState(BackupState.RUNNING_QUEUE);
+                    return;
+                }
+
+                if ((mCurrentPackage.applicationInfo.flags & ApplicationInfo.FLAG_STOPPED) != 0) {
+                    // The app has been force-stopped or cleared or just installed,
+                    // and not yet launched out of that state, so just as it won't
+                    // receive broadcasts, we won't run it for backup.
+                    addBackupTrace("skipping - stopped");
                     executeNextState(BackupState.RUNNING_QUEUE);
                     return;
                 }
@@ -2877,7 +2895,7 @@ class BackupManagerService extends IBackupManager.Stub {
             // Save associated .obb content if it exists and we did save the apk
             // check for .obb and save those too
             final UserEnvironment userEnv = new UserEnvironment(UserHandle.USER_OWNER);
-            final File obbDir = userEnv.getExternalStorageAppObbDirectory(pkg.packageName);
+            final File obbDir = userEnv.buildExternalStorageAppObbDirs(pkg.packageName)[0];
             if (obbDir != null) {
                 if (MORE_DEBUG) Log.i(TAG, "obb dir: " + obbDir.getAbsolutePath());
                 File[] obbFiles = obbDir.listFiles();
@@ -2965,6 +2983,9 @@ class BackupManagerService extends IBackupManager.Stub {
 
         // wrappers for observer use
         void sendStartBackup() {
+            // Update the backup status property
+            debugBackupState(STATE_RUNNING);
+
             if (mObserver != null) {
                 try {
                     mObserver.onStartBackup();
@@ -2976,6 +2997,9 @@ class BackupManagerService extends IBackupManager.Stub {
         }
 
         void sendOnBackupPackage(String name) {
+            // Update the backup status property
+            debugBackupState(STATE_RUNNING);
+
             if (mObserver != null) {
                 try {
                     // TODO: use a more user-friendly name string
@@ -2988,6 +3012,9 @@ class BackupManagerService extends IBackupManager.Stub {
         }
 
         void sendEndBackup() {
+            // Update the backup status property
+            debugBackupState(STATE_COMPLETE);
+
             if (mObserver != null) {
                 try {
                     mObserver.onEndBackup();
@@ -4184,6 +4211,9 @@ class BackupManagerService extends IBackupManager.Stub {
         }
 
         void sendStartRestore() {
+            // Update the backup status property
+            debugBackupState(STATE_RUNNING);
+
             if (mObserver != null) {
                 try {
                     mObserver.onStartRestore();
@@ -4195,6 +4225,9 @@ class BackupManagerService extends IBackupManager.Stub {
         }
 
         void sendOnRestorePackage(String name) {
+            // Update the backup status property
+            debugBackupState(STATE_RUNNING);
+
             if (mObserver != null) {
                 try {
                     // TODO: use a more user-friendly name string
@@ -4207,6 +4240,9 @@ class BackupManagerService extends IBackupManager.Stub {
         }
 
         void sendEndRestore() {
+            // Update the backup status property
+            debugBackupState(STATE_COMPLETE);
+
             if (mObserver != null) {
                 try {
                     mObserver.onEndRestore();
@@ -5144,6 +5180,9 @@ class BackupManagerService extends IBackupManager.Stub {
             throw new IllegalStateException("Backup supported only for the device owner");
         }
 
+        // Update the backup status property
+        debugBackupState(STATE_IDLE);
+
         // Validate
         if (!doAllApps) {
             if (!includeShared) {
@@ -5212,6 +5251,9 @@ class BackupManagerService extends IBackupManager.Stub {
         if (callingUserHandle != UserHandle.USER_OWNER) {
             throw new IllegalStateException("Restore supported only for the device owner");
         }
+
+        // Update the backup status property
+        debugBackupState(STATE_IDLE);
 
         long oldId = Binder.clearCallingIdentity();
 
@@ -5358,47 +5400,53 @@ class BackupManagerService extends IBackupManager.Stub {
     }
 
     // Enable/disable the backup service
+    @Override
     public void setBackupEnabled(boolean enable) {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.BACKUP,
                 "setBackupEnabled");
 
         Slog.i(TAG, "Backup enabled => " + enable);
 
-        boolean wasEnabled = mEnabled;
-        synchronized (this) {
-            Settings.Secure.putInt(mContext.getContentResolver(),
-                    Settings.Secure.BACKUP_ENABLED, enable ? 1 : 0);
-            mEnabled = enable;
-        }
+        long oldId = Binder.clearCallingIdentity();
+        try {
+            boolean wasEnabled = mEnabled;
+            synchronized (this) {
+                Settings.Secure.putInt(mContext.getContentResolver(),
+                        Settings.Secure.BACKUP_ENABLED, enable ? 1 : 0);
+                mEnabled = enable;
+            }
 
-        synchronized (mQueueLock) {
-            if (enable && !wasEnabled && mProvisioned) {
-                // if we've just been enabled, start scheduling backup passes
-                startBackupAlarmsLocked(BACKUP_INTERVAL);
-            } else if (!enable) {
-                // No longer enabled, so stop running backups
-                if (DEBUG) Slog.i(TAG, "Opting out of backup");
+            synchronized (mQueueLock) {
+                if (enable && !wasEnabled && mProvisioned) {
+                    // if we've just been enabled, start scheduling backup passes
+                    startBackupAlarmsLocked(BACKUP_INTERVAL);
+                } else if (!enable) {
+                    // No longer enabled, so stop running backups
+                    if (DEBUG) Slog.i(TAG, "Opting out of backup");
 
-                mAlarmManager.cancel(mRunBackupIntent);
+                    mAlarmManager.cancel(mRunBackupIntent);
 
-                // This also constitutes an opt-out, so we wipe any data for
-                // this device from the backend.  We start that process with
-                // an alarm in order to guarantee wakelock states.
-                if (wasEnabled && mProvisioned) {
-                    // NOTE: we currently flush every registered transport, not just
-                    // the currently-active one.
-                    HashSet<String> allTransports;
-                    synchronized (mTransports) {
-                        allTransports = new HashSet<String>(mTransports.keySet());
+                    // This also constitutes an opt-out, so we wipe any data for
+                    // this device from the backend.  We start that process with
+                    // an alarm in order to guarantee wakelock states.
+                    if (wasEnabled && mProvisioned) {
+                        // NOTE: we currently flush every registered transport, not just
+                        // the currently-active one.
+                        HashSet<String> allTransports;
+                        synchronized (mTransports) {
+                            allTransports = new HashSet<String>(mTransports.keySet());
+                        }
+                        // build the set of transports for which we are posting an init
+                        for (String transport : allTransports) {
+                            recordInitPendingLocked(true, transport);
+                        }
+                        mAlarmManager.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(),
+                                mRunInitIntent);
                     }
-                    // build the set of transports for which we are posting an init
-                    for (String transport : allTransports) {
-                        recordInitPendingLocked(true, transport);
-                    }
-                    mAlarmManager.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(),
-                            mRunInitIntent);
                 }
             }
+        } finally {
+            Binder.restoreCallingIdentity(oldId);
         }
     }
 

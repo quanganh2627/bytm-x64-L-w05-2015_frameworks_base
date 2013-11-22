@@ -24,7 +24,6 @@
 #include <utils/Log.h>
 #include <utils/misc.h>
 #include <binder/Parcel.h>
-#include <utils/StringArray.h>
 #include <utils/threads.h>
 #include <cutils/properties.h>
 
@@ -34,6 +33,7 @@
 
 #include "jni.h"
 #include "JNIHelp.h"
+#include "JniInvocation.h"
 #include "android_util_Binder.h"
 
 #include <stdio.h>
@@ -53,6 +53,7 @@ extern int register_android_graphics_Bitmap(JNIEnv*);
 extern int register_android_graphics_BitmapFactory(JNIEnv*);
 extern int register_android_graphics_BitmapRegionDecoder(JNIEnv*);
 extern int register_android_graphics_Camera(JNIEnv* env);
+extern int register_android_graphics_CreateJavaOutputStreamAdaptor(JNIEnv* env);
 extern int register_android_graphics_Graphics(JNIEnv* env);
 extern int register_android_graphics_Interpolator(JNIEnv* env);
 extern int register_android_graphics_LayerRasterizer(JNIEnv*);
@@ -76,6 +77,7 @@ extern int register_android_opengl_jni_GLES20(JNIEnv* env);
 extern int register_android_opengl_jni_GLES30(JNIEnv* env);
 
 extern int register_android_hardware_Camera(JNIEnv *env);
+extern int register_android_hardware_camera2_CameraMetadata(JNIEnv *env);
 extern int register_android_hardware_SensorManager(JNIEnv *env);
 extern int register_android_hardware_SerialPort(JNIEnv *env);
 extern int register_android_hardware_UsbDevice(JNIEnv *env);
@@ -115,8 +117,9 @@ extern int register_android_graphics_Rasterizer(JNIEnv* env);
 extern int register_android_graphics_Region(JNIEnv* env);
 extern int register_android_graphics_SurfaceTexture(JNIEnv* env);
 extern int register_android_graphics_Xfermode(JNIEnv* env);
-extern int register_android_graphics_PixelFormat(JNIEnv* env);
+extern int register_android_graphics_pdf_PdfDocument(JNIEnv* env);
 extern int register_android_view_DisplayEventReceiver(JNIEnv* env);
+extern int register_android_view_GraphicBuffer(JNIEnv* env);
 extern int register_android_view_GLES20DisplayList(JNIEnv* env);
 extern int register_android_view_GLES20Canvas(JNIEnv* env);
 extern int register_android_view_HardwareRenderer(JNIEnv* env);
@@ -134,7 +137,6 @@ extern int register_android_text_format_Time(JNIEnv* env);
 extern int register_android_os_Debug(JNIEnv* env);
 extern int register_android_os_MessageQueue(JNIEnv* env);
 extern int register_android_os_Parcel(JNIEnv* env);
-extern int register_android_os_ParcelFileDescriptor(JNIEnv *env);
 extern int register_android_os_SELinux(JNIEnv* env);
 extern int register_android_os_SystemProperties(JNIEnv *env);
 extern int register_android_os_SystemClock(JNIEnv* env);
@@ -146,7 +148,7 @@ extern int register_android_os_MemoryFile(JNIEnv* env);
 extern int register_android_net_LocalSocketImpl(JNIEnv* env);
 extern int register_android_net_NetworkUtils(JNIEnv* env);
 extern int register_android_net_TrafficStats(JNIEnv* env);
-extern int register_android_net_wifi_WifiManager(JNIEnv* env);
+extern int register_android_net_wifi_WifiNative(JNIEnv* env);
 extern int register_android_text_AndroidCharacter(JNIEnv *env);
 extern int register_android_text_AndroidBidi(JNIEnv *env);
 extern int register_android_opengl_classes(JNIEnv *env);
@@ -371,19 +373,6 @@ static int hasDir(const char* dir)
 }
 
 /*
- * We just want failed write() calls to just return with an error.
- */
-static void blockSigpipe()
-{
-    sigset_t mask;
-
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGPIPE);
-    if (sigprocmask(SIG_BLOCK, &mask, NULL) != 0)
-        ALOGW("WARNING: SIGPIPE not blocked\n");
-}
-
-/*
  * Read the persistent locale.
  */
 static void readLocale(char* language, char* region)
@@ -402,6 +391,212 @@ static void readLocale(char* language, char* region)
     //ALOGD("language=%s region=%s\n", language, region);
 }
 
+#ifdef RETRIEVE_INGREDIENTS_VERSIONS
+/*
+ * Read IFWI version
+ */
+#define INTE_SCU_IPC_FW_REVISION_GET        0xB0
+#define INTE_SCU_IPC_FW_REVISION_EXT_GET    0xB1
+#define INTE_SCU_IPC_FW_PATH                "/dev/mid_ipc"
+
+#define INTE_SCU_FW_BUF_LENGTH              256
+#define INTE_SCU_IPC_FW_VERSION_LENGTH      16
+
+#define INTE_SCU_IPC_FW_REVISION_MAJ_REG    15
+#define INTE_SCU_IPC_FW_REVISION_MIN_REG    14
+#define INTE_SCU_IPC_SCU_RT_FW_REVISION_MAJ_REG    1
+#define INTE_SCU_IPC_SCU_RT_FW_REVISION_MIN_REG    0
+#define INTE_SCU_IPC_PUNIT_FW_REVISION_MAJ_REG     5
+#define INTE_SCU_IPC_PUNIT_FW_REVISION_MIN_REG     4
+#define INTE_SCU_IPC_IA32_FW_REVISION_MAJ_REG      7
+#define INTE_SCU_IPC_IA32_FW_REVISION_MIN_REG      6
+#define INTE_SCU_IPC_VALHOOKS_FW_REVISION_MAJ_REG  11
+#define INTE_SCU_IPC_VALHOOKS_FW_REVISION_MIN_REG  10
+
+#define INTE_SCU_IPC_SCU_BS_FW_REVISION_EXT_MIN_REG    0
+#define INTE_SCU_IPC_SCU_BS_FW_REVISION_EXT_MAJ_REG    2
+#define INTE_SCU_IPC_SCU_RT_FW_REVISION_EXT_MIN_REG    4
+#define INTE_SCU_IPC_SCU_RT_FW_REVISION_EXT_MAJ_REG    6
+#define INTE_SCU_IPC_IA32_FW_REVISION_EXT_MIN_REG      8
+#define INTE_SCU_IPC_IA32_FW_REVISION_EXT_MAJ_REG      10
+#define INTE_SCU_IPC_VALHOOKS_FW_REVISION_EXT_MIN_REG  12
+#define INTE_SCU_IPC_VALHOOKS_FW_REVISION_EXT_MAJ_REG  14
+
+#define INTE_SCU_IPC_FW_REVISION_EXT_MIN_REG           0
+#define INTE_SCU_IPC_FW_REVISION_EXT_MAJ_REG           2
+#define INTE_SCU_IPC_CHAABI_FW_REVISION_EXT_MIN_REG    4
+#define INTE_SCU_IPC_CHAABI_FW_REVISION_EXT_MAJ_REG    6
+#define INTE_SCU_IPC_MIA_FW_REVISION_EXT_MIN_REG       8
+#define INTE_SCU_IPC_MIA_FW_REVISION_EXT_MAJ_REG       10
+
+#define FORMAT_REV_4_DIGIT(ver,pos_maj,pos_min) snprintf(buf, INTE_SCU_FW_BUF_LENGTH, "%.4X.%.4X", ver.data[pos_maj+1] << 8 | ver.data[pos_maj], ver.data[pos_min+1] << 8 | ver.data[pos_min])
+#define FORMAT_REV_2_DIGIT(ver,pos_maj,pos_min) snprintf(buf, INTE_SCU_FW_BUF_LENGTH, "%.2X.%.2X", ver.data[pos_maj], ver.data[pos_min])
+
+struct scu_ipc_version {
+        unsigned int    count;    /* length of version info */
+        unsigned char   data[INTE_SCU_IPC_FW_VERSION_LENGTH]; /* version data */
+};
+
+static void readIfwiVersion()
+{
+    struct scu_ipc_version version, version_ext;
+    int devfd, ret, i;
+    char buf[INTE_SCU_FW_BUF_LENGTH];
+    char platform_value[PROPERTY_VALUE_MAX];
+    bool ifwi_rev_ext = false;
+
+    property_get("ro.board.platform", platform_value, "");
+    if (!strcmp(platform_value, "merrifield")) {
+        ifwi_rev_ext = true;
+    }
+
+    version.count = INTE_SCU_IPC_FW_VERSION_LENGTH;
+    devfd = open(INTE_SCU_IPC_FW_PATH, O_RDWR);
+    if (devfd < 0) {
+        LOGE("readIfwiVersion() open dev file error: %d",errno);
+        return;
+    }
+    ret = ioctl(devfd, INTE_SCU_IPC_FW_REVISION_GET, &version);
+    if (ret < 0) {
+        LOGE("readIfwiVersion() get version 0 error: %d",ret);
+        close(devfd);
+        return ;
+    }
+    if (ifwi_rev_ext) {
+        version_ext.count = INTE_SCU_IPC_FW_VERSION_LENGTH;
+        ret = ioctl(devfd, INTE_SCU_IPC_FW_REVISION_EXT_GET, &version_ext);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get version 1 error: %d",ret);
+            close(devfd);
+            return ;
+        }
+    }
+    close(devfd);
+
+    if (ifwi_rev_ext) {
+        FORMAT_REV_4_DIGIT(version,INTE_SCU_IPC_SCU_BS_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_SCU_BS_FW_REVISION_EXT_MIN_REG);
+        LOGI("SCU BS Version: %s", buf);
+        ret = property_set("sys.scubs.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version,INTE_SCU_IPC_SCU_RT_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_SCU_RT_FW_REVISION_EXT_MIN_REG);
+        LOGI("SCU RT Version: %s", buf);
+        ret = property_set("sys.scu.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version,INTE_SCU_IPC_IA32_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_IA32_FW_REVISION_EXT_MIN_REG);
+        LOGI("IA32FW Version: %s", buf);
+        ret = property_set("sys.ia32.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version,INTE_SCU_IPC_VALHOOKS_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_VALHOOKS_FW_REVISION_EXT_MIN_REG);
+        LOGI("ValHooks Version: %s", buf);
+        ret = property_set("sys.valhooks.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version_ext,INTE_SCU_IPC_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_FW_REVISION_EXT_MIN_REG);
+        LOGI("IFWI Version: %s", buf);
+        ret = property_set("sys.ifwi.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version_ext,INTE_SCU_IPC_CHAABI_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_CHAABI_FW_REVISION_EXT_MIN_REG);
+        LOGI("CHAABI Version: %s", buf);
+        ret = property_set("sys.chaabi.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_4_DIGIT(version_ext,INTE_SCU_IPC_MIA_FW_REVISION_EXT_MAJ_REG,INTE_SCU_IPC_MIA_FW_REVISION_EXT_MIN_REG);
+        LOGI("mIA Version: %s", buf);
+        ret = property_set("sys.mia.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+
+    }
+    else {
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_FW_REVISION_MAJ_REG,INTE_SCU_IPC_FW_REVISION_MIN_REG);
+        LOGI("IFWI Version: %s", buf);
+        ret = property_set("sys.ifwi.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_SCU_RT_FW_REVISION_MAJ_REG,INTE_SCU_IPC_SCU_RT_FW_REVISION_MIN_REG);
+        LOGI("SCU Version: %s", buf);
+        ret = property_set("sys.scu.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_PUNIT_FW_REVISION_MAJ_REG,INTE_SCU_IPC_PUNIT_FW_REVISION_MIN_REG);
+        LOGI("PUnit Version: %s", buf);
+        ret = property_set("sys.punit.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_IA32_FW_REVISION_MAJ_REG,INTE_SCU_IPC_IA32_FW_REVISION_MIN_REG);
+        LOGI("IA32FW Version: %s", buf);
+        ret = property_set("sys.ia32.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+        FORMAT_REV_2_DIGIT(version,INTE_SCU_IPC_VALHOOKS_FW_REVISION_MAJ_REG,INTE_SCU_IPC_VALHOOKS_FW_REVISION_MIN_REG);
+        LOGI("ValHooks Version: %s", buf);
+        ret = property_set("sys.valhooks.version",buf);
+        if (ret < 0) {
+            LOGE("readIfwiVersion() get property error: %d",ret);
+            return ;
+        }
+    }
+    return;
+}
+
+/*
+ * Read Kernel Release version
+ */
+#define KERNEL_OSRELEASE_VERSION_PATH     "/proc/sys/kernel/osrelease"
+
+static void readKernelReleaseVersion()
+{
+    int fd, ret;
+    char buf[PROPERTY_VALUE_MAX+1];
+
+    fd = open(KERNEL_OSRELEASE_VERSION_PATH, O_RDONLY);
+    if (fd < 0) {
+        LOGE("readKernelReleaseVersion() open proc file error: %d", errno);
+        return;
+    }
+    ret = read(fd, buf, PROPERTY_VALUE_MAX);
+    close(fd);
+    if (ret > 0) {
+        buf[ret-1] = '\0';
+        LOGI("Kernel Release Version: %s", buf);
+        ret = property_set("sys.kernel.version", buf);
+        if (ret < 0) {
+            LOGE("readKernelReleaseVersion() set property error: %d", ret);
+            return;
+        }
+        return;
+    } else {
+        LOGE("readKernelReleaseVersion() read value error: %d", ret);
+        return;
+    }
+}
+#endif
 /*
  * Parse a property containing space-separated options that should be
  * passed directly to the VM, e.g. "-Xmx32m -verbose:gc -Xregenmap".
@@ -460,6 +655,7 @@ int AndroidRuntime::startVm(JavaVM** pJavaVM, JNIEnv** pEnv)
     char heapminfreeOptsBuf[sizeof("-XX:HeapMinFree=")-1 + PROPERTY_VALUE_MAX];
     char heapmaxfreeOptsBuf[sizeof("-XX:HeapMaxFree=")-1 + PROPERTY_VALUE_MAX];
     char heaptargetutilizationOptsBuf[sizeof("-XX:HeapTargetUtilization=")-1 + PROPERTY_VALUE_MAX];
+    char jitcodecachesizeOptsBuf[sizeof("-Xjitcodecachesize:")-1 + PROPERTY_VALUE_MAX];
     char extraOptsBuf[PROPERTY_VALUE_MAX];
     char* stackTraceFile = NULL;
     bool checkJni = false;
@@ -551,6 +747,14 @@ int AndroidRuntime::startVm(JavaVM** pJavaVM, JNIEnv** pEnv)
     opt.optionString = "-XX:mainThreadStackSize=24K";
     mOptions.add(opt);
 
+    // Set the max jit code cache size.  Note: size of 0 will disable the JIT.
+    strcpy(jitcodecachesizeOptsBuf, "-Xjitcodecachesize:");
+    property_get("dalvik.vm.jit.codecachesize", jitcodecachesizeOptsBuf+19,  NULL);
+    if (jitcodecachesizeOptsBuf[19] != '\0') {
+      opt.optionString = jitcodecachesizeOptsBuf;
+      mOptions.add(opt);
+    }
+
     strcpy(heapgrowthlimitOptsBuf, "-XX:HeapGrowthLimit=");
     property_get("dalvik.vm.heapgrowthlimit", heapgrowthlimitOptsBuf+20, "");
     if (heapgrowthlimitOptsBuf[20] != '\0') {
@@ -577,6 +781,12 @@ int AndroidRuntime::startVm(JavaVM** pJavaVM, JNIEnv** pEnv)
     if (heaptargetutilizationOptsBuf[26] != '\0') {
         opt.optionString = heaptargetutilizationOptsBuf;
         mOptions.add(opt);
+    }
+
+    property_get("ro.config.low_ram", propBuf, "");
+    if (strcmp(propBuf, "true") == 0) {
+      opt.optionString = "-XX:LowMemoryMode";
+      mOptions.add(opt);
     }
 
     /*
@@ -731,6 +941,11 @@ int AndroidRuntime::startVm(JavaVM** pJavaVM, JNIEnv** pEnv)
         mOptions.add(opt);
     }
 
+#ifdef RETRIEVE_INGREDIENTS_VERSIONS
+    readIfwiVersion();
+    readKernelReleaseVersion();
+#endif
+
     /* extra options; parse this late so it overrides others */
     property_get("dalvik.vm.extra-opts", extraOptsBuf, "");
     parseExtraOpts(extraOptsBuf);
@@ -804,8 +1019,6 @@ void AndroidRuntime::start(const char* className, const char* options)
     ALOGD("\n>>>>>> AndroidRuntime START %s <<<<<<\n",
             className != NULL ? className : "(unknown)");
 
-    blockSigpipe();
-
     /*
      * 'startSystemServer == true' means runtime is obsolete and not run from
      * init.rc anymore, so we print out the boot start event here.
@@ -831,6 +1044,8 @@ void AndroidRuntime::start(const char* className, const char* options)
     //ALOGD("Found LD_ASSUME_KERNEL='%s'\n", kernelHack);
 
     /* start the virtual machine */
+    JniInvocation jni_invocation;
+    jni_invocation.Init(NULL);
     JNIEnv* env;
     if (startVm(&mJavaVM, &env) != 0) {
         return;
@@ -1110,8 +1325,8 @@ static const RegJNIRec gRegJNI[] = {
     REG_JNI(register_android_os_Parcel),
     REG_JNI(register_android_view_DisplayEventReceiver),
     REG_JNI(register_android_nio_utils),
-    REG_JNI(register_android_graphics_PixelFormat),
     REG_JNI(register_android_graphics_Graphics),
+    REG_JNI(register_android_view_GraphicBuffer),
     REG_JNI(register_android_view_GLES20DisplayList),
     REG_JNI(register_android_view_GLES20Canvas),
     REG_JNI(register_android_view_HardwareRenderer),
@@ -1134,6 +1349,7 @@ static const RegJNIRec gRegJNI[] = {
     REG_JNI(register_android_graphics_BitmapFactory),
     REG_JNI(register_android_graphics_BitmapRegionDecoder),
     REG_JNI(register_android_graphics_Camera),
+    REG_JNI(register_android_graphics_CreateJavaOutputStreamAdaptor),
     REG_JNI(register_android_graphics_Canvas),
     REG_JNI(register_android_graphics_ColorFilter),
     REG_JNI(register_android_graphics_DrawFilter),
@@ -1156,6 +1372,7 @@ static const RegJNIRec gRegJNI[] = {
     REG_JNI(register_android_graphics_Typeface),
     REG_JNI(register_android_graphics_Xfermode),
     REG_JNI(register_android_graphics_YuvImage),
+    REG_JNI(register_android_graphics_pdf_PdfDocument),
 
     REG_JNI(register_android_database_CursorWindow),
     REG_JNI(register_android_database_SQLiteConnection),
@@ -1165,17 +1382,17 @@ static const RegJNIRec gRegJNI[] = {
     REG_JNI(register_android_os_FileObserver),
     REG_JNI(register_android_os_FileUtils),
     REG_JNI(register_android_os_MessageQueue),
-    REG_JNI(register_android_os_ParcelFileDescriptor),
     REG_JNI(register_android_os_SELinux),
     REG_JNI(register_android_os_Trace),
     REG_JNI(register_android_os_UEventObserver),
     REG_JNI(register_android_net_LocalSocketImpl),
     REG_JNI(register_android_net_NetworkUtils),
     REG_JNI(register_android_net_TrafficStats),
-    REG_JNI(register_android_net_wifi_WifiManager),
+    REG_JNI(register_android_net_wifi_WifiNative),
     REG_JNI(register_android_os_MemoryFile),
     REG_JNI(register_com_android_internal_os_ZygoteInit),
     REG_JNI(register_android_hardware_Camera),
+    REG_JNI(register_android_hardware_camera2_CameraMetadata),
     REG_JNI(register_android_hardware_SensorManager),
     REG_JNI(register_android_hardware_SerialPort),
     REG_JNI(register_android_hardware_UsbDevice),

@@ -30,6 +30,7 @@ import android.content.pm.PackageParser;
 import android.content.res.ObbInfo;
 import android.content.res.ObbScanner;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
 import android.os.Environment.UserEnvironment;
 import android.os.FileUtils;
@@ -71,7 +72,7 @@ import libcore.io.ErrnoException;
 import libcore.io.IoUtils;
 import libcore.io.Libcore;
 import libcore.io.Streams;
-import libcore.io.StructStatFs;
+import libcore.io.StructStatVfs;
 
 /*
  * This service copies a downloaded apk to a file passed in as
@@ -83,6 +84,8 @@ import libcore.io.StructStatFs;
 public class DefaultContainerService extends IntentService {
     private static final String TAG = "DefContainer";
     private static final boolean localLOGV = false;
+    private static final boolean ENABLE_HOUDINI = Build.CPU_ABI.equals("x86") &&
+            (Build.CPU_ABI2.length()!=0);
 
     private static final String LIB_DIR_NAME = "lib";
 
@@ -146,6 +149,8 @@ public class DefaultContainerService extends IntentService {
                 Slog.e(TAG, "Could not copy URI " + packageURI.toString() + " Security: "
                                 + e.getMessage());
                 return PackageManager.INSTALL_FAILED_INVALID_APK;
+            } finally {
+                IoUtils.closeQuietly(autoOut);
             }
         }
 
@@ -244,7 +249,7 @@ public class DefaultContainerService extends IntentService {
             Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
 
             try {
-                final StructStatFs stat = Libcore.os.statfs(path);
+                final StructStatVfs stat = Libcore.os.statvfs(path);
                 final long totalSize = stat.f_blocks * stat.f_bsize;
                 final long availSize = stat.f_bavail * stat.f_bsize;
                 return new long[] { totalSize, availSize };
@@ -293,14 +298,20 @@ public class DefaultContainerService extends IntentService {
             try {
                 while ((item = pm.nextPackageToClean(item)) != null) {
                     final UserEnvironment userEnv = new UserEnvironment(item.userId);
-                    eraseFiles(userEnv.getExternalStorageAppDataDirectory(item.packageName));
-                    eraseFiles(userEnv.getExternalStorageAppMediaDirectory(item.packageName));
+                    eraseFiles(userEnv.buildExternalStorageAppDataDirs(item.packageName));
+                    eraseFiles(userEnv.buildExternalStorageAppMediaDirs(item.packageName));
                     if (item.andCode) {
-                        eraseFiles(userEnv.getExternalStorageAppObbDirectory(item.packageName));
+                        eraseFiles(userEnv.buildExternalStorageAppObbDirs(item.packageName));
                     }
                 }
             } catch (RemoteException e) {
             }
+        }
+    }
+
+    void eraseFiles(File[] paths) {
+        for (File path : paths) {
+            eraseFiles(path);
         }
     }
 
@@ -403,10 +414,19 @@ public class DefaultContainerService extends IntentService {
         final File sharedLibraryDir = new File(newCachePath, LIB_DIR_NAME);
         if (sharedLibraryDir.mkdir()) {
             int ret = NativeLibraryHelper.copyNativeBinariesIfNeededLI(codeFile, sharedLibraryDir);
-            if (ret != PackageManager.INSTALL_SUCCEEDED) {
-                Slog.e(TAG, "Could not copy native libraries to " + sharedLibraryDir.getPath());
-                PackageHelper.destroySdDir(newCid);
-                return null;
+            if (ENABLE_HOUDINI) {
+                if ((ret != PackageManager.INSTALL_SUCCEEDED) &&
+                        (ret != PackageManager.INSTALL_ABI2_SUCCEEDED)) {
+                    Slog.e(TAG, "Could not copy native libraries to " + sharedLibraryDir.getPath());
+                    PackageHelper.destroySdDir(newCid);
+                    return null;
+                }
+            } else {
+                if (ret != PackageManager.INSTALL_SUCCEEDED) {
+                    Slog.e(TAG, "Could not copy native libraries to " + sharedLibraryDir.getPath());
+                    PackageHelper.destroySdDir(newCid);
+                    return null;
+                }
             }
         } else {
             Slog.e(TAG, "Could not create native lib directory: " + sharedLibraryDir.getPath());

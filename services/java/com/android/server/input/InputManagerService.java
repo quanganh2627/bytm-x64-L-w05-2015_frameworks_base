@@ -230,6 +230,9 @@ public class InputManagerService extends IInputManager.Stub
     /** Switch code: Headphone/Microphone Jack.  When set, something is inserted. */
     public static final int SW_JACK_PHYSICAL_INSERT = 0x07;
 
+    /** Switch code: Saltbaye silent. */
+    public static final int SW_SILENT = 0x0e;
+
     public static final int SW_LID_BIT = 1 << SW_LID;
     public static final int SW_KEYPAD_SLIDE_BIT = 1 << SW_KEYPAD_SLIDE;
     public static final int SW_HEADPHONE_INSERT_BIT = 1 << SW_HEADPHONE_INSERT;
@@ -237,6 +240,7 @@ public class InputManagerService extends IInputManager.Stub
     public static final int SW_JACK_PHYSICAL_INSERT_BIT = 1 << SW_JACK_PHYSICAL_INSERT;
     public static final int SW_JACK_BITS =
             SW_HEADPHONE_INSERT_BIT | SW_MICROPHONE_INSERT_BIT | SW_JACK_PHYSICAL_INSERT_BIT;
+    public static final int SW_SILENT_BIT = 1 << SW_SILENT;
 
     /** Whether to use the dev/input/event or uevent subsystem for the audio jack. */
     final boolean mUseDevInputEventForAudioJack;
@@ -250,6 +254,10 @@ public class InputManagerService extends IInputManager.Stub
         Slog.i(TAG, "Initializing input manager, mUseDevInputEventForAudioJack="
                 + mUseDevInputEventForAudioJack);
         mPtr = nativeInit(this, mContext, mHandler.getLooper().getQueue());
+    }
+
+    public  WindowManagerCallbacks getWindowManagerCallbacks() {
+        return mWindowManagerCallbacks;
     }
 
     public void setWindowManagerCallbacks(WindowManagerCallbacks callbacks) {
@@ -283,7 +291,7 @@ public class InputManagerService extends IInputManager.Stub
     }
 
     // TODO(BT) Pass in paramter for bluetooth system
-    public void systemReady() {
+    public void systemRunning() {
         if (DEBUG) {
             Slog.d(TAG, "System ready.");
         }
@@ -1283,6 +1291,11 @@ public class InputManagerService extends IInputManager.Stub
             mWiredAccessoryCallbacks.notifyWiredAccessoryChanged(whenNanos, switchValues,
                     switchMask);
         }
+
+        if ((switchMask & SW_SILENT_BIT) !=  0 ) {
+            final boolean silentSwitchOpen = ((switchValues & SW_SILENT_BIT) != 0);
+            mWindowManagerCallbacks.notifySilentSwitchChanged(silentSwitchOpen);
+       }
     }
 
     // Native callback.
@@ -1292,8 +1305,9 @@ public class InputManagerService extends IInputManager.Stub
 
     // Native callback.
     private long notifyANR(InputApplicationHandle inputApplicationHandle,
-            InputWindowHandle inputWindowHandle) {
-        return mWindowManagerCallbacks.notifyANR(inputApplicationHandle, inputWindowHandle);
+            InputWindowHandle inputWindowHandle, String reason) {
+        return mWindowManagerCallbacks.notifyANR(
+                inputApplicationHandle, inputWindowHandle, reason);
     }
 
     // Native callback.
@@ -1474,10 +1488,12 @@ public class InputManagerService extends IInputManager.Stub
 
         public void notifyLidSwitchChanged(long whenNanos, boolean lidOpen);
 
+        public void notifySilentSwitchChanged(boolean open);
+
         public void notifyInputChannelBroken(InputWindowHandle inputWindowHandle);
 
         public long notifyANR(InputApplicationHandle inputApplicationHandle,
-                InputWindowHandle inputWindowHandle);
+                InputWindowHandle inputWindowHandle, String reason);
 
         public int interceptKeyBeforeQueueing(KeyEvent event, int policyFlags, boolean isScreenOn);
 

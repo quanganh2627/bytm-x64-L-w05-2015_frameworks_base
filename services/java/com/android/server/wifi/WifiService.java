@@ -25,18 +25,22 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.database.ContentObserver;
-import android.net.wifi.IWifiManager;
-import android.net.wifi.ScanResult;
-import android.net.wifi.WifiInfo;
-import android.net.wifi.WifiManager;
-import android.net.wifi.WifiStateMachine;
-import android.net.wifi.WifiConfiguration;
-import android.net.wifi.WifiWatchdogStateMachine;
 import android.net.DhcpInfo;
 import android.net.DhcpResults;
 import android.net.LinkAddress;
 import android.net.NetworkUtils;
 import android.net.RouteInfo;
+import android.net.wifi.IWifiManager;
+import android.net.wifi.ScanResult;
+import android.net.wifi.BatchedScanResult;
+import android.net.wifi.BatchedScanSettings;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiConfiguration.ProxySettings;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
+import android.net.wifi.WifiStateMachine;
+import android.net.wifi.WifiWatchdogStateMachine;
+import android.net.wifi.WifiNative;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.Messenger;
@@ -48,16 +52,26 @@ import android.os.RemoteException;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.WorkSource;
+import android.preference.CheckBoxPreference;
+import android.os.AsyncTask;
 import android.provider.Settings;
+import android.provider.Settings.Global;
 import android.util.Log;
 import android.util.Slog;
 
+import java.io.FileNotFoundException;
+import java.io.BufferedReader;
 import java.io.FileDescriptor;
+import java.io.FileReader;
+import java.io.IOException;
 import java.io.PrintWriter;
+
 import java.net.InetAddress;
 import java.net.Inet4Address;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.android.internal.R;
@@ -73,7 +87,9 @@ import static com.android.server.wifi.WifiController.CMD_SCAN_ALWAYS_MODE_CHANGE
 import static com.android.server.wifi.WifiController.CMD_SCREEN_OFF;
 import static com.android.server.wifi.WifiController.CMD_SCREEN_ON;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
+import static com.android.server.wifi.WifiController.CMD_USER_PRESENT;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
+import static com.android.server.wifi.WifiController.CMD_DEVICE_IDLE;
 /**
  * WifiService handles remote WiFi operation requests by implementing
  * the IWifiManager interface.
@@ -85,6 +101,7 @@ public final class WifiService extends IWifiManager.Stub {
     private static final boolean DBG = false;
 
     final WifiStateMachine mWifiStateMachine;
+    private final WifiNative mWifiNative;
 
     private final Context mContext;
 
@@ -113,6 +130,9 @@ public final class WifiService extends IWifiManager.Stub {
     private WifiTrafficPoller mTrafficPoller;
     /* Tracks the persisted states for wi-fi & airplane mode */
     final WifiSettingsStore mSettingsStore;
+    private final WizardFinishedObserver mwizardFinishedObserver;
+
+    final boolean mBatchedScanSupported;
 
     /**
      * Asynchronous channel to WifiStateMachine
@@ -158,7 +178,37 @@ public final class WifiService extends IWifiManager.Stub {
                 }
                 /* Client commands are forwarded to state machine */
                 case WifiManager.CONNECT_NETWORK:
-                case WifiManager.SAVE_NETWORK:
+                case WifiManager.SAVE_NETWORK: {
+                    WifiConfiguration config = (WifiConfiguration) msg.obj;
+                    int networkId = msg.arg1;
+                    if (config != null && config.isValid()) {
+                        // This is restricted because there is no UI for the user to
+                        // monitor/control PAC.
+                        if (config.proxySettings != ProxySettings.PAC) {
+                            if (DBG) Slog.d(TAG, "Connect with config" + config);
+                            mWifiStateMachine.sendMessage(Message.obtain(msg));
+                        } else {
+                            Slog.e(TAG,  "ClientHandler.handleMessage cannot process msg with PAC");
+                            if (msg.what == WifiManager.CONNECT_NETWORK) {
+                                replyFailed(msg, WifiManager.CONNECT_NETWORK_FAILED);
+                            } else {
+                                replyFailed(msg, WifiManager.SAVE_NETWORK_FAILED);
+                            }
+                        }
+                    } else if (config == null
+                            && networkId != WifiConfiguration.INVALID_NETWORK_ID) {
+                        if (DBG) Slog.d(TAG, "Connect with networkId" + networkId);
+                        mWifiStateMachine.sendMessage(Message.obtain(msg));
+                    } else {
+                        Slog.e(TAG, "ClientHandler.handleMessage ignoring invalid msg=" + msg);
+                        if (msg.what == WifiManager.CONNECT_NETWORK) {
+                            replyFailed(msg, WifiManager.CONNECT_NETWORK_FAILED);
+                        } else {
+                            replyFailed(msg, WifiManager.SAVE_NETWORK_FAILED);
+                        }
+                    }
+                    break;
+                }
                 case WifiManager.FORGET_NETWORK:
                 case WifiManager.START_WPS:
                 case WifiManager.CANCEL_WPS:
@@ -171,6 +221,17 @@ public final class WifiService extends IWifiManager.Stub {
                     Slog.d(TAG, "ClientHandler.handleMessage ignoring msg=" + msg);
                     break;
                 }
+            }
+        }
+
+        private void replyFailed(Message msg, int what) {
+            Message reply = msg.obtain();
+            reply.what = what;
+            reply.arg1 = WifiManager.INVALID_ARGS;
+            try {
+                msg.replyTo.send(reply);
+            } catch (RemoteException e) {
+                // There's not much we can do if reply can't be sent!
             }
         }
     }
@@ -225,6 +286,9 @@ public final class WifiService extends IWifiManager.Stub {
 
         mWifiStateMachine = new WifiStateMachine(mContext, mInterfaceName);
         mWifiStateMachine.enableRssiPolling(true);
+
+        mWifiNative = new WifiNative(mInterfaceName);
+
         mBatteryStats = BatteryStatsService.getService();
         mAppOps = (AppOpsManager)context.getSystemService(Context.APP_OPS_SERVICE);
 
@@ -238,6 +302,9 @@ public final class WifiService extends IWifiManager.Stub {
         mWifiStateMachineHandler = new WifiStateMachineHandler(wifiThread.getLooper());
         mWifiController = new WifiController(mContext, this, wifiThread.getLooper());
         mWifiController.start();
+
+        mBatchedScanSupported = mContext.getResources().getBoolean(
+                R.bool.config_wifi_batched_scan_supported);
 
         registerForScanModeChange();
         mContext.registerReceiver(
@@ -255,9 +322,38 @@ public final class WifiService extends IWifiManager.Stub {
         // can result in race conditions when apps toggle wifi in the background
         // without active user involvement. Always receive broadcasts.
         registerForBroadcasts();
+        mwizardFinishedObserver = new WizardFinishedObserver();
+    }
+
+    private class WizardFinishedObserver extends ContentObserver {
+        WizardFinishedObserver() {
+            super(new Handler());
+            mContext.getContentResolver().registerContentObserver(Settings.Global.getUriFor(
+                    Settings.Global.DEVICE_PROVISIONED), false, this);
+        }
+
+        @Override
+        public void onChange(boolean selfChange) {
+            if (Settings.Global.getInt(mContext.getContentResolver(),
+                    Settings.Global.DEVICE_PROVISIONED, 0) != 0) {
+                Log.i("WizardFinishedObserver","Device Provisionned!!!");
+                Global.putInt(mContext.getContentResolver(),
+                        Global.WIFI_SCAN_ALWAYS_AVAILABLE,
+                        (0));
+            }
+        }
     }
 
     private WifiController mWifiController;
+
+
+    public String setSafeChannel(int safeChannelBitmap) {
+       return mWifiNative.setSafeChannel(safeChannelBitmap);
+    }
+
+    public String setRTCoexMode(int enable, int safeChannelBitmap) {
+       return mWifiNative.setRTCoexMode(enable,safeChannelBitmap);
+    }
 
     /**
      * Check if Wi-Fi needs to be enabled and start
@@ -296,10 +392,164 @@ public final class WifiService extends IWifiManager.Stub {
 
     /**
      * see {@link android.net.wifi.WifiManager#startScan()}
+     *
+     * <p>If workSource is null, all blame is given to the calling uid.
      */
-    public void startScan() {
+    public void startScan(WorkSource workSource) {
         enforceChangePermission();
-        mWifiStateMachine.startScan(Binder.getCallingUid());
+        if (workSource != null) {
+            enforceWorkSourcePermission();
+            // WifiManager currently doesn't use names, so need to clear names out of the
+            // supplied WorkSource to allow future WorkSource combining.
+            workSource.clearNames();
+        }
+        mWifiStateMachine.startScan(Binder.getCallingUid(), workSource);
+    }
+
+    private class BatchedScanRequest extends DeathRecipient {
+        BatchedScanSettings settings;
+        int uid;
+        int pid;
+
+        BatchedScanRequest(BatchedScanSettings settings, IBinder binder) {
+            super(0, null, binder, null);
+            this.settings = settings;
+            this.uid = getCallingUid();
+            this.pid = getCallingPid();
+        }
+        public void binderDied() {
+            stopBatchedScan(settings, uid, pid);
+        }
+        public String toString() {
+            return "BatchedScanRequest{settings=" + settings + ", binder=" + mBinder + "}";
+        }
+
+        public boolean isSameApp(int uid, int pid) {
+            return (this.uid == uid && this.pid == pid);
+        }
+    }
+
+    private final List<BatchedScanRequest> mBatchedScanners = new ArrayList<BatchedScanRequest>();
+
+    public boolean isBatchedScanSupported() {
+        return mBatchedScanSupported;
+    }
+
+    public void pollBatchedScan() {
+        enforceChangePermission();
+        if (mBatchedScanSupported == false) return;
+        mWifiStateMachine.requestBatchedScanPoll();
+    }
+
+    /**
+     * see {@link android.net.wifi.WifiManager#requestBatchedScan()}
+     */
+    public boolean requestBatchedScan(BatchedScanSettings requested, IBinder binder) {
+        enforceChangePermission();
+        if (mBatchedScanSupported == false) return false;
+        requested = new BatchedScanSettings(requested);
+        if (requested.isInvalid()) return false;
+        BatchedScanRequest r = new BatchedScanRequest(requested, binder);
+        synchronized(mBatchedScanners) {
+            mBatchedScanners.add(r);
+            resolveBatchedScannersLocked();
+        }
+        return true;
+    }
+
+    public List<BatchedScanResult> getBatchedScanResults(String callingPackage) {
+        enforceAccessPermission();
+        if (mBatchedScanSupported == false) return new ArrayList<BatchedScanResult>();
+        int userId = UserHandle.getCallingUserId();
+        int uid = Binder.getCallingUid();
+        long ident = Binder.clearCallingIdentity();
+        try {
+            if (mAppOps.noteOp(AppOpsManager.OP_WIFI_SCAN, uid, callingPackage)
+                    != AppOpsManager.MODE_ALLOWED) {
+                return new ArrayList<BatchedScanResult>();
+            }
+            int currentUser = ActivityManager.getCurrentUser();
+            if (userId != currentUser) {
+                return new ArrayList<BatchedScanResult>();
+            } else {
+                return mWifiStateMachine.syncGetBatchedScanResultsList();
+            }
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
+    }
+
+
+    public void stopBatchedScan(BatchedScanSettings settings) {
+        enforceChangePermission();
+        if (mBatchedScanSupported == false) return;
+        stopBatchedScan(settings, getCallingUid(), getCallingPid());
+    }
+
+    private void stopBatchedScan(BatchedScanSettings settings, int uid, int pid) {
+        ArrayList<BatchedScanRequest> found = new ArrayList<BatchedScanRequest>();
+        synchronized(mBatchedScanners) {
+            for (BatchedScanRequest r : mBatchedScanners) {
+                if (r.isSameApp(uid, pid) && (settings == null || settings.equals(r.settings))) {
+                    found.add(r);
+                    if (settings != null) break;
+                }
+            }
+            for (BatchedScanRequest r : found) {
+                mBatchedScanners.remove(r);
+            }
+            if (found.size() != 0) {
+                resolveBatchedScannersLocked();
+            }
+        }
+    }
+
+    private void resolveBatchedScannersLocked() {
+        BatchedScanSettings setting = new BatchedScanSettings();
+        int responsibleUid = 0;
+
+        if (mBatchedScanners.size() == 0) {
+            mWifiStateMachine.setBatchedScanSettings(null, 0);
+            return;
+        }
+        for (BatchedScanRequest r : mBatchedScanners) {
+            BatchedScanSettings s = r.settings;
+            if (s.maxScansPerBatch != BatchedScanSettings.UNSPECIFIED &&
+                    s.maxScansPerBatch < setting.maxScansPerBatch) {
+                setting.maxScansPerBatch = s.maxScansPerBatch;
+                responsibleUid = r.uid;
+            }
+            if (s.maxApPerScan != BatchedScanSettings.UNSPECIFIED &&
+                    (setting.maxApPerScan == BatchedScanSettings.UNSPECIFIED ||
+                    s.maxApPerScan > setting.maxApPerScan)) {
+                setting.maxApPerScan = s.maxApPerScan;
+            }
+            if (s.scanIntervalSec != BatchedScanSettings.UNSPECIFIED &&
+                    s.scanIntervalSec < setting.scanIntervalSec) {
+                setting.scanIntervalSec = s.scanIntervalSec;
+                responsibleUid = r.uid;
+            }
+            if (s.maxApForDistance != BatchedScanSettings.UNSPECIFIED &&
+                    (setting.maxApForDistance == BatchedScanSettings.UNSPECIFIED ||
+                    s.maxApForDistance > setting.maxApForDistance)) {
+                setting.maxApForDistance = s.maxApForDistance;
+            }
+            if (s.channelSet != null && s.channelSet.size() != 0) {
+                if (setting.channelSet == null || setting.channelSet.size() != 0) {
+                    if (setting.channelSet == null) setting.channelSet = new ArrayList<String>();
+                    for (String i : s.channelSet) {
+                        if (setting.channelSet.contains(i) == false) setting.channelSet.add(i);
+                    }
+                } // else, ignore the constraint - we already use all channels
+            } else {
+                if (setting.channelSet == null || setting.channelSet.size() != 0) {
+                    setting.channelSet = new ArrayList<String>();
+                }
+            }
+        }
+
+        setting.constrain();
+        mWifiStateMachine.setBatchedScanSettings(setting, responsibleUid);
     }
 
     private void enforceAccessPermission() {
@@ -309,6 +559,12 @@ public final class WifiService extends IWifiManager.Stub {
 
     private void enforceChangePermission() {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.CHANGE_WIFI_STATE,
+                                                "WifiService");
+
+    }
+
+    private void enforceWorkSourcePermission() {
+        mContext.enforceCallingPermission(android.Manifest.permission.UPDATE_DEVICE_STATS,
                                                 "WifiService");
 
     }
@@ -343,17 +599,15 @@ public final class WifiService extends IWifiManager.Stub {
         * Caller might not have WRITE_SECURE_SETTINGS,
         * only CHANGE_WIFI_STATE is enforced
         */
-
         long ident = Binder.clearCallingIdentity();
         try {
             if (! mSettingsStore.handleWifiToggled(enable)) {
                 // Nothing to do if wifi cannot be toggled
                 return true;
-            }
+             }
         } finally {
             Binder.restoreCallingIdentity(ident);
         }
-
         mWifiController.sendMessage(CMD_WIFI_TOGGLED);
         return true;
     }
@@ -379,7 +633,12 @@ public final class WifiService extends IWifiManager.Stub {
      */
     public void setWifiApEnabled(WifiConfiguration wifiConfig, boolean enabled) {
         enforceChangePermission();
-        mWifiController.obtainMessage(CMD_SET_AP, enabled ? 1 : 0, 0, wifiConfig).sendToTarget();
+        // null wifiConfig is a meaningful input for CMD_SET_AP
+        if (wifiConfig == null || wifiConfig.isValid()) {
+            mWifiController.obtainMessage(CMD_SET_AP, enabled ? 1 : 0, 0, wifiConfig).sendToTarget();
+        } else {
+            Slog.e(TAG, "Invalid WifiConfiguration");
+        }
     }
 
     /**
@@ -412,7 +671,11 @@ public final class WifiService extends IWifiManager.Stub {
         enforceChangePermission();
         if (wifiConfig == null)
             return;
-        mWifiStateMachine.setWifiApConfiguration(wifiConfig);
+        if (wifiConfig.isValid()) {
+            mWifiStateMachine.setWifiApConfiguration(wifiConfig);
+        } else {
+            Slog.e(TAG, "Invalid WifiConfiguration");
+        }
     }
 
     /**
@@ -470,10 +733,18 @@ public final class WifiService extends IWifiManager.Stub {
      */
     public int addOrUpdateNetwork(WifiConfiguration config) {
         enforceChangePermission();
-        if (mWifiStateMachineChannel != null) {
-            return mWifiStateMachine.syncAddOrUpdateNetwork(mWifiStateMachineChannel, config);
+        if (config.proxySettings == ProxySettings.PAC) {
+            enforceConnectivityInternalPermission();
+        }
+        if (config.isValid()) {
+            if (mWifiStateMachineChannel != null) {
+                return mWifiStateMachine.syncAddOrUpdateNetwork(mWifiStateMachineChannel, config);
+            } else {
+                Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
+                return -1;
+            }
         } else {
-            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
+            Slog.e(TAG, "bad network configuration");
             return -1;
         }
     }
@@ -551,11 +822,11 @@ public final class WifiService extends IWifiManager.Stub {
         int userId = UserHandle.getCallingUserId();
         int uid = Binder.getCallingUid();
         long ident = Binder.clearCallingIdentity();
-        if (mAppOps.noteOp(AppOpsManager.OP_WIFI_SCAN, uid, callingPackage)
-                != AppOpsManager.MODE_ALLOWED) {
-            return new ArrayList<ScanResult>();
-        }
         try {
+            if (mAppOps.noteOp(AppOpsManager.OP_WIFI_SCAN, uid, callingPackage)
+                    != AppOpsManager.MODE_ALLOWED) {
+                return new ArrayList<ScanResult>();
+            }
             int currentUser = ActivityManager.getCurrentUser();
             if (userId != currentUser) {
                 return new ArrayList<ScanResult>();
@@ -636,10 +907,30 @@ public final class WifiService extends IWifiManager.Stub {
         return mWifiStateMachine.getFrequencyBand();
     }
 
+    /**
+     * Check if current Wifi configuration supports both 2.4 and 5 GHz frequency bands.
+     * @return {@code true} if dual band is supported, {@code false} if only one band is supported.
+     */
     public boolean isDualBandSupported() {
-        //TODO: Should move towards adding a driver API that checks at runtime
-        return mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_wifi_dual_band_support);
+        /*
+         * If user had the opportunity to select a band different than Auto,
+         * this confirms that dual band is supported.
+         */
+        if (getFrequencyBand() != WifiManager.WIFI_FREQUENCY_BAND_AUTO) {
+            return true;
+        }
+
+        /*
+         * If Band is set to Auto, we ask to lower layers what are the capabilities of the device.
+         * And if state machine doesn't reply a consistent response, then we use the old method.
+         */
+        List<Integer> bandsList = mWifiStateMachine.getSupportedBands();
+        if (bandsList == null || bandsList.isEmpty()) {
+            return mContext.getResources().getBoolean(
+                    com.android.internal.R.bool.config_wifi_dual_band_support);
+        } else {
+            return (bandsList.size() > 1);
+        }
     }
 
     /**
@@ -710,6 +1001,11 @@ public final class WifiService extends IWifiManager.Stub {
         mWifiStateMachine.reconnectCommand();
     }
 
+    public void haltWifi() {
+        enforceConnectivityInternalPermission();
+        mWifiStateMachine.halt();
+    }
+
     public void captivePortalCheckComplete() {
         enforceConnectivityInternalPermission();
         mWifiStateMachine.captivePortalCheckComplete();
@@ -749,6 +1045,92 @@ public final class WifiService extends IWifiManager.Stub {
     }
 
     /**
+     * enable TDLS for the local NIC to remote NIC
+     * The APPs don't know the remote MAC address to identify NIC though,
+     * so we need to do additional work to find it from remote IP address
+     */
+
+    class TdlsTaskParams {
+        public String remoteIpAddress;
+        public boolean enable;
+    }
+
+    class TdlsTask extends AsyncTask<TdlsTaskParams, Integer, Integer> {
+        @Override
+        protected Integer doInBackground(TdlsTaskParams... params) {
+
+            // Retrieve parameters for the call
+            TdlsTaskParams param = params[0];
+            String remoteIpAddress = param.remoteIpAddress.trim();
+            boolean enable = param.enable;
+
+            // Get MAC address of Remote IP
+            String macAddress = null;
+
+            BufferedReader reader = null;
+
+            try {
+                reader = new BufferedReader(new FileReader("/proc/net/arp"));
+
+                // Skip over the line bearing colum titles
+                String line = reader.readLine();
+
+                while ((line = reader.readLine()) != null) {
+                    String[] tokens = line.split("[ ]+");
+                    if (tokens.length < 6) {
+                        continue;
+                    }
+
+                    // ARP column format is
+                    // Address HWType HWAddress Flags Mask IFace
+                    String ip = tokens[0];
+                    String mac = tokens[3];
+
+                    if (remoteIpAddress.equals(ip)) {
+                        macAddress = mac;
+                        break;
+                    }
+                }
+
+                if (macAddress == null) {
+                    Slog.w(TAG, "Did not find remoteAddress {" + remoteIpAddress + "} in " +
+                            "/proc/net/arp");
+                } else {
+                    enableTdlsWithMacAddress(macAddress, enable);
+                }
+
+            } catch (FileNotFoundException e) {
+                Slog.e(TAG, "Could not open /proc/net/arp to lookup mac address");
+            } catch (IOException e) {
+                Slog.e(TAG, "Could not read /proc/net/arp to lookup mac address");
+            } finally {
+                try {
+                    if (reader != null) {
+                        reader.close();
+                    }
+                }
+                catch (IOException e) {
+                    // Do nothing
+                }
+            }
+
+            return 0;
+        }
+    }
+
+    public void enableTdls(String remoteAddress, boolean enable) {
+        TdlsTaskParams params = new TdlsTaskParams();
+        params.remoteIpAddress = remoteAddress;
+        params.enable = enable;
+        new TdlsTask().execute(params);
+    }
+
+
+    public void enableTdlsWithMacAddress(String remoteMacAddress, boolean enable) {
+        mWifiStateMachine.enableTdls(remoteMacAddress, enable);
+    }
+
+    /**
      * Get a reference to handler. This is used by a client to establish
      * an AsyncChannel communication with WifiService
      */
@@ -779,6 +1161,8 @@ public final class WifiService extends IWifiManager.Stub {
             String action = intent.getAction();
             if (action.equals(Intent.ACTION_SCREEN_ON)) {
                 mWifiController.sendMessage(CMD_SCREEN_ON);
+            } else if (action.equals(Intent.ACTION_USER_PRESENT)) {
+                mWifiController.sendMessage(CMD_USER_PRESENT);
             } else if (action.equals(Intent.ACTION_SCREEN_OFF)) {
                 mWifiController.sendMessage(CMD_SCREEN_OFF);
             } else if (action.equals(Intent.ACTION_BATTERY_CHANGED)) {
@@ -791,6 +1175,8 @@ public final class WifiService extends IWifiManager.Stub {
             } else if (action.equals(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED)) {
                 boolean emergencyMode = intent.getBooleanExtra("phoneinECMState", false);
                 mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, emergencyMode ? 1 : 0, 0);
+            } else if (action.equals(WifiStateMachine.SHUT_DOWN_WIFI_ACTION)) {
+                mWifiController.sendMessage(CMD_DEVICE_IDLE);
             }
         }
     };
@@ -815,11 +1201,13 @@ public final class WifiService extends IWifiManager.Stub {
     private void registerForBroadcasts() {
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);
+        intentFilter.addAction(Intent.ACTION_USER_PRESENT);
         intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
         intentFilter.addAction(Intent.ACTION_BATTERY_CHANGED);
         intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         intentFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
+        intentFilter.addAction(WifiStateMachine.SHUT_DOWN_WIFI_ACTION);
         mContext.registerReceiver(mReceiver, intentFilter);
     }
 

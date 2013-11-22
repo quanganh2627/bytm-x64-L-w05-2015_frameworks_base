@@ -29,7 +29,6 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.hardware.SystemSensorManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -119,7 +118,7 @@ final class DisplayPowerController {
 
     // Proximity sensor debounce delay in milliseconds for positive or negative transitions.
     private static final int PROXIMITY_SENSOR_POSITIVE_DEBOUNCE_DELAY = 0;
-    private static final int PROXIMITY_SENSOR_NEGATIVE_DEBOUNCE_DELAY = 500;
+    private static final int PROXIMITY_SENSOR_NEGATIVE_DEBOUNCE_DELAY = 250;
 
     // Trigger proximity if distance is less than 5 cm.
     private static final float TYPICAL_PROXIMITY_THRESHOLD = 5.0f;
@@ -164,6 +163,10 @@ final class DisplayPowerController {
     // Notifier for sending asynchronous notifications.
     private final Notifier mNotifier;
 
+    // The display suspend blocker.
+    // Held while there are pending state change notifications.
+    private final SuspendBlocker mDisplaySuspendBlocker;
+
     // The display blanker.
     private final DisplayBlanker mDisplayBlanker;
 
@@ -190,6 +193,9 @@ final class DisplayPowerController {
     // The proximity sensor, or null if not available or needed.
     private Sensor mProximitySensor;
 
+    // If True proximity sensor screen-off function should be used
+    private boolean mProximityScreenOffConfig;
+
     // The light sensor, or null if not available or needed.
     private Sensor mLightSensor;
 
@@ -204,6 +210,18 @@ final class DisplayPowerController {
 
     // True if auto-brightness should be used.
     private boolean mUseSoftwareAutoBrightnessConfig;
+
+    // True if auto-brightness is enabled.
+    private boolean mAutoBrightnessEnabled;
+
+    // Automatic button light control.
+    private boolean mUseButtonAutoBrightnessConfig;
+    private boolean mUseButtonLedBrightnessConfig;
+    private boolean mButtonAutoBrightnessEnabled;
+    private LightsService.Light mButtonLight;
+    private int[] mButtonBacklightValues;
+    private int[] mAutoBrightnessLevels;
+    private int mButtonLastValue;
 
     // The auto-brightness spline adjustment.
     // The brightness values have been scaled to a range of 0..1.
@@ -271,7 +289,7 @@ final class DisplayPowerController {
 
     // The raw non-debounced proximity sensor state.
     private int mPendingProximity = PROXIMITY_UNKNOWN;
-    private long mPendingProximityDebounceTime;
+    private long mPendingProximityDebounceTime = -1; // -1 if fully debounced
 
     // True if the screen was turned off because of the proximity sensor.
     // When the screen turns on again, we report user activity to the power manager.
@@ -340,16 +358,21 @@ final class DisplayPowerController {
     // Twilight changed.  We might recalculate auto-brightness values.
     private boolean mTwilightChanged;
 
+    private Handler mButtonLedHandler;
+    private boolean mButtonLedState = false;
+    private final int mButtonLedBrightness = 0x87;
+
     /**
      * Creates the display power controller.
      */
     public DisplayPowerController(Looper looper, Context context, Notifier notifier,
             LightsService lights, TwilightService twilight, SensorManager sensorManager,
             DisplayManagerService displayManager,
-            DisplayBlanker displayBlanker,
+            SuspendBlocker displaySuspendBlocker, DisplayBlanker displayBlanker,
             Callbacks callbacks, Handler callbackHandler) {
         mHandler = new DisplayControllerHandler(looper);
         mNotifier = notifier;
+        mDisplaySuspendBlocker = displaySuspendBlocker;
         mDisplayBlanker = displayBlanker;
         mCallbacks = callbacks;
         mCallbackHandler = callbackHandler;
@@ -358,6 +381,8 @@ final class DisplayPowerController {
         mTwilight = twilight;
         mSensorManager = sensorManager;
         mDisplayManager = displayManager;
+
+        mButtonLedHandler = new Handler(true /*async*/);
 
         final Resources resources = context.getResources();
 
@@ -368,21 +393,25 @@ final class DisplayPowerController {
                 com.android.internal.R.integer.config_screenBrightnessSettingMinimum),
                 mScreenBrightnessDimConfig);
 
+        mProximityScreenOffConfig = resources.getBoolean(
+                com.android.internal.R.bool.config_proximityScreenOffAvailable);
+
         mUseSoftwareAutoBrightnessConfig = resources.getBoolean(
                 com.android.internal.R.bool.config_automatic_brightness_available);
         if (mUseSoftwareAutoBrightnessConfig) {
-            int[] lux = resources.getIntArray(
+            mAutoBrightnessLevels = resources.getIntArray(
                     com.android.internal.R.array.config_autoBrightnessLevels);
             int[] screenBrightness = resources.getIntArray(
                     com.android.internal.R.array.config_autoBrightnessLcdBacklightValues);
 
-            mScreenAutoBrightnessSpline = createAutoBrightnessSpline(lux, screenBrightness);
+            mScreenAutoBrightnessSpline = createAutoBrightnessSpline(mAutoBrightnessLevels,
+                    screenBrightness);
             if (mScreenAutoBrightnessSpline == null) {
                 Slog.e(TAG, "Error in config.xml.  config_autoBrightnessLcdBacklightValues "
                         + "(size " + screenBrightness.length + ") "
                         + "must be monotic and have exactly one more entry than "
-                        + "config_autoBrightnessLevels (size " + lux.length + ") "
-                        + "which must be strictly increasing.  "
+                        + "config_autoBrightnessLevels (size " + mAutoBrightnessLevels.length
+                        + ") " + "which must be strictly increasing.  "
                         + "Auto-brightness will be disabled.");
                 mUseSoftwareAutoBrightnessConfig = false;
             } else {
@@ -393,6 +422,20 @@ final class DisplayPowerController {
 
             mLightSensorWarmUpTimeConfig = resources.getInteger(
                     com.android.internal.R.integer.config_lightSensorWarmupTime);
+        }
+
+        mUseButtonAutoBrightnessConfig = resources.getBoolean(
+                com.android.internal.R.bool.config_button_automatic_brightness_available);
+        if (mUseButtonAutoBrightnessConfig) {
+            mButtonAutoBrightnessEnabled = true;
+            mButtonBacklightValues = resources.getIntArray(
+                    com.android.internal.R.array.config_autoBrightnessButtonBacklightValues);
+            mButtonLastValue = -1;
+        }
+        mUseButtonLedBrightnessConfig = resources.getBoolean(
+                com.android.internal.R.bool.config_button_led_brightness_available);
+        if (mUseButtonAutoBrightnessConfig || mUseButtonLedBrightnessConfig) {
+            mButtonLight = mLights.getLight(LightsService.LIGHT_ID_BUTTONS);
         }
 
         mScreenBrightnessRangeMinimum = clampAbsoluteBrightness(screenBrightnessMinimum);
@@ -409,7 +452,7 @@ final class DisplayPowerController {
             }
         }
 
-        if (mUseSoftwareAutoBrightnessConfig
+        if ((mUseSoftwareAutoBrightnessConfig || mUseButtonAutoBrightnessConfig)
                 && !DEBUG_PRETEND_LIGHT_SENSOR_ABSENT) {
             mLightSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
         }
@@ -448,7 +491,9 @@ final class DisplayPowerController {
      * Returns true if the proximity sensor screen-off function is available.
      */
     public boolean isProximitySensorAvailable() {
-        return mProximitySensor != null;
+        if (mProximityScreenOffConfig)
+            return mProximitySensor != null;
+        return false;
     }
 
     /**
@@ -516,6 +561,36 @@ final class DisplayPowerController {
             mHandler.sendMessage(msg);
         }
     }
+
+    public void requestButtonLedState(boolean enable) {
+        if (mUseButtonLedBrightnessConfig) {
+            if (enable) {
+                if (!mButtonLedState) {
+                    mButtonLight.setBrightness(mButtonLedBrightness);
+                    mButtonLedState = true;
+                }
+                mButtonLedHandler.removeCallbacks(mButtonLedUpdateRunnable);
+                mButtonLedHandler.postDelayed(mButtonLedUpdateRunnable, 3000);
+            }
+            else {
+                mButtonLedHandler.removeCallbacks(mButtonLedUpdateRunnable);
+                if (mButtonLedState) {
+                    mButtonLight.turnOff();
+                    mButtonLedState = false;
+                }
+            }
+        }
+    }
+
+    private final Runnable mButtonLedUpdateRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (mButtonLedState) {
+                mButtonLight.turnOff();
+                mButtonLedState = false;
+            }
+        }
+    };
 
     private void initialize() {
         mPowerState = new DisplayPowerState(
@@ -601,13 +676,11 @@ final class DisplayPowerController {
                 if (!mScreenOffBecauseOfProximity
                         && mProximity == PROXIMITY_POSITIVE) {
                     mScreenOffBecauseOfProximity = true;
-                    sendOnProximityPositive();
+                    sendOnProximityPositiveWithWakelock();
                     setScreenOn(false);
+                    requestButtonLedState(false);
                 }
-            } else if (mWaitingForNegativeProximity
-                    && mScreenOffBecauseOfProximity
-                    && mProximity == PROXIMITY_POSITIVE
-                    && mPowerRequest.screenState != DisplayPowerRequest.SCREEN_STATE_OFF) {
+            } else if (mProximity == PROXIMITY_POSITIVE) {
                 setProximitySensorEnabled(true);
             } else {
                 setProximitySensorEnabled(false);
@@ -616,7 +689,7 @@ final class DisplayPowerController {
             if (mScreenOffBecauseOfProximity
                     && mProximity != PROXIMITY_POSITIVE) {
                 mScreenOffBecauseOfProximity = false;
-                sendOnProximityNegative();
+                sendOnProximityNegativeWithWakelock();
             }
         } else {
             mWaitingForNegativeProximity = false;
@@ -624,15 +697,17 @@ final class DisplayPowerController {
 
         // Turn on the light sensor if needed.
         if (mLightSensor != null) {
-            setLightSensorEnabled(mPowerRequest.useAutoBrightness
-                    && wantScreenOn(mPowerRequest.screenState), updateAutoBrightness);
+            mAutoBrightnessEnabled = mPowerRequest.useAutoBrightness &&
+                wantScreenOn(mPowerRequest.screenState);
+            setLightSensorEnabled(mAutoBrightnessEnabled || mButtonAutoBrightnessEnabled,
+                    updateAutoBrightness);
         }
 
         // Set the screen brightness.
         if (wantScreenOn(mPowerRequest.screenState)) {
             int target;
             boolean slow;
-            if (mScreenAutoBrightness >= 0 && mLightSensorEnabled) {
+            if (mScreenAutoBrightness >= 0 && mAutoBrightnessEnabled) {
                 // Use current auto-brightness value.
                 target = mScreenAutoBrightness;
                 slow = mUsingScreenAutoBrightness;
@@ -674,6 +749,7 @@ final class DisplayPowerController {
                     // be visible if the electron beam has not been dismissed because
                     // its last frame of animation is solid black.
                     setScreenOn(true);
+                    requestButtonLedState(true);
 
                     if (mPowerRequest.blockScreenOn
                             && mPowerState.getElectronBeamLevel() == 0.0f) {
@@ -737,7 +813,7 @@ final class DisplayPowerController {
                     }
                 }
             }
-            sendOnStateChanged();
+            sendOnStateChangedWithWakelock();
         }
     }
 
@@ -810,49 +886,67 @@ final class DisplayPowerController {
     private void setProximitySensorEnabled(boolean enable) {
         if (enable) {
             if (!mProximitySensorEnabled) {
+                // Register the listener.
+                // Proximity sensor state already cleared initially.
                 mProximitySensorEnabled = true;
-                mPendingProximity = PROXIMITY_UNKNOWN;
                 mSensorManager.registerListener(mProximitySensorListener, mProximitySensor,
                         SensorManager.SENSOR_DELAY_NORMAL, mHandler);
             }
         } else {
             if (mProximitySensorEnabled) {
+                // Unregister the listener.
+                // Clear the proximity sensor state for next time.
                 mProximitySensorEnabled = false;
                 mProximity = PROXIMITY_UNKNOWN;
+                mPendingProximity = PROXIMITY_UNKNOWN;
                 mHandler.removeMessages(MSG_PROXIMITY_SENSOR_DEBOUNCED);
                 mSensorManager.unregisterListener(mProximitySensorListener);
+                clearPendingProximityDebounceTime(); // release wake lock (must be last)
             }
         }
     }
 
     private void handleProximitySensorEvent(long time, boolean positive) {
-        if (mPendingProximity == PROXIMITY_NEGATIVE && !positive) {
-            return; // no change
-        }
-        if (mPendingProximity == PROXIMITY_POSITIVE && positive) {
-            return; // no change
-        }
+        if (mProximitySensorEnabled) {
+            if (mPendingProximity == PROXIMITY_NEGATIVE && !positive) {
+                return; // no change
+            }
+            if (mPendingProximity == PROXIMITY_POSITIVE && positive) {
+                return; // no change
+            }
 
-        // Only accept a proximity sensor reading if it remains
-        // stable for the entire debounce delay.
-        mHandler.removeMessages(MSG_PROXIMITY_SENSOR_DEBOUNCED);
-        if (positive) {
-            mPendingProximity = PROXIMITY_POSITIVE;
-            mPendingProximityDebounceTime = time + PROXIMITY_SENSOR_POSITIVE_DEBOUNCE_DELAY;
-        } else {
-            mPendingProximity = PROXIMITY_NEGATIVE;
-            mPendingProximityDebounceTime = time + PROXIMITY_SENSOR_NEGATIVE_DEBOUNCE_DELAY;
+            // Only accept a proximity sensor reading if it remains
+            // stable for the entire debounce delay.  We hold a wake lock while
+            // debouncing the sensor.
+            mHandler.removeMessages(MSG_PROXIMITY_SENSOR_DEBOUNCED);
+            if (positive) {
+                mPendingProximity = PROXIMITY_POSITIVE;
+                setPendingProximityDebounceTime(
+                        time + PROXIMITY_SENSOR_POSITIVE_DEBOUNCE_DELAY); // acquire wake lock
+            } else {
+                mPendingProximity = PROXIMITY_NEGATIVE;
+                setPendingProximityDebounceTime(
+                        time + PROXIMITY_SENSOR_NEGATIVE_DEBOUNCE_DELAY); // acquire wake lock
+            }
+
+            // Debounce the new sensor reading.
+            debounceProximitySensor();
         }
-        debounceProximitySensor();
     }
 
     private void debounceProximitySensor() {
-        if (mPendingProximity != PROXIMITY_UNKNOWN) {
+        if (mProximitySensorEnabled
+                && mPendingProximity != PROXIMITY_UNKNOWN
+                && mPendingProximityDebounceTime >= 0) {
             final long now = SystemClock.uptimeMillis();
             if (mPendingProximityDebounceTime <= now) {
+                // Sensor reading accepted.  Apply the change then release the wake lock.
                 mProximity = mPendingProximity;
-                sendUpdatePowerState();
+                updatePowerState();
+                clearPendingProximityDebounceTime(); // release wake lock (must be last)
             } else {
+                // Need to wait a little longer.
+                // Debounce again later.  We continue holding a wake lock while waiting.
                 Message msg = mHandler.obtainMessage(MSG_PROXIMITY_SENSOR_DEBOUNCED);
                 msg.setAsynchronous(true);
                 mHandler.sendMessageAtTime(msg, mPendingProximityDebounceTime);
@@ -860,10 +954,25 @@ final class DisplayPowerController {
         }
     }
 
+    private void clearPendingProximityDebounceTime() {
+        if (mPendingProximityDebounceTime >= 0) {
+            mPendingProximityDebounceTime = -1;
+            mDisplaySuspendBlocker.release(); // release wake lock
+        }
+    }
+
+    private void setPendingProximityDebounceTime(long debounceTime) {
+        if (mPendingProximityDebounceTime < 0) {
+            mDisplaySuspendBlocker.acquire(); // acquire wake lock
+        }
+        mPendingProximityDebounceTime = debounceTime;
+    }
+
     private void setLightSensorEnabled(boolean enable, boolean updateAutoBrightness) {
         if (enable) {
-            if (!mLightSensorEnabled) {
+            if (mAutoBrightnessEnabled)
                 updateAutoBrightness = true;
+            if (!mLightSensorEnabled) {
                 mLightSensorEnabled = true;
                 mLightSensorEnableTime = SystemClock.uptimeMillis();
                 mSensorManager.registerListener(mLightSensorListener, mLightSensor,
@@ -883,11 +992,29 @@ final class DisplayPowerController {
         }
     }
 
+    private void updateButtonBrightness(float lux) {
+        int i, buttonValue;
+        int value = (int)lux;
+
+        for (i = 0; i < mAutoBrightnessLevels.length; i++)
+            if (value < mAutoBrightnessLevels[i])
+                break;
+        buttonValue = mButtonBacklightValues[i];
+        if (buttonValue != mButtonLastValue) {
+            mButtonLight.setBrightness(buttonValue);
+            mButtonLastValue = buttonValue;
+        }
+    }
+
     private void handleLightSensorEvent(long time, float lux) {
         mHandler.removeMessages(MSG_LIGHT_SENSOR_DEBOUNCED);
 
-        applyLightSensorMeasurement(time, lux);
-        updateAmbientLux(time);
+        if (mAutoBrightnessEnabled) {
+            applyLightSensorMeasurement(time, lux);
+            updateAmbientLux(time);
+        }
+        if (mButtonAutoBrightnessEnabled)
+            updateButtonBrightness(lux);
     }
 
     private void applyLightSensorMeasurement(long time, float lux) {
@@ -1037,7 +1164,7 @@ final class DisplayPowerController {
     }
 
     private void updateAutoBrightness(boolean sendUpdate) {
-        if (!mAmbientLuxValid) {
+        if (!mAmbientLuxValid || !mAutoBrightnessEnabled) {
             return;
         }
 
@@ -1120,7 +1247,8 @@ final class DisplayPowerController {
         return x + (y - x) * alpha;
     }
 
-    private void sendOnStateChanged() {
+    private void sendOnStateChangedWithWakelock() {
+        mDisplaySuspendBlocker.acquire();
         mCallbackHandler.post(mOnStateChangedRunnable);
     }
 
@@ -1128,10 +1256,12 @@ final class DisplayPowerController {
         @Override
         public void run() {
             mCallbacks.onStateChanged();
+            mDisplaySuspendBlocker.release();
         }
     };
 
-    private void sendOnProximityPositive() {
+    private void sendOnProximityPositiveWithWakelock() {
+        mDisplaySuspendBlocker.acquire();
         mCallbackHandler.post(mOnProximityPositiveRunnable);
     }
 
@@ -1139,10 +1269,12 @@ final class DisplayPowerController {
         @Override
         public void run() {
             mCallbacks.onProximityPositive();
+            mDisplaySuspendBlocker.release();
         }
     };
 
-    private void sendOnProximityNegative() {
+    private void sendOnProximityNegativeWithWakelock() {
+        mDisplaySuspendBlocker.acquire();
         mCallbackHandler.post(mOnProximityNegativeRunnable);
     }
 
@@ -1150,6 +1282,7 @@ final class DisplayPowerController {
         @Override
         public void run() {
             mCallbacks.onProximityNegative();
+            mDisplaySuspendBlocker.release();
         }
     };
 
@@ -1172,6 +1305,7 @@ final class DisplayPowerController {
         pw.println("  mScreenBrightnessRangeMaximum=" + mScreenBrightnessRangeMaximum);
         pw.println("  mUseSoftwareAutoBrightnessConfig="
                 + mUseSoftwareAutoBrightnessConfig);
+        pw.println("  mUseButtonAutoBrightnessConfig=" + mUseButtonAutoBrightnessConfig);
         pw.println("  mScreenAutoBrightnessSpline=" + mScreenAutoBrightnessSpline);
         pw.println("  mLightSensorWarmUpTimeConfig=" + mLightSensorWarmUpTimeConfig);
 

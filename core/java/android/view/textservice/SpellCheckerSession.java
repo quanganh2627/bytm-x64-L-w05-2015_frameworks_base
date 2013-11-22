@@ -170,6 +170,7 @@ public class SpellCheckerSession {
         try {
             mSpellCheckerSessionListenerImpl.close();
             mTextServicesManager.finishSpellCheckerService(mSpellCheckerSessionListenerImpl);
+            mSpellCheckerSessionListener = null;
         } catch (RemoteException e) {
             // do nothing
         }

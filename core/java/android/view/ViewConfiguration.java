@@ -76,6 +76,15 @@ public class ViewConfiguration {
     private static final int GLOBAL_ACTIONS_KEY_TIMEOUT = 500;
 
     /**
+     * Defines the duration in milliseconds a user needs to continue holding
+     * down the power button to initiate shutdown after global actions dialog
+     * is shown
+     *
+     * @hide
+     */
+    private static final int GLOBAL_ACTIONS_KEY_SHUTDOWN_TIMEOUT = 3500;
+
+    /**
      * Defines the duration in milliseconds we will wait to see if a touch event
      * is a tap or a scroll. If the user does not move within this interval, it is
      * considered to be a tap.
@@ -95,6 +104,13 @@ public class ViewConfiguration {
      * double-tap.
      */
     private static final int DOUBLE_TAP_TIMEOUT = 300;
+
+    /**
+     * Defines the minimum duration in milliseconds between the first tap's up event and
+     * the second tap's down event for an interaction to be considered a
+     * double-tap.
+     */
+    private static final int DOUBLE_TAP_MIN_TIME = 40;
 
     /**
      * Defines the maximum duration in milliseconds between a touch pad
@@ -291,7 +307,7 @@ public class ViewConfiguration {
         if (!sHasPermanentMenuKeySet) {
             IWindowManager wm = WindowManagerGlobal.getWindowManagerService();
             try {
-                sHasPermanentMenuKey = !wm.hasSystemNavBar() && !wm.hasNavigationBar();
+                sHasPermanentMenuKey = !wm.hasNavigationBar();
                 sHasPermanentMenuKeySet = true;
             } catch (RemoteException ex) {
                 sHasPermanentMenuKey = false;
@@ -433,6 +449,17 @@ public class ViewConfiguration {
      */
     public static int getDoubleTapTimeout() {
         return DOUBLE_TAP_TIMEOUT;
+    }
+
+    /**
+     * @return the minimum duration in milliseconds between the first tap's
+     * up event and the second tap's down event for an interaction to be considered a
+     * double-tap.
+     *
+     * @hide
+     */
+    public static int getDoubleTapMinTime() {
+        return DOUBLE_TAP_MIN_TIME;
     }
 
     /**
@@ -653,6 +680,19 @@ public class ViewConfiguration {
      */
     public static long getGlobalActionKeyTimeout() {
         return GLOBAL_ACTIONS_KEY_TIMEOUT;
+    }
+
+    /**
+     * The amount of time a user needs to the press power key to initiate
+     * shutdown after the global actions dialog is brought up.
+     *
+     * @return how long a user needs to press the power key to initiate
+     *   shutdown  after the global actions dialog is brought up.
+     *
+     * @hide
+     */
+    public static long getGlobalActionKeyShutdownTimeout() {
+        return GLOBAL_ACTIONS_KEY_SHUTDOWN_TIMEOUT;
     }
 
     /**

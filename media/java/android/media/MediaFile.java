@@ -28,6 +28,7 @@ import android.mtp.MtpConstants;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * MediaScanner helper class.
@@ -47,13 +48,14 @@ public class MediaFile {
     public static final int FILE_TYPE_AAC     = 8;
     public static final int FILE_TYPE_MKA     = 9;
     public static final int FILE_TYPE_FLAC    = 10;
+    public static final int FILE_TYPE_3GA     = 11;
     private static final int FIRST_AUDIO_FILE_TYPE = FILE_TYPE_MP3;
-    private static final int LAST_AUDIO_FILE_TYPE = FILE_TYPE_FLAC;
+    private static final int LAST_AUDIO_FILE_TYPE = FILE_TYPE_3GA;
 
     // MIDI file types
-    public static final int FILE_TYPE_MID     = 11;
-    public static final int FILE_TYPE_SMF     = 12;
-    public static final int FILE_TYPE_IMY     = 13;
+    public static final int FILE_TYPE_MID     = 12;
+    public static final int FILE_TYPE_SMF     = 13;
+    public static final int FILE_TYPE_IMY     = 14;
     private static final int FIRST_MIDI_FILE_TYPE = FILE_TYPE_MID;
     private static final int LAST_MIDI_FILE_TYPE = FILE_TYPE_IMY;
    
@@ -177,6 +179,7 @@ public class MediaFile {
         addFileType("WAV", FILE_TYPE_WAV, "audio/x-wav", MtpConstants.FORMAT_WAV);
         addFileType("AMR", FILE_TYPE_AMR, "audio/amr");
         addFileType("AWB", FILE_TYPE_AWB, "audio/amr-wb");
+        addFileType("3GA", FILE_TYPE_3GA, "audio/3ga");
         if (isWMAEnabled()) {
             addFileType("WMA", FILE_TYPE_WMA, "audio/x-ms-wma", MtpConstants.FORMAT_WMA);
         }
@@ -276,10 +279,10 @@ public class MediaFile {
     }
 
     public static MediaFileType getFileType(String path) {
-        int lastDot = path.lastIndexOf(".");
+        int lastDot = path.lastIndexOf('.');
         if (lastDot < 0)
             return null;
-        return sFileTypeMap.get(path.substring(lastDot + 1).toUpperCase());
+        return sFileTypeMap.get(path.substring(lastDot + 1).toUpperCase(Locale.ROOT));
     }
 
     public static boolean isMimeTypeMedia(String mimeType) {
@@ -325,7 +328,7 @@ public class MediaFile {
         }
         int lastDot = fileName.lastIndexOf('.');
         if (lastDot > 0) {
-            String extension = fileName.substring(lastDot + 1).toUpperCase();
+            String extension = fileName.substring(lastDot + 1).toUpperCase(Locale.ROOT);
             Integer value = sFileTypeToFormatMap.get(extension);
             if (value != null) {
                 return value.intValue();

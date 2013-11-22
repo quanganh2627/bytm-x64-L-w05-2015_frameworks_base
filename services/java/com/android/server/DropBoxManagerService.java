@@ -24,6 +24,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.database.ContentObserver;
 import android.net.Uri;
+import android.os.Binder;
 import android.os.Debug;
 import android.os.DropBoxManager;
 import android.os.FileUtils;
@@ -92,6 +93,8 @@ public final class DropBoxManagerService extends IDropBoxManagerService.Stub {
     private int mBlockSize = 0;
     private int mCachedQuotaBlocks = 0;  // Space we can use: computed from free space, etc.
     private long mCachedQuotaUptimeMillis = 0;
+
+    private boolean mIsFull = false;
 
     private volatile boolean mBooted = false;
 
@@ -173,11 +176,16 @@ public final class DropBoxManagerService extends IDropBoxManagerService.Stub {
         mContext.unregisterReceiver(mReceiver);
     }
 
+    public boolean isFull() {
+        return mIsFull;
+    }
+
     @Override
     public void add(DropBoxManager.Entry entry) {
         File temp = null;
         OutputStream output = null;
         final String tag = entry.getTag();
+        mIsFull = false;
         try {
             int flags = entry.getFlags();
             if ((flags & DropBoxManager.IS_EMPTY) != 0) throw new IllegalArgumentException();
@@ -237,6 +245,7 @@ public final class DropBoxManagerService extends IDropBoxManagerService.Stub {
                     Slog.w(TAG, "Dropping: " + tag + " (" + temp.length() + " > " + max + " bytes)");
                     temp.delete();
                     temp = null;  // Pass temp = null to createEntry() to leave a tombstone
+                    mIsFull = true;
                     break;
                 }
             } while (read > 0);
@@ -265,8 +274,13 @@ public final class DropBoxManagerService extends IDropBoxManagerService.Stub {
     }
 
     public boolean isTagEnabled(String tag) {
-        return !"disabled".equals(Settings.Global.getString(
-                mContentResolver, Settings.Global.DROPBOX_TAG_PREFIX + tag));
+        final long token = Binder.clearCallingIdentity();
+        try {
+            return !"disabled".equals(Settings.Global.getString(
+                    mContentResolver, Settings.Global.DROPBOX_TAG_PREFIX + tag));
+        } finally {
+            Binder.restoreCallingIdentity(token);
+        }
     }
 
     public synchronized DropBoxManager.Entry getNextEntry(String tag, long millis) {

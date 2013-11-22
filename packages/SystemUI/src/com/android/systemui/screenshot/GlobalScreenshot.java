@@ -45,7 +45,6 @@ import android.os.Environment;
 import android.os.Process;
 import android.provider.MediaStore;
 import android.util.DisplayMetrics;
-import android.util.Log;
 import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -58,7 +57,7 @@ import android.view.animation.Interpolator;
 import android.widget.ImageView;
 
 import com.android.systemui.R;
-
+import java.io.InputStream;
 import java.io.File;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
@@ -197,6 +196,10 @@ class SaveImageInBackgroundTask extends AsyncTask<SaveImageInBackgroundData, Voi
             // Create screenshot directory if it doesn't exist
             mScreenshotDir.mkdirs();
 
+            // media provider uses seconds for DATE_MODIFIED and DATE_ADDED, but milliseconds
+            // for DATE_TAKEN
+            long dateSeconds = mImageTime / 1000;
+
             // Save the screenshot to the MediaStore
             ContentValues values = new ContentValues();
             ContentResolver resolver = context.getContentResolver();
@@ -204,8 +207,8 @@ class SaveImageInBackgroundTask extends AsyncTask<SaveImageInBackgroundData, Voi
             values.put(MediaStore.Images.ImageColumns.TITLE, mImageFileName);
             values.put(MediaStore.Images.ImageColumns.DISPLAY_NAME, mImageFileName);
             values.put(MediaStore.Images.ImageColumns.DATE_TAKEN, mImageTime);
-            values.put(MediaStore.Images.ImageColumns.DATE_ADDED, mImageTime);
-            values.put(MediaStore.Images.ImageColumns.DATE_MODIFIED, mImageTime);
+            values.put(MediaStore.Images.ImageColumns.DATE_ADDED, dateSeconds);
+            values.put(MediaStore.Images.ImageColumns.DATE_MODIFIED, dateSeconds);
             values.put(MediaStore.Images.ImageColumns.MIME_TYPE, "image/png");
             values.put(MediaStore.Images.ImageColumns.WIDTH, mImageWidth);
             values.put(MediaStore.Images.ImageColumns.HEIGHT, mImageHeight);
@@ -220,12 +223,12 @@ class SaveImageInBackgroundTask extends AsyncTask<SaveImageInBackgroundData, Voi
             sharingIntent.putExtra(Intent.EXTRA_SUBJECT, subject);
 
             Intent chooserIntent = Intent.createChooser(sharingIntent, null);
-            chooserIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK 
+            chooserIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK
                     | Intent.FLAG_ACTIVITY_NEW_TASK);
 
             mNotificationBuilder.addAction(R.drawable.ic_menu_share,
                      r.getString(com.android.internal.R.string.share),
-                     PendingIntent.getActivity(context, 0, chooserIntent, 
+                     PendingIntent.getActivity(context, 0, chooserIntent,
                              PendingIntent.FLAG_CANCEL_CURRENT));
 
             OutputStream out = resolver.openOutputStream(uri);
@@ -235,8 +238,17 @@ class SaveImageInBackgroundTask extends AsyncTask<SaveImageInBackgroundData, Voi
 
             // update file size in the database
             values.clear();
-            values.put(MediaStore.Images.ImageColumns.SIZE, new File(mImageFilePath).length());
-            resolver.update(uri, values, null, null);
+            InputStream in = resolver.openInputStream(uri);
+
+            try {
+                int size = in.available();
+                values.put(MediaStore.Images.ImageColumns.SIZE, size);
+            } catch (Exception e) {
+                values.put(MediaStore.Images.ImageColumns.SIZE, new File(mImageFilePath).length());
+            } finally {
+                resolver.update(uri, values, null, null);
+                in.close();
+            }
 
             params[0].imageUri = uri;
             params[0].image = null;
