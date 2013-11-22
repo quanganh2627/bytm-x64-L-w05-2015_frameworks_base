@@ -6,7 +6,6 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(call all-subdir-java-files)
 LOCAL_MODULE := settings
 LOCAL_MODULE_TAGS := optional
-LOCAL_JAVA_LIBRARIES := com.intel.config
 include $(BUILD_JAVA_LIBRARY)
 
 include $(CLEAR_VARS)

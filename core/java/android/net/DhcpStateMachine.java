@@ -70,7 +70,7 @@ public class DhcpStateMachine extends StateMachine {
     private static final String ACTION_DHCP_RENEW = "android.net.wifi.DHCP_RENEW";
 
     //Used for sanity check on setting up renewal
-    private static final int MIN_RENEWAL_TIME_SECS = 30; // 30 seconds
+    private static final int MIN_RENEWAL_TIME_SECS = 5 * 60;  // 5 minutes
 
     private enum DhcpAction {
         START,

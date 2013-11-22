@@ -116,7 +116,7 @@ public class WebSettingsClassic extends WebSettings {
     private boolean         mNeedInitialFocus = true;
     private boolean         mNavDump = false;
     private boolean         mSupportZoom = true;
-    private boolean         mMediaPlaybackRequiresUserGesture = false;
+    private boolean         mMediaPlaybackRequiresUserGesture = true;
     private boolean         mBuiltInZoomControls = false;
     private boolean         mDisplayZoomControls = true;
     private boolean         mAllowFileAccess = true;

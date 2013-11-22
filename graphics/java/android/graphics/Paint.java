@@ -48,9 +48,6 @@ public class Paint {
 
     private Locale      mLocale;
 
-    /** A local cache of the color to eliminate unnecessary setColor calls through JNI. */
-    private int mColorCache;
-
     /**
      * @hide
      */
@@ -356,7 +353,6 @@ public class Paint {
         //        ? HINTING_OFF : HINTING_ON);
         mCompatScaling = mInvCompatScaling = 1;
         setTextLocale(Locale.getDefault());
-        mColorCache = native_getColor(mNativePaint);
     }
 
     /**
@@ -401,7 +397,6 @@ public class Paint {
 
         mBidiFlags = BIDI_DEFAULT_LTR;
         setTextLocale(Locale.getDefault());
-        mColorCache = Color.BLACK;
     }
     
     /**
@@ -442,7 +437,6 @@ public class Paint {
 
         mBidiFlags = paint.mBidiFlags;
         mLocale = paint.mLocale;
-        mColorCache = paint.mColorCache;
     }
 
     /** @hide */
@@ -692,9 +686,7 @@ public class Paint {
      *
      * @return the paint's color (and alpha).
      */
-    public int getColor() {
-        return mColorCache;
-    }
+    public native int getColor();
 
     /**
      * Set the paint's color. Note that the color is an int containing alpha
@@ -704,13 +696,7 @@ public class Paint {
      *
      * @param color The new color (including alpha) to set in the paint.
      */
-    public void setColor(int color) {
-        if (mColorCache == color) {
-            return;
-        }
-        mColorCache = color;
-        native_setColor(mNativePaint, color);
-    }
+    public native void setColor(int color);
     
     /**
      * Helper to getColor() that just returns the color's alpha value. This is
@@ -719,9 +705,7 @@ public class Paint {
      *
      * @return the alpha component of the paint's color.
      */
-    public int getAlpha() {
-        return mColorCache >>> 24;
-    }
+    public native int getAlpha();
 
     /**
      * Helper to setColor(), that only assigns the color's alpha value,
@@ -730,9 +714,7 @@ public class Paint {
      *
      * @param a set the alpha component [0..255] of the paint's color.
      */
-    public void setAlpha(int a) {
-        setColor(a << 24 | mColorCache & 0x00ffffff);
-    }
+    public native void setAlpha(int a);
 
     /**
      * Helper to setColor(), that takes a,r,g,b and constructs the color int
@@ -2129,8 +2111,6 @@ public class Paint {
     private static native void native_set(int native_dst, int native_src);
     private static native int native_getStyle(int native_object);
     private static native void native_setStyle(int native_object, int style);
-    private static native int native_getColor(int native_object);
-    private static native void native_setColor(int native_object, int color);
     private static native int native_getStrokeCap(int native_object);
     private static native void native_setStrokeCap(int native_object, int cap);
     private static native int native_getStrokeJoin(int native_object);

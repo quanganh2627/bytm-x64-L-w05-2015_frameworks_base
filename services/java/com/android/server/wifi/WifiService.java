@@ -27,15 +27,11 @@ import android.content.pm.PackageManager;
 import android.database.ContentObserver;
 import android.net.wifi.IWifiManager;
 import android.net.wifi.ScanResult;
-import android.net.wifi.WifiApConfiguration;
-import android.net.wifi.WifiChannel;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiStateMachine;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiWatchdogStateMachine;
-import android.net.wifi.WifiApConnectedDevice;
-import android.net.wifi.WifiNative;
 import android.net.DhcpInfo;
 import android.net.DhcpResults;
 import android.net.LinkAddress;
@@ -52,9 +48,7 @@ import android.os.RemoteException;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.WorkSource;
-import android.preference.CheckBoxPreference;
 import android.provider.Settings;
-import android.provider.Settings.Global;
 import android.util.Log;
 import android.util.Slog;
 
@@ -66,11 +60,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.intel.cws.cwsservicemanager.CsmException;
-
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
-import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
 import com.android.server.am.BatteryStatsService;
@@ -83,22 +74,17 @@ import static com.android.server.wifi.WifiController.CMD_SCREEN_OFF;
 import static com.android.server.wifi.WifiController.CMD_SCREEN_ON;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
-import static com.android.server.wifi.WifiController.CMD_DEVICE_IDLE;
-
-import com.intel.arkham.ContainerCommons;
-
 /**
  * WifiService handles remote WiFi operation requests by implementing
  * the IWifiManager interface.
  *
  * @hide
  */
-public class WifiService extends IWifiManager.Stub {
+public final class WifiService extends IWifiManager.Stub {
     private static final String TAG = "WifiService";
     private static final boolean DBG = false;
 
-    protected final WifiStateMachine mWifiStateMachine;
-    private final WifiNative mWifiNative;
+    final WifiStateMachine mWifiStateMachine;
 
     private final Context mContext;
 
@@ -127,9 +113,6 @@ public class WifiService extends IWifiManager.Stub {
     private WifiTrafficPoller mTrafficPoller;
     /* Tracks the persisted states for wi-fi & airplane mode */
     final WifiSettingsStore mSettingsStore;
-    private final WizardFinishedObserver mwizardFinishedObserver;
-
-    WifiCsmClient mWifiCsmClient;
 
     /**
      * Asynchronous channel to WifiStateMachine
@@ -240,17 +223,8 @@ public class WifiService extends IWifiManager.Stub {
 
         mInterfaceName =  SystemProperties.get("wifi.interface", "wlan0");
 
-        try {
-            mWifiCsmClient = new WifiCsmClient(mContext, this);
-        } catch (CsmException e) {
-            Log.e(TAG, "Unable to create WifiCsmClient.", e);
-        }
-
         mWifiStateMachine = new WifiStateMachine(mContext, mInterfaceName);
         mWifiStateMachine.enableRssiPolling(true);
-
-        mWifiNative = new WifiNative(mInterfaceName);
-
         mBatteryStats = BatteryStatsService.getService();
         mAppOps = (AppOpsManager)context.getSystemService(Context.APP_OPS_SERVICE);
 
@@ -281,38 +255,9 @@ public class WifiService extends IWifiManager.Stub {
         // can result in race conditions when apps toggle wifi in the background
         // without active user involvement. Always receive broadcasts.
         registerForBroadcasts();
-        mwizardFinishedObserver = new WizardFinishedObserver();
-    }
-
-    private class WizardFinishedObserver extends ContentObserver {
-        WizardFinishedObserver() {
-            super(new Handler());
-            mContext.getContentResolver().registerContentObserver(Settings.Global.getUriFor(
-                    Settings.Global.DEVICE_PROVISIONED), false, this);
-        }
-
-        @Override
-        public void onChange(boolean selfChange) {
-            if (Settings.Global.getInt(mContext.getContentResolver(),
-                    Settings.Global.DEVICE_PROVISIONED, 0) != 0) {
-                Log.i("WizardFinishedObserver","Device Provisionned!!!");
-                Global.putInt(mContext.getContentResolver(),
-                        Global.WIFI_SCAN_ALWAYS_AVAILABLE,
-                        (0));
-            }
-        }
     }
 
     private WifiController mWifiController;
-
-
-    public String setSafeChannel(int safeChannelBitmap) {
-       return mWifiNative.setSafeChannel(safeChannelBitmap);
-    }
-
-    public String setRTCoexMode(int enable, int safeChannelBitmap) {
-       return mWifiNative.setRTCoexMode(enable,safeChannelBitmap);
-    }
 
     /**
      * Check if Wi-Fi needs to be enabled and start
@@ -357,7 +302,7 @@ public class WifiService extends IWifiManager.Stub {
         mWifiStateMachine.startScan(Binder.getCallingUid());
     }
 
-    protected void enforceAccessPermission() {
+    private void enforceAccessPermission() {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.ACCESS_WIFI_STATE,
                                                 "WifiService");
     }
@@ -398,6 +343,7 @@ public class WifiService extends IWifiManager.Stub {
         * Caller might not have WRITE_SECURE_SETTINGS,
         * only CHANGE_WIFI_STATE is enforced
         */
+
         long ident = Binder.clearCallingIdentity();
         try {
             if (! mSettingsStore.handleWifiToggled(enable)) {
@@ -426,12 +372,12 @@ public class WifiService extends IWifiManager.Stub {
     }
 
     /**
-     * see {@link android.net.wifi.WifiManager#setWifiApEnabled(WifiApConfiguration, boolean)}
+     * see {@link android.net.wifi.WifiManager#setWifiApEnabled(WifiConfiguration, boolean)}
      * @param wifiConfig SSID, security and channel details as
-     *        part of WifiApConfiguration
+     *        part of WifiConfiguration
      * @param enabled true to enable and false to disable
      */
-    public void setWifiApEnabled(WifiApConfiguration wifiConfig, boolean enabled) {
+    public void setWifiApEnabled(WifiConfiguration wifiConfig, boolean enabled) {
         enforceChangePermission();
         mWifiController.obtainMessage(CMD_SET_AP, enabled ? 1 : 0, 0, wifiConfig).sendToTarget();
     }
@@ -453,34 +399,20 @@ public class WifiService extends IWifiManager.Stub {
      * see {@link WifiManager#getWifiApConfiguration()}
      * @return soft access point configuration
      */
-    public WifiApConfiguration getWifiApConfiguration() {
+    public WifiConfiguration getWifiApConfiguration() {
         enforceAccessPermission();
         return mWifiStateMachine.syncGetWifiApConfiguration();
     }
 
     /**
-     * see {@link WifiManager#setWifiApConfiguration(WifiApConfiguration)}
-     * @param wifiConfig WifiApConfiguration details for soft access point
+     * see {@link WifiManager#setWifiApConfiguration(WifiConfiguration)}
+     * @param wifiConfig WifiConfiguration details for soft access point
      */
-    public void setWifiApConfiguration(WifiApConfiguration wifiConfig) {
+    public void setWifiApConfiguration(WifiConfiguration wifiConfig) {
         enforceChangePermission();
         if (wifiConfig == null)
             return;
         mWifiStateMachine.setWifiApConfiguration(wifiConfig);
-    }
-
-   /**
-    * Wifi_Hotspot: Request the list of connected stations in Wifi_Hotspot mode.
-    */
-    public List<WifiApConnectedDevice> getWifiApConnectedList() {
-        return mWifiStateMachine.getWifiApConnectedList();
-    }
-
-    /**
-     * Wifi_Hotspot: Request the list of authorized channels for Wifi_Hotspot.
-     */
-    public List<WifiChannel> getWifiAuthorizedChannels() {
-        return mWifiStateMachine.getWifiAuthorizedChannels();
     }
 
     /**
@@ -543,23 +475,6 @@ public class WifiService extends IWifiManager.Stub {
         } else {
             Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
             return -1;
-        }
-    }
-
-    /**
-     * see {@link android.net.wifi.WifiManager#updateIccNetworks(boolean)}
-     * @param enable true/false to enable/disable networks configured
-     * with an enterprise security related to SIM/USIM card (EAP-SIM/AKA)
-     * @return {@code true} if the operation succeeded
-     * @hide
-     */
-    public boolean updateIccNetworks(boolean enable) {
-        enforceChangePermission();
-        if (mWifiStateMachineChannel != null) {
-            return mWifiStateMachine.syncUpdateIccNetworks(mWifiStateMachineChannel, enable);
-        } else {
-            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
-            return false;
         }
     }
 
@@ -642,10 +557,8 @@ public class WifiService extends IWifiManager.Stub {
         }
         try {
             int currentUser = ActivityManager.getCurrentUser();
-            /* ARKHAM-621 Let WiFi networks be displayed in container Settings. */
-            if (userId != currentUser && !ContainerCommons.isContainerUser(mContext, userId)) {
+            if (userId != currentUser) {
                 return new ArrayList<ScanResult>();
-            /* END ARKHAM-621 changes. */
             } else {
                 return mWifiStateMachine.syncGetScanResultsList();
             }
@@ -723,30 +636,10 @@ public class WifiService extends IWifiManager.Stub {
         return mWifiStateMachine.getFrequencyBand();
     }
 
-    /**
-     * Check if current Wifi configuration supports both 2.4 and 5 GHz frequency bands.
-     * @return {@code true} if dual band is supported, {@code false} if only one band is supported.
-     */
     public boolean isDualBandSupported() {
-        /*
-         * If user had the opportunity to select a band different than Auto,
-         * this confirms that dual band is supported.
-         */
-        if (getFrequencyBand() != WifiManager.WIFI_FREQUENCY_BAND_AUTO) {
-            return true;
-        }
-
-        /*
-         * If Band is set to Auto, we ask to lower layers what are the capabilities of the device.
-         * And if state machine doesn't reply a consistent response, then we use the old method.
-         */
-        List<Integer> bandsList = mWifiStateMachine.getSupportedBands();
-        if (bandsList == null || bandsList.isEmpty()) {
-            return mContext.getResources().getBoolean(
-                    com.android.internal.R.bool.config_wifi_dual_band_support);
-        } else {
-            return (bandsList.size() > 1);
-        }
+        //TODO: Should move towards adding a driver API that checks at runtime
+        return mContext.getResources().getBoolean(
+                com.android.internal.R.bool.config_wifi_dual_band_support);
     }
 
     /**
@@ -815,11 +708,6 @@ public class WifiService extends IWifiManager.Stub {
 
         mWifiStateMachine.setDriverStart(true);
         mWifiStateMachine.reconnectCommand();
-    }
-
-    public void haltWifi() {
-        enforceConnectivityInternalPermission();
-        mWifiStateMachine.halt();
     }
 
     public void captivePortalCheckComplete() {
@@ -903,18 +791,6 @@ public class WifiService extends IWifiManager.Stub {
             } else if (action.equals(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED)) {
                 boolean emergencyMode = intent.getBooleanExtra("phoneinECMState", false);
                 mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, emergencyMode ? 1 : 0, 0);
-            } else if (action.equals(WifiStateMachine.SHUT_DOWN_WIFI_ACTION)) {
-                mWifiController.sendMessage(CMD_DEVICE_IDLE);
-            } else if (action.equals(TelephonyIntents.ACTION_SIM_STATE_CHANGED)) {
-                String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
-                if (IccCardConstants.INTENT_VALUE_ICC_LOADED.equals(stateExtra)) {
-                    if (DBG) Slog.d(TAG, "SIM Card inserted");
-                    updateIccNetworks(true);
-                } else if (IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra)
-                        || IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra)) {
-                    if (DBG) Slog.d(TAG, "SIM Card removed or not ready");
-                    updateIccNetworks(false);
-                }
             }
         }
     };
@@ -944,8 +820,6 @@ public class WifiService extends IWifiManager.Stub {
         intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         intentFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
-        intentFilter.addAction(WifiStateMachine.SHUT_DOWN_WIFI_ACTION);
-        intentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
         mContext.registerReceiver(mReceiver, intentFilter);
     }
 

@@ -620,11 +620,6 @@ static void videoEditor_clearSurface(JNIEnv* pEnv,
                                              (M4OSA_NULL == pContext),
                                              "not initialized");
 
-    if (!needToBeLoaded) {
-        ALOGE("pContext is not initialized");
-        return;
-    }
-
     // Make sure that the context was set.
     videoEditJava_checkAndThrowIllegalStateException(&needToBeLoaded, pEnv,
                                  (M4OSA_NULL == pContext->mPreviewController),
@@ -1726,7 +1721,7 @@ videoEditor_populateSettings(
 
                  aFramingCtx->width = pContext->pEditSettings->Effects[j].xVSS.pFramingBuffer->u_width;
                  aFramingCtx->height = pContext->pEditSettings->Effects[j].xVSS.pFramingBuffer->u_height;
-                aFramingCtx->exportmode = 0;
+
                 result = M4xVSS_internalConvertARGB888toYUV420_FrammingEffect(pContext->engineContext,
                     &(pContext->pEditSettings->Effects[j]),aFramingCtx,
                 pContext->pEditSettings->Effects[j].xVSS.framingScaledSize);
@@ -2838,11 +2833,6 @@ M4OSA_ERR videoEditor_processClip(
                         (M4OSA_UInt32)pContext->pEditSettings->uiOutputPathSize);
                     ALOGV("videoEditor_processClip ITEM %d SaveStart() returned 0x%x",
                         unuseditemID, (unsigned int) result);
-
-                    // Check the status whether it is changed by other thread
-                    if (pContext->state != ManualEditState_OPENED) {
-                        return result;
-                    }
 
                     // Set the state to saving.
                     pContext->state  = ManualEditState_SAVING;

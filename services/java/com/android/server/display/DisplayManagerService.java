@@ -473,20 +473,6 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
     }
 
     @Override // Binder call
-    public void stopScanWifiDisplays() {
-        final long token = Binder.clearCallingIdentity();
-        try {
-            synchronized (mSyncRoot) {
-                if (mWifiDisplayAdapter != null) {
-                    mWifiDisplayAdapter.requestStopScanLocked();
-                }
-            }
-        } finally {
-            Binder.restoreCallingIdentity(token);
-        }
-    }
-
-    @Override // Binder call
     public void connectWifiDisplay(String address) {
         if (address == null) {
             throw new IllegalArgumentException("address must not be null");
@@ -512,20 +498,6 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
             synchronized (mSyncRoot) {
                 if (mWifiDisplayAdapter != null) {
                     mWifiDisplayAdapter.requestDisconnectLocked();
-                }
-            }
-        } finally {
-            Binder.restoreCallingIdentity(token);
-        }
-    }
-
-    @Override // Binder call
-    public void reconnectWifiDisplay() {
-        final long token = Binder.clearCallingIdentity();
-        try {
-            synchronized (mSyncRoot) {
-                if (mWifiDisplayAdapter != null) {
-                    mWifiDisplayAdapter.requestReconnectLocked();
                 }
             }
         } finally {
@@ -854,17 +826,9 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
             Slog.w(TAG, "Missing logical display to use for physical display device: "
                     + device.getDisplayDeviceInfoLocked());
             return;
-        } else {
-            boolean isBlanked = (mAllDisplayBlankStateFromPowerManager
-                    == DISPLAY_BLANK_STATE_BLANKED);
-            if (isBlanked && display.hasContentLocked()
-                    && display != mLogicalDisplays.get(Display.DEFAULT_DISPLAY)) {
-                // Display has unique content, meaning there is a background
-                // presentation on this display, so override isBlanked.
-                isBlanked = false;
-            }
-            display.configureDisplayInTransactionLocked(device, isBlanked);
         }
+        boolean isBlanked = (mAllDisplayBlankStateFromPowerManager == DISPLAY_BLANK_STATE_BLANKED);
+        display.configureDisplayInTransactionLocked(device, isBlanked);
 
         // Update the viewports if needed.
         DisplayDeviceInfo info = device.getDisplayDeviceInfoLocked();

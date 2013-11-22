@@ -53,13 +53,13 @@ public class ClipboardService extends IClipboard.Stub {
 
     private static final String TAG = "ClipboardService";
 
-    protected final Context mContext;
+    private final Context mContext;
     private final IActivityManager mAm;
     private final PackageManager mPm;
     private final AppOpsManager mAppOps;
     private final IBinder mPermissionOwner;
 
-    protected class ListenerInfo {
+    private class ListenerInfo {
         final int mUid;
         final String mPackageName;
         ListenerInfo(int uid, String packageName) {
@@ -68,7 +68,7 @@ public class ClipboardService extends IClipboard.Stub {
         }
     }
 
-    protected class PerUserClipboard {
+    private class PerUserClipboard {
         final int userId;
 
         final RemoteCallbackList<IOnPrimaryClipChangedListener> primaryClipListeners
@@ -132,7 +132,7 @@ public class ClipboardService extends IClipboard.Stub {
         return getClipboard(UserHandle.getCallingUserId());
     }
 
-    protected PerUserClipboard getClipboard(int userId) {
+    private PerUserClipboard getClipboard(int userId) {
         synchronized (mClipboards) {
             PerUserClipboard puc = mClipboards.get(userId);
             if (puc == null) {
@@ -154,36 +154,31 @@ public class ClipboardService extends IClipboard.Stub {
             if (clip != null && clip.getItemCount() <= 0) {
                 throw new IllegalArgumentException("No items");
             }
-            final int callingUid = Binder.getCallingUid();
-            if (mAppOps.noteOp(AppOpsManager.OP_WRITE_CLIPBOARD, callingUid,
+            if (mAppOps.noteOp(AppOpsManager.OP_WRITE_CLIPBOARD, Binder.getCallingUid(),
                     callingPackage) != AppOpsManager.MODE_ALLOWED) {
                 return;
             }
-            checkDataOwnerLocked(clip, callingUid);
+            checkDataOwnerLocked(clip, Binder.getCallingUid());
             clearActiveOwnersLocked();
             PerUserClipboard clipboard = getClipboard();
             clipboard.primaryClip = clip;
-            final long ident = Binder.clearCallingIdentity();
             final int n = clipboard.primaryClipListeners.beginBroadcast();
-            try {
-                for (int i = 0; i < n; i++) {
-                    try {
-                        ListenerInfo li = (ListenerInfo)
-                                clipboard.primaryClipListeners.getBroadcastCookie(i);
-                        if (mAppOps.checkOpNoThrow(AppOpsManager.OP_READ_CLIPBOARD, li.mUid,
-                                li.mPackageName) == AppOpsManager.MODE_ALLOWED) {
-                            clipboard.primaryClipListeners.getBroadcastItem(i)
-                                    .dispatchPrimaryClipChanged();
-                        }
-                    } catch (RemoteException e) {
-                        // The RemoteCallbackList will take care of removing
-                        // the dead object for us.
+            for (int i = 0; i < n; i++) {
+                try {
+                    ListenerInfo li = (ListenerInfo)
+                            clipboard.primaryClipListeners.getBroadcastCookie(i);
+                    if (mAppOps.checkOpNoThrow(AppOpsManager.OP_READ_CLIPBOARD, li.mUid,
+                            li.mPackageName) == AppOpsManager.MODE_ALLOWED) {
+                        clipboard.primaryClipListeners.getBroadcastItem(i)
+                                .dispatchPrimaryClipChanged();
                     }
+                } catch (RemoteException e) {
+
+                    // The RemoteCallbackList will take care of removing
+                    // the dead object for us.
                 }
-            } finally {
-                clipboard.primaryClipListeners.finishBroadcast();
-                Binder.restoreCallingIdentity(ident);
             }
+            clipboard.primaryClipListeners.finishBroadcast();
         }
     }
     
@@ -272,7 +267,7 @@ public class ClipboardService extends IClipboard.Stub {
         }
     }
 
-    protected final void checkDataOwnerLocked(ClipData data, int uid) {
+    private final void checkDataOwnerLocked(ClipData data, int uid) {
         final int N = data.getItemCount();
         for (int i=0; i<N; i++) {
             checkItemOwnerLocked(data.getItemAt(i), uid);
@@ -328,7 +323,7 @@ public class ClipboardService extends IClipboard.Stub {
         }
     }
 
-    protected final void revokeUriLocked(Uri uri) {
+    private final void revokeUriLocked(Uri uri) {
         long ident = Binder.clearCallingIdentity();
         try {
             mAm.revokeUriPermissionFromOwner(mPermissionOwner, uri,
@@ -350,7 +345,7 @@ public class ClipboardService extends IClipboard.Stub {
         }
     }
 
-    protected final void clearActiveOwnersLocked() {
+    private final void clearActiveOwnersLocked() {
         PerUserClipboard clipboard = getClipboard();
         clipboard.activePermissionOwners.clear();
         if (clipboard.primaryClip == null) {

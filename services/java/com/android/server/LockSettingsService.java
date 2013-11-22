@@ -42,8 +42,6 @@ import android.util.Slog;
 import com.android.internal.widget.ILockSettings;
 import com.android.internal.widget.LockPatternUtils;
 
-import com.intel.arkham.ContainerCommons;
-
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -282,18 +280,9 @@ public class LockSettingsService extends ILockSettings.Stub {
             return Arrays.equals(stored, hash);
         } catch (FileNotFoundException fnfe) {
             Slog.e(TAG, "Cannot read file " + fnfe);
-            // ARKHAM-477, ARKHAM-990: for containers, if the pattern is incorrect we will not
-            // be able to read the pattern file (since it's encrypted)
-            if (ContainerCommons.isContainerUser(mContext, userId)) {
-                return false;
-            }
             return true;
         } catch (IOException ioe) {
             Slog.e(TAG, "Cannot read file " + ioe);
-            if (ContainerCommons.isContainerUser(mContext, userId)) {
-                return false;
-            }
-            // End ARKHAM-477, ARKHAM-990
             return true;
         }
     }
@@ -322,19 +311,9 @@ public class LockSettingsService extends ILockSettings.Stub {
             return Arrays.equals(stored, hash);
         } catch (FileNotFoundException fnfe) {
             Slog.e(TAG, "Cannot read file " + fnfe);
-            // ARKHAM-477: for containers, if the password is incorrect we will not
-            // be able to read the password file (since it's encrypted)
-            if (ContainerCommons.isContainerUser(mContext, userId)) {
-                return false;
-            }
             return true;
         } catch (IOException ioe) {
             Slog.e(TAG, "Cannot read file " + ioe);
-            // ARKHAM-477: for containers, if the password is incorrect we will not
-            // be able to read the password file (since it's encrypted)
-            if (ContainerCommons.isContainerUser(mContext, userId)) {
-                return false;
-            }
             return true;
         }
     }

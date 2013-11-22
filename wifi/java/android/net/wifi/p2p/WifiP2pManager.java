@@ -280,13 +280,6 @@ public class WifiP2pManager {
      */
     public static final String WIFI_P2P_PERSISTENT_GROUPS_CHANGED_ACTION =
         "android.net.wifi.p2p.PERSISTENT_GROUPS_CHANGED";
-    /**
-     * Broadcast intent action indicating that current P2P connection should be
-     * disconnected in order to reconnect on another channel
-     * @hide
-     */
-    public static final String EXTRA_RECONNECT_WIFI_DISPLAY = "wifiP2pReconnect";
-
 
     IWifiP2pManager mService;
 

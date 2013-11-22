@@ -30,7 +30,6 @@ import static com.android.internal.util.ArrayUtils.total;
 
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.util.Log;
 import android.util.MathUtils;
 
 import com.android.internal.util.IndentingPrintWriter;
@@ -402,15 +401,6 @@ public class NetworkStatsHistory implements Parcelable {
         // create more buckets when needed
         if (bucketCount >= bucketStart.length) {
             final int newLength = Math.max(bucketStart.length, 10) * 3 / 2;
-            Log.i("NetworkStatsHistory", "the new computed length is:"+newLength);
-            Log.i("NetworkStatsHistory", "Length of each array: activeTime: "+activeTime.length+
-                    " rxBytes: "+rxBytes.length+" rxPackets: "+rxPackets.length+" txBytes: "+
-                    txBytes.length+" txPackets: "+txPackets.length+" operations: "+operations.length);
-            Log.i("NetworkStatsHistory", "txBytes contains: ");
-            for (long i: txBytes) {
-                Log.i("NetworkStatsHistory", ""+i);
-            }
-            Log.i("NetworkStatsHistory", "End of txBytes");
             bucketStart = Arrays.copyOf(bucketStart, newLength);
             if (activeTime != null) activeTime = Arrays.copyOf(activeTime, newLength);
             if (rxBytes != null) rxBytes = Arrays.copyOf(rxBytes, newLength);

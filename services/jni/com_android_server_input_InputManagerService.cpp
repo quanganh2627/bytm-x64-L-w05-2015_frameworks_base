@@ -33,7 +33,6 @@
 #include <utils/Log.h>
 #include <utils/Looper.h>
 #include <utils/threads.h>
-#include <utils/Unicode.h>
 
 #include <input/InputManager.h>
 #include <input/PointerController.h>
@@ -1278,8 +1277,6 @@ static jstring nativeDump(JNIEnv* env, jclass clazz, jint ptr) {
 
     String8 dump;
     im->dump(dump);
-    if (utf8_length(dump) == -1)
-        return env->NewStringUTF("");
     return env->NewStringUTF(dump.string());
 }
 

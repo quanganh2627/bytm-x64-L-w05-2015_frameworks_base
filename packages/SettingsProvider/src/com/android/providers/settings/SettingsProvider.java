@@ -73,9 +73,9 @@ public class SettingsProvider extends ContentProvider {
     // Caches for each user's settings, access-ordered for acting as LRU.
     // Guarded by themselves.
     private static final int MAX_CACHE_ENTRIES = 200;
-    protected static final SparseArray<SettingsCache> sSystemCaches
+    private static final SparseArray<SettingsCache> sSystemCaches
             = new SparseArray<SettingsCache>();
-    protected static final SparseArray<SettingsCache> sSecureCaches
+    private static final SparseArray<SettingsCache> sSecureCaches
             = new SparseArray<SettingsCache>();
     private static final SettingsCache sGlobalCache = new SettingsCache(TABLE_GLOBAL);
 
@@ -83,7 +83,7 @@ public class SettingsProvider extends ContentProvider {
     // database mutations are currently being handled for this user.
     // Used by file observers to not reload the database when it's ourselves
     // modifying it.
-    protected static final SparseArray<AtomicInteger> sKnownMutationsInFlight
+    private static final SparseArray<AtomicInteger> sKnownMutationsInFlight
             = new SparseArray<AtomicInteger>();
 
     // Each defined user has their own settings
@@ -100,7 +100,7 @@ public class SettingsProvider extends ContentProvider {
     // want to cache the existence of a key, but not store its value.
     private static final Bundle TOO_LARGE_TO_CACHE_MARKER = Bundle.forPair("_dummy", null);
 
-    protected UserManager mUserManager;
+    private UserManager mUserManager;
     private BackupManager mBackupManager;
 
     /**
@@ -289,11 +289,11 @@ public class SettingsProvider extends ContentProvider {
     // normally the exclusive owner of the database.  But we keep this
     // enabled all the time to minimize development-vs-user
     // differences in testing.
-    protected static SparseArray<SettingsFileObserver> sObserverInstances
+    private static SparseArray<SettingsFileObserver> sObserverInstances
             = new SparseArray<SettingsFileObserver>();
-    protected class SettingsFileObserver extends FileObserver {
+    private class SettingsFileObserver extends FileObserver {
         private final AtomicBoolean mIsDirty = new AtomicBoolean(false);
-        protected final int mUserHandle;
+        private final int mUserHandle;
         private final String mPath;
 
         public SettingsFileObserver(int userHandle, String path) {
@@ -311,7 +311,7 @@ public class SettingsProvider extends ContentProvider {
                 return;
             }
             Log.d(TAG, "User " + mUserHandle + " external modification to " + mPath
-                  + "; event=" + event);
+                    + "; event=" + event);
             if (!mIsDirty.compareAndSet(false, true)) {
                 // already handled. (we get a few update events
                 // during an sqlite write)
@@ -397,7 +397,7 @@ public class SettingsProvider extends ContentProvider {
         // itself was set up by the DatabaseHelper.
         synchronized (sObserverInstances) {
             if (sObserverInstances.get(userHandle) == null) {
-                SettingsFileObserver observer = newSettingsFileObserver(userHandle, db.getPath());
+                SettingsFileObserver observer = new SettingsFileObserver(userHandle, db.getPath());
                 sObserverInstances.append(userHandle, observer);
                 observer.startWatching();
             }
@@ -1185,9 +1185,5 @@ public class SettingsProvider extends ContentProvider {
                 return oldValue.equals(value);
             }
         }
-    }
-
-    protected SettingsFileObserver newSettingsFileObserver(int userHandle, String path) {
-        return new SettingsFileObserver(userHandle, path);
     }
 }

@@ -436,12 +436,8 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 setImeWindowVisibilityStatusHiddenLocked();
                 updateActive();
                 return;
-            } else if (Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(action) || intent.getAction().equals(Intent.ACTION_CAMERA_BUTTON)) {
+            } else if (Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(action)) {
                 hideInputMethodMenu();
-                if (mCurToken != null) {
-                    mInputShown = true;
-                    hideMySoftInput(mCurToken, 0);
-                }
                 // No need to updateActive
                 return;
             } else {
@@ -790,7 +786,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 true /* resetDefaultImeLocked */);
     }
 
-    protected void switchUserLocked(int newUserId) {
+    private void switchUserLocked(int newUserId) {
         mSettings.setCurrentUserId(newUserId);
         // InputMethodFileManager should be reset when the user is changed
         mFileManager = new InputMethodFileManager(mMethodMap, newUserId);
@@ -891,7 +887,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
     // Check whether or not this is a valid IPC. Assumes an IPC is valid when either
     // 1) it comes from the system process
     // 2) the calling process' user id is identical to the current user id IMMS thinks.
-    protected boolean calledFromValidUser() {
+    private boolean calledFromValidUser() {
         final int uid = Binder.getCallingUid();
         final int userId = UserHandle.getUserId(uid);
         if (DEBUG) {
@@ -1115,9 +1111,6 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
         return startInputUncheckedLocked(cs, inputContext, attribute, controlFlags);
     }
 
-    protected void checkAndShowSystemImeForContainer() {
-    }
-
     InputBindResult startInputUncheckedLocked(ClientState cs,
             IInputContext inputContext, EditorInfo attribute, int controlFlags) {
         // If no method is currently selected, do nothing.
@@ -1131,8 +1124,6 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 Slog.v(TAG, "New bind. keyguard = " +  mInputBoundToKeyguard);
             }
         }
-
-        checkAndShowSystemImeForContainer();
 
         if (mCurClient != cs) {
             // If the client is changing, we need to switch over to the new
@@ -1205,7 +1196,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
             throw new IllegalArgumentException("Unknown id: " + mCurMethodId);
         }
 
-        unbindCurrentMethodLocked(false, false);
+        unbindCurrentMethodLocked(false, true);
 
         mCurIntent = new Intent(InputMethod.SERVICE_INTERFACE);
         mCurIntent.setComponent(info.getComponent());
@@ -1252,9 +1243,6 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
 
     @Override
     public void finishInput(IInputMethodClient client) {
-        synchronized (mMethodMap) {
-            hideInputMethodMenuLocked();
-        }
     }
 
     @Override
@@ -1400,7 +1388,6 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 if (mCurClient != null) {
                     executeOrSendMessage(mCurClient.client, mCaller.obtainMessageIO(
                             MSG_UNBIND_METHOD, mCurSeq, mCurClient.client));
-                    mCurSeq = -1;
                 }
             }
         }
@@ -2589,7 +2576,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
         mContext.startActivityAsUser(intent, null, UserHandle.CURRENT);
     }
 
-    protected boolean isScreenLocked() {
+    private boolean isScreenLocked() {
         return mKeyguardManager != null
                 && mKeyguardManager.isKeyguardLocked() && mKeyguardManager.isKeyguardSecure();
     }

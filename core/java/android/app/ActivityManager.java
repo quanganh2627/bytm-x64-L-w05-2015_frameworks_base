@@ -16,7 +16,6 @@
 
 package android.app;
 
-import android.R;
 import com.android.internal.app.IUsageStats;
 import com.android.internal.os.PkgUsageStats;
 import com.android.internal.util.MemInfoReader;
@@ -370,9 +369,9 @@ public class ActivityManager {
         // Really brain dead right now -- just take this from the configured
         // vm heap size, and assume it is in megabytes and thus ends with "m".
         String vmHeapSize = SystemProperties.get("dalvik.vm.heapsize", "16m");
-        return Integer.parseInt(vmHeapSize.substring(0, vmHeapSize.length() - 1));
+        return Integer.parseInt(vmHeapSize.substring(0, vmHeapSize.length()-1));
     }
-
+    
     /**
      * Used by persistent processes to determine if they are running on a
      * higher-end device so should be okay using hardware drawing acceleration
@@ -434,13 +433,7 @@ public class ActivityManager {
          * The true identifier of this task, valid even if it is not running.
          */
         public int persistentId;
-
-        /**
-         * The task userId
-         * @hide
-         */
-        public int userId;
-
+        
         /**
          * The original Intent used to launch the task.  You can use this
          * Intent to re-launch the task (if it is no longer running) or bring
@@ -471,7 +464,6 @@ public class ActivityManager {
         public void writeToParcel(Parcel dest, int flags) {
             dest.writeInt(id);
             dest.writeInt(persistentId);
-            dest.writeInt(userId);
             if (baseIntent != null) {
                 dest.writeInt(1);
                 baseIntent.writeToParcel(dest, 0);
@@ -486,7 +478,6 @@ public class ActivityManager {
         public void readFromParcel(Parcel source) {
             id = source.readInt();
             persistentId = source.readInt();
-            userId = source.readInt();
             if (source.readInt() != 0) {
                 baseIntent = Intent.CREATOR.createFromParcel(source);
             } else {

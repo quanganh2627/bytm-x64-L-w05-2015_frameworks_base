@@ -50,7 +50,6 @@ import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.IBinder;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.RemoteException;
@@ -687,8 +686,6 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
             if (st.decorView != null) {
                 wm.removeView(st.decorView);
                 // Log.v(TAG, "Removing main menu from window manager.");
-                st.isOpen = false;
-                st.decorView.removeAllViews();
                 if (st.isCompact) {
                     sRotationWatcher.removeWindow(this);
                 }
@@ -705,8 +702,7 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
 
         // This view is no longer shown, so null it out
         st.shownPanelView = null;
-        // Reset the decorView to null;
-        st.decorView = null;
+
         if (st.isInExpandedMode) {
             // Next time the menu opens, it should not be in expanded mode, so
             // force a refresh of the decor
@@ -809,14 +805,6 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
      * @param event The key event.
      */
     public final void onKeyUpPanel(int featureId, KeyEvent event) {
-        View decor = peekDecorView();
-        if (decor != null){
-           IBinder token = (IBinder)decor.getWindowToken();
-           if(token == null){
-             Log.w(TAG,"the token is null, don't show the panel!");
-             return;
-           }
-        }
         // The panel key was released, so clear the chording key
         if (mPanelChordingKey != 0) {
             mPanelChordingKey = 0;

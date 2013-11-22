@@ -538,70 +538,6 @@ public class WifiManager {
     private static HandlerThread sHandlerThread;
 
     /**
-     * Wifi_Hotspot: The name of the Intent when new station is connected/disconnected.
-     * @hide
-     */
-    public static final String WIFI_AP_STA_NOTIFICATION_ACTION =
-    "android.net.wifi.WIFI_AP_STA_NOTIFICATION";
-
-    /**
-     * Wifi_Hotspot: The event of WIFI_AP_STA_NOTIFICATION_ACTION can be
-     * WIFI_AP_STA_CONNECT or WIFI_AP_STA_DISCONNECT
-     * @hide
-     */
-    public static final String EXTRA_WIFI_AP_STA_EVENT = "wifi_ap_sta_event";
-
-     /**
-     * Wifi_Hotspot: This indicates the mac address of connected station.
-     * @hide
-     */
-    public static final String EXTRA_WIFI_AP_DEVICE_ADDRESS = "device_address";
-
-    /**
-     * Wifi_Hotspot: This indicates that a station is connected.
-     * @hide
-     */
-    public static final int WIFI_AP_STA_CONNECT = 20;
-
-    /**
-     * Wifi_Hotspot: This indicates that a station is disconned.
-     * @hide
-     */
-    public static final int WIFI_AP_STA_DISCONNECT = 21;
-
-    /**
-     * Wifi_Hotspot: This is the initial value.
-     * @hide
-     */
-    public static final int WIFI_AP_STA_UNKNOWN = 22;
-
-    /**
-     * Wifi_Hotspot: This intent comes from dnsmaq daemon when tethering is done
-     * to deliver IP address and device name in real time.
-     * @hide
-     */
-    public static final String WIFI_AP_STA_TETHER_CONNECT_ACTION =
-    "android.net.wifi.WIFI_AP_STA_TETHER_CONNECT";
-
-    /**
-     * Wifi_Hotspot: This is the human readable name of connected station.
-     * @hide
-     */
-    public static final String EXTRA_WIFI_AP_HOST_NAME = "host_name";
-
-    /**
-     * Wifi_Hotspot: This is IP address of connected station.
-     * @hide
-     */
-    public static final String EXTRA_WIFI_AP_IP_ADDRESS = "ip_address";
-
-    /**
-     * Wifi_Hotspot: This is the timestamp of connected station.
-     * @hide
-     */
-    public static final String EXTRA_WIFI_AP_TIMESTAMP = "time_stamp";
-
-    /**
      * Create a new WifiManager instance.
      * Applications will almost always want to use
      * {@link android.content.Context#getSystemService Context.getSystemService()} to retrieve
@@ -1049,12 +985,12 @@ public class WifiManager {
      * Note that starting in access point mode disables station
      * mode operation
      * @param wifiConfig SSID, security and channel details as
-     *        part of WifiApConfiguration
+     *        part of WifiConfiguration
      * @return {@code true} if the operation succeeds, {@code false} otherwise
      *
      * @hide Dont open up yet
      */
-    public boolean setWifiApEnabled(WifiApConfiguration wifiConfig, boolean enabled) {
+    public boolean setWifiApEnabled(WifiConfiguration wifiConfig, boolean enabled) {
         try {
             mService.setWifiApEnabled(wifiConfig, enabled);
             return true;
@@ -1093,11 +1029,11 @@ public class WifiManager {
 
     /**
      * Gets the Wi-Fi AP Configuration.
-     * @return AP details in WifiApConfiguration
+     * @return AP details in WifiConfiguration
      *
      * @hide Dont open yet
      */
-    public WifiApConfiguration getWifiApConfiguration() {
+    public WifiConfiguration getWifiApConfiguration() {
         try {
             return mService.getWifiApConfiguration();
         } catch (RemoteException e) {
@@ -1111,7 +1047,7 @@ public class WifiManager {
      *
      * @hide Dont open yet
      */
-    public boolean setWifiApConfiguration(WifiApConfiguration wifiConfig) {
+    public boolean setWifiApConfiguration(WifiConfiguration wifiConfig) {
         try {
             mService.setWifiApConfiguration(wifiConfig);
             return true;
@@ -1193,34 +1129,6 @@ public class WifiManager {
             return true;
         } catch (RemoteException e) {
             return false;
-        }
-    }
-
-    /**
-     * Wifi_Hotspot: Request the list of connected stations in Wifi_Hotspot mode
-     * @return {@code List} if the operation succeeds, {@code null} otherwise
-     *
-     * @hide
-     */
-    public List<WifiApConnectedDevice> getWifiApConnectedList() {
-        try {
-            return mService.getWifiApConnectedList();
-        } catch (RemoteException e) {
-            return null;
-        }
-    }
-
-    /**
-     * Wifi_Hotspot: Request the list of authorized channels for Wifi_Hotspot.
-     * @return {@code List} if the operation succeeds, {@code null} otherwise
-     *
-     * @hide
-     */
-    public List<WifiChannel> getWifiAuthorizedChannels() {
-        try {
-            return mService.getWifiAuthorizedChannels();
-        } catch (RemoteException e) {
-            return null;
         }
     }
 
@@ -2099,33 +2007,6 @@ public class WifiManager {
             mService.captivePortalCheckComplete();
         } catch (RemoteException e) {}
     }
-
-    /** @hide */
-    public String setSafeChannel(int safeChannelBitmap) {
-        if (mService == null) {
-            return "";
-        } else {
-            try {
-                return mService.setSafeChannel(safeChannelBitmap);
-            } catch (RemoteException e) {
-                return "";
-            }
-        }
-    }
-
-    /** @hide */
-    public String setRTCoexMode(int enable, int safeChannelBitmap) {
-        if (mService == null) {
-            return "";
-        } else {
-            try {
-                return mService.setRTCoexMode(enable,safeChannelBitmap);
-            } catch (RemoteException e) {
-                return "";
-            }
-        }
-    }
-
 
     protected void finalize() throws Throwable {
         try {

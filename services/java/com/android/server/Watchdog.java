@@ -38,7 +38,6 @@ import android.os.Process;
 import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.SystemProperties;
-import android.os.DropBoxManager;
 import android.util.EventLog;
 import android.util.Log;
 import android.util.Slog;
@@ -49,8 +48,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Calendar;
 
-import java.text.SimpleDateFormat;
-import com.android.server.am.DebugAnr;
 /** This class calls its monitor every minute. Killing this process if they don't return **/
 public class Watchdog extends Thread {
     static final String TAG = "Watchdog";
@@ -75,8 +72,6 @@ public class Watchdog extends Thread {
     static final int REBOOT_DEFAULT_START_TIME = 3*60*60;                  // 3:00am
     static final int REBOOT_DEFAULT_WINDOW = 60*60;                        // within 1 hour
 
-    static final int NB_TIMINGS = 5;
-
     static final String REBOOT_ACTION = "com.android.service.Watchdog.REBOOT";
 
     static final String[] NATIVE_STACKS_OF_INTEREST = new String[] {
@@ -97,8 +92,6 @@ public class Watchdog extends Thread {
     ActivityManagerService mActivity;
     boolean mCompleted;
     Monitor mCurrentMonitor;
-    long mTimings[][];
-    int mCurrentTiming = 0;
 
     int mPhonePid;
     IActivityController mController;
@@ -121,8 +114,7 @@ public class Watchdog extends Thread {
     int mReqMinScreenOff = -1;    // >= 0 if a specific screen off time has been requested
     int mReqMinNextAlarm = -1;    // >= 0 if specific time to next alarm has been requested
     int mReqRecheckInterval= -1;  // >= 0 if a specific recheck interval has been requested
-    String stackname = null;
-    private Context mContext = null;
+
     /**
      * Used for scheduling monitor callbacks and checking memory usage.
      */
@@ -146,18 +138,12 @@ public class Watchdog extends Thread {
                     }
 
                     final int size = mMonitors.size();
-                    long start, stop = SystemClock.uptimeMillis();
                     for (int i = 0 ; i < size ; i++) {
                         synchronized (Watchdog.this) {
                             mCurrentMonitor = mMonitors.get(i);
                         }
-                        start = stop;
                         mCurrentMonitor.monitor();
-                        stop = SystemClock.uptimeMillis();
-                        mTimings[i][mCurrentTiming] = (stop - start);
                     }
-                    mCurrentTiming++;
-                    if (mCurrentTiming >= NB_TIMINGS) mCurrentTiming = 0;
 
                     synchronized (Watchdog.this) {
                         mCompleted = true;
@@ -232,8 +218,6 @@ public class Watchdog extends Thread {
                 android.Manifest.permission.REBOOT, null);
 
         mBootTime = System.currentTimeMillis();
-
-        mContext = context;
     }
 
     public void processStarted(String name, int pid) {
@@ -418,14 +402,15 @@ public class Watchdog extends Thread {
     @Override
     public void run() {
         boolean waitedHalf = false;
-        mTimings = new long[mMonitors.size()][NB_TIMINGS];
         while (true) {
+            mCompleted = false;
+            mHandler.sendEmptyMessage(MONITOR);
+
+
             final String name;
             final boolean allowRestart;
             synchronized (this) {
                 long timeout = TIME_TO_WAIT;
-                mCompleted = false;
-                mHandler.sendEmptyMessage(MONITOR);
 
                 // NOTE: We use uptimeMillis() here because we do not want to increment the time we
                 // wait while asleep. If the device is asleep then the thing that we are waiting
@@ -463,19 +448,10 @@ public class Watchdog extends Thread {
                 allowRestart = mAllowRestart;
             }
 
+            // If we got here, that means that the system is most likely hung.
+            // First collect stack traces from all threads of the system process.
+            // Then kill this process so that the system will restart.
             EventLog.writeEvent(EventLogTags.WATCHDOG, name);
-
-            // Prints out the timings of the last NB_TIMINGS checks so that
-            // it can help understanding which component took too much time
-            // but finally returned
-            for (int i = 0 ; i < mMonitors.size() ; i++) {
-                Monitor monitor = mMonitors.get(i);
-                String sMonitor = "Unkown monitor: ";
-                if (monitor != null) sMonitor = monitor.getClass().getName() + ": ";
-                for (int j = 0 ; j < NB_TIMINGS ; j++)
-                    sMonitor += "" + mTimings[i][j] + "ms ";
-                Log.i(TAG, sMonitor);
-            }
 
             ArrayList<Integer> pids = new ArrayList<Integer>();
             pids.add(Process.myPid());
@@ -493,24 +469,6 @@ public class Watchdog extends Thread {
             if (RECORD_KERNEL_THREADS) {
                 dumpKernelStackTraces();
             }
-            // If we got here, that means that the system is most likely hung.
-            // First collect stack traces from all threads of the system process.
-            // Then kill this process so that the system will restart.
-            final String buildtype = SystemProperties.get("ro.build.type", null);
-            stackname = null;
-            if ((buildtype.equals("userdebug") || buildtype.equals("eng")) && mContext != null) {
-                final String dropboxTag = "system_server_watchdog";
-                final DropBoxManager dbox = (DropBoxManager)
-                         mContext.getSystemService(Context.DROPBOX_SERVICE);
-                if (dbox != null && dbox.isTagEnabled(dropboxTag) && !dbox.isFull()) {
-                    final String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
-                    final String subString = tracesPath.substring(0,10);
-                    SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
-                    stackname = subString + sDateFormat.format(new java.util.Date()) + ".txt";
-                    DebugAnr da = new DebugAnr();
-                    da.logToFile(stackname);
-                }
-            }
 
             // Trigger the kernel to dump all blocked threads to the kernel log
             try {
@@ -526,21 +484,12 @@ public class Watchdog extends Thread {
             // itself may be deadlocked.  (which has happened, causing this statement to
             // deadlock and the watchdog as a whole to be ineffective)
             Thread dropboxThread = new Thread("watchdogWriteToDropbox") {
-                public void run() {
-                    if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
-                            final String hbhthread = "Monitoring ran by " +
-                                    mHandler.getLooper().getThread().getName();
-                            mActivity.addErrorToDropBox(
-                                    "watchdog", null, "system_server", null, null,
-                                    name, hbhthread, stack, null, stackname);}
-                        else
-                        {
-                            mActivity.addErrorToDropBox(
-                                    "watchdog", null, "system_server", null, null,
-                                    name, null, stack, null, null);
-                        }
-                }
-            };
+                    public void run() {
+                        mActivity.addErrorToDropBox(
+                                "watchdog", null, "system_server", null, null,
+                                name, null, stack, null);
+                    }
+                };
             dropboxThread.start();
             try {
                 dropboxThread.join(2000);  // wait up to 2 seconds for it to return.

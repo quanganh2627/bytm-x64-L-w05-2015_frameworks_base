@@ -141,10 +141,7 @@ public class KeyguardPatternView extends LinearLayout implements KeyguardSecurit
 
         setFocusableInTouchMode(true);
 
-        // ARKHAM-544, cannot open user account before mounting ecryptfs
-        if (!mLockPatternUtils.isContainerUserMode()) {
-             maybeEnableFallback(mContext);
-        }
+        maybeEnableFallback(mContext);
         mSecurityMessageDisplay = new KeyguardMessageArea.Helper(this);
         mEcaView = findViewById(R.id.keyguard_selector_fade_container);
         View bouncerFrameView = findViewById(R.id.keyguard_bouncer_frame);

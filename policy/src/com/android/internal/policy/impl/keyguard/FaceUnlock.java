@@ -128,17 +128,7 @@ public class FaceUnlock implements BiometricSensorUnlock, Handler.Callback {
         if (!mBoundToService) {
             Log.d(TAG, "Binding to Face Unlock service for user="
                     + mLockPatternUtils.getCurrentUser());
-            int option = mLockPatternUtils.getBiometricWeakOption();
-            String action = "";
-            if (option == LockPatternUtils.BIOMETRIC_WEAK_OPTION_FACE) {
-                action = IFaceLockInterface.class.getName();
-            } else if (option == LockPatternUtils.BIOMETRIC_WEAK_OPTION_VOICE) {
-                action = "aware.intent.action.VOICELOCK";
-            } else {
-                Log.e(TAG, "Unknown Biometric Weak Option: " + Integer.toString(option));
-                return false;
-            }
-            mContext.bindServiceAsUser(new Intent(action),
+            mContext.bindServiceAsUser(new Intent(IFaceLockInterface.class.getName()),
                     mConnection,
                     Context.BIND_AUTO_CREATE,
                     new UserHandle(mLockPatternUtils.getCurrentUser()));
@@ -417,11 +407,7 @@ public class FaceUnlock implements BiometricSensorUnlock, Handler.Callback {
                 try {
                     mService.stopUi();
                 } catch (RemoteException e) {
-                    Log.e(TAG, "Caught remote exception stopping Face Unlock: " + e.toString());
-                    return;
-                } catch (RuntimeException e) {
-                    Log.e(TAG, "Caught runtime exception stopping Face Unlock: " + e.toString());
-                    return;
+                    Log.e(TAG, "Caught exception stopping Face Unlock: " + e.toString());
                 }
                 mServiceRunning = false;
             } else {

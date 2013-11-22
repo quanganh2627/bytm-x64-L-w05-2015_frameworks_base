@@ -42,7 +42,6 @@ import android.widget.Button;
 import com.android.internal.R;
 import com.android.internal.telephony.ITelephony;
 import com.google.android.collect.Lists;
-import com.intel.arkham.ParentLockPatternUtils;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -52,7 +51,7 @@ import java.util.List;
 /**
  * Utilities for the lock pattern and its settings.
  */
-public class LockPatternUtils extends ParentLockPatternUtils {
+public class LockPatternUtils {
 
     private static final String TAG = "LockPatternUtils";
 
@@ -145,10 +144,6 @@ public class LockPatternUtils extends ParentLockPatternUtils {
     private static final String LOCK_SCREEN_OWNER_INFO_ENABLED =
             Settings.Secure.LOCK_SCREEN_OWNER_INFO_ENABLED;
 
-    protected final static String LOCKSCREEN_BIOMETRIC_WEAK_OPTION = "lockscreen.biometric_weak_option";
-    public final static int BIOMETRIC_WEAK_OPTION_FACE  = 0;
-    public final static int BIOMETRIC_WEAK_OPTION_VOICE = 1;
-
     private final Context mContext;
     private final ContentResolver mContentResolver;
     private DevicePolicyManager mDevicePolicyManager;
@@ -173,12 +168,11 @@ public class LockPatternUtils extends ParentLockPatternUtils {
      * @param contentResolver Used to look up and save settings.
      */
     public LockPatternUtils(Context context) {
-        super(context);
         mContext = context;
         mContentResolver = context.getContentResolver();
     }
 
-    protected ILockSettings getLockSettings() {
+    private ILockSettings getLockSettings() {
         if (mLockSettingsService == null) {
             mLockSettingsService = ILockSettings.Stub.asInterface(
                 (IBinder) ServiceManager.getService("lock_settings"));
@@ -250,11 +244,6 @@ public class LockPatternUtils extends ParentLockPatternUtils {
     }
 
     public int getCurrentUser() {
-        // ARKHAM - 596, return container if isContainerUserMode set to true.
-        if (isContainerUserMode) {
-            return sContainerUserId;
-        }
-        // ARKHAM - 596 Ends.
         if (sCurrentUserId != UserHandle.USER_NULL) {
             // Someone is regularly updating using setCurrentUser() use that value.
             return sCurrentUserId;
@@ -274,7 +263,7 @@ public class LockPatternUtils extends ParentLockPatternUtils {
         }
     }
 
-    protected int getCurrentOrCallingUserId() {
+    private int getCurrentOrCallingUserId() {
         int callingUid = Binder.getCallingUid();
         if (callingUid == android.os.Process.SYSTEM_UID) {
             // TODO: This is a little inefficient. See if all users of this are able to
@@ -293,9 +282,6 @@ public class LockPatternUtils extends ParentLockPatternUtils {
      */
     public boolean checkPattern(List<LockPatternView.Cell> pattern) {
         final int userId = getCurrentOrCallingUserId();
-        if (isContainerUser(userId)) {
-            return super.checkPattern(pattern, userId);
-        }
         try {
             final boolean matched = getLockSettings().checkPattern(patternToHash(pattern), userId);
             if (matched && (userId == UserHandle.USER_OWNER)) {
@@ -315,9 +301,6 @@ public class LockPatternUtils extends ParentLockPatternUtils {
      */
     public boolean checkPassword(String password) {
         final int userId = getCurrentOrCallingUserId();
-        if (isContainerUser(userId)) {
-            return super.checkPassword(password, userId);
-        }
         try {
             final boolean matched = getLockSettings().checkPassword(passwordToHash(password),
                     userId);
@@ -362,11 +345,6 @@ public class LockPatternUtils extends ParentLockPatternUtils {
      * @return Whether a saved pattern exists.
      */
     public boolean savedPatternExists() {
-        // ARKHAM-477: ecryptfs is not mounted yet;
-        // for containers we'll do this check in checkPattern
-        if (isContainerUser(getCurrentOrCallingUserId()) && !isContainerSystemDataMounted()) {
-            return true;
-        }
         try {
             return getLockSettings().havePattern(getCurrentOrCallingUserId());
         } catch (RemoteException re) {
@@ -379,11 +357,6 @@ public class LockPatternUtils extends ParentLockPatternUtils {
      * @return Whether a saved pattern exists.
      */
     public boolean savedPasswordExists() {
-        // ARKHAM-477: ecryptfs is not mounted yet;
-        // for containers we'll do this check in checkPassword
-        if (isContainerUser(getCurrentOrCallingUserId()) && !isContainerSystemDataMounted()) {
-            return true;
-        }
         try {
             return getLockSettings().havePassword(getCurrentOrCallingUserId());
         } catch (RemoteException re) {
@@ -523,22 +496,6 @@ public class LockPatternUtils extends ParentLockPatternUtils {
      * @param isFallback Specifies if this is a fallback to biometric weak
      */
     public void saveLockPattern(List<LockPatternView.Cell> pattern, boolean isFallback) {
-        saveLockPattern(pattern, isFallback, BIOMETRIC_WEAK_OPTION_FACE);
-    }
-
-    /**
-     * Save a lock pattern.
-     * @param pattern The new pattern to save.
-     * @param isFallback Specifies if this is a fallback to biometric weak
-     * @param option The option of lock
-     */
-    public void saveLockPattern(List<LockPatternView.Cell> pattern, boolean isFallback, int option) {
-        // ARKHAM - 215 - START, change ecryptfs passwords using the new user password
-        if (!changeContainerLockPassword(getCurrentOrCallingUserId(), isFallback, pattern, 0,
-                true)) {
-            return;
-        }
-        // ARKHAM - 215 END
         // Compute the hash
         final byte[] hash = LockPatternUtils.patternToHash(pattern);
         try {
@@ -557,8 +514,7 @@ public class LockPatternUtils extends ParentLockPatternUtils {
                     setLong(PASSWORD_TYPE_KEY, DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_WEAK);
                     setLong(PASSWORD_TYPE_ALTERNATE_KEY,
                             DevicePolicyManager.PASSWORD_QUALITY_SOMETHING);
-                    setLong(LOCKSCREEN_BIOMETRIC_WEAK_OPTION, option);
-                    finishBiometricWeak(option);
+                    finishBiometricWeak();
                     dpm.setActivePasswordState(DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_WEAK,
                             0, 0, 0, 0, 0, 0, 0, getCurrentOrCallingUserId());
                 }
@@ -588,13 +544,6 @@ public class LockPatternUtils extends ParentLockPatternUtils {
 
     public boolean isOwnerInfoEnabled() {
         return getBoolean(LOCK_SCREEN_OWNER_INFO_ENABLED, false);
-    }
-
-    /**
-     * Get the option of weak biometric lock
-     */
-    public int getBiometricWeakOption() {
-        return (int)getLong(LOCKSCREEN_BIOMETRIC_WEAK_OPTION, BIOMETRIC_WEAK_OPTION_FACE);
     }
 
     /**
@@ -679,25 +628,6 @@ public class LockPatternUtils extends ParentLockPatternUtils {
      * @param userHandle The userId of the user to change the password for
      */
     public void saveLockPassword(String password, int quality, boolean isFallback, int userHandle) {
-        saveLockPassword(password, quality, isFallback, userHandle, BIOMETRIC_WEAK_OPTION_FACE);
-    }
-
-    /**
-     * Save a lock password.  Does not ensure that the password is as good
-     * as the requested mode, but will adjust the mode to be as good as the
-     * pattern.
-     * @param password The password to save
-     * @param quality {@see DevicePolicyManager#getPasswordQuality(android.content.ComponentName)}
-     * @param isFallback Specifies if this is a fallback to biometric weak
-     * @param userHandle The userId of the user to change the password for
-     * @param option The option of lock
-     */
-    public void saveLockPassword(String password, int quality, boolean isFallback, int userHandle, int option) {
-        // ARKHAM - 215 - START, change ecryptfs passwords using the new user password
-        if (!changeContainerLockPassword(userHandle, isFallback, password, quality, false)) {
-            return;
-        }
-        // ARKHAM - 215 END
         // Compute the hash
         final byte[] hash = passwordToHash(password);
         try {
@@ -755,8 +685,7 @@ public class LockPatternUtils extends ParentLockPatternUtils {
                             userHandle);
                     setLong(PASSWORD_TYPE_ALTERNATE_KEY, Math.max(quality, computedQuality),
                             userHandle);
-                    setLong(LOCKSCREEN_BIOMETRIC_WEAK_OPTION, option);
-                    finishBiometricWeak(option);
+                    finishBiometricWeak();
                     dpm.setActivePasswordState(DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_WEAK,
                             0, 0, 0, 0, 0, 0, 0, userHandle);
                 }
@@ -1266,13 +1195,9 @@ public class LockPatternUtils extends ParentLockPatternUtils {
     }
 
     private long getLong(String secureSettingKey, long defaultValue) {
-        int userHandle = getCurrentOrCallingUserId();
         try {
-            // ARKHAM-477: for containers we read the password type from ContainerManagerService
-            if (isContainerUser(userHandle)) {
-                return super.getLong(secureSettingKey, defaultValue, userHandle);
-            }
-            return getLockSettings().getLong(secureSettingKey, defaultValue, userHandle);
+            return getLockSettings().getLong(secureSettingKey, defaultValue,
+                    getCurrentOrCallingUserId());
         } catch (RemoteException re) {
             return defaultValue;
         }
@@ -1399,20 +1324,15 @@ public class LockPatternUtils extends ParentLockPatternUtils {
         return false;
     }
 
-    private void finishBiometricWeak(int option) {
+    private void finishBiometricWeak() {
         setBoolean(BIOMETRIC_WEAK_EVER_CHOSEN_KEY, true);
 
         // Launch intent to show final screen, this also
         // moves the temporary gallery to the actual gallery
-        if (option == BIOMETRIC_WEAK_OPTION_FACE) {
-            Intent intent = new Intent();
-            intent.setClassName("com.android.facelock",
-                    "com.android.facelock.SetupEndScreen");
-            mContext.startActivity(intent);
-        } else if (option == BIOMETRIC_WEAK_OPTION_VOICE) {
-            // TODO: Currently no need for an "SetupEndScreen"
-            // for VoiceLock
-        }
+        Intent intent = new Intent();
+        intent.setClassName("com.android.facelock",
+                "com.android.facelock.SetupEndScreen");
+        mContext.startActivity(intent);
     }
 
     public void setPowerButtonInstantlyLocks(boolean enabled) {
@@ -1433,7 +1353,4 @@ public class LockPatternUtils extends ParentLockPatternUtils {
         return false;
     }
 
-    protected byte[] absPatternToHash(List<LockPatternView.Cell> pattern) {
-        return patternToHash(pattern);
-    }
 }

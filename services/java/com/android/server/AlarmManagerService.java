@@ -105,7 +105,6 @@ class AlarmManagerService extends IAlarmManager.Stub {
     private final ResultReceiver mResultReceiver = new ResultReceiver();
     private final PendingIntent mTimeTickSender;
     private final PendingIntent mDateChangeSender;
-    private boolean printIntent = false;
 
     private static final class InFlight extends Intent {
         final PendingIntent mPendingIntent;
@@ -826,11 +825,6 @@ class AlarmManagerService extends IAlarmManager.Stub {
                         Alarm alarm = it.next();
                         try {
                             if (localLOGV) Slog.v(TAG, "sending alarm " + alarm);
-                             if (alarm.type == AlarmManager.ELAPSED_REALTIME_WAKEUP
-                                    || alarm.type == AlarmManager.RTC_WAKEUP) {
-                                 printIntent = true;
-
-                            }
                             alarm.operation.send(mContext, 0,
                                     mBackgroundIntent.putExtra(
                                             Intent.EXTRA_ALARM_COUNT, alarm.count),
@@ -1104,13 +1098,6 @@ class AlarmManagerService extends IAlarmManager.Stub {
                         mLog.w("Alarm wakelock still held but sent queue empty");
                         mWakeLock.setWorkSource(null);
                     }
-                }
-
-                if (printIntent) {
-                    Slog.v(TAG, "triggered: " +
-                              intent.toShortString(false, true, false, false) +
-                              "\nPkg: " + pi.getTargetPackage() + "\n");
-                    printIntent = false;
                 }
             }
         }

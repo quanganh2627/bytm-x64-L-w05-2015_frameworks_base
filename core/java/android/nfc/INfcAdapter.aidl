@@ -20,13 +20,10 @@ import android.app.PendingIntent;
 import android.content.IntentFilter;
 import android.nfc.NdefMessage;
 import android.nfc.Tag;
-import android.nfc.MultiSERoutingInfo;
 import android.nfc.TechListParcel;
 import android.nfc.INdefPushCallback;
 import android.nfc.INfcAdapterExtras;
 import android.nfc.INfcTag;
-import android.nfc.INfcSecureElement;
-import android.nfc.INfcCEFromHost;
 
 /**
  * @hide
@@ -35,8 +32,6 @@ interface INfcAdapter
 {
     INfcTag getNfcTagInterface();
     INfcAdapterExtras getNfcAdapterExtrasInterface(in String pkg);
-    INfcSecureElement getNfcSecureElementInterface();
-    INfcCEFromHost getNfcCEFromHostInterface();
 
     int getState();
     boolean disable(boolean saveState);
@@ -52,15 +47,4 @@ interface INfcAdapter
     void dispatch(in Tag tag);
 
     void setP2pModes(int initatorModes, int targetModes);
-
-    int[] getSecureElementList();
-    int getSelectedSecureElement();
-    int selectSecureElement(int seId);
-    int activeSwp();
-    int deselectSecureElement();
-    void setSecureElementState(boolean state);
-    void storeSePreference(int seId);
-
-    boolean setMultiSERoutingTable(in String pkg, in MultiSERoutingInfo[] routingInfo);
-    int setEmvCoPollProfile(boolean enable, int route);
 }

@@ -18,7 +18,6 @@ package android.os;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Formatter;
@@ -432,7 +431,6 @@ public abstract class BatteryStats implements Parcelable {
         public HistoryItem next;
         
         public long time;
-        public long absoluteTime;
         
         public static final byte CMD_NULL = 0;
         public static final byte CMD_UPDATE = 1;
@@ -490,7 +488,6 @@ public abstract class BatteryStats implements Parcelable {
         public int states;
 
         public HistoryItem() {
-            absoluteTime = Calendar.getInstance().getTimeInMillis();
         }
         
         public HistoryItem(long time, Parcel src) {
@@ -514,7 +511,6 @@ public abstract class BatteryStats implements Parcelable {
                     | ((((int)batteryVoltage)<<16)&0xffff0000);
             dest.writeInt(bat);
             dest.writeInt(states);
-            dest.writeLong(absoluteTime);
         }
 
         private void readFromParcel(Parcel src) {
@@ -528,7 +524,6 @@ public abstract class BatteryStats implements Parcelable {
             batteryTemperature = (char)(bat&0xffff);
             batteryVoltage = (char)((bat>>16)&0xffff);
             states = src.readInt();
-            absoluteTime = src.readLong();
         }
 
         // Part of initial delta int that specifies the time delta.
@@ -607,9 +602,6 @@ public abstract class BatteryStats implements Parcelable {
                         + " batteryPlugType=" + batteryPlugType
                         + " states=0x" + Integer.toHexString(states));
             }
-
-            //Write in AbsoluteTime anyway
-            dest.writeLong(Calendar.getInstance().getTimeInMillis());
         }
         
         private int buildBatteryLevelInt() {
@@ -675,8 +667,6 @@ public abstract class BatteryStats implements Parcelable {
             } else {
                 states = (firstToken&DELTA_STATE_MASK) | (states&(~DELTA_STATE_MASK));
             }
-
-            absoluteTime = src.readLong();
         }
 
         public void clear() {
@@ -689,7 +679,6 @@ public abstract class BatteryStats implements Parcelable {
             batteryTemperature = 0;
             batteryVoltage = 0;
             states = 0;
-            absoluteTime = 0;
         }
         
         public void setTo(HistoryItem o) {
@@ -702,7 +691,6 @@ public abstract class BatteryStats implements Parcelable {
             batteryTemperature = o.batteryTemperature;
             batteryVoltage = o.batteryVoltage;
             states = o.states;
-            absoluteTime = o.absoluteTime;
         }
 
         public void setTo(long time, byte cmd, HistoryItem o) {
@@ -715,7 +703,6 @@ public abstract class BatteryStats implements Parcelable {
             batteryTemperature = o.batteryTemperature;
             batteryVoltage = o.batteryVoltage;
             states = o.states;
-            absoluteTime = o.absoluteTime;
         }
 
         public boolean same(HistoryItem o) {
@@ -725,8 +712,7 @@ public abstract class BatteryStats implements Parcelable {
                     && batteryPlugType == o.batteryPlugType
                     && batteryTemperature == o.batteryTemperature
                     && batteryVoltage == o.batteryVoltage
-                    && states == o.states
-                    && absoluteTime == o.absoluteTime;
+                    && states == o.states;
         }
     }
     

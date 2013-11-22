@@ -633,37 +633,7 @@ void FontRenderer::removeFont(const Font* font) {
 }
 
 void FontRenderer::blurImage(uint8_t** image, int32_t width, int32_t height, int32_t radius) {
-    bool rsInitFailed = false;
-    if (width * height * radius >= RS_MIN_INPUT_CUTOFF) {
-       uint8_t* outImage = (uint8_t*) memalign(RS_CPU_ALLOCATION_ALIGNMENT, width * height);
-
-       if (mRs.get() == 0) {
-           mRs = new RSC::RS();
-           if (!mRs->init(true, true)) {
-               mRs.clear();
-               rsInitFailed = true;
-               ALOGE("blur RS failed to init");
-           } else {
-               mRsElement = RSC::Element::A_8(mRs);
-               mRsScript = new RSC::ScriptIntrinsicBlur(mRs, mRsElement);
-           }
-       }
-       if (!rsInitFailed) {
-          sp<const RSC::Type> t = RSC::Type::create(mRs, mRsElement, width, height, 0);
-          sp<RSC::Allocation> ain = RSC::Allocation::createTyped(mRs, t, RS_ALLOCATION_MIPMAP_NONE,
-                  RS_ALLOCATION_USAGE_SCRIPT | RS_ALLOCATION_USAGE_SHARED, *image);
-          sp<RSC::Allocation> aout = RSC::Allocation::createTyped(mRs, t, RS_ALLOCATION_MIPMAP_NONE,
-                  RS_ALLOCATION_USAGE_SCRIPT | RS_ALLOCATION_USAGE_SHARED, outImage);
-
-          mRsScript->setRadius(radius);
-          mRsScript->blur(ain, aout);
-
-          // replace the original image's pointer, avoiding a copy back to the original buffer
-          free(*image);
-          *image = outImage;
-       }
-    }
-    if ((width * height * radius < RS_MIN_INPUT_CUTOFF) || rsInitFailed) {
+    if (width * height * radius < RS_MIN_INPUT_CUTOFF) {
         float *gaussian = new float[2 * radius + 1];
         Blur::generateGaussianWeights(gaussian, radius);
 
@@ -675,6 +645,31 @@ void FontRenderer::blurImage(uint8_t** image, int32_t width, int32_t height, int
         delete[] scratch;
         return;
     }
+
+    uint8_t* outImage = (uint8_t*) memalign(RS_CPU_ALLOCATION_ALIGNMENT, width * height);
+
+    if (mRs.get() == 0) {
+        mRs = new RSC::RS();
+        if (!mRs->init(true, true)) {
+            ALOGE("blur RS failed to init");
+        }
+
+        mRsElement = RSC::Element::A_8(mRs);
+        mRsScript = new RSC::ScriptIntrinsicBlur(mRs, mRsElement);
+    }
+
+    sp<const RSC::Type> t = RSC::Type::create(mRs, mRsElement, width, height, 0);
+    sp<RSC::Allocation> ain = RSC::Allocation::createTyped(mRs, t, RS_ALLOCATION_MIPMAP_NONE,
+            RS_ALLOCATION_USAGE_SCRIPT | RS_ALLOCATION_USAGE_SHARED, *image);
+    sp<RSC::Allocation> aout = RSC::Allocation::createTyped(mRs, t, RS_ALLOCATION_MIPMAP_NONE,
+            RS_ALLOCATION_USAGE_SCRIPT | RS_ALLOCATION_USAGE_SHARED, outImage);
+
+    mRsScript->setRadius(radius);
+    mRsScript->blur(ain, aout);
+
+    // replace the original image's pointer, avoiding a copy back to the original buffer
+    free(*image);
+    *image = outImage;
 }
 
 uint32_t FontRenderer::getCacheSize() const {

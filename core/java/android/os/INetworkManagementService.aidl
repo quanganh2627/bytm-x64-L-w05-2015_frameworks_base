@@ -21,7 +21,7 @@ import android.net.InterfaceConfiguration;
 import android.net.INetworkManagementEventObserver;
 import android.net.NetworkStats;
 import android.net.RouteInfo;
-import android.net.wifi.WifiApConfiguration;
+import android.net.wifi.WifiConfiguration;
 
 /**
  * @hide
@@ -218,7 +218,7 @@ interface INetworkManagementService
     /**
      * Start Wifi Access Point
      */
-    void startAccessPoint(in WifiApConfiguration wifiConfig, String iface);
+    void startAccessPoint(in WifiConfiguration wifiConfig, String iface);
 
     /**
      * Stop Wifi Access Point
@@ -228,7 +228,7 @@ interface INetworkManagementService
     /**
      * Set Access Point config
      */
-    void setAccessPoint(in WifiApConfiguration wifiConfig, String iface);
+    void setAccessPoint(in WifiConfiguration wifiConfig, String iface);
 
     /**
      ** DATA USAGE RELATED

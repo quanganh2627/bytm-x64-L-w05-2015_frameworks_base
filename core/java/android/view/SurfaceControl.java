@@ -43,8 +43,6 @@ public class SurfaceControl {
     private static native void nativeScreenshot(IBinder displayToken, Surface consumer,
             int width, int height, int minLayer, int maxLayer, boolean allLayers);
 
-    private static native void nativeSetTransition(boolean on);
-    private static native void nativeSetOrientationEnd(boolean end);
     private static native void nativeOpenTransaction();
     private static native void nativeCloseTransaction();
     private static native void nativeSetAnimationTransaction();
@@ -302,17 +300,7 @@ public class SurfaceControl {
         if (mNativeObject == 0) throw new NullPointerException(
                 "mNativeObject is null. Have you called release() already?");
     }
-
-    /** set animation scale @hide */
-    public static void setTransition(boolean on) {
-        nativeSetTransition(on);
-    }
-
-    /** set orientation end @hide */
-    public static void setOrientationEnd(boolean end) {
-        nativeSetOrientationEnd(end);
-    }
-
+    
     /*
      * set surface parameters.
      * needs to be inside open/closeTransaction block

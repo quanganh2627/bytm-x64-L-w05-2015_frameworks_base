@@ -160,12 +160,24 @@ public:
         obj->setStyle(style);
     }
 
-    static jint getColor(JNIEnv* env, jobject, SkPaint* paint) {
-        return paint->getColor();
+    static jint getColor(JNIEnv* env, jobject paint) {
+        NPE_CHECK_RETURN_ZERO(env, paint);
+        return GraphicsJNI::getNativePaint(env, paint)->getColor();
     }
 
-    static void setColor(JNIEnv* env, jobject, SkPaint* paint, jint color) {
-        paint->setColor(color);
+    static jint getAlpha(JNIEnv* env, jobject paint) {
+        NPE_CHECK_RETURN_ZERO(env, paint);
+        return GraphicsJNI::getNativePaint(env, paint)->getAlpha();
+    }
+
+    static void setColor(JNIEnv* env, jobject paint, jint color) {
+        NPE_CHECK_RETURN_VOID(env, paint);
+        GraphicsJNI::getNativePaint(env, paint)->setColor(color);
+    }
+
+    static void setAlpha(JNIEnv* env, jobject paint, jint a) {
+        NPE_CHECK_RETURN_VOID(env, paint);
+        GraphicsJNI::getNativePaint(env, paint)->setAlpha(a);
     }
 
     static jfloat getStrokeWidth(JNIEnv* env, jobject paint) {
@@ -796,8 +808,10 @@ static JNINativeMethod methods[] = {
     {"setDither","(Z)V", (void*) SkPaintGlue::setDither},
     {"native_getStyle","(I)I", (void*) SkPaintGlue::getStyle},
     {"native_setStyle","(II)V", (void*) SkPaintGlue::setStyle},
-    {"native_getColor","(I)I", (void*) SkPaintGlue::getColor},
-    {"native_setColor","(II)V", (void*) SkPaintGlue::setColor},
+    {"getColor","()I", (void*) SkPaintGlue::getColor},
+    {"setColor","(I)V", (void*) SkPaintGlue::setColor},
+    {"getAlpha","()I", (void*) SkPaintGlue::getAlpha},
+    {"setAlpha","(I)V", (void*) SkPaintGlue::setAlpha},
     {"getStrokeWidth","()F", (void*) SkPaintGlue::getStrokeWidth},
     {"setStrokeWidth","(F)V", (void*) SkPaintGlue::setStrokeWidth},
     {"getStrokeMiter","()F", (void*) SkPaintGlue::getStrokeMiter},

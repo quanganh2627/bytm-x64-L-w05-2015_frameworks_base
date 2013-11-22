@@ -676,37 +676,6 @@ class ZoomManager {
         }
     }
 
-    private void ensureZoomOverview() {
-        WebSettingsClassic settings = mWebView.getSettings();
-        if (settings == null) {
-            return;
-        }
-
-        mInitialZoomOverview = false;
-
-        final float newTextWrapScale;
-        if (settings.getUseFixedViewport()) {
-            newTextWrapScale = Math.max(mActualScale, getReadingLevelScale());
-        } else {
-            newTextWrapScale = mActualScale;
-        }
-        final boolean firstTimeReflow = !exceedsMinScaleIncrement(mActualScale, mTextWrapScale);
-        if (firstTimeReflow || mInZoomOverview) {
-            // In case first time reflow or in zoom overview mode, let reflow and zoom
-            // happen at the same time.
-            mTextWrapScale = newTextWrapScale;
-        }
-
-        if (!mInZoomOverview && willScaleTriggerZoom(getZoomOverviewScale())) {
-            // Reflow, if necessary.
-            if (mTextWrapScale > getReadingLevelScale()) {
-                mTextWrapScale = getReadingLevelScale();
-                refreshZoomScale(true);
-            }
-            zoomToOverview();
-        }
-    }
-
     private void setZoomOverviewWidth(int width) {
         if (width == 0) {
             mZoomOverviewWidth = WebViewClassic.DEFAULT_VIEWPORT_WIDTH;
@@ -1101,11 +1070,6 @@ class ZoomManager {
             // Set mInitialZoomOverview in case this is the first picture for non standard load,
             // so next new picture could be forced into overview mode if it's true.
             mInitialZoomOverview = mInZoomOverview;
-        } else if((mInitialScale <= 0) && (drawData.mViewState != null)) {
-            //in first picture and don't init, we ensure to zoom in over view mode
-            boolean  recordOverview = mInitialZoomOverview;
-            ensureZoomOverview();
-            mInitialZoomOverview = recordOverview;
         }
 
         return scaleHasDiff;

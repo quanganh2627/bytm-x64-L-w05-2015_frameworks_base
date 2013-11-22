@@ -24,14 +24,6 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
 import android.util.Log;
-import android.os.ServiceManager;
-import android.content.res.Resources;
-import android.content.Context;
-import android.widget.Toast;
-
-import com.android.systemui.R;
-import com.intel.arkham.ContainerConstants;
-import com.intel.arkham.ContainerCommons;
 
 public class TakeScreenshotService extends Service {
     private static final String TAG = "TakeScreenshotService";
@@ -43,34 +35,19 @@ public class TakeScreenshotService extends Service {
         public void handleMessage(Message msg) {
             switch (msg.what) {
                 case 1:
-                    boolean res = false;
                     final Messenger callback = msg.replyTo;
                     if (mScreenshot == null) {
                         mScreenshot = new GlobalScreenshot(TakeScreenshotService.this);
                     }
-                    // ARKHAM-191 Determine if the top running activity is a container activity
-                    try {
-                        res = ContainerCommons.isTopRunningActivityInContainer(0);
-                    } catch (RemoteException e) {
-                    }
-                    if (!res) {
-                        mScreenshot.takeScreenshot(new Runnable() {
-                             @Override public void run() {
-                                 Message reply = Message.obtain(null, 1);
-                                 try {
-                                     callback.send(reply);
-                                 } catch (RemoteException e) {
-                                 }
-                             }
-                         }, msg.arg1 > 0, msg.arg2 > 0);
-                    }
-                    // ARKHAM-275 Display a toast text message which states that screenshot is
-                    // disabled for container applications
-                    else {
-                        Context c = getApplicationContext();
-                        String s = c.getResources().getString(R.string.screenshot_disabled);
-                        Toast.makeText(c, s, Toast.LENGTH_LONG).show();
-                    }
+                    mScreenshot.takeScreenshot(new Runnable() {
+                        @Override public void run() {
+                            Message reply = Message.obtain(null, 1);
+                            try {
+                                callback.send(reply);
+                            } catch (RemoteException e) {
+                            }
+                        }
+                    }, msg.arg1 > 0, msg.arg2 > 0);
             }
         }
     };

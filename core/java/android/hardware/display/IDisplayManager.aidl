@@ -31,18 +31,12 @@ interface IDisplayManager {
     // No permissions required.
     void scanWifiDisplays();
 
-    // No permissions required.
-    void stopScanWifiDisplays();
-
     // Requires CONFIGURE_WIFI_DISPLAY permission to connect to an unknown device.
     // No permissions required to connect to a known device.
     void connectWifiDisplay(String address);
 
     // No permissions required.
     void disconnectWifiDisplay();
-
-    // No permissions required.
-    void reconnectWifiDisplay();
 
     // Requires CONFIGURE_WIFI_DISPLAY permission.
     void renameWifiDisplay(String address, String alias);

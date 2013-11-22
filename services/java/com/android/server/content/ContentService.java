@@ -41,8 +41,6 @@ import android.util.Log;
 import android.util.Slog;
 import android.util.SparseIntArray;
 
-import com.intel.arkham.ExtendContentService;
-
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.security.InvalidParameterException;
@@ -166,9 +164,7 @@ public final class ContentService extends IContentService.Stub {
         }
 
         final int callingUser = UserHandle.getCallingUserId();
-        // ARKHAM 356 - modified condition to allow container and container owner interaction
-        if (callingUser != userHandle &&
-                !ExtendContentService.allowContainerOwnerInteraction(callingUser, userHandle)) {
+        if (callingUser != userHandle) {
             mContext.enforceCallingOrSelfPermission(Manifest.permission.INTERACT_ACROSS_USERS_FULL,
                     "no permission to observe other users' provider view");
         }
@@ -222,12 +218,9 @@ public final class ContentService extends IContentService.Stub {
                     + " from observer " + observer + ", syncToNetwork " + syncToNetwork);
         }
 
-        final int callingUserHandle = UserHandle.getCallingUserId();
-        // ARKHAM 356, 528 - modified condition to allow container and container owner interaction
         // Notify for any user other than the caller's own requires permission.
-        if (userHandle != callingUserHandle &&
-                !ExtendContentService.allowContainerOwnerInteraction(callingUserHandle, userHandle) &&
-                !ExtendContentService.allowContainerOwnerInteraction(userHandle, callingUserHandle)) {
+        final int callingUserHandle = UserHandle.getCallingUserId();
+        if (userHandle != callingUserHandle) {
             mContext.enforceCallingOrSelfPermission(Manifest.permission.INTERACT_ACROSS_USERS_FULL,
                     "no permission to notify other users");
         }

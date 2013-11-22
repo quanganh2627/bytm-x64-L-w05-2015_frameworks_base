@@ -39,10 +39,6 @@ import com.android.systemui.R;
 import com.android.systemui.statusbar.phone.PhoneStatusBar;
 import com.android.systemui.statusbar.tablet.TabletStatusBar;
 
-import com.intel.arkham.ContainerInfo;
-import com.intel.arkham.ExtendRecentTasksLoader;
-import com.intel.arkham.ExtendTaskDescription;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -50,12 +46,12 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 public class RecentTasksLoader implements View.OnTouchListener {
     static final String TAG = "RecentTasksLoader";
-    protected static final boolean DEBUG = TabletStatusBar.DEBUG || PhoneStatusBar.DEBUG || false;
+    static final boolean DEBUG = TabletStatusBar.DEBUG || PhoneStatusBar.DEBUG || false;
 
     private static final int DISPLAY_TASKS = 20;
     private static final int MAX_TASKS = DISPLAY_TASKS + 1; // allow extra for non-apps
 
-    protected Context mContext;
+    private Context mContext;
     private RecentsPanelView mRecentsPanel;
 
     private Object mFirstTaskLock = new Object();
@@ -67,7 +63,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
     private Handler mHandler;
 
     private int mIconDpi;
-    protected Bitmap mDefaultThumbnailBackground;
+    private Bitmap mDefaultThumbnailBackground;
     private Bitmap mDefaultIconBackground;
     private int mNumTasksInFirstScreenful = Integer.MAX_VALUE;
 
@@ -81,12 +77,12 @@ public class RecentTasksLoader implements View.OnTouchListener {
     private static RecentTasksLoader sInstance;
     public static RecentTasksLoader getInstance(Context context) {
         if (sInstance == null) {
-            sInstance = new ExtendRecentTasksLoader(context);
+            sInstance = new RecentTasksLoader(context);
         }
         return sInstance;
     }
 
-    protected RecentTasksLoader(Context context) {
+    private RecentTasksLoader(Context context) {
         mContext = context;
         mHandler = new Handler();
 
@@ -161,24 +157,17 @@ public class RecentTasksLoader implements View.OnTouchListener {
             && homeInfo.name.equals(component.getClassName());
     }
 
-    protected ContainerInfo getContainer(int userId) {
-        return null;
-    }
-
     // Create an TaskDescription, returning null if the title or icon is null
     TaskDescription createTaskDescription(int taskId, int persistentTaskId, Intent baseIntent,
-            ComponentName origActivity, CharSequence description, int userId) {
+            ComponentName origActivity, CharSequence description) {
         Intent intent = new Intent(baseIntent);
         if (origActivity != null) {
             intent.setComponent(origActivity);
         }
-        ContainerInfo cInfo = getContainer(userId);
         final PackageManager pm = mContext.getPackageManager();
         intent.setFlags((intent.getFlags()&~Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                 | Intent.FLAG_ACTIVITY_NEW_TASK);
-        final ResolveInfo resolveInfo = (cInfo == null
-                ? pm.resolveActivity(intent, 0)
-                : pm.resolveActivityAsUser(intent, 0, cInfo.getContainerId()));
+        final ResolveInfo resolveInfo = pm.resolveActivity(intent, 0);
         if (resolveInfo != null) {
             final ActivityInfo info = resolveInfo.activityInfo;
             final String title = info.loadLabel(pm).toString();
@@ -187,9 +176,9 @@ public class RecentTasksLoader implements View.OnTouchListener {
                 if (DEBUG) Log.v(TAG, "creating activity desc for id="
                         + persistentTaskId + ", label=" + title);
 
-                TaskDescription item = new ExtendTaskDescription(taskId,
+                TaskDescription item = new TaskDescription(taskId,
                         persistentTaskId, resolveInfo, baseIntent, info.packageName,
-                        description, cInfo);
+                        description);
                 item.setLabel(title);
 
                 return item;
@@ -200,7 +189,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
         return null;
     }
 
-    protected void loadThumbnailAndIcon(TaskDescription td) {
+    void loadThumbnailAndIcon(TaskDescription td) {
         final ActivityManager am = (ActivityManager)
                 mContext.getSystemService(Context.ACTIVITY_SERVICE);
         final PackageManager pm = mContext.getPackageManager();
@@ -222,12 +211,12 @@ public class RecentTasksLoader implements View.OnTouchListener {
         }
     }
 
-    protected Drawable getFullResDefaultActivityIcon() {
+    Drawable getFullResDefaultActivityIcon() {
         return getFullResIcon(Resources.getSystem(),
                 com.android.internal.R.mipmap.sym_def_app_icon);
     }
 
-    protected Drawable getFullResIcon(Resources resources, int iconId) {
+    Drawable getFullResIcon(Resources resources, int iconId) {
         try {
             return resources.getDrawableForDensity(iconId, mIconDpi);
         } catch (Resources.NotFoundException e) {
@@ -302,11 +291,11 @@ public class RecentTasksLoader implements View.OnTouchListener {
         }
 
         if (mTaskLoader != null) {
-            mTaskLoader.cancel(true);
+            mTaskLoader.cancel(false);
             mTaskLoader = null;
         }
         if (mThumbnailLoader != null) {
-            mThumbnailLoader.cancel(true);
+            mThumbnailLoader.cancel(false);
             mThumbnailLoader = null;
         }
         mLoadedTasks = null;
@@ -404,7 +393,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
 
             item = createTaskDescription(recentInfo.id,
                     recentInfo.persistentId, recentInfo.baseIntent,
-                    recentInfo.origActivity, recentInfo.description, recentInfo.userId);
+                    recentInfo.origActivity, recentInfo.description);
             if (item != null) {
                 loadThumbnailAndIcon(item);
             }
@@ -448,10 +437,6 @@ public class RecentTasksLoader implements View.OnTouchListener {
                 // of items. Then, we update with the rest of the items
                 final int origPri = Process.getThreadPriority(Process.myTid());
                 Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
-
-                // Start mThumbnailLoader before loading tasks.
-                loadThumbnailsAndIconsInBackground(tasksWaitingForThumbnails);
-
                 final PackageManager pm = mContext.getPackageManager();
                 final ActivityManager am = (ActivityManager)
                 mContext.getSystemService(Context.ACTIVITY_SERVICE);
@@ -490,7 +475,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
 
                     TaskDescription item = createTaskDescription(recentInfo.id,
                             recentInfo.persistentId, recentInfo.baseIntent,
-                            recentInfo.origActivity, recentInfo.description, recentInfo.userId);
+                            recentInfo.origActivity, recentInfo.description);
 
                     if (item != null) {
                         while (true) {
@@ -521,7 +506,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
 
                 while (true) {
                     try {
-                        tasksWaitingForThumbnails.put(new ExtendTaskDescription());
+                        tasksWaitingForThumbnails.put(new TaskDescription());
                         break;
                     } catch (InterruptedException e) {
                     }
@@ -532,6 +517,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
             }
         };
         mTaskLoader.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+        loadThumbnailsAndIconsInBackground(tasksWaitingForThumbnails);
     }
 
     private void loadThumbnailsAndIconsInBackground(

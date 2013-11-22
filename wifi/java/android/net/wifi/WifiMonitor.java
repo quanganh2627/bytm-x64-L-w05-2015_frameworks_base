@@ -25,7 +25,6 @@ import android.net.wifi.p2p.WifiP2pService.P2pStatus;
 import android.net.wifi.p2p.WifiP2pProvDiscEvent;
 import android.net.wifi.p2p.nsd.WifiP2pServiceResponse;
 import android.net.wifi.StateChangeResult;
-import android.net.wifi.WifiManager;
 import android.os.Message;
 import android.util.Log;
 
@@ -58,7 +57,6 @@ public class WifiMonitor {
     private static final int DRIVER_STATE = 7;
     private static final int EAP_FAILURE  = 8;
     private static final int UNKNOWN      = 9;
-    private static final int ASSOC_REJECT = 10;
 
     /** All events coming from the supplicant start with this prefix */
     private static final String EVENT_PREFIX_STR = "CTRL-EVENT-";
@@ -68,18 +66,6 @@ public class WifiMonitor {
     private static final String WPA_EVENT_PREFIX_STR = "WPA:";
     private static final String PASSWORD_MAY_BE_INCORRECT_STR =
        "pre-shared key may be incorrect";
-    private static final String AUTH_TIMEOUT_STR =
-       "Authentication timed out";
-
-    /** All SME events coming from the supplicant start with this prefix */
-    private static final String SME_EVENT_PREFIX_STR = "SME:";
-    private static final String AUTH_REQ_FAILED_STR =
-       "Authentication request to the driver failed";
-
-    /** All WAPI events coming from the supplicant start with this prefix */
-    private static final String WAPI_EVENT_PREFIX_STR = "WAPI:";
-    private static final String WAPI_AUTHENTICATION_FAILURE_STR =
-       "Authentication failure";
 
     /* WPS events */
     private static final String WPS_SUCCESS_STR = "WPS-SUCCESS";
@@ -165,12 +151,6 @@ public class WifiMonitor {
      * This indicates an authentication failure on EAP FAILURE event
      */
     private static final String EAP_AUTH_FAILURE_STR = "EAP authentication failed";
-    /**
-     * <pre>
-     * CTRL-EVENT-ASSOC-REJECT Association rejected by AP
-     * </pre>
-     */
-    private static final String ASSOC_REJECT_STR = "ASSOC-REJECT";
 
     /**
      * Regex pattern for extracting an Ethernet-style MAC address from a string.
@@ -347,7 +327,6 @@ public class WifiMonitor {
     /* hostap events */
     public static final int AP_STA_DISCONNECTED_EVENT            = BASE + 41;
     public static final int AP_STA_CONNECTED_EVENT               = BASE + 42;
-    public static final int AP_CONNECTION_FAIL                   = BASE + 43;
 
     /**
      * This indicates the supplicant connection for the monitor is closed
@@ -369,37 +348,6 @@ public class WifiMonitor {
      */
     private static final int MAX_RECV_ERRORS    = 10;
 
-    /**
-     *  Wifi_Hotspot:
-     *  Three Wifi modes to be defined in WifiMonitor for WifiHotspot event
-     *  When mode is WIFI_SUPPLICANT_MODE, Wifimonitor will be connected to
-     *  supplicant daemon.
-     */
-    public static final int WIFI_SUPPLICANT_MODE = 1;
-
-    /**
-     *  Wifi_Hotspot:
-     *  Three Wifi modes to be defined in WifiMonitor for WifiHotspot event
-     *  When mode is WIFI_P2P_MODE, Wifimonitor will be connected to
-     *  supplicant daemon.
-     */
-    public static final int WIFI_P2P_MODE = 2;
-
-    /**
-     *  Wifi_Hotspot:
-     *  Three Wifi modes to be defined in WifiMonitor for WifiHotspot event
-     *  When mode is WIFI_AP_MODE, Wifimonitor will be connected to
-     *  hostapd daemon.
-     */
-    public static final int WIFI_AP_MODE = 3;
-
-    /**
-     *  Wifi_Hotspot:
-     *  WIFI supplicant mode is default mode for Wifi Monitor
-     */
-    private static int mWifi_mode = WIFI_SUPPLICANT_MODE;
-
-
     public WifiMonitor(StateMachine wifiStateMachine, WifiNative wifiNative) {
         mStateMachine = wifiStateMachine;
         mWifiNative = wifiNative;
@@ -409,42 +357,22 @@ public class WifiMonitor {
         new MonitorThread().start();
     }
 
-    /* Wifi_Hotspot: wifi_mode is added as argument of MonitorThread */
-    public void startMonitoring(int wifi_mode) {
-        Log.d(TAG, "Wifi_Hotspot - startMonitoring");
-        new MonitorThread(wifi_mode).start();
-    }
-
     class MonitorThread extends Thread {
         public MonitorThread() {
             super("WifiMonitor");
-            mWifi_mode = WIFI_SUPPLICANT_MODE;
-        }
-
-        public MonitorThread(int wifi_mode) {
-            super("WifiMonitor");
-            mWifi_mode = wifi_mode;
         }
 
         public void run() {
 
-            if (mWifi_mode == WIFI_AP_MODE) {
-                if (connectToHostapd())
-                    Log.d(TAG, "Wifi_Hotspot: connectToHostAP Success");
-                else {
-                    Log.d(TAG, "Wifi_Hotspot: connectToHostAP Failed");
-                    mStateMachine.sendMessage(AP_CONNECTION_FAIL);
-                }
+            if (connectToSupplicant()) {
+                // Send a message indicating that it is now possible to send commands
+                // to the supplicant
+                mStateMachine.sendMessage(SUP_CONNECTION_EVENT);
             } else {
-                if (connectToSupplicant()) {
-                    // Send a message indicating that it is now possible to send commands
-                    // to the supplicant
-                    mStateMachine.sendMessage(SUP_CONNECTION_EVENT);
-                } else {
-                    mStateMachine.sendMessage(SUP_DISCONNECTION_EVENT);
-                    return;
-                }
+                mStateMachine.sendMessage(SUP_DISCONNECTION_EVENT);
+                return;
             }
+
             //noinspection InfiniteLoopStatement
             for (;;) {
                 String eventStr = mWifiNative.waitForEvent();
@@ -456,11 +384,6 @@ public class WifiMonitor {
                 if (!eventStr.startsWith(EVENT_PREFIX_STR)) {
                     if (eventStr.startsWith(WPA_EVENT_PREFIX_STR) &&
                             0 < eventStr.indexOf(PASSWORD_MAY_BE_INCORRECT_STR)) {
-                        mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
-                    } else if (eventStr.startsWith(SME_EVENT_PREFIX_STR) &&
-                            0 < eventStr.indexOf(AUTH_REQ_FAILED_STR)) {
-                        mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
-                    } else if (0 < eventStr.indexOf(AUTH_TIMEOUT_STR)) {
                         mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
                     } else if (eventStr.startsWith(WPS_SUCCESS_STR)) {
                         mStateMachine.sendMessage(WPS_SUCCESS_EVENT);
@@ -474,9 +397,6 @@ public class WifiMonitor {
                         handleP2pEvents(eventStr);
                     } else if (eventStr.startsWith(HOST_AP_EVENT_PREFIX_STR)) {
                         handleHostApEvents(eventStr);
-                    } else if (eventStr.startsWith(WAPI_EVENT_PREFIX_STR) &&
-                            0 < eventStr.indexOf(WAPI_AUTHENTICATION_FAILURE_STR)) {
-                        mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
                     }
                     continue;
                 }
@@ -509,8 +429,6 @@ public class WifiMonitor {
                     event = DRIVER_STATE;
                 else if (eventName.equals(EAP_FAILURE_STR))
                     event = EAP_FAILURE;
-                else if (eventName.equals(ASSOC_REJECT_STR))
-                    event = ASSOC_REJECT;
                 else
                     event = UNKNOWN;
 
@@ -555,8 +473,6 @@ public class WifiMonitor {
                     if (eventData.startsWith(EAP_AUTH_FAILURE_STR)) {
                         mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
                     }
-                } else if (event == ASSOC_REJECT) {
-                    mStateMachine.sendMessage(AUTHENTICATION_FAILURE_EVENT);
                 } else {
                     handleEvent(event, eventData);
                 }
@@ -569,23 +485,6 @@ public class WifiMonitor {
 
             while (true) {
                 if (mWifiNative.connectToSupplicant()) {
-                    return true;
-                }
-                if (connectTries++ < 5) {
-                    nap(1);
-                } else {
-                    break;
-                }
-            }
-            return false;
-        }
-
-        /* Wifi_Hotspot */
-        private boolean connectToHostapd() {
-            int connectTries = 0;
-
-            while (true) {
-                if (WifiNative.connectToHostapd()) {
                     return true;
                 }
                 if (connectTries++ < 5) {
@@ -749,23 +648,10 @@ public class WifiMonitor {
             String[] tokens = dataString.split(" ");
             /* AP-STA-CONNECTED 42:fc:89:a8:96:09 p2p_dev_addr=02:90:4c:a0:92:54 */
             if (tokens[0].equals(AP_STA_CONNECTED_STR)) {
-                /* Wifi_Hotspot: WIFI_AP_MODE is added to deliver the event to hotspot app */
-                if (mWifi_mode == WIFI_AP_MODE)
-                {
-                   mStateMachine.sendMessage(AP_STA_CONNECTED_EVENT, tokens[1]);
-                   Log.d(TAG, "Wifi_Hotspot- handleHostApEvents - AP_STA_CONNECTED_STR");
-                } else {
-                   mStateMachine.sendMessage(AP_STA_CONNECTED_EVENT, new WifiP2pDevice(dataString));
-                }
+                mStateMachine.sendMessage(AP_STA_CONNECTED_EVENT, new WifiP2pDevice(dataString));
             /* AP-STA-DISCONNECTED 42:fc:89:a8:96:09 p2p_dev_addr=02:90:4c:a0:92:54 */
             } else if (tokens[0].equals(AP_STA_DISCONNECTED_STR)) {
-                if (mWifi_mode == WIFI_AP_MODE)
-                {
-                    mStateMachine.sendMessage(AP_STA_DISCONNECTED_EVENT, tokens[1]);
-                    Log.d(TAG, "WifiHotspot- handleHostApEvents - AP_STA_DISCONNECTED_STR");
-                } else {
-                     mStateMachine.sendMessage(AP_STA_DISCONNECTED_EVENT, new WifiP2pDevice(dataString));
-                }
+                mStateMachine.sendMessage(AP_STA_DISCONNECTED_EVENT, new WifiP2pDevice(dataString));
             }
         }
 

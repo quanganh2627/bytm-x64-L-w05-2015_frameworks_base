@@ -595,8 +595,6 @@ public class NetworkController extends BroadcastReceiver {
             mQSDataTypeIconId = R.drawable.ic_qs_signal_4g;
             mContentDescriptionDataType = mContext.getString(
                     R.string.accessibility_data_connection_4g);
-        } else if (!hasService() || mDataState != TelephonyManager.DATA_CONNECTED) {
-            mDataTypeIconId = 0;
         } else {
             switch (mDataNetType) {
                 case TelephonyManager.NETWORK_TYPE_UNKNOWN:
@@ -1035,12 +1033,12 @@ public class NetworkController extends BroadcastReceiver {
             mobileLabel = "";
         } else {
             // We want to show the carrier name if in service and either:
-            //   - We are connected or not to mobile data, or
+            //   - We are connected to mobile data, or
             //   - We are not connected to mobile data, as long as the *reason* packets are not
             //     being routed over that link is that we have better connectivity via wifi.
             // If data is disconnected for some other reason but wifi (or ethernet/bluetooth)
             // is connected, we show nothing.
-            // If carrier name is empty and we are not conected we show "No internet connection".
+            // Otherwise (nothing connected) we show "No internet connection".
 
             if (mDataConnected) {
                 mobileLabel = mNetworkName;
@@ -1053,12 +1051,8 @@ public class NetworkController extends BroadcastReceiver {
                     mobileLabel = "";
                 }
             } else {
-                if (mNetworkName != null && mNetworkName.length() != 0) {
-                    mobileLabel = mNetworkName;
-                } else {
-                    mobileLabel
-                        = context.getString(R.string.status_bar_settings_signal_meter_disconnected);
-                }
+                mobileLabel
+                    = context.getString(R.string.status_bar_settings_signal_meter_disconnected);
             }
 
             // Now for things that should only be shown when actually using mobile data.
@@ -1084,9 +1078,7 @@ public class NetworkController extends BroadcastReceiver {
                 combinedSignalIconId = mDataSignalIconId; // set by updateDataIcon()
                 mContentDescriptionCombinedSignal = mContentDescriptionDataType;
             } else {
-                mMobileActivityIconId = (IccCardConstants.State.ABSENT == mSimState) ?
-                    R.drawable.stat_sys_no_sim : 0;
-                combinedActivityIconId = mMobileActivityIconId;
+                mMobileActivityIconId = 0;
             }
         }
 

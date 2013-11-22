@@ -35,8 +35,6 @@ import android.os.Process;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.WorkSource;
-import android.os.RemoteCallbackList;
-import android.os.RemoteException;
 import android.telephony.ServiceState;
 import android.telephony.SignalStrength;
 import android.telephony.TelephonyManager;
@@ -51,7 +49,6 @@ import android.util.TimeUtils;
 import com.android.internal.net.NetworkStatsFactory;
 import com.android.internal.util.JournaledFile;
 import com.google.android.collect.Sets;
-import com.android.internal.app.IBatteryStatsResetCallback;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -104,11 +101,6 @@ public final class BatteryStatsImpl extends BatteryStats {
     private static int sNumSpeedSteps;
 
     private final JournaledFile mFile;
-
-    private byte[] duplicateData;
-    private final RemoteCallbackList<IBatteryStatsResetCallback> mResetCallbacks
-            = new RemoteCallbackList<IBatteryStatsResetCallback>();
-    private IBatteryStatsResetCallback mResetCallback;
 
     static final int MSG_UPDATE_WAKELOCKS = 1;
     static final int MSG_REPORT_POWER_CHANGE = 2;
@@ -4449,54 +4441,8 @@ public final class BatteryStatsImpl extends BatteryStats {
         mDischargeAmountScreenOff = 0;
         mDischargeAmountScreenOffSinceCharge = 0;
     }
-
-    public void registerCallback(IBatteryStatsResetCallback callback) {
-        if (mResetCallback != null)
-            mResetCallbacks.unregister(mResetCallback);
-
-        mResetCallbacks.register(callback);
-        mResetCallback = callback;
-    }
-
-    public void unregisterCallback(IBatteryStatsResetCallback callback) {
-        if (mResetCallback != null) {
-            mResetCallbacks.unregister(mResetCallback);
-            mResetCallback = null;
-        }
-    }
-
-    public byte[] getduplicateData() {
-        return duplicateData;
-    }
-
-    private void invokeCallback() {
-        final int N = mResetCallbacks.beginBroadcast();
-        Log.i(TAG, "There are " + N + " callbacks available");
-        for (int i=0; i<N; i++) {
-            try {
-                mResetCallbacks.getBroadcastItem(i).batteryStatsReset();
-            } catch (RemoteException e) {
-                // The RemoteCallbackList will take care of removing
-                // the dead object for us.
-            }
-        }
-        mResetCallbacks.finishBroadcast();
-    }
-
-    public void resetAllStatsLocked(boolean wait) {
-        if (wait) {
-            Parcel out = Parcel.obtain();
-            writeToParcel(out, 0);
-            duplicateData = out.marshall();
-            out.recycle();
-
-            if (mResetCallback != null) {
-                Log.i(TAG, "Calling Reset Callback in Thread " + Thread.currentThread().getId());
-                invokeCallback();
-            }
-            Log.i(TAG, "Reset Callback completed in thread " + Thread.currentThread().getId());
-        }
-
+    
+    public void resetAllStatsLocked() {
         mStartCount = 0;
         initTimes();
         mScreenOnTimer.reset(this, false);
@@ -4585,7 +4531,7 @@ public final class BatteryStatsImpl extends BatteryStats {
                     || level >= 90
                     || (mDischargeCurrentLevel < 20 && level >= 80)) {
                 doWrite = true;
-                resetAllStatsLocked(true);
+                resetAllStatsLocked();
                 mDischargeStartLevel = level;
             }
             updateKernelWakelocksLocked();
@@ -5086,6 +5032,8 @@ public final class BatteryStatsImpl extends BatteryStats {
         writeSyncLocked();
         mShuttingDown = true;
     }
+
+    Parcel mPendingWrite = null;
     final ReentrantLock mWriteLock = new ReentrantLock();
 
     public void writeAsyncLocked() {
@@ -5106,26 +5054,40 @@ public final class BatteryStatsImpl extends BatteryStats {
             return;
         }
 
-        final Parcel out = Parcel.obtain();
+        Parcel out = Parcel.obtain();
         writeSummaryToParcel(out);
         mLastWriteTime = SystemClock.elapsedRealtime();
 
+        if (mPendingWrite != null) {
+            mPendingWrite.recycle();
+        }
+        mPendingWrite = out;
+
         if (sync) {
-            commitPendingDataToDisk(out);
+            commitPendingDataToDisk();
         } else {
             Thread thr = new Thread("BatteryStats-Write") {
                 @Override
                 public void run() {
                     Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
-                    commitPendingDataToDisk(out);
+                    commitPendingDataToDisk();
                 }
             };
             thr.start();
         }
     }
 
-    public void commitPendingDataToDisk(Parcel next) {
-        mWriteLock.lock();
+    public void commitPendingDataToDisk() {
+        final Parcel next;
+        synchronized (this) {
+            next = mPendingWrite;
+            mPendingWrite = null;
+            if (next == null) {
+                return;
+            }
+
+            mWriteLock.lock();
+        }
 
         try {
             FileOutputStream stream = new FileOutputStream(mFile.chooseForWrite());

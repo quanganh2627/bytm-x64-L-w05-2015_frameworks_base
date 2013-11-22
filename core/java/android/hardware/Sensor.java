@@ -221,17 +221,11 @@ public final class Sensor {
 
     static int getReportingMode(Sensor sensor) {
         // mType starts from offset 1.
-        // Use REPORTING_MODE_CONTINUOUS as default for all virtual sensors
-        if (sensor.mType > sSensorReportingModes.length)
-            return REPORTING_MODE_CONTINUOUS;
         return sSensorReportingModes[sensor.mType - 1];
     }
 
     static int getMaxLengthValuesArray(Sensor sensor, int sdkLevel) {
         // mType starts from offset 1.
-        // Set MaxLengthValuesArray to 3 as default for all virtual sensors for backward compatibility
-        if (sensor.mType > sMaxLengthValuesArray.length)
-            return 3;
         int len = sMaxLengthValuesArray[sensor.mType - 1];
 
         // RotationVector length has changed to 3 to 5 for API level 18

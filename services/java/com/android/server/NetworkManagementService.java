@@ -41,7 +41,6 @@ import android.net.LinkAddress;
 import android.net.NetworkStats;
 import android.net.NetworkUtils;
 import android.net.RouteInfo;
-import android.net.wifi.WifiApConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.KeyMgmt;
 import android.os.Binder;
@@ -52,7 +51,6 @@ import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.SystemProperties;
-import android.provider.Settings;
 import android.util.Log;
 import android.util.Slog;
 import android.util.SparseBooleanArray;
@@ -379,11 +377,7 @@ public class NetworkManagementService extends INetworkManagementService.Stub
         }
 
         // TODO: Push any existing firewall state
-        try {
-            setFirewallEnabled(mFirewallEnabled || LockdownVpnTracker.isEnabled());
-        } catch (IllegalArgumentException e) {
-            Log.wtf(TAG, "problem enabling or disabling firewall", e);
-        }
+        setFirewallEnabled(mFirewallEnabled || LockdownVpnTracker.isEnabled());
     }
 
     //
@@ -906,14 +900,10 @@ public class NetworkManagementService extends INetworkManagementService.Stub
 
     private void modifyNat(String action, String internalInterface, String externalInterface)
             throws SocketException {
-        NetworkInterface internalNetworkInterface = null;
         final Command cmd = new Command("nat", action, internalInterface, externalInterface);
-        try {
-           internalNetworkInterface = NetworkInterface.getByName(internalInterface);
-        } catch (SocketException se) {
-                Log.w(TAG, "modifyNat , cmd: " + cmd + ",got Exception " + se.toString());
-                internalNetworkInterface = null;
-        }
+
+        final NetworkInterface internalNetworkInterface = NetworkInterface.getByName(
+                internalInterface);
         if (internalNetworkInterface == null) {
             cmd.appendArg("0");
         } else {
@@ -992,45 +982,17 @@ public class NetworkManagementService extends INetworkManagementService.Stub
 
     @Override
     public void startAccessPoint(
-            WifiApConfiguration wifiConfig, String wlanIface) {
+            WifiConfiguration wifiConfig, String wlanIface) {
         mContext.enforceCallingOrSelfPermission(CONNECTIVITY_INTERNAL, TAG);
         try {
             wifiFirmwareReload(wlanIface, "AP");
             if (wifiConfig == null) {
                 mConnector.execute("softap", "set", wlanIface);
             } else {
-                executeSetSoftap(wifiConfig, wlanIface);
+                mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
+                        getSecurityType(wifiConfig), new SensitiveArg(wifiConfig.preSharedKey));
             }
             mConnector.execute("softap", "startap");
-        } catch (NativeDaemonConnectorException e) {
-            throw e.rethrowAsParcelableException();
-        }
-    }
-
-    private void executeSetSoftap(
-            WifiApConfiguration wifiConfig, String wlanIface) {
-        String hwMode = wifiConfig.hwMode;
-        // mode "ac" is not yet supported by lower layers
-        if (hwMode.equals("c"))
-            hwMode = "a";
-        String countryCode = Settings.Global.getString(mContext.getContentResolver(),
-                Settings.Global.WIFI_COUNTRY_CODE);
-        try {
-            if (countryCode != null && !countryCode.isEmpty()) {
-                countryCode = countryCode.toUpperCase();
-                mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
-                        getSecurityType(wifiConfig),
-                        new SensitiveArg(wifiConfig.preSharedKey),
-                        wifiConfig.channel.toString(), " ", " ",
-                        hwMode, wifiConfig.is80211n ? "1" : "0",
-                        countryCode);
-            } else {
-                mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
-                        getSecurityType(wifiConfig),
-                        new SensitiveArg(wifiConfig.preSharedKey),
-                        wifiConfig.channel.toString(), " ", " ",
-                        hwMode, wifiConfig.is80211n ? "1" : "0");
-            }
         } catch (NativeDaemonConnectorException e) {
             throw e.rethrowAsParcelableException();
         }
@@ -1070,13 +1032,14 @@ public class NetworkManagementService extends INetworkManagementService.Stub
     }
 
     @Override
-    public void setAccessPoint(WifiApConfiguration wifiConfig, String wlanIface) {
+    public void setAccessPoint(WifiConfiguration wifiConfig, String wlanIface) {
         mContext.enforceCallingOrSelfPermission(CONNECTIVITY_INTERNAL, TAG);
         try {
             if (wifiConfig == null) {
                 mConnector.execute("softap", "set", wlanIface);
             } else {
-                executeSetSoftap(wifiConfig, wlanIface);
+                mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
+                        getSecurityType(wifiConfig), new SensitiveArg(wifiConfig.preSharedKey));
             }
         } catch (NativeDaemonConnectorException e) {
             throw e.rethrowAsParcelableException();

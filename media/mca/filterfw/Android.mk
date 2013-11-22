@@ -13,29 +13,24 @@
 # limitations under the License.
 #
 
-####################
-# use arm version libfilterfw to do work-around support of GMS arm libraries
-# change back to x86 version libfilterfw as long as Google port GMS arm libraries into x86 version
-###################
-
 #####################
 # Build native sublibraries
 
-#include $(all-subdir-makefiles)
+include $(all-subdir-makefiles)
 
 #####################
 # Build main libfilterfw
 
-#include $(CLEAR_VARS)
+include $(CLEAR_VARS)
 
-#LOCAL_MODULE := libfilterfw
+LOCAL_MODULE := libfilterfw
 
-#LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_TAGS := optional
 
-#LOCAL_WHOLE_STATIC_LIBRARIES := libfilterfw_jni \
+LOCAL_WHOLE_STATIC_LIBRARIES := libfilterfw_jni \
                                 libfilterfw_native
 
-#LOCAL_SHARED_LIBRARIES := libstlport \
+LOCAL_SHARED_LIBRARIES := libstlport \
                           libGLESv2 \
                           libEGL \
                           libgui \
@@ -51,6 +46,6 @@
 # to add this library to the prelink map and set this to true. However,
 # it's difficult to do this for applications that are not supplied as
 # part of a system image.
-#LOCAL_PRELINK_MODULE := false
+LOCAL_PRELINK_MODULE := false
 
-#include $(BUILD_SHARED_LIBRARY)
+include $(BUILD_SHARED_LIBRARY)

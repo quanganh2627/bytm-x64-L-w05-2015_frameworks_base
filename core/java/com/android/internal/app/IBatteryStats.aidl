@@ -17,7 +17,6 @@
 package com.android.internal.app;
 
 import com.android.internal.os.BatteryStatsImpl;
-import com.android.internal.app.IBatteryStatsResetCallback;
 
 import android.os.WorkSource;
 import android.telephony.SignalStrength;
@@ -75,8 +74,4 @@ interface IBatteryStats {
     void setBatteryState(int status, int health, int plugType, int level, int temp, int volt);
     long getAwakeTimeBattery();
     long getAwakeTimePlugged();
-    void resetStatistic(boolean wait);
-    byte[] getStatisticsBeforeReset();
-    void registerCallback(IBatteryStatsResetCallback callback);
-    void unregisterCallback(IBatteryStatsResetCallback callback);
 }

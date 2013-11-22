@@ -73,7 +73,7 @@
     <string name="battery_low_title">Connect charger</string>
 
     <!-- When the battery is low, this is displayed to the user in a dialog. The subtitle of the low battery alert. [CHAR LIMIT=NONE] -->
-    <string name="battery_low_subtitle">The battery is getting low. Some features may not be functional in low battery mode</string>
+    <string name="battery_low_subtitle">The battery is getting low.</string>
 
     <!-- A message that appears when the battery level is getting low in a dialog.  This is
         appened to the subtitle of the low battery alert.  "number" is the percentage of battery
@@ -191,8 +191,6 @@
     <string name="screenshot_failed_title">Couldn\'t capture screenshot.</string>
     <!-- Notification text displayed when we fail to take a screenshot. [CHAR LIMIT=100] -->
     <string name="screenshot_failed_text">Couldn\'t save screenshot. Storage may be in use.</string>
-    <!-- ARKHAM-275 The text to be displayed on a Toast when taking screenshots for applications which run in containers -->
-    <string name="screenshot_disabled">"Screenshot disabled for applications which run in containers.</string>
 
     <!-- Title for the USB function chooser in UsbPreferenceActivity. [CHAR LIMIT=30] -->
     <string name="usb_preference_title">USB file transfer options</string>
@@ -366,9 +364,6 @@
 
     <!-- Content description of the TeleTypewriter(TTY) enabled icon in the notification panel for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
     <string name="accessibility_tty_enabled">TeleTypewriter enabled.</string>
-
-    <!-- Content description of the IMS icon in the notification panel for IMS registration status (not shown on the screen). [CHAR LIMIT=NONE] -->
-    <string name="accessibility_ims_enabled">IMS enabled</string>
 
     <!-- Content description of the ringer vibrate icon in the notification panel for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
     <string name="accessibility_ringer_vibrate">Ringer vibrate.</string>

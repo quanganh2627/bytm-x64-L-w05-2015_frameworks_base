@@ -1464,7 +1464,7 @@ public final class ViewRootImpl implements ViewParent,
                                 mTranslator.translateCanvas(layerCanvas);
                             }
 
-                            DisplayList displayList = mView.getDisplayList();
+                            DisplayList displayList = mView.mDisplayList;
                             if (displayList != null) {
                                 layerCanvas.drawDisplayList(displayList, null,
                                         DisplayList.FLAG_CLIP_CHILDREN);
@@ -2808,12 +2808,6 @@ public final class ViewRootImpl implements ViewParent,
                 scheduleTraversals();
             }
         }
-    }
-    /**
-     * send a fake vsync to trigger doFrame ahead of hw sync
-     * */
-    public void sendFakeVsync() {
-         mChoreographer.sendFakeVsync();
     }
 
     void dispatchDetachedFromWindow() {
@@ -5820,8 +5814,7 @@ public final class ViewRootImpl implements ViewParent,
                 }
             } break;
         }
-        if (mAccessibilityManager.isEnabled())
-            mAccessibilityManager.sendAccessibilityEvent(event);
+        mAccessibilityManager.sendAccessibilityEvent(event);
         return true;
     }
 

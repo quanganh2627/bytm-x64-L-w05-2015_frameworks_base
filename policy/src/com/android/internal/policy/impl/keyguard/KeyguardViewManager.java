@@ -42,7 +42,6 @@ import android.widget.FrameLayout;
 
 import com.android.internal.R;
 import com.android.internal.widget.LockPatternUtils;
-import com.intel.config.FeatureConfig;
 
 /**
  * Manages creating, showing, hiding and resetting the keyguard.  Calls back
@@ -70,7 +69,6 @@ public class KeyguardViewManager {
     private KeyguardHostView mKeyguardView;
 
     private boolean mScreenOn = false;
-    private boolean mSimReady = false;
     private LockPatternUtils mLockPatternUtils;
 
     public interface ShowListener {
@@ -108,10 +106,7 @@ public class KeyguardViewManager {
         // useful on any keyguard screen but can be re-shown by dialogs or SHOW_WHEN_LOCKED
         // activities. Other disabled bits are handled by the KeyguardViewMediator talking
         // directly to the status bar service.
-        /* For ARKHAM-1138: Replace the Back key with the Home key for container keyguard */
-        final int visFlags = (mLockPatternUtils.isContainerUserMode()
-                ? View.SYSTEM_UI_FLAG_VISIBLE : View.STATUS_BAR_DISABLE_HOME);
-        /* End ARKHAM-1138 */
+        final int visFlags = View.STATUS_BAR_DISABLE_HOME;
         if (DEBUG) Log.v(TAG, "show:setSystemUiVisibility(" + Integer.toHexString(visFlags)+")");
         mKeyguardHost.setSystemUiVisibility(visFlags);
 
@@ -144,13 +139,7 @@ public class KeyguardViewManager {
             super.onConfigurationChanged(newConfig);
             if (mKeyguardHost.getVisibility() == View.VISIBLE) {
                 // only propagate configuration messages if we're currently showing
-                if(mSimReady) {
-                    // if sim ready, don't refresh it because user may be have typed
-                    // some password in other keyguard view such as PIN View.
-                    setSimReady(false);
-                } else {
-                    maybeCreateKeyguardLocked(shouldEnableScreenRotation(), true, null);
-                }
+                maybeCreateKeyguardLocked(shouldEnableScreenRotation(), true, null);
             } else {
                 if (DEBUG) Log.v(TAG, "onConfigurationChanged: view not visible");
             }
@@ -165,11 +154,6 @@ public class KeyguardViewManager {
                     if (keyCode == KeyEvent.KEYCODE_BACK && mKeyguardView.handleBackKey()) {
                         return true;
                     } else if (keyCode == KeyEvent.KEYCODE_MENU && mKeyguardView.handleMenuKey()) {
-                        return true;
-                    }
-                    // ARKHAM-1088:dismiss container keyguard on home key.
-                    else if (FeatureConfig.INTEL_FEATURE_ARKHAM && keyCode == KeyEvent.KEYCODE_HOME
-                            && mKeyguardView.handleHomeKey()) {
                         return true;
                     }
                 }
@@ -461,13 +445,5 @@ public class KeyguardViewManager {
         if (mKeyguardView != null) {
             mKeyguardView.showAssistant();
         }
-    }
-
-    boolean isSimReady() {
-        return mSimReady;
-    }
-
-    void setSimReady(boolean simReady) {
-        mSimReady = simReady;
     }
 }

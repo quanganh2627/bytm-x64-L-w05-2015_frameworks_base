@@ -33,7 +33,6 @@ import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.os.ServiceManager;
-import android.os.storage.IMountService;
 import android.os.StrictMode;
 import android.os.SystemClock;
 import android.os.SystemProperties;
@@ -47,12 +46,11 @@ import android.view.WindowManager;
 
 import com.android.internal.os.BinderInternal;
 import com.android.internal.os.SamplingProfilerIntegration;
-import com.android.server.accessibility.ExtendAccessibilityManagerService;
+import com.android.server.accessibility.AccessibilityManagerService;
 import com.android.server.accounts.AccountManagerService;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.am.BatteryStatsService;
 import com.android.server.content.ContentService;
-import com.android.server.cms.CurrentMgmtService;
 import com.android.server.display.DisplayManagerService;
 import com.android.server.dreams.DreamManagerService;
 import com.android.server.input.InputManagerService;
@@ -65,25 +63,16 @@ import com.android.server.pm.UserManagerService;
 import com.android.server.power.PowerManagerService;
 import com.android.server.power.ShutdownThread;
 import com.android.server.search.SearchManagerService;
-import com.android.server.thermal.ThermalService;
 import com.android.server.usb.UsbService;
-import com.android.server.wifi.CsmWifiOffloadSystemService;
-import com.android.server.wifi.ExtendWifiService;
 import com.android.server.wifi.WifiService;
 import com.android.server.wm.WindowManagerService;
-import com.intel.multidisplay.DisplayObserver;
 
 import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
 
 import java.io.File;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
 import java.util.Timer;
 import java.util.TimerTask;
-
-import com.intel.config.FeatureConfig;
-import com.intel.arkham.ExtendAccountManagerService;
 
 class ServerThread extends Thread {
     private static final String TAG = "SystemServer";
@@ -140,7 +129,6 @@ class ServerThread extends Thread {
         PowerManagerService power = null;
         DisplayManagerService display = null;
         BatteryService battery = null;
-        CurrentMgmtService current = null;
         VibratorService vibrator = null;
         AlarmManagerService alarm = null;
         MountService mountService = null;
@@ -162,7 +150,6 @@ class ServerThread extends Thread {
         UiModeManagerService uiMode = null;
         RecognitionManagerService recognition = null;
         NetworkTimeUpdateService networkTimeUpdater = null;
-        ThermalService thermalservice = null;
         CommonTimeManagementService commonTimeMgmtService = null;
         InputManagerService inputManager = null;
         TelephonyRegistry telephonyRegistry = null;
@@ -281,7 +268,7 @@ class ServerThread extends Thread {
             // The AccountManager must come before the ContentService
             try {
                 Slog.i(TAG, "Account Manager");
-                accountManager = new ExtendAccountManagerService(context);
+                accountManager = new AccountManagerService(context);
                 ServiceManager.addService(Context.ACCOUNT_SERVICE, accountManager);
             } catch (Throwable e) {
                 Slog.e(TAG, "Failure starting Account Manager", e);
@@ -297,22 +284,9 @@ class ServerThread extends Thread {
             Slog.i(TAG, "Lights Service");
             lights = new LightsService(context);
 
-            //THERMAL
-            if ("1".equals(SystemProperties.get("persist.service.thermal", "0"))) {
-               Slog.i(TAG, "Thermal Service enabled");
-               thermalservice = new ThermalService(context);
-               ServiceManager.addService("thermalservice", thermalservice);
-            } else {
-               Log.i(TAG, "Thermal Service disabled");
-            }
-
             Slog.i(TAG, "Battery Service");
             battery = new BatteryService(context, lights);
             ServiceManager.addService("battery", battery);
-
-            Slog.i(TAG, "Current Mgmt Service");
-            current = new CurrentMgmtService(context);
-            ServiceManager.addService("current", current);
 
             Slog.i(TAG, "Vibrator Service");
             vibrator = new VibratorService(context);
@@ -387,7 +361,7 @@ class ServerThread extends Thread {
         if (factoryTest != SystemServer.FACTORY_TEST_LOW_LEVEL) {
             try {
                 Slog.i(TAG, "Input Method Service");
-                imm = new ExtendInputMethodManagerService(context, wm);
+                imm = new InputMethodManagerService(context, wm);
                 ServiceManager.addService(Context.INPUT_METHOD_SERVICE, imm);
             } catch (Throwable e) {
                 reportWtf("starting Input Manager Service", e);
@@ -396,7 +370,7 @@ class ServerThread extends Thread {
             try {
                 Slog.i(TAG, "Accessibility Manager");
                 ServiceManager.addService(Context.ACCESSIBILITY_SERVICE,
-                        new ExtendAccessibilityManagerService(context));
+                        new AccessibilityManagerService(context));
             } catch (Throwable e) {
                 reportWtf("starting Accessibility Manager", e);
             }
@@ -430,7 +404,7 @@ class ServerThread extends Thread {
                      * (for media / usb notifications) so we must start MountService first.
                      */
                     Slog.i(TAG, "Mount Service");
-                    mountService = new ExtendMountService(context);
+                    mountService = new MountService(context);
                     ServiceManager.addService("mount", mountService);
                 } catch (Throwable e) {
                     reportWtf("starting Mount Service", e);
@@ -447,7 +421,7 @@ class ServerThread extends Thread {
 
             try {
                 Slog.i(TAG, "Device Policy");
-                devicePolicy = new ExtendDevicePolicyManagerService(context);
+                devicePolicy = new DevicePolicyManagerService(context);
                 ServiceManager.addService(Context.DEVICE_POLICY_SERVICE, devicePolicy);
             } catch (Throwable e) {
                 reportWtf("starting DevicePolicyService", e);
@@ -464,7 +438,7 @@ class ServerThread extends Thread {
             try {
                 Slog.i(TAG, "Clipboard Service");
                 ServiceManager.addService(Context.CLIPBOARD_SERVICE,
-                        new ExtendClipboardService(context));
+                        new ClipboardService(context));
             } catch (Throwable e) {
                 reportWtf("starting Clipboard Service", e);
             }
@@ -504,14 +478,6 @@ class ServerThread extends Thread {
             }
 
            try {
-                Slog.i(TAG, "CSM Wifi Offload Service");
-                CsmWifiOffloadSystemService csmWifiOffload = new CsmWifiOffloadSystemService(context);
-                ServiceManager.addService("CsmWifiOffloadService", csmWifiOffload);
-            } catch (Throwable e) {
-                reportWtf("starting CSM Wifi Offload system service", e);
-            }
-
-           try {
                 Slog.i(TAG, "Wi-Fi P2pService");
                 wifiP2p = new WifiP2pService(context);
                 ServiceManager.addService(Context.WIFI_P2P_SERVICE, wifiP2p);
@@ -521,7 +487,7 @@ class ServerThread extends Thread {
 
            try {
                 Slog.i(TAG, "Wi-Fi Service");
-                wifi = new ExtendWifiService(context);
+                wifi = new WifiService(context);
                 ServiceManager.addService(Context.WIFI_SERVICE, wifi);
             } catch (Throwable e) {
                 reportWtf("starting Wi-Fi Service", e);
@@ -562,8 +528,7 @@ class ServerThread extends Thread {
              * AppWidget Provider. Make sure MountService is completely started
              * first before continuing.
              */
-            if (mountService != null &&
-                   !ENCRYPTING_STATE.equals(SystemProperties.get("vold.decrypt"))) {
+            if (mountService != null) {
                 mountService.waitForAsecScan();
             }
 
@@ -583,7 +548,7 @@ class ServerThread extends Thread {
 
             try {
                 Slog.i(TAG, "Notification Manager");
-                notification = new ExtendNotificationManagerService(context, statusBar, lights);
+                notification = new NotificationManagerService(context, statusBar, lights);
                 ServiceManager.addService(Context.NOTIFICATION_SERVICE, notification);
                 networkPolicy.bindNotificationManager(notification);
             } catch (Throwable e) {
@@ -653,14 +618,6 @@ class ServerThread extends Thread {
             }
 
             try {
-                Slog.i(TAG, "Intel Display Observer");
-                // Listen for display changes
-                DisplayObserver dso = new DisplayObserver(context);
-            } catch (Throwable e) {
-                reportWtf("starting Intel DisplayObserver", e);
-            }
-
-            try {
                 Slog.i(TAG, "Dock Observer");
                 // Listen for dock station changes
                 dock = new DockObserver(context);
@@ -675,14 +632,6 @@ class ServerThread extends Thread {
                         new WiredAccessoryManager(context, inputManager));
             } catch (Throwable e) {
                 reportWtf("starting WiredAccessoryManager", e);
-            }
-
-            try {
-                Slog.i(TAG, "HardwareMuteSwitch");
-                // Listen for hardware mute switch changes
-                new HardwareMuteSwitch(context, inputManager);
-            } catch (Throwable e) {
-                reportWtf("starting HardwareMuteSwitch", e);
             }
 
             try {
@@ -799,25 +748,6 @@ class ServerThread extends Thread {
                 new IdleMaintenanceService(context, battery);
             } catch (Throwable e) {
                 reportWtf("starting IdleMaintenanceService", e);
-            }
-
-            if (FeatureConfig.INTEL_FEATURE_ARKHAM &&
-                !ENCRYPTED_STATE.equals(SystemProperties.get("vold.decrypt")) &&
-                !ENCRYPTING_STATE.equals(SystemProperties.get("vold.decrypt"))) {
-                Class[] ptype=new Class[]{Context.class};
-                Object[] obj=new Object[]{context};
-
-                String name = "com.intel.arkham.ContainerPolicyManagerService";
-                Object containerPolicy = registerService(name, ptype , obj);
-
-                ptype=new Class[]{Context.class, java.lang.Object.class,
-                                  PackageManagerService.class, WindowManagerService.class};
-                obj=new Object[]{context, containerPolicy,
-                                 (PackageManagerService)pm, wm};
-                name = "com.intel.arkham.ContainerManagerService";
-                Object containerManager = registerService(name, ptype , obj);
-
-                Slog.i(TAG, "Container Services");
             }
         }
 
@@ -1077,24 +1007,6 @@ class ServerThread extends Thread {
                     "com.android.systemui.SystemUIService"));
         //Slog.d(TAG, "Starting service: " + intent);
         context.startServiceAsUser(intent, UserHandle.OWNER);
-    }
-
-    private Object registerService(String serviceClassName, java.lang.Class[] ptype,
-        java.lang.Object[] objArray) {
-        Object object = null;
-        Slog.d(TAG,"registerService service: " + serviceClassName);
-        try {
-            Class c = Class.forName(serviceClassName);
-            Method m = c.getMethod("main", ptype);
-            object = m.invoke(c, objArray);
-        } catch (IllegalAccessException iae) {
-            Slog.e(TAG,"Got expected PackageAccess complaint", iae);
-        } catch (InstantiationError ie) {
-            Slog.e(TAG,"Got expected InstantationError", ie);
-        } catch (Exception ex) {
-            Slog.e(TAG,"Got unexpected MaybeAbstract failure", ex);
-        }
-        return object;
     }
 }
 

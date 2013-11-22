@@ -21,7 +21,6 @@ import android.net.wifi.p2p.WifiP2pGroup;
 import android.text.TextUtils;
 import android.net.wifi.p2p.nsd.WifiP2pServiceInfo;
 import android.util.Log;
-import android.os.SystemProperties;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -66,16 +65,6 @@ public class WifiNative {
     private native boolean connectToSupplicant(String iface);
 
     private native void closeSupplicantConnection(String iface);
-
-    /* Wifi_Hotspot */
-    public native static boolean connectToHostapd();
-
-    /* Wifi_Hotspot */
-    public native static void closeHostapdConnection();
-
-    /* Wifi_Hotspot */
-    public native String getWifiApStationList();
-    public native String getWifiApChannelList();
 
     /**
      * Wait for the supplicant to send an event, returning the event string.
@@ -134,10 +123,6 @@ public class WifiNative {
         } else {
             throw new IllegalArgumentException("Invalid scan type");
         }
-    }
-
-    public boolean flushBSS() {
-        return doBooleanCommand("BSS_FLUSH 0");
     }
 
     /* Does a graceful shutdown of supplicant. Is a common stop function for both p2p and sta.
@@ -316,15 +301,6 @@ public class WifiNative {
 
     public boolean setBand(int band) {
         return doBooleanCommand("DRIVER SETBAND " + band);
-    }
-
-    /**
-     * Get supported Wifi channels.
-     *
-     * @return The list of supported channels, can be null or empty if the request fails.
-     */
-    public String getChannelsCapability() {
-        return doStringCommand("GET_CAPABILITY channels");
     }
 
    /**
@@ -612,17 +588,7 @@ public class WifiNative {
             if (groupOwnerIntent < 0 || groupOwnerIntent > 15) {
                 groupOwnerIntent = DEFAULT_GROUP_OWNER_INTENT;
             }
-            String go_intent = SystemProperties.get("wifi.p2p.go_intent", "");
-            if (!"".equals(go_intent)) {
-                args.add("go_intent=" + go_intent);
-            } else {
-                args.add("go_intent=" + groupOwnerIntent);
-            }
-        }
-
-        String freq = SystemProperties.get("wifi.p2p.force_freq", "");
-        if (!"".equals(freq) && !"0".equals(freq)) {
-            args.add("freq=" + freq);
+            args.add("go_intent=" + groupOwnerIntent);
         }
 
         String command = "P2P_CONNECT ";
@@ -654,37 +620,14 @@ public class WifiNative {
     }
 
     public boolean p2pGroupAdd(boolean persistent) {
-        List<String> args = new ArrayList<String>();
-
         if (persistent) {
-            args.add("persistent");
+            return doBooleanCommand("P2P_GROUP_ADD persistent");
         }
-
-        String freq = SystemProperties.get("wifi.p2p.force_freq", "");
-        if (!"".equals(freq) && !"0".equals(freq)) {
-            args.add("freq=" + freq);
-        }
-
-        String command = "P2P_GROUP_ADD ";
-        for (String s : args) command += s + " ";
-
-        return doBooleanCommand(command);
+        return doBooleanCommand("P2P_GROUP_ADD");
     }
 
     public boolean p2pGroupAdd(int netId) {
-        List<String> args = new ArrayList<String>();
-
-        args.add("persistent=" + netId);
-
-        String freq = SystemProperties.get("wifi.p2p.force_freq", "");
-        if (!"".equals(freq) && !"0".equals(freq)) {
-            args.add("freq=" + freq);
-        }
-
-        String command = "P2P_GROUP_ADD ";
-        for (String s : args) command += s + " ";
-
-        return doBooleanCommand(command);
+        return doBooleanCommand("P2P_GROUP_ADD persistent=" + netId);
     }
 
     public boolean p2pGroupRemove(String iface) {
@@ -711,20 +654,8 @@ public class WifiNative {
     /* Reinvoke a persistent connection */
     public boolean p2pReinvoke(int netId, String deviceAddress) {
         if (TextUtils.isEmpty(deviceAddress) || netId < 0) return false;
-        List<String> args = new ArrayList<String>();
 
-        args.add("persistent=" + netId);
-        args.add("peer=" + deviceAddress);
-
-        String freq = SystemProperties.get("wifi.p2p.force_freq", "");
-        if (!"".equals(freq) && !"0".equals(freq)) {
-            args.add("freq=" + freq);
-        }
-
-        String command = "P2P_INVITE ";
-        for (String s : args) command += s + " ";
-
-        return doBooleanCommand(command);
+        return doBooleanCommand("P2P_INVITE persistent=" + netId + " peer=" + deviceAddress);
     }
 
     public String p2pGetSsid(String deviceAddress) {
@@ -787,11 +718,6 @@ public class WifiNative {
             }
         }
         return null;
-    }
-
-    public boolean p2pSetDisabled(boolean enabled) {
-        int value = (enabled == true) ? 1 : 0;
-        return doBooleanCommand("P2P_SET disabled " + value);
     }
 
     public boolean p2pServiceAdd(WifiP2pServiceInfo servInfo) {
@@ -877,47 +803,4 @@ public class WifiNative {
         // Note: optional feature on the driver. It is ok for this to fail.
         doBooleanCommand("DRIVER MIRACAST " + mode);
     }
-
-
-    /*
-     * For LTE Coexistence
-     */
-
-    /*
-     * setSafeChannel
-     *      send safe channel bitmap list for best channel computation in the supplicant
-     *      Unsafe channel are bitmapped as a 1, safe channels are bitmapped as a 0
-     *
-     *      safeChannelBitmap:  int value for safe channel bitmap.
-     */
-
-    public String setSafeChannel(int safeChannelBitmap) {
-        if (DBG) Log.d(mTAG, "setSafeChannel: " + safeChannelBitmap);
-        return doStringCommand("SET_SAFE_CHANNELS " + safeChannelBitmap);
-    }
-
-    /*
-     * setRTCoexMode
-     *     Send a command to the Wifi/BT driver to enable (1) or disable (0) Real Time (RT)
-     *     and provide the safe channel bitmap.
-     *      Unsafe channel are bitmapped as a 1, safe channels are bitmapped as a 0
-     *
-     *      enable: set to 1 to enable RT, or 0 to disable RT
-     *      safeChannelBitmap:  int value for safe channel bitmap.
-     */
-    public String setRTCoexMode(int enable, int safeChannelBitmap) {
-
-        String cmd = "DRIVER mws_coex_bitmap ";
-
-        if (enable == 1) {
-            cmd = cmd + "0x" + Integer.toHexString(safeChannelBitmap);
-        } else {
-            cmd = cmd + "0x0000";
-        }
-
-        if (DBG) Log.d(mTAG, "setRTCoexMode: " + cmd);
-
-        return doStringCommand(cmd);
-    }
-
 }

@@ -16,12 +16,9 @@
 
 package android.net.wifi;
 
-import android.net.wifi.WifiChannel;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiConfiguration;
-import android.net.wifi.WifiApConfiguration;
 import android.net.wifi.ScanResult;
-import android.net.wifi.WifiApConnectedDevice;
 import android.net.DhcpInfo;
 
 import android.os.Messenger;
@@ -90,19 +87,17 @@ interface IWifiManager
 
     void releaseMulticastLock();
 
-    void setWifiApEnabled(in WifiApConfiguration wifiConfig, boolean enable);
+    void setWifiApEnabled(in WifiConfiguration wifiConfig, boolean enable);
 
     int getWifiApEnabledState();
 
-    WifiApConfiguration getWifiApConfiguration();
+    WifiConfiguration getWifiApConfiguration();
 
-    void setWifiApConfiguration(in WifiApConfiguration wifiConfig);
+    void setWifiApConfiguration(in WifiConfiguration wifiConfig);
 
     void startWifi();
 
     void stopWifi();
-
-    void haltWifi();
 
     void addToBlacklist(String bssid);
 
@@ -115,13 +110,5 @@ interface IWifiManager
     String getConfigFile();
 
     void captivePortalCheckComplete();
-
-    List<WifiApConnectedDevice> getWifiApConnectedList();
-
-    List<WifiChannel> getWifiAuthorizedChannels();
-
-    String setRTCoexMode(int enable, int safeChannelBitmap);
-
-    String setSafeChannel(int safeChannelBitmap);
 }
 

@@ -52,7 +52,6 @@ import android.view.WindowManagerPolicy;
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.widget.LockPatternUtils;
 
-import com.intel.arkham.ContainerPolicyCommons;
 
 /**
  * Mediates requests related to the keyguard.  This includes queries about the
@@ -225,7 +224,7 @@ public class KeyguardViewMediator {
     // the properties of the keyguard
 
     private KeyguardUpdateMonitor mUpdateMonitor;
-    ContainerPolicyCommons cpc;
+
     private boolean mScreenOn;
 
     // last known state of the cellular connection
@@ -352,7 +351,7 @@ public class KeyguardViewMediator {
             synchronized (KeyguardViewMediator.this) {
                 if (TelephonyManager.CALL_STATE_IDLE == phoneState  // call ending
                         && !mScreenOn                           // screen off
-                        && !isExternallyDisabled()) {// not disabled by any app
+                        && mExternallyEnabled) {                // not disabled by any app
 
                     // note: this is a way to gracefully reenable the keyguard when the call
                     // ends and the screen is off without always reenabling the keyguard
@@ -385,9 +384,6 @@ public class KeyguardViewMediator {
                     // only force lock screen in case of missing sim if user hasn't
                     // gone through setup wizard
                     synchronized (this) {
-                        if (mKeyguardViewManager != null) {
-                            mKeyguardViewManager.setSimReady(false);
-                        }
                         if (!mUpdateMonitor.isDeviceProvisioned()) {
                             if (!isShowing()) {
                                 if (DEBUG) Log.d(TAG, "ICC_ABSENT isn't showing,"
@@ -397,24 +393,11 @@ public class KeyguardViewMediator {
                             } else {
                                 resetStateLocked(null);
                             }
-                        // reset lock screen in case of sim removal
-                        // after the device is provisioned
-                        } else {
-                            if (isShowing()
-                                && simState == IccCardConstants.State.ABSENT)
-                                    if (mLockPatternUtils.isLockScreenDisabled()) {
-                                       if (DEBUG) Log.d(TAG, "Lock screen will be hidden because,"
-                                                + " the user has set the preference to None.");
-                                        hideLocked();
-                                    } else {
-                                       resetStateLocked(null);
-                                    }
                         }
                     }
                     break;
                 case PIN_REQUIRED:
                 case PUK_REQUIRED:
-                case NETWORK_LOCKED_PUK:
                     synchronized (this) {
                         if (!isShowing()) {
                             if (DEBUG) Log.d(TAG, "INTENT_VALUE_ICC_LOCKED and keygaurd isn't "
@@ -441,9 +424,6 @@ public class KeyguardViewMediator {
                 case READY:
                     synchronized (this) {
                         if (isShowing()) {
-                            if (mKeyguardViewManager != null) {
-                                mKeyguardViewManager.setSimReady(true);
-                            }
                             resetStateLocked(null);
                         }
                     }
@@ -561,7 +541,6 @@ public class KeyguardViewMediator {
         int lockSoundDefaultAttenuation = context.getResources().getInteger(
                 com.android.internal.R.integer.config_lockSoundVolumeDb);
         mLockSoundVolume = (float)Math.pow(10, (float)lockSoundDefaultAttenuation/20);
-        cpc = new ContainerPolicyCommons(context, mLockPatternUtils);
     }
 
     /**
@@ -599,19 +578,6 @@ public class KeyguardViewMediator {
     }
 
     /**
-     * ARKHAM-983
-     * replacing mExternallyEnabled with isExternallyDisabled to check if we can disable
-     * keyguard for container user
-     */
-    public boolean isExternallyDisabled() {
-        if (!mLockPatternUtils.isContainerUserMode()) {
-            return !mExternallyEnabled;
-        } else {
-            return !mExternallyEnabled && cpc.allowKeyguardDisable();
-        }
-    }
-
-    /**
      * Called to let us know the screen was turned off.
      * @param why either {@link WindowManagerPolicy#OFF_BECAUSE_OF_USER},
      *   {@link WindowManagerPolicy#OFF_BECAUSE_OF_TIMEOUT} or
@@ -634,7 +600,7 @@ public class KeyguardViewMediator {
                 if (DEBUG) Log.d(TAG, "pending exit secure callback cancelled");
                 mExitSecureCallback.onKeyguardExitResult(false);
                 mExitSecureCallback = null;
-                if (isExternallyDisabled()) {
+                if (!mExternallyEnabled) {
                     hideLocked();
                 }
             } else if (mShowing) {
@@ -899,7 +865,7 @@ public class KeyguardViewMediator {
      */
     private void doKeyguardLocked(Bundle options) {
         // if another app is disabling us, don't show
-        if (isExternallyDisabled()) {
+        if (!mExternallyEnabled) {
             if (DEBUG) Log.d(TAG, "doKeyguard: not showing because externally disabled");
 
             // note: we *should* set mNeedToReshowWhenReenabled=true here, but that makes
@@ -1123,8 +1089,6 @@ public class KeyguardViewMediator {
 
             if (authenticated) {
                 mUpdateMonitor.clearFailedUnlockAttempts();
-            } else {
-                cpc.launchHome();
             }
 
             if (mExitSecureCallback != null) {

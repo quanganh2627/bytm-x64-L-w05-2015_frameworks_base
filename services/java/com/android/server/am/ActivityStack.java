@@ -73,7 +73,7 @@ import java.util.List;
 /**
  * State and management of a single stack of activities.
  */
-class ActivityStack {
+final class ActivityStack {
     static final String TAG = ActivityManagerService.TAG;
     static final boolean localLOGV = ActivityManagerService.localLOGV;
     static final boolean DEBUG_SWITCH = ActivityManagerService.DEBUG_SWITCH;
@@ -293,7 +293,7 @@ class ActivityStack {
     int mThumbnailWidth = -1;
     int mThumbnailHeight = -1;
 
-    protected int mCurrentUser;
+    private int mCurrentUser;
 
     static final int SLEEP_TIMEOUT_MSG = ActivityManagerService.FIRST_ACTIVITY_STACK_MSG;
     static final int PAUSE_TIMEOUT_MSG = ActivityManagerService.FIRST_ACTIVITY_STACK_MSG + 1;
@@ -439,7 +439,7 @@ class ActivityStack {
         mLaunchingActivity.setReferenceCounted(false);
     }
 
-    protected boolean okToShow(ActivityRecord r) {
+    private boolean okToShow(ActivityRecord r) {
         return r.userId == mCurrentUser
                 || (r.info.flags & ActivityInfo.FLAG_SHOW_ON_LOCK_SCREEN) != 0;
     }
@@ -598,7 +598,7 @@ class ActivityStack {
      * Move the activities around in the stack to bring a user to the foreground.
      * @return whether there are any activities for the specified user.
      */
-    protected boolean switchUserLocked(int userId, UserStartedState uss) {
+    final boolean switchUserLocked(int userId, UserStartedState uss) {
         mCurrentUser = userId;
         mStartingUsers.add(uss);
 
@@ -1461,7 +1461,7 @@ class ActivityStack {
             ActivityOptions.abort(options);
             return false;
         }
-        checkContainerActivity(next);
+
         // If we are sleeping, and there is no resumed activity, and the top
         // activity is paused, well that is the state we want.
         if ((mService.mSleeping || mService.mShuttingDown)
@@ -2465,7 +2465,7 @@ class ActivityStack {
      * Reorder the history stack so that the activity at the given index is
      * brought to the front.
      */
-    protected ActivityRecord moveActivityToFrontLocked(int where) {
+    private final ActivityRecord moveActivityToFrontLocked(int where) {
         ActivityRecord newTop = mHistory.remove(where);
         int top = mHistory.size();
         ActivityRecord oldTop = mHistory.get(top-1);
@@ -3061,8 +3061,6 @@ class ActivityStack {
                         intent, resolvedType,
                         PackageManager.MATCH_DEFAULT_ONLY
                                     | ActivityManagerService.STOCK_PM_FLAGS, userId);
-            // ARKHAM - 375, expand the container visible space till its owner's.
-            rInfo = resolveParentActivity(rInfo, userId, intent, resolvedType);
             aInfo = rInfo != null ? rInfo.activityInfo : null;
         } catch (RemoteException e) {
             aInfo = null;
@@ -4786,17 +4784,5 @@ class ActivityStack {
     
     public void dismissKeyguardOnNextActivityLocked() {
         mDismissKeyguardOnNextActivity = true;
-    }
-
-    protected ResolveInfo resolveParentActivity(ResolveInfo rInfo, int userId,
-        Intent intent, String resolvedType) throws RemoteException {
-        return rInfo;
-    }
-
-    protected boolean isTopRunningActivityinContainter(int cid) {
-        return false;
-    }
-
-    protected void checkContainerActivity(ActivityRecord next) {
     }
 }

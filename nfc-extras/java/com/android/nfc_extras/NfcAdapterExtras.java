@@ -135,13 +135,7 @@ public final class NfcAdapterExtras {
         public static final int ROUTE_ON_WHEN_SCREEN_ON = 2;
 
         /**
-         * Card Emulation is routed to {@link #nfcEe} always, including phone off.
-         */
-        public static final int ROUTE_ALWAYS_ON = 255;
-
-        /**
-         * A route such as {@link #ROUTE_OFF} or {@link #ROUTE_ON_WHEN_SCREEN_ON}
-         * or {@link #ROUTE_ALWAYS_ON}.
+         * A route such as {@link #ROUTE_OFF} or {@link #ROUTE_ON_WHEN_SCREEN_ON}.
          */
         public final int route;
 
@@ -196,8 +190,7 @@ public final class NfcAdapterExtras {
     /**
      * Set the routing state of this NFC EE.
      *
-     * <p>This routing state is persisted across reboot to support card
-     * emulation when screen/phone is off.
+     * <p>This routing state is not persisted across reboot.
      *
      * <p class="note">
      * Requires the {@link android.Manifest.permission#WRITE_SECURE_SETTINGS} permission.

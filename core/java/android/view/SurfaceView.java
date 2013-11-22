@@ -546,7 +546,7 @@ public class SurfaceView extends View {
 
                     final boolean surfaceChanged = (relayoutResult
                             & WindowManagerGlobal.RELAYOUT_RES_SURFACE_CHANGED) != 0;
-                    if (mSurfaceCreated && (surfaceChanged || (!visible && visibleChanged)) && !formatChanged) {
+                    if (mSurfaceCreated && (surfaceChanged || (!visible && visibleChanged))) {
                         mSurfaceCreated = false;
                         if (mSurface.isValid()) {
                             if (DEBUG) Log.i(TAG, "visibleChanged -- surfaceDestroyed");

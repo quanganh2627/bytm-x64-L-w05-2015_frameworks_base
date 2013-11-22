@@ -511,12 +511,6 @@ nAllocationIoReceive(JNIEnv *_env, jobject _this, RsContext con, RsAllocation al
     rsAllocationIoReceive(con, alloc);
 }
 
-static void
-nAllocationDestroy(JNIEnv *_env, jobject _this, RsContext con, RsAllocation alloc)
-{
-    LOG_API("nAllocationDestroy, con(%p), alloc(%p)", con, alloc);
-    rsAllocationDestroy(con, alloc);
-}
 
 static void
 nAllocationGenerateMipmaps(JNIEnv *_env, jobject _this, RsContext con, jint alloc)
@@ -782,12 +776,11 @@ nAllocationData3D_alloc(JNIEnv *_env, jobject _this, RsContext con,
                         jint srcAlloc, jint srcXoff, jint srcYoff, jint srcZoff,
                         jint srcMip)
 {
-    LOG_API("nAllocationData3D_alloc, con(%p), dstAlloc(%p), dstXoff(%i), dstYoff(%i), dstZoff(%i),"
-            " dstMip(%i), width(%i), height(%i), height(%i),"
-            " srcAlloc(%p), srcXoff(%i), srcYoff(%i), srcZoff(%i), srcMip(%i)",
-            con, (RsAllocation)dstAlloc, dstXoff, dstYoff, dstZoff,
-            dstMip, width, height, depth,
-            (RsAllocation)srcAlloc, srcXoff, srcYoff, srcZoff, srcMip);
+    LOG_API("nAllocationData3D_alloc, con(%p), dstAlloc(%p), dstXoff(%i), dstYoff(%i),"
+            " dstMip(%i), width(%i), height(%i),"
+            " srcAlloc(%p), srcXoff(%i), srcYoff(%i), srcMip(%i)",
+            con, (RsAllocation)dstAlloc, dstXoff, dstYoff, dstMip, dstFace,
+            width, height, (RsAllocation)srcAlloc, srcXoff, srcYoff, srcMip, srcFace);
 
     rsAllocationCopy3DRange(con,
                             (RsAllocation)dstAlloc,
@@ -1621,7 +1614,6 @@ static JNINativeMethod methods[] = {
 {"rsnAllocationSetSurface",          "(IILandroid/view/Surface;)V",           (void*)nAllocationSetSurface },
 {"rsnAllocationIoSend",              "(II)V",                                 (void*)nAllocationIoSend },
 {"rsnAllocationIoReceive",           "(II)V",                                 (void*)nAllocationIoReceive },
-{"rsnAllocationDestroy",             "(II)V",                                 (void*)nAllocationDestroy },
 {"rsnAllocationData1D",              "(IIIII[II)V",                           (void*)nAllocationData1D_i },
 {"rsnAllocationData1D",              "(IIIII[SI)V",                           (void*)nAllocationData1D_s },
 {"rsnAllocationData1D",              "(IIIII[BI)V",                           (void*)nAllocationData1D_b },

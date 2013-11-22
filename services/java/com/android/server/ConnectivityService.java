@@ -1540,8 +1540,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                                                         bestRoute.getGateway(),
                                                         ifaceName);
                 }
-                // Add IP route to the gateway in the default routing table
-                modifyRoute(lp, bestRoute, cycleCount+1, doAdd, TO_DEFAULT_TABLE);
+                modifyRoute(lp, bestRoute, cycleCount+1, doAdd, toDefaultTable);
             }
         }
         if (doAdd) {
@@ -1748,40 +1747,6 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         mContext.enforceCallingOrSelfPermission(
                 android.Manifest.permission.CONNECTIVITY_INTERNAL,
                 "ConnectivityService");
-    }
-
-
-    /**
-     * Handle a {@code SUSPENDED} event. Send out the broadcast
-     * of connection state change.
-     * @param info the {@code NetworkInfo} for the network
-     */
-    private void handleSuspended(NetworkInfo info) {
-        if (info == null)
-            return;
-
-        int netType = info.getType();
-
-        Intent intent = new Intent(ConnectivityManager.CONNECTIVITY_ACTION);
-        if (intent != null) {
-            intent.putExtra(ConnectivityManager.EXTRA_NETWORK_INFO, info);
-
-            if (info.getReason() != null) {
-                intent.putExtra(ConnectivityManager.EXTRA_REASON, info.getReason());
-            }
-
-            if (info.getExtraInfo() != null) {
-                intent.putExtra(ConnectivityManager.EXTRA_EXTRA_INFO,
-                        info.getExtraInfo());
-            }
-            sendStickyBroadcastDelayed(intent, getConnectivityChangeDelay());
-
-            final Intent immediateIntent = new Intent(intent);
-            if (immediateIntent != null) {
-                immediateIntent.setAction(CONNECTIVITY_ACTION_IMMEDIATE);
-                sendStickyBroadcast(immediateIntent);
-            }
-        }
     }
 
     /**
@@ -2800,7 +2765,14 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                     } else if (state == NetworkInfo.State.DISCONNECTED) {
                         handleDisconnect(info);
                     } else if (state == NetworkInfo.State.SUSPENDED) {
-                        handleSuspended(info);
+                        // TODO: need to think this over.
+                        // the logic here is, handle SUSPENDED the same as
+                        // DISCONNECTED. The only difference being we are
+                        // broadcasting an intent with NetworkInfo that's
+                        // suspended. This allows the applications an
+                        // opportunity to handle DISCONNECTED and SUSPENDED
+                        // differently, or not.
+                        handleDisconnect(info);
                     } else if (state == NetworkInfo.State.CONNECTED) {
                         handleConnect(info);
                     }
@@ -3312,10 +3284,6 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 usedNetworkType = ConnectivityManager.TYPE_MOBILE_IMS;
             } else if (TextUtils.equals(feature, Phone.FEATURE_ENABLE_CBS)) {
                 usedNetworkType = ConnectivityManager.TYPE_MOBILE_CBS;
-            } else if (TextUtils.equals(feature, Phone.FEATURE_ENABLE_BIP_GPRS1)) {
-                usedNetworkType = ConnectivityManager.TYPE_MOBILE_BIP_GPRS1;
-            } else if (TextUtils.equals(feature, Phone.FEATURE_ENABLE_BIP_GPRS2)) {
-                usedNetworkType = ConnectivityManager.TYPE_MOBILE_BIP_GPRS2;
             } else {
                 Slog.e(TAG, "Can't match any mobile netTracker!");
             }

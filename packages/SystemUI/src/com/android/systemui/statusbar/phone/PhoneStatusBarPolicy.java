@@ -46,8 +46,6 @@ import com.android.internal.telephony.cdma.TtyIntent;
 import com.android.server.am.BatteryStatsService;
 import com.android.systemui.R;
 
-import com.intel.internal.telephony.OemTelephony.OemTelephonyConstants;
-
 /**
  * This class contains all of the policy about which icons are installed in the status
  * bar at boot time.  It goes through the normal API for icons, even though it probably
@@ -115,11 +113,6 @@ public class PhoneStatusBarPolicy {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-
-            if (action == null) { // For Klocwork
-                return;
-            }
-
             if (action.equals(Intent.ACTION_ALARM_CHANGED)) {
                 updateAlarm(intent);
             }
@@ -139,12 +132,6 @@ public class PhoneStatusBarPolicy {
             else if (action.equals(TtyIntent.TTY_ENABLED_CHANGE_ACTION)) {
                 updateTTY(intent);
             }
-            else if (action.equals(OemTelephonyConstants.ACTION_IMS_REGISTRATION_STATE_CHANGED)) {
-                updateIMS(intent);
-            }
-            else if (action.equals(Intent.ACTION_AIRPLANE_MODE_CHANGED)) {
-                updateIMSAirplaneMode(intent);
-            }
         }
     };
 
@@ -156,13 +143,11 @@ public class PhoneStatusBarPolicy {
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_ALARM_CHANGED);
         filter.addAction(Intent.ACTION_SYNC_STATE_CHANGED);
-        filter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
         filter.addAction(AudioManager.RINGER_MODE_CHANGED_ACTION);
         filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
         filter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         filter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
         filter.addAction(TtyIntent.TTY_ENABLED_CHANGE_ACTION);
-        filter.addAction(OemTelephonyConstants.ACTION_IMS_REGISTRATION_STATE_CHANGED);
         mContext.registerReceiver(mIntentReceiver, filter, null, mHandler);
 
         // storage
@@ -173,10 +158,6 @@ public class PhoneStatusBarPolicy {
         // TTY status
         mService.setIcon("tty",  R.drawable.stat_sys_tty_mode, 0, null);
         mService.setIconVisibility("tty", false);
-
-        // IMS status
-        mService.setIcon("ims", R.drawable.stat_sys_ims_mode, 0, null);
-        mService.setIconVisibility("ims", false);
 
         // Cdma Roaming Indicator, ERI
         mService.setIcon("cdma_eri", R.drawable.stat_sys_roaming_cdma_0, 0, null);
@@ -315,34 +296,6 @@ public class PhoneStatusBarPolicy {
             // TTY is off
             if (false) Slog.v(TAG, "updateTTY: set TTY off");
             mService.setIconVisibility("tty", false);
-        }
-    }
-
-    private final void updateIMS(Intent intent) {
-        final boolean enabled = intent.getBooleanExtra(OemTelephonyConstants.IMS_STATUS_KEY, false);
-
-        if (false) Slog.v(TAG, "updateIMS: Registered: " + enabled);
-
-        if (enabled) {
-            // UE is IMS registered
-            if (false) Slog.v(TAG, "updateIMS: set IMS icon on");
-            mService.setIcon("ims", R.drawable.stat_sys_ims_mode, 0,
-                    mContext.getString(R.string.accessibility_ims_enabled));
-            mService.setIconVisibility("ims", true);
-        } else {
-            // UE is not IMS registered
-            if (false) Slog.v(TAG, "updateIMS: set IMS icon off");
-            mService.setIconVisibility("ims", false);
-        }
-    }
-
-    private final void updateIMSAirplaneMode(Intent intent) {
-        final boolean airplaneModeOn = intent.getBooleanExtra("state", false);
-
-        if (false) Slog.v(TAG, "updateIMS: AirplaneModeOn: " + airplaneModeOn);
-
-        if (airplaneModeOn) {
-            mService.setIconVisibility("ims", false);
         }
     }
 }

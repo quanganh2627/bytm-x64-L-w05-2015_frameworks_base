@@ -1610,8 +1610,7 @@ public class Resources {
         }
         synchronized (sSync) {
             if (mPluralRule != null) {
-                if (config != null && config.locale != null)
-                    mPluralRule = NativePluralRules.forLocale(config.locale);
+                mPluralRule = NativePluralRules.forLocale(config.locale);
             }
         }
     }

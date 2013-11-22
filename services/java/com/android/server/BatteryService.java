@@ -18,12 +18,9 @@ package com.android.server;
 
 import com.android.internal.app.IBatteryStats;
 import com.android.server.am.BatteryStatsService;
-import com.android.internal.telephony.TelephonyIntents;
 
 import android.app.ActivityManagerNative;
 import android.content.ContentResolver;
-import android.content.IntentFilter;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -38,7 +35,6 @@ import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.UEventObserver;
 import android.os.UserHandle;
-import android.os.SystemProperties;
 import android.provider.Settings;
 import android.util.EventLog;
 import android.util.Slog;
@@ -46,9 +42,6 @@ import android.util.Slog;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 
@@ -119,7 +112,6 @@ public final class BatteryService extends Binder {
     private int mBatteryLevel;
     private int mBatteryVoltage;
     private int mBatteryTemperature;
-    private int mBatteryCurrent;
     private String mBatteryTechnology;
     private boolean mBatteryLevelCritical;
     /* End native fields. */
@@ -150,18 +142,6 @@ public final class BatteryService extends Binder {
     private Led mLed;
 
     private boolean mSentLowBatteryBroadcast = false;
-    private boolean mShutdownAfterEmergencyCall = false;
-    private boolean mEmergencyCallOngoing = false;
-
-    // Variables to represent the last saved state of fuel gauge config data
-    private int mLastSavedLevel;
-    private int mLastSavedState;
-
-    // Variables used to check if battery is discharging, by taking voltage samples
-    private static int dischargeCount = 0;
-    private static int voltPrev = -1;
-    private static final int MAX_DISCHARGE_COUNT = 3;
-    private static boolean mBatteryLevelZero = false;
 
     private native void native_update();
 
@@ -189,163 +169,16 @@ public final class BatteryService extends Binder {
         }
 
         // set initial status
-        writeStats();
         synchronized (mLock) {
             updateLocked();
         }
-
-        // register for shutdown intent //
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(Intent.ACTION_SHUTDOWN);
-        mContext.registerReceiver(new ShutDownReceiver(), filter);
-
-        // register for ongoing emergency call intent
-        IntentFilter emergencyIntentFilter = new IntentFilter();
-        emergencyIntentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALL_STATUS_CHANGED);
-        mContext.registerReceiver(new EmergencyCallReceiver(), emergencyIntentFilter);
-    }
-
-    private final class ShutDownReceiver extends BroadcastReceiver {
-       @Override
-       public void onReceive(Context context, Intent intent) {
-          try {
-              if (!new File("/system/bin/fg_conf").exists()) {
-                 return;
-              }
-              Runtime.getRuntime().exec("/system/bin/fg_conf -r");
-          } catch (IOException e) {
-              throw new RuntimeException(e);
-          }
-       }
-    }
-
-    private final class EmergencyCallReceiver extends BroadcastReceiver {
-        @Override
-            public void onReceive(Context context, Intent intent) {
-                String action = intent.getAction();
-                if (action.equals(TelephonyIntents.ACTION_EMERGENCY_CALL_STATUS_CHANGED)) {
-                    mEmergencyCallOngoing = intent.getBooleanExtra("emergencyCallOngoing", false);
-                    Slog.i(TAG, "Emergency call status = " + mEmergencyCallOngoing);
-                    if (!mEmergencyCallOngoing && mShutdownAfterEmergencyCall)
-                        initiateShutdown();
-                }
-            }
-    }
-
-    private final void updateConfigDataIfAvailable() {
-       if (!new File("/system/bin/fg_conf").exists()) {
-          return;
-       }
-       try {
-           if (((mBatteryLevel != mLastSavedLevel) &&
-                (mBatteryLevel == 70 || mBatteryLevel == 5)) ||
-              ((mBatteryStatus != mLastSavedState) &&
-                (mBatteryStatus == BatteryManager.BATTERY_STATUS_FULL ||
-                mBatteryStatus == BatteryManager.BATTERY_STATUS_DISCHARGING))) {
-                    Runtime.getRuntime().exec("/system/bin/fg_conf -r");
-                    mLastSavedState = mBatteryStatus;
-                    mLastSavedLevel = mBatteryLevel;
-           }
-       } catch (IOException e) {
-              throw new RuntimeException(e);
-       }
-    }
-
-    private final boolean isDischarging() {
-    // If the voltage is dropping during consecutive readings, report that battery is discharging.
-    // Reset the discharge count if the current voltage is greater than the previous voltage
-        if ((mBatteryVoltage < voltPrev) && (voltPrev != -1)) {
-           dischargeCount++;
-        } else if (mBatteryVoltage > voltPrev) {
-           dischargeCount = 0;
-        }
-        voltPrev = mBatteryVoltage;
-        return (dischargeCount >= MAX_DISCHARGE_COUNT);
-    }
-
-    private void initiateShutdown() {
-        // do not shutdown if emergency call is ongoing
-        if (mEmergencyCallOngoing) {
-            Slog.i(TAG, "Emergency call ongoing. Can't shutdown right now...");
-            mShutdownAfterEmergencyCall = true;
-            return;
-        }
-
-        // wait until the system has booted before attempting to display the shutdown dialog.
-        if (ActivityManagerNative.isSystemReady()) {
-            writeStats();
-            Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
-            intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            mContext.startActivityAsUser(intent, UserHandle.CURRENT);
-        }
-    }
-
-    /**
-     * Thread initiates 0% shutdown intent when charger connected
-     * and significant 3 consecutive voltage drops
-     */
-    public class ShutDownZeroChargerConnect implements Runnable {
-        public void run() {
-            while (mBatteryLevel == 0) {
-                try {
-                    // Update the values of mAcOnline, et. all.
-                    native_update();
-                    if (isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY) && isDischarging()) {
-                        initiateShutdown();
-                    }
-                    Slog.d(TAG, "ShutDownZeroChargerConnect thread running\n");
-                    Thread.sleep(60000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-            mBatteryLevelZero = false;
-            Slog.d(TAG, "ShutDownZeroChargerConnect thread exited:" + mBatteryLevelZero);
-        }
-    }
-
-    static String readSysfs(String path) {
-       if (!(new File(path).exists())) {
-          Slog.i(TAG, path + "does not exist");
-          return null;
-       }
-       BufferedReader br = null;
-       String val = null;
-       try {
-           br = new BufferedReader(new FileReader(path));
-           val = br.readLine();
-           br.close();
-       } catch(Exception e) {
-          e.printStackTrace();
-       }
-       return val;
-    }
-
-    public void writeStats() {
-       try {
-           // Do not write stats to the file in USER builds... for userdebug and eng build, continue writing to the file.
-           String buildtype = SystemProperties.get("ro.build.type", null);
-           if ((mBatteryHealth == BatteryManager.BATTERY_HEALTH_DEAD) && ((buildtype != null) &&
-                 (buildtype.equals("userdebug") || buildtype.equals("eng")))) {
-              PrintWriter pw = new PrintWriter(new FileWriter("/logs/stats/lowbatt_trigger"));
-              pw.println("Status:" + mBatteryStatus);
-              pw.println("Prev capacity:" + mLastBatteryLevel);
-              pw.println("Voltage now:" + mBatteryVoltage);
-              pw.println("Health:" + mBatteryHealth);
-              pw.println("Temp:" + mBatteryTemperature);
-              pw.println("Current:" + mBatteryCurrent);
-              pw.close();
-           }
-       } catch (Exception e) {
-               android.util.Log.e(TAG, "crash logs not written:" + e);
-       }
     }
 
     void systemReady() {
         // check our power situation now that it is safe to display the shutdown dialog.
         synchronized (mLock) {
             shutdownIfNoPowerLocked();
+            shutdownIfOverTempLocked();
         }
     }
 
@@ -413,22 +246,39 @@ public final class BatteryService extends Binder {
     }
 
     private void shutdownIfNoPowerLocked() {
-        if (mBatteryLevel == 0) {
-            // spawn a thread if charger is connected at 0% capacity for disharge condition
-            if (mBatteryLevelZero == false && isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY)) {
-                Slog.d(TAG, "shutdownIfNoPowerLocked- Start a Thread: mBatteryLevelZero:"+ mBatteryLevelZero);
-                mBatteryLevelZero = true;
-                new Thread(new ShutDownZeroChargerConnect()).start();
-            }
-            // shut down gracefully if our battery is critically low and we are not powered.
-            else if (!isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY)) {
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        initiateShutdown();
+        // shut down gracefully if our battery is critically low and we are not powered.
+        // wait until the system has booted before attempting to display the shutdown dialog.
+        if (mBatteryLevel == 0 && !isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY)) {
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    if (ActivityManagerNative.isSystemReady()) {
+                        Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
+                        intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        mContext.startActivityAsUser(intent, UserHandle.CURRENT);
                     }
-                });
-            }
+                }
+            });
+        }
+    }
+
+    private void shutdownIfOverTempLocked() {
+        // shut down gracefully if temperature is too high (> 68.0C by default)
+        // wait until the system has booted before attempting to display the
+        // shutdown dialog.
+        if (mBatteryTemperature > mShutdownBatteryTemperature) {
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    if (ActivityManagerNative.isSystemReady()) {
+                        Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
+                        intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        mContext.startActivityAsUser(intent, UserHandle.CURRENT);
+                    }
+                }
+            });
         }
     }
 
@@ -482,8 +332,8 @@ public final class BatteryService extends Binder {
             // Should never happen.
         }
 
-        updateConfigDataIfAvailable();
         shutdownIfNoPowerLocked();
+        shutdownIfOverTempLocked();
 
         if (mBatteryStatus != mLastBatteryStatus ||
                 mBatteryHealth != mLastBatteryHealth ||
@@ -526,7 +376,7 @@ public final class BatteryService extends Binder {
                     mBatteryVoltage != mLastBatteryVoltage ||
                     mBatteryTemperature != mLastBatteryTemperature) {
                 EventLog.writeEvent(EventLogTags.BATTERY_LEVEL,
-                        mBatteryLevel, mBatteryVoltage, mBatteryTemperature, mBatteryCurrent);
+                        mBatteryLevel, mBatteryVoltage, mBatteryTemperature);
             }
             if (mBatteryLevelCritical && !mLastBatteryLevelCritical &&
                     mPlugType == BATTERY_PLUGGED_NONE) {
@@ -727,10 +577,16 @@ public final class BatteryService extends Binder {
     private int getIconLocked(int level) {
         if (mBatteryStatus == BatteryManager.BATTERY_STATUS_CHARGING) {
             return com.android.internal.R.drawable.stat_sys_battery_charge;
-        } else if (mBatteryStatus == BatteryManager.BATTERY_STATUS_DISCHARGING
-                || mBatteryStatus == BatteryManager.BATTERY_STATUS_NOT_CHARGING
-                || mBatteryStatus == BatteryManager.BATTERY_STATUS_FULL) {
+        } else if (mBatteryStatus == BatteryManager.BATTERY_STATUS_DISCHARGING) {
             return com.android.internal.R.drawable.stat_sys_battery;
+        } else if (mBatteryStatus == BatteryManager.BATTERY_STATUS_NOT_CHARGING
+                || mBatteryStatus == BatteryManager.BATTERY_STATUS_FULL) {
+            if (isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY)
+                    && mBatteryLevel >= 100) {
+                return com.android.internal.R.drawable.stat_sys_battery_charge;
+            } else {
+                return com.android.internal.R.drawable.stat_sys_battery;
+            }
         } else {
             return com.android.internal.R.drawable.stat_sys_battery_unknown;
         }
@@ -764,7 +620,6 @@ public final class BatteryService extends Binder {
                 pw.println("  voltage:" + mBatteryVoltage);
                 pw.println("  temperature: " + mBatteryTemperature);
                 pw.println("  technology: " + mBatteryTechnology);
-                pw.println("  current: " + mBatteryCurrent);
             } else if (args.length == 3 && "set".equals(args[0])) {
                 String key = args[1];
                 String value = args[2];

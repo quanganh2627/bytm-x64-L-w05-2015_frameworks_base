@@ -366,11 +366,7 @@ public final class AccessibilityManager {
      */
     public boolean addAccessibilityStateChangeListener(
             AccessibilityStateChangeListener listener) {
-        boolean ret;
-        synchronized(this) {
-            ret = mAccessibilityStateChangeListeners.add(listener);
-        }
-        return ret;
+        return mAccessibilityStateChangeListeners.add(listener);
     }
 
     /**
@@ -381,11 +377,7 @@ public final class AccessibilityManager {
      */
     public boolean removeAccessibilityStateChangeListener(
             AccessibilityStateChangeListener listener) {
-        boolean ret;
-        synchronized(this) {
-            ret = mAccessibilityStateChangeListeners.remove(listener);
-        }
-        return ret;
+        return mAccessibilityStateChangeListeners.remove(listener);
     }
 
     /**
@@ -417,11 +409,9 @@ public final class AccessibilityManager {
      * Notifies the registered {@link AccessibilityStateChangeListener}s.
      */
     private void notifyAccessibilityStateChanged() {
-        synchronized(this) {
         final int listenerCount = mAccessibilityStateChangeListeners.size();
-            for (int i = 0; i < listenerCount; i++) {
-                mAccessibilityStateChangeListeners.get(i).onAccessibilityStateChanged(mIsEnabled);
-            }
+        for (int i = 0; i < listenerCount; i++) {
+            mAccessibilityStateChangeListeners.get(i).onAccessibilityStateChanged(mIsEnabled);
         }
     }
 

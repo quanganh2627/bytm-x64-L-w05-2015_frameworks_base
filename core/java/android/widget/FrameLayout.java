@@ -397,7 +397,7 @@ public class FrameLayout extends ViewGroup {
         
         for (int i = 0; i < count; i++) {
             final View child = getChildAt(i);
-            if (child != null && child.getVisibility() != GONE) {
+            if (child.getVisibility() != GONE) {
                 final LayoutParams lp = (LayoutParams) child.getLayoutParams();
 
                 final int width = child.getMeasuredWidth();

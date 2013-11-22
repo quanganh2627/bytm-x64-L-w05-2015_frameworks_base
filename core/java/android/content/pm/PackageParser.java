@@ -58,8 +58,6 @@ import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 
 import com.android.internal.util.XmlUtils;
-import com.intel.arkham.ContainerCommons;
-import com.intel.config.FeatureConfig;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -531,7 +529,7 @@ public class PackageParser {
         Exception errorException = null;
         try {
             // XXXX todo: need to figure out correct configuration.
-            pkg = parsePackage(res, parser, flags, errorText, sourceFile);
+            pkg = parsePackage(res, parser, flags, errorText);
         } catch (Exception e) {
             errorException = e;
             mParseError = PackageManager.INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION;
@@ -929,7 +927,7 @@ public class PackageParser {
     }
 
     private Package parsePackage(
-        Resources res, XmlResourceParser parser, int flags, String[] outError, File sourceFile)
+        Resources res, XmlResourceParser parser, int flags, String[] outError)
         throws XmlPullParserException, IOException {
         AttributeSet attrs = parser;
 
@@ -943,10 +941,6 @@ public class PackageParser {
             mParseError = PackageManager.INSTALL_PARSE_FAILED_BAD_PACKAGE_NAME;
             return null;
         }
-        // ARKHAM-100 - START Add support for Container Launcher App
-        String containerId = ContainerCommons.getContainerId(sourceFile);
-        pkgName = containerId != null ? pkgName + containerId : pkgName;
-        // ARKHAM-100 - END
         int type;
 
         if (mOnlyCoreApps) {
@@ -1445,17 +1439,6 @@ public class PackageParser {
 
     private static String buildClassName(String pkg, CharSequence clsSeq,
             String[] outError) {
-
-        /* ARKHAM-100 - START Add support for Container Launcher App
-         * When we build the className for container launcher app, remove the previous
-         * added _container_id from pkgName so we could identify the correct pkgName
-         */
-        if (FeatureConfig.INTEL_FEATURE_ARKHAM && pkg.contains("_container_")) {
-            String tmpPkg = pkg;
-            pkg = pkg.substring(0, pkg.indexOf("_container_"));
-            Slog.d(TAG, "Rebuilt package name to '" + pkg + "' from '" + tmpPkg + "'");
-        }
-
         if (clsSeq == null || clsSeq.length() <= 0) {
             outError[0] = "Empty class name in package " + pkg;
             return null;

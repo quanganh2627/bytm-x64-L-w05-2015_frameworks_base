@@ -51,13 +51,13 @@ class WifiApConfigStore extends StateMachine {
     private static final String AP_CONFIG_FILE = Environment.getDataDirectory() +
         "/misc/wifi/softap.conf";
 
-    private static final int AP_CONFIG_FILE_VERSION = 2;
+    private static final int AP_CONFIG_FILE_VERSION = 1;
 
     private State mDefaultState = new DefaultState();
     private State mInactiveState = new InactiveState();
     private State mActiveState = new ActiveState();
 
-    private WifiApConfiguration mWifiApConfig = null;
+    private WifiConfiguration mWifiApConfig = null;
     private AsyncChannel mReplyChannel = new AsyncChannel();
 
     WifiApConfigStore(Context context, Handler target) {
@@ -100,7 +100,7 @@ class WifiApConfigStore extends StateMachine {
         public boolean processMessage(Message message) {
             switch (message.what) {
                 case WifiStateMachine.CMD_SET_AP_CONFIG:
-                    mWifiApConfig = (WifiApConfiguration) message.obj;
+                    mWifiApConfig = (WifiConfiguration) message.obj;
                     transitionTo(mActiveState);
                     break;
                 default:
@@ -140,12 +140,12 @@ class WifiApConfigStore extends StateMachine {
     void loadApConfiguration() {
         DataInputStream in = null;
         try {
-            WifiApConfiguration config = new WifiApConfiguration();
+            WifiConfiguration config = new WifiConfiguration();
             in = new DataInputStream(new BufferedInputStream(new FileInputStream(
                             AP_CONFIG_FILE)));
 
             int version = in.readInt();
-            if (version != AP_CONFIG_FILE_VERSION) {
+            if (version != 1) {
                 Log.e(TAG, "Bad version on hotspot configuration file, set defaults");
                 setDefaultApConfiguration();
                 return;
@@ -156,9 +156,6 @@ class WifiApConfigStore extends StateMachine {
             if (authType != KeyMgmt.NONE) {
                 config.preSharedKey = in.readUTF();
             }
-            config.channel = new WifiChannel(in.readInt());
-            config.hwMode = in.readUTF();
-            config.is80211n = (in.readInt() != 0);
             mWifiApConfig = config;
         } catch (IOException ignore) {
             setDefaultApConfiguration();
@@ -175,7 +172,7 @@ class WifiApConfigStore extends StateMachine {
         return new Messenger(getHandler());
     }
 
-    private void writeApConfiguration(final WifiApConfiguration config) {
+    private void writeApConfiguration(final WifiConfiguration config) {
         DataOutputStream out = null;
         try {
             out = new DataOutputStream(new BufferedOutputStream(
@@ -188,9 +185,6 @@ class WifiApConfigStore extends StateMachine {
             if(authType != KeyMgmt.NONE) {
                 out.writeUTF(config.preSharedKey);
             }
-            out.writeInt(config.channel.getChannel());
-            out.writeUTF(config.hwMode);
-            out.writeInt(config.is80211n ? 1 : 0);
         } catch (IOException e) {
             Log.e(TAG, "Error writing hotspot configuration" + e);
         } finally {
@@ -207,15 +201,12 @@ class WifiApConfigStore extends StateMachine {
        flat file accessible only by the system. A WPA2 based default configuration
        will keep the device secure after the update */
     private void setDefaultApConfiguration() {
-        WifiApConfiguration config = new WifiApConfiguration();
+        WifiConfiguration config = new WifiConfiguration();
         config.SSID = mContext.getString(R.string.wifi_tether_configure_ssid_default);
         config.allowedKeyManagement.set(KeyMgmt.WPA2_PSK);
         String randomUUID = UUID.randomUUID().toString();
         //first 12 chars from xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
         config.preSharedKey = randomUUID.substring(0, 8) + randomUUID.substring(9,13);
-        config.channel = new WifiChannel(WifiChannel.DEFAULT_2_4_CHANNEL);
-        config.hwMode = WifiApConfiguration.HW_MODE_BG;
-        config.is80211n = true;
         sendMessage(WifiStateMachine.CMD_SET_AP_CONFIG, config);
     }
 }

@@ -36,8 +36,6 @@ import android.net.LinkProperties;
 import android.net.NetworkInfo;
 import android.net.NetworkUtils;
 import android.net.RouteInfo;
-import android.net.wifi.WifiApConnectedDevice;
-import android.net.wifi.WifiManager;
 import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -65,7 +63,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -94,8 +91,6 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
     private static final Integer MOBILE_TYPE = new Integer(ConnectivityManager.TYPE_MOBILE);
     private static final Integer HIPRI_TYPE = new Integer(ConnectivityManager.TYPE_MOBILE_HIPRI);
     private static final Integer DUN_TYPE = new Integer(ConnectivityManager.TYPE_MOBILE_DUN);
-
-    private static final String KEY_HOTSPOT_SOUND_NOTIFY = "hotspot_sound_notify";
 
     // if we have to connect to mobile, what APN type should we use?  Calculated by examining the
     // upstream type list and the DUN_REQUIRED secure-setting
@@ -134,12 +129,10 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
     private StateMachine mTetherMasterSM;
 
     private Notification mTetheredNotification;
-    private Notification mWifiTetheredNotification;
 
     private boolean mRndisEnabled;       // track the RNDIS function enabled state
     private boolean mUsbTetherRequested; // true if USB tethering should be started
                                          // when RNDIS is enabled
-    private boolean mUntetherFinished;   // true if USB untethering is finished
 
     public Tethering(Context context, INetworkManagementService nmService,
             INetworkStatsService statsService, IConnectivityManager connService, Looper looper) {
@@ -148,7 +141,6 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
         mStatsService = statsService;
         mConnService = connService;
         mLooper = looper;
-        mUntetherFinished = true;
 
         mPublicSync = new Object();
 
@@ -165,8 +157,6 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
         IntentFilter filter = new IntentFilter();
         filter.addAction(UsbManager.ACTION_USB_STATE);
         filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
-        filter.addAction(WifiManager.WIFI_AP_STA_NOTIFICATION_ACTION);
-        filter.addAction(WifiManager.WIFI_AP_STA_TETHER_CONNECT_ACTION);
         mContext.registerReceiver(mStateReceiver, filter);
 
         filter = new IntentFilter();
@@ -326,8 +316,6 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
             }
             sm.sendMessage(TetherInterfaceSM.CMD_INTERFACE_DOWN);
             mIfaces.remove(iface);
-            if (isUsb((String)iface))
-                mRndisEnabled = false;
         }
     }
 
@@ -437,106 +425,22 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
                     activeList.size() + ", " + erroredList.size());
         }
 
-        // Wifi tethering has a dedicated notification to show a list of all connected devices
-        if (wifiTethered) {
-            showWifiTetheredNotification(false);
-        } else {
-            clearWifiTetheredNotification();
-        }
-
         if (usbTethered) {
-            if (bluetoothTethered) {
+            if (wifiTethered || bluetoothTethered) {
                 showTetheredNotification(com.android.internal.R.drawable.stat_sys_tether_general);
             } else {
                 showTetheredNotification(com.android.internal.R.drawable.stat_sys_tether_usb);
+            }
+        } else if (wifiTethered) {
+            if (bluetoothTethered) {
+                showTetheredNotification(com.android.internal.R.drawable.stat_sys_tether_general);
+            } else {
+                showTetheredNotification(com.android.internal.R.drawable.stat_sys_tether_wifi);
             }
         } else if (bluetoothTethered) {
             showTetheredNotification(com.android.internal.R.drawable.stat_sys_tether_bluetooth);
         } else {
             clearTetheredNotification();
-        }
-    }
-
-    private void showWifiTetheredNotification(boolean deviceConnected) {
-        NotificationManager notificationManager =
-                (NotificationManager)mContext.getSystemService(Context.NOTIFICATION_SERVICE);
-        WifiManager wifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
-        int icon = com.android.internal.R.drawable.stat_sys_tether_wifi;
-
-        if ((notificationManager == null) || (!wifiManager.isWifiApEnabled())) {
-            return;
-        }
-
-        List<WifiApConnectedDevice> devices = wifiManager.getWifiApConnectedList();
-
-        Intent intent = new Intent();
-        intent.setClassName("com.android.settings", "com.android.settings.Settings$HotspotSettingsActivity");
-        intent.setFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
-
-        PendingIntent pi = PendingIntent.getActivityAsUser(mContext, 0, intent, 0,
-                null, UserHandle.CURRENT);
-
-        Resources r = Resources.getSystem();
-
-        boolean soundEnabled = (Settings.System.getInt(mContext.getContentResolver(),
-                KEY_HOTSPOT_SOUND_NOTIFY, 1) != 0);
-        Notification.Builder builder = new Notification.Builder(mContext)
-                .setSmallIcon(icon)
-                .setContentIntent(pi)
-                .setWhen(0)
-                .setOngoing(true);
-        if (soundEnabled)
-            builder.setDefaults(~Notification.DEFAULT_SOUND);
-
-        if ((devices != null) && (devices.size() > 0)) {
-            if ((devices.size() == 1 )) {
-                builder.setContentText(devices.get(0).getDeviceName());
-            } else {
-                Notification.InboxStyle inboxStyle = new Notification.InboxStyle();
-
-                for (final WifiApConnectedDevice device : devices) {
-                    inboxStyle.addLine(device.getDeviceName());
-                }
-
-                builder.setStyle(inboxStyle)
-                       .setContentText(r.getString(
-                            com.android.internal.R.string.hotspot_multiple_devices_connected,
-                            devices.size()));
-            }
-
-            if (deviceConnected) {
-                builder.setTicker(r.getText(com.android.internal.R.string.hotspot_device_connected));
-            } else {
-                builder.setTicker(r.getText(com.android.internal.R.string.hotspot_device_disconnected));
-            }
-
-            builder.setContentTitle(r.getText(com.android.internal.R.string.hotspot_device_connected));
-
-            // Notification can't display the same ticker repeatedly. Must clear previous notification
-            // in order to show repeated connect/disconnect ticker
-            clearWifiTetheredNotification();
-        } else {
-            if (mWifiTetheredNotification == null) {
-                builder.setTicker(r.getText(com.android.internal.R.string.hotspot_active));
-            } else {
-                builder.setTicker(r.getText(com.android.internal.R.string.hotspot_no_connections));
-            }
-            builder.setContentTitle(r.getText(com.android.internal.R.string.hotspot_active))
-                   .setContentText(r.getText(com.android.internal.R.string.hotspot_no_connections));
-        }
-
-        mWifiTetheredNotification = builder.getNotification();
-        notificationManager.notifyAsUser(null, mWifiTetheredNotification.icon,
-                mWifiTetheredNotification, UserHandle.ALL);
-    }
-
-    private void clearWifiTetheredNotification() {
-        NotificationManager notificationManager =
-            (NotificationManager)mContext.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (notificationManager != null && mWifiTetheredNotification != null) {
-            notificationManager.cancelAsUser(null, mWifiTetheredNotification.icon,
-                    UserHandle.ALL);
-            mWifiTetheredNotification = null;
         }
     }
 
@@ -578,7 +482,7 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
         mTetheredNotification.setLatestEventInfo(mContext, title, message, pi);
 
         notificationManager.notifyAsUser(null, mTetheredNotification.icon,
-                mTetheredNotification, UserHandle.CURRENT);
+                mTetheredNotification, UserHandle.ALL);
     }
 
     private void clearTetheredNotification() {
@@ -601,8 +505,8 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
                     // start tethering if we have a request pending
                     if (usbConnected && mRndisEnabled && mUsbTetherRequested) {
                         tetherUsb(true);
-                        mUsbTetherRequested = false;
                     }
+                    mUsbTetherRequested = false;
                 }
             } else if (action.equals(ConnectivityManager.CONNECTIVITY_ACTION)) {
                 NetworkInfo networkInfo = (NetworkInfo)intent.getParcelableExtra(
@@ -611,16 +515,6 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
                         networkInfo.getDetailedState() != NetworkInfo.DetailedState.FAILED) {
                     if (VDBG) Log.d(TAG, "Tethering got CONNECTIVITY_ACTION");
                     mTetherMasterSM.sendMessage(TetherMasterSM.CMD_UPSTREAM_CHANGED);
-                }
-            } else if (WifiManager.WIFI_AP_STA_TETHER_CONNECT_ACTION.equals(action)) {
-                showWifiTetheredNotification(true);
-            } else if (WifiManager.WIFI_AP_STA_NOTIFICATION_ACTION.equals(action)) {
-                int apStaEvent = intent.getIntExtra(WifiManager.EXTRA_WIFI_AP_STA_EVENT, WifiManager.WIFI_AP_STA_UNKNOWN);
-
-                switch (apStaEvent) {
-                    case WifiManager.WIFI_AP_STA_DISCONNECT:
-                        showWifiTetheredNotification(false);
-
                 }
             }
         }
@@ -706,12 +600,11 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
             if (enable) {
                 if (mRndisEnabled) {
                     tetherUsb(true);
-                } else if (mUntetherFinished) {
+                } else {
                     mUsbTetherRequested = true;
                     usbManager.setCurrentFunction(UsbManager.USB_FUNCTION_RNDIS, false);
                 }
             } else {
-                mUntetherFinished = false;
                 tetherUsb(false);
                 if (mRndisEnabled) {
                     usbManager.setCurrentFunction(null, false);
@@ -1204,7 +1097,6 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
                 setAvailable(false);
                 setLastError(ConnectivityManager.TETHER_ERROR_NO_ERROR);
                 setTethered(false);
-                mUntetherFinished = true;
                 sendTetherStateChangedBroadcast();
             }
             @Override

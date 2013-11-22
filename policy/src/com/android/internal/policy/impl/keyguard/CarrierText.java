@@ -25,7 +25,6 @@ import com.android.internal.R;
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.IccCardConstants.State;
 import com.android.internal.widget.LockPatternUtils;
-import com.intel.arkham.ContainerPolicyCommons;
 
 public class CarrierText extends TextView {
     private static CharSequence mSeparator;
@@ -61,8 +60,7 @@ public class CarrierText extends TextView {
         SimPukLocked, // SIM card is PUK locked because SIM entered wrong too many times
         SimLocked, // SIM card is currently locked
         SimPermDisabled, // SIM card is permanently disabled due to PUK unlock failure
-        SimNotReady, // SIM is not ready yet. May never be on devices w/o a SIM.
-        NetworkPukLocked; // Device is network PUK locked.
+        SimNotReady; // SIM is not ready yet. May never be on devices w/o a SIM.
     }
 
     public CarrierText(Context context) {
@@ -76,7 +74,6 @@ public class CarrierText extends TextView {
 
     protected void updateCarrierText(State simState, CharSequence plmn, CharSequence spn) {
         CharSequence text = getCarrierTextForSimState(simState, plmn, spn);
-        text = ContainerPolicyCommons.updateCarrierText(getContext(), mLockPatternUtils, text);
         if (KeyguardViewManager.USE_UPPER_CASE) {
             setText(text != null ? text.toString().toUpperCase() : null);
         } else {
@@ -162,11 +159,6 @@ public class CarrierText extends TextView {
                         getContext().getText(R.string.lockscreen_sim_puk_locked_message),
                         plmn);
                 break;
-            case NetworkPukLocked:
-                carrierText = makeCarrierStringOnEmergencyCapable(
-                        getContext().getText(R.string.lockscreen_network_puk_locked_message),
-                        plmn);
-                break;
         }
 
         return carrierText;
@@ -214,8 +206,6 @@ public class CarrierText extends TextView {
                 return StatusMode.Normal;
             case PERM_DISABLED:
                 return StatusMode.SimPermDisabled;
-            case NETWORK_LOCKED_PUK:
-                return StatusMode.NetworkPukLocked;
             case UNKNOWN:
                 return StatusMode.SimMissing;
         }
@@ -255,10 +245,6 @@ public class CarrierText extends TextView {
 
             case SimMissingLocked:
                 carrierHelpTextId = R.string.lockscreen_missing_sim_instructions;
-                break;
-
-            case NetworkPukLocked:
-                carrierHelpTextId = R.string.lockscreen_network_puk_locked_instructions;
                 break;
 
             case Normal:

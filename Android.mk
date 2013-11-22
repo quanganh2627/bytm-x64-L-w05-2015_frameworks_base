@@ -13,25 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# This file was modified by Dolby Laboratories, Inc. The portions of the
-# code that are surrounded by "DOLBY..." are copyrighted and
-# licensed separately, as follows:
-#
-#  (C) 2011-2013 Dolby Laboratories, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-#
 LOCAL_PATH := $(call my-dir)
 
 # We have a special case here where we build the library's resources
@@ -76,7 +57,6 @@ LOCAL_SRC_FILES := $(filter-out \
 ## across process boundaries.
 ##
 ## READ ME: ########################################################
-## ARKHAM-242 add container policy service and container manager
 LOCAL_SRC_FILES += \
 	core/java/android/accessibilityservice/IAccessibilityServiceConnection.aidl \
 	core/java/android/accessibilityservice/IAccessibilityServiceClient.aidl \
@@ -158,9 +138,6 @@ LOCAL_SRC_FILES += \
 	core/java/android/nfc/INdefPushCallback.aidl \
 	core/java/android/nfc/INfcAdapter.aidl \
 	core/java/android/nfc/INfcAdapterExtras.aidl \
-	core/java/android/nfc/INfcCEFromHost.aidl \
-	core/java/android/nfc/INfcSecureElement.aidl \
-	core/java/android/nfc/INfcCEFromHost.aidl \
 	core/java/android/nfc/INfcTag.aidl \
 	core/java/android/os/ICancellationSignal.aidl \
 	core/java/android/os/IHardwareService.aidl \
@@ -201,7 +178,6 @@ LOCAL_SRC_FILES += \
 	core/java/com/android/internal/app/IAppOpsCallback.aidl \
 	core/java/com/android/internal/app/IAppOpsService.aidl \
 	core/java/com/android/internal/app/IBatteryStats.aidl \
-	core/java/com/android/internal/app/IBatteryStatsResetCallback.aidl \
 	core/java/com/android/internal/app/IUsageStats.aidl \
 	core/java/com/android/internal/app/IMediaContainerService.aidl \
 	core/java/com/android/internal/appwidget/IAppWidgetService.aidl \
@@ -257,22 +233,8 @@ LOCAL_SRC_FILES += \
 	telephony/java/com/android/internal/telephony/ISms.aidl \
 	telephony/java/com/android/internal/telephony/ITelephonyRegistry.aidl \
 	telephony/java/com/android/internal/telephony/IWapPushManager.aidl \
-        telephony/java/com/intel/internal/telephony/OemTelephony/IOemTelephony.aidl \
 	wifi/java/android/net/wifi/IWifiManager.aidl \
 	wifi/java/android/net/wifi/p2p/IWifiP2pManager.aidl
-LOCAL_ARKHAM_PATH := vendor/intel/arkham
-ifeq ($(strip $(INTEL_FEATURE_ARKHAM)),true)
-LOCAL_SRC_FILES += \
-       $(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java,) \
-       $(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/keystore/java,) \
-       ../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java/com/intel/arkham/IContainerManager.aidl \
-       ../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java/com/intel/arkham/IContainerPolicyManager.aidl
-LOCAL_AIDL_INCLUDES += $(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java
-else
-LOCAL_SRC_FILES += \
-       $(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/core/java,) \
-       $(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/keystore/java,)
-endif
 #
 
 
@@ -286,7 +248,6 @@ LOCAL_INTERMEDIATE_SOURCES := \
 
 LOCAL_NO_STANDARD_LIBRARIES := true
 LOCAL_JAVA_LIBRARIES := bouncycastle core core-junit ext
-LOCAL_JAVA_LIBRARIES += com.intel.config
 
 LOCAL_MODULE := framework
 LOCAL_MODULE_CLASS := JAVA_LIBRARIES
@@ -336,7 +297,6 @@ aidl_files := \
 	frameworks/base/core/java/android/nfc/NdefMessage.aidl \
 	frameworks/base/core/java/android/nfc/NdefRecord.aidl \
 	frameworks/base/core/java/android/nfc/Tag.aidl \
-	frameworks/base/core/java/android/nfc/MultiSERoutingInfo.aidl \
 	frameworks/base/core/java/android/os/Bundle.aidl \
 	frameworks/base/core/java/android/os/DropBoxManager.aidl \
 	frameworks/base/core/java/android/os/ParcelFileDescriptor.aidl \
@@ -409,10 +369,6 @@ non_base_dirs := \
 	../opt/net/voip/src/java/android/net/rtp \
 	../opt/net/voip/src/java/android/net/sip
 
-ifdef DOLBY_DAP
-non_base_dirs += \
-	../../vendor/intel/PRIVATE/dolby_ds1/java
-endif #DOLBY_DAP
 # These are relative to frameworks/base
 dirs_to_check_apis := \
   $(fwbase_dirs_to_document) \
@@ -470,10 +426,6 @@ framework_docs_LOCAL_JAVA_LIBRARIES := \
 	$(framework_docs_LOCAL_API_CHECK_JAVA_LIBRARIES) \
 	$(FRAMEWORKS_SUPPORT_JAVA_LIBRARIES)
 
-ifdef DOLBY_DAP
-framework_docs_LOCAL_JAVA_LIBRARIES += \
-			dolby_ds
-endif #DOLBY_DAP
 framework_docs_LOCAL_MODULE_CLASS := JAVA_LIBRARIES
 framework_docs_LOCAL_DROIDDOC_HTML_DIR := docs/html
 # The since flag (-since N.xml API_LEVEL) is used to add API Level information
@@ -785,9 +737,6 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:=$(framework_docs_LOCAL_SRC_FILES)
 LOCAL_INTERMEDIATE_SOURCES:=$(framework_docs_LOCAL_INTERMEDIATE_SOURCES)
 LOCAL_JAVA_LIBRARIES:=$(framework_docs_LOCAL_JAVA_LIBRARIES) framework
-ifdef DOLBY_DAP
-LOCAL_JAVA_LIBRARIES += dolby_ds
-endif #DOLBY_DAP
 LOCAL_MODULE_CLASS:=$(framework_docs_LOCAL_MODULE_CLASS)
 LOCAL_DROIDDOC_SOURCE_PATH:=$(framework_docs_LOCAL_DROIDDOC_SOURCE_PATH)
 LOCAL_DROIDDOC_HTML_DIR:=$(framework_docs_LOCAL_DROIDDOC_HTML_DIR)

@@ -229,7 +229,7 @@ public class AudioSystem
     public static final int DEVICE_OUT_REMOTE_SUBMIX = 0x8000;
 
     public static final int DEVICE_OUT_DEFAULT = DEVICE_BIT_DEFAULT;
-    public static final int DEVICE_OUT_WIDI = 0x1000000;
+
     public static final int DEVICE_OUT_ALL = (DEVICE_OUT_EARPIECE |
                                               DEVICE_OUT_SPEAKER |
                                               DEVICE_OUT_WIRED_HEADSET |
@@ -246,7 +246,6 @@ public class AudioSystem
                                               DEVICE_OUT_USB_ACCESSORY |
                                               DEVICE_OUT_USB_DEVICE |
                                               DEVICE_OUT_REMOTE_SUBMIX |
-                                              DEVICE_OUT_WIDI |
                                               DEVICE_OUT_DEFAULT);
     public static final int DEVICE_OUT_ALL_A2DP = (DEVICE_OUT_BLUETOOTH_A2DP |
                                                    DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES |
@@ -310,7 +309,6 @@ public class AudioSystem
     public static final String DEVICE_OUT_USB_ACCESSORY_NAME = "usb_accessory";
     public static final String DEVICE_OUT_USB_DEVICE_NAME = "usb_device";
     public static final String DEVICE_OUT_REMOTE_SUBMIX_NAME = "remote_submix";
-    public static final String DEVICE_OUT_WIDI_NAME = "widi_device";
 
     public static String getDeviceName(int device)
     {
@@ -347,9 +345,7 @@ public class AudioSystem
             return DEVICE_OUT_USB_DEVICE_NAME;
         case DEVICE_OUT_REMOTE_SUBMIX:
             return DEVICE_OUT_REMOTE_SUBMIX_NAME;
-        case DEVICE_OUT_WIDI:
-            return DEVICE_OUT_WIDI_NAME;
-        case DEVICE_IN_DEFAULT:
+        case DEVICE_OUT_DEFAULT:
         default:
             return "";
         }

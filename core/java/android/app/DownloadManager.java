@@ -1110,7 +1110,6 @@ public class DownloadManager {
         values.putNull(Downloads.Impl._DATA);
         values.put(Downloads.Impl.COLUMN_STATUS, Downloads.Impl.STATUS_PENDING);
         values.put(Downloads.Impl.COLUMN_FAILED_CONNECTIONS, 0);
-        values.put(Downloads.Impl.COLUMN_MEDIA_SCANNED, 0);
         mResolver.update(mBaseUri, values, getWhereClauseForIds(ids), getWhereArgsForIds(ids));
     }
 

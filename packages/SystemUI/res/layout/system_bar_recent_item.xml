@@ -69,19 +69,6 @@
         android:visibility="invisible"
     />
 
-    <!-- ARKHAM-276 Use icon to identify container activities -->
-    <ImageView android:id="@+id/container_icon"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_toRightOf="@id/app_icon"
-        android:layout_marginLeft="@dimen/status_bar_recents_app_icon_left_margin"
-        android:layout_marginTop="@dimen/status_bar_recents_app_icon_top_margin"
-        android:maxWidth="@dimen/status_bar_recents_app_icon_max_width"
-        android:maxHeight="@dimen/status_bar_recents_app_icon_max_height"
-        android:scaleType="centerInside"
-        android:adjustViewBounds="true"
-        android:visibility="invisible"
-    />
 
     <View android:id="@+id/recents_callout_line"
         android:layout_width="@dimen/status_bar_recents_app_label_width"

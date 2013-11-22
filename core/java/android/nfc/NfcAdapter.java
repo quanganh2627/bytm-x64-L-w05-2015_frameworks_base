@@ -13,29 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/******************************************************************************
- *
- *  The original Work has been changed by NXP Semiconductors.
- *
- *  Copyright (C) 2013 NXP Semiconductors
- *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *  http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- *
- ******************************************************************************/
+
 package android.nfc;
 
 import java.util.HashMap;
-import java.io.IOException;
 
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
@@ -48,7 +29,6 @@ import android.content.IntentFilter;
 import android.content.pm.IPackageManager;
 import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.nfc.MultiSERoutingInfo;
 import android.nfc.tech.MifareClassic;
 import android.nfc.tech.Ndef;
 import android.nfc.tech.NfcA;
@@ -57,7 +37,6 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.util.Log;
-
 
 /**
  * Represents the local NFC adapter.
@@ -211,12 +190,6 @@ public final class NfcAdapter {
      */
     public static final String EXTRA_ADAPTER_STATE = "android.nfc.extra.ADAPTER_STATE";
 
-    /**
-     * LLCP link status: The LLCP link is activated.
-     * @hide
-     */
-    public static final int LLCP_LINK_STATE_ACTIVATED = 0;
-
     public static final int STATE_OFF = 1;
     public static final int STATE_TURNING_ON = 2;
     public static final int STATE_ON = 3;
@@ -245,134 +218,6 @@ public final class NfcAdapter {
     /** @hide */
     public static final String EXTRA_HANDOVER_TRANSFER_URI =
             "android.nfc.extra.HANDOVER_TRANSFER_URI";
-    /**
-     * UICC ID to be able to select it as the default Secure Element
-     * @hide
-     */
-    public static final String UICC_ID = "com.nxp.uicc.ID";
-
-    /** @hide */
-    public static final int UICC_ID_TYPE = 2;
-
-    /**
-     * eSE ID to be able to select it as the default Secure Element
-     * @hide
-     */
-    public static final String SMART_MX_ID = "com.nxp.smart_mx.ID";
-
-    /** @hide */
-    public static final int SMART_MX_ID_TYPE = 1;
-    /**
-     *  ID to be able to select all Secure Elements
-     * @hide
-     */
-    public static final String ALL_SE_ID = "com.nxp.all_se.ID";
-
-    /** @hide */
-    public static final int ALL_SE_ID_TYPE = 3;
-
-    /**
-     * Route ID for Device Host
-     * @hide
-     */
-    public static final int EMVCO_ROUTE_DH = 0;
-
-    /**
-     * Intent received when the Card Emulation From Host feature detected a
-     * remote device.
-     *
-     *@hide
-     */
-    @SdkConstant(SdkConstantType.ACTIVITY_INTENT_ACTION)
-    public static final String ACTION_CEFROMHOST_LINK_STATE_CHANGED =
-            "com.nxp.nfc_extras.action.CEFROMHOST_LINK_STATE_CHANGED";
-
-    /**
-     * Mandatory extra containing the state cefh link
-     * <p>
-     * It contains true if the host is connected to a remote reader, false
-     * otherwise
-     *
-     * @hide
-     */
-    public static final String EXTRA_CEFROMHOST_LINK_STATE =
-            "com.nxp.nfc_extras.extra.CEFROMHOST_LINK_STATE";
-
-    /**
-     * Broadcast Action: a transaction with a secure element has been detected.
-     * <p>
-     * Always contains the extra field
-     * {@link android.nfc.NfcAdapter#EXTRA_AID}
-     * @hide
-     */
-    @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
-    public static final String ACTION_TRANSACTION_DETECTED =
-            "com.nxp.action.TRANSACTION_DETECTED";
-
-    /**
-     * Broadcast Action: a connectivity event coming from the UICC has been detected.
-     * <p>
-     * @hide
-     */
-    @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
-    public static final String ACTION_CONNECTIVITY_EVENT_DETECTED =
-            "com.nxp.action.CONNECTIVITY_EVENT_DETECTED";
-
-    /**
-     * Mandatory byte array extra field in
-     * {@link android.nfc.NfcAdapter#ACTION_TRANSACTION_DETECTED}.
-     * <p>
-     * Contains the AID of the applet involved in the transaction.
-     * @hide
-     */
-    public static final String EXTRA_AID = "com.nxp.extra.AID";
-
-    /**
-     * Mandatory byte array extra field in
-     * {@link android.nfc.NfcAdapter#ACTION_TRANSACTION_DETECTED}.
-     * <p>
-     * Contains the extra data of the applet involved in the transaction.
-     * @hide
-     */
-    public static final String EXTRA_DATA = "com.nxp.extra.DATA";
-
-    /**
-     * Mandatory string extra field in
-     * {@link android.nfc.NfcAdapter#ACTION_TRANSACTION_DETECTED} and
-     * {@link android.nfc.NfcAdapter#ACTION_CONNECTIVITY_EVENT_DETECTED}.
-     * <p>
-     * Contains the event source (UICC/ESE) of the transaction.
-     * @hide
-     */
-    public static final String EXTRA_SOURCE = "com.nxp.extra.SOURCE";
-
-    /** @hide */
-    @SdkConstant(SdkConstantType.ACTIVITY_INTENT_ACTION)
-    public static final String ACTION_SWP_READER_REQUESTED =
-            "com.nxp.nfc_extras.ACTION_SWP_READER_REQUESTED";
-
-    /**
-     * Mandatory extra containing the reader type.
-     *@hide
-     */
-    public static final String EXTRA_SWP_READER_TECH =
-            "com.nxp.nfc_extras.extra.EXTRA_SWP_READER_TECH";
-
-    /**
-     * Intent received when the SWP Reader is connected to card.
-     *@hide
-     */
-    @SdkConstant(SdkConstantType.ACTIVITY_INTENT_ACTION)
-    public static final String ACTION_SWP_READER_ACTIVATED =
-            "com.nxp.nfc_extras.ACTION_SWP_READER_ACTIVATED";
-
-    /**
-     * Intent received when the SWP Reader is disconnected from card.
-     *@hide
-     */
-    @SdkConstant(SdkConstantType.ACTIVITY_INTENT_ACTION)
-    public static final String ACTION_SWP_READER_DEACTIVATED =
-            "com.nxp.nfc_extras.ACTION_SWP_READER_DEACTIVATED";
 
     // Guarded by NfcAdapter.class
     static boolean sIsInitialized = false;
@@ -452,20 +297,10 @@ public final class NfcAdapter {
         public NdefMessage createNdefMessage(NfcEvent event);
     }
 
-    /** @hide */
-    private boolean isPn547Enable() {
-        return mContext.getResources().getBoolean(
-                com.android.internal.R.bool.clf_is_pn547);
-    }
 
     // TODO javadoc
     public interface CreateBeamUrisCallback {
         public Uri[] createBeamUris(NfcEvent event);
-    }
-
-    private boolean isPn544PCEnable() {
-        return mContext.getResources().getBoolean(
-                com.android.internal.R.bool.clf_is_pn544pc);
     }
 
     /**
@@ -1435,304 +1270,4 @@ public final class NfcAdapter {
             return mContext.getApplicationInfo().targetSdkVersion;
         }
     }
-
-    /**
-     * Select the default Secure Element to be used in Card Emulation mode
-     * <p>Requires {@link android.Manifest.permission#NFC} permission.
-     *
-     * @param seId Secure Element ID to be used : {@link NfcAdapter#SMART_MX_ID} or {@link NfcAdapter#UICC_ID}
-     * @throws IOException If a failure occurred during the Secure Element selection
-     * @hide
-     */
-    public void selectDefaultSecureElement(String seId) throws IOException {
-        int [] seList;
-        int seID = 0;
-        boolean seSelected = false;
-
-        if (seId.equals(UICC_ID)) {
-            if (!isPn547Enable() && !isPn544PCEnable()) {
-                seID = 0xABCDF0;
-            } else {
-                seID = UICC_ID_TYPE;
-            }
-        } else if (seId.equals(SMART_MX_ID)) {
-            if (!isPn547Enable() && !isPn544PCEnable()) {
-                seID = 0xABCDEF;
-            } else {
-                seID = SMART_MX_ID_TYPE;
-            }
-        } else if (seId.equals(ALL_SE_ID)) {
-            seID = ALL_SE_ID_TYPE;
-        } else {
-            Log.e(TAG, "selectDefaultSecureElement: wrong Secure Element ID");
-            throw new IOException("selectDefaultSecureElement failed: Wronf Secure Element ID");
-        }
-
-        /* Deselect already selected SE if ALL_SE_ID is not selected*/
-        try {
-            if (!isPn544PCEnable()) {
-                if (sService.getSelectedSecureElement() != seID) {
-                    sService.deselectSecureElement();
-                }
-            } else {
-                if (seId.compareTo(ALL_SE_ID) != 0 && sService.getSelectedSecureElement() != seID) {
-                    sService.deselectSecureElement();
-                }
-            }
-        } catch (RemoteException e) {
-            Log.e(TAG, "selectDefaultSecureElement: getSelectedSecureElement failed", e);
-            throw new IOException("Failure in deselecting the selected Secure Element");
-        }
-
-        /* Get the list of the detected Secure Element */
-
-        try {
-            seList = sService.getSecureElementList();
-            if ((seList != null && seList.length != 0)) {
-                if (!isPn547Enable() && !isPn544PCEnable()) {
-                    for (int i = 0; i < seList.length; i++) {
-                        if (seList[i] == seID) {
-                            /* Select the Secure Element */
-                            sService.selectSecureElement(seID);
-                            seSelected = true;
-                        }
-                    }
-                } else {
-                    if (seId.compareTo(ALL_SE_ID) != 0) {
-                        for (int i = 0; i < seList.length; i++) {
-                            if (seList[i] == seID) {
-                                /* Select the Secure Element */
-                                sService.selectSecureElement(seID);
-                                seSelected = true;
-                            }
-                        }
-                    } else {
-                        /* Select all Secure Element */
-                        sService.selectSecureElement(seID);
-                        seSelected = true;
-                    }
-                }
-            }
-
-            // FIXME: This should be done in case of SE selection.
-            if (!seSelected) {
-                if (seId.equals(NfcAdapter.UICC_ID)) {
-                    sService.storeSePreference(seID);
-                    throw new IOException("UICC not detected");
-                } else if (seId.equals(NfcAdapter.SMART_MX_ID)) {
-                    sService.storeSePreference(seID);
-                    throw new IOException("SMART_MX not detected");
-                } else if (seId.equals(NfcAdapter.ALL_SE_ID)) {
-                    sService.storeSePreference(seID);
-                    throw new IOException("ALL_SE not detected");
-                }
-            }
-        } catch (RemoteException e) {
-            Log.e(TAG, "selectUiccCardEmulation: getSecureElementList failed", e);
-        }
-    }
-
-    /**
-     * Active the Single Wired Protocol (SWP).
-     * <p>Requires {@link android.Manifest.permission#NFC} permission.
-     *
-     * @throws IllegalStateException If the UICC is not selected
-     * @throws IOException If a failure occurred during the Secure Element selection
-     * @hide
-     */
-    public void activeSwp() throws IOException {
-
-        String seID = getDefaultSelectedSecureElement();
-
-        if (!isPn544PCEnable()) {
-            /* Check if UICC is selected */
-            if (seID.compareTo(UICC_ID) != 0) {
-                throw new IllegalStateException("UICC is not selected");
-            }
-        } else {
-            /* Check if ALL_SE and UICC is selected */
-            if (seID.compareTo(ALL_SE_ID) != 0 && seID.compareTo(UICC_ID) != 0) {
-                throw new IllegalStateException("UICC is not selected");
-            }
-        }
-
-        try {
-            sService.activeSwp();
-        } catch (RemoteException e) {
-            Log.e(TAG, "activeSwp failed", e);
-            throw new IOException("activeSwp failed");
-        }
-    }
-/*MultiSE*/
-    /**
-     * Update the application Aid.
-     * <p>Requires {@link android.Manifest.permission#NFC} permission.
-     *
-     * @throws IllegalStateException If the UICC is not selected
-     * @throws IOException If a failure occurred during the Secure Element selection
-     * @hide
-     */
-   public boolean setMultiSERoutingTable(String pkg,MultiSERoutingInfo[] routingInfo) throws IOException {
-        try {
-            boolean result = sService.setMultiSERoutingTable(pkg,routingInfo);
-            Log.d(TAG,"setMultiSERoutingTable - result = " + result);
-            return result;
-        } catch (RemoteException e) {
-            Log.e(TAG, "setMultiSERoutingTable failed", e);
-            throw new IOException("setMultiSERoutingTable failed");
-        }
-    }
-/*MultiSE*/
-
-   /**
-     * Get the ID of the Secure Element selected
-     * <p>Requires {@link android.Manifest.permission#NFC} permission.
-     *
-     * @return Secure Element ID currently selected
-     * @throws IOException If a failure occurred during the getDefaultSelectedSecureElement()
-     * @hide
-     */
-    public String getDefaultSelectedSecureElement() throws IOException {
-        int seID = 0;
-
-        /* Get Selected Secure Element */
-        try {
-            seID = sService.getSelectedSecureElement();
-            if (!isPn547Enable() && !isPn544PCEnable()) {
-                if (seID == 0xABCDF0) {
-                    return UICC_ID;
-                } else if (seID == 0xABCDEF) {
-                    return SMART_MX_ID;
-                } else {
-                    throw new IOException("No Secure Element selected");
-                }
-            } else {
-                if (seID == UICC_ID_TYPE/*0xABCDF0*/) {
-                    return UICC_ID;
-                } else if (seID == SMART_MX_ID_TYPE/*0xABCDEF*/) {
-                    return SMART_MX_ID;
-                } else if (seID == ALL_SE_ID_TYPE/*0xABCDFE*/) {
-                    return ALL_SE_ID;
-                } else {
-                    throw new IOException("No Secure Element selected");
-                }
-            }
-        } catch (RemoteException e) {
-            Log.e(TAG, "getSelectedSecureElement failed", e);
-            throw new IOException("getSelectedSecureElement failed");
-        }
-    }
-
-    /**
-     * deselect the selected Secure Element
-     * <p>Requires {@link android.Manifest.permission#NFC} permission.
-     *
-     * @throws IOException If a failure occurred during the deSelectedSecureElement()
-     * @hide
-     */
-    public void deSelectedSecureElement() throws IOException {
-        /* deselected Secure Element */
-        try {
-            sService.deselectSecureElement();
-        } catch (RemoteException e) {
-            Log.e(TAG, "deselectSecureElement failed", e);
-            throw new IOException("deselectSecureElement failed");
-        }
-    }
-
-    /**
-     * Enable/Disable the card emulation mode for the selected Secure Element
-     * <p>Requires {@link android.Manifest.permission#NFC} permission.
-     *
-     * @throws IOException If a failure occurred during the setDefaultSecureElementState()
-     * @hide
-     */
-    public void setDefaultSecureElementState(boolean state) throws IOException {
-        int seID = 0;
-
-        /* Get Selected Secure Element */
-        try {
-            seID = sService.getSelectedSecureElement();
-
-            /* Check if a Secure Element is selected */
-            if (seID == 0) {
-                throw new IOException("No Secure Element selected");
-            }
-
-            if (state) {
-                /* Enable card emulation */
-                try {
-                    sService.setSecureElementState(true);
-                } catch (RemoteException e) {
-                    Log.e(TAG, "Enable card emulation failed", e);
-                    throw new IOException("Enable card emulation failed");
-                }
-            } else {
-                /* Disable card emulation */
-                try {
-                    sService.setSecureElementState(false);
-                } catch (RemoteException e) {
-                    Log.e(TAG, "Disable card emulation failed", e);
-                    throw new IOException("Disable card emulation failed");
-                }
-            }
-        } catch (RemoteException e) {
-            Log.e(TAG, "getSelectedSecureElement failed", e);
-            throw new IOException("getSelectedSecureElement failed");
-        }
-    }
-
-    /**
-     * Create an Nfc Host Card Emulation
-     * @hide
-     */
-     public NfcCEFromHost createNfcCEFromHost() {
-         try {
-             return new NfcCEFromHost(sService.getNfcCEFromHostInterface());
-         } catch (RemoteException e) {
-             Log.e(TAG, "createNfcCEFromHost failed", e);
-             return null;
-         }
-    }
-
-/**
-     * Allows to enable/disable the EMV-CO profile from host or uicc or ese.
-     * Note: When EMVCO profile is enabled the NFC Fourm profile is disabled.
-     *       At present only emv-co profile from DH only supported.
-     *
-     * <p>Requires {@link android.Manifest.permission#NFC} permission.
-     *
-     * @param enable enable/disable the emv-co profile
-     * @param route the endpoint {@link NfcAdapter#EMVCO_ROUTE_DH}
-     * @return 0 in case of success, otherwise fail.
-     *
-     * @throws IOException If a failure occurred during emvco profile setup.
-     * @hide
-     */
-     public int enableEmvcoPolling(boolean enable, int route) throws IOException {
-        // Perform Receive
-        try {
-            int response = sService.setEmvCoPollProfile(enable, route);
-            // Handle potential errors
-            if (response < 0) {
-                throw new IOException("Emv-Co poll profile failed");
-            }
-            return response;
-        } catch (RemoteException e) {
-            Log.e(TAG, "RemoteException in setEmvCoPollProfile(): ", e);
-            throw new IOException("RemoteException in setEmvCoPollProfile()");
-        }
-    }
-    /**
-     * Create an Nfc Secure Element Connection
-     * @hide
-     */
-     public NfcSecureElement createNfcSecureElementConnection() {
-         try {
-             return new NfcSecureElement(sService.getNfcSecureElementInterface());
-         } catch (RemoteException e) {
-             Log.e(TAG, "createNfcSecureElementConnection failed", e);
-             return null;
-         }
-     }
 }

@@ -44,7 +44,6 @@ import android.util.Xml;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.FastXmlSerializer;
-import com.intel.arkham.ContainerCommons;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -966,10 +965,7 @@ public class SyncStorageEngine extends Handler {
             while (accIt.hasNext()) {
                 AccountInfo acc = accIt.next();
                 if (!ArrayUtils.contains(accounts, acc.accountAndUser.account)
-                        && acc.accountAndUser.userId == userId
-                        // ARKHAM-1107 Don't remove accounts of unmounted containers
-                        && !ContainerCommons.isUnmountedContainerAccount(
-                                acc.accountAndUser.account.name)) {
+                        && acc.accountAndUser.userId == userId) {
                     // This account no longer exists...
                     if (DEBUG) {
                         Log.v(TAG, "Account removed: " + acc.accountAndUser);

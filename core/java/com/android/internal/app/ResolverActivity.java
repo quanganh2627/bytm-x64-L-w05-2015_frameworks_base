@@ -228,6 +228,18 @@ public class ResolverActivity extends AlertActivity implements AdapterView.OnIte
             mPackageMonitor.unregister();
             mRegistered = false;
         }
+        if ((getIntent().getFlags()&Intent.FLAG_ACTIVITY_NEW_TASK) != 0) {
+            // This resolver is in the unusual situation where it has been
+            // launched at the top of a new task.  We don't let it be added
+            // to the recent tasks shown to the user, and we need to make sure
+            // that each time we are launched we get the correct launching
+            // uid (not re-using the same resolver from an old launching uid),
+            // so we will now finish ourself since being no longer visible,
+            // the user probably can't get back to us.
+            if (!isChangingConfigurations()) {
+                finish();
+            }
+        }
     }
 
     @Override
@@ -644,18 +656,6 @@ public class ResolverActivity extends AlertActivity implements AdapterView.OnIte
         public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
             ResolveInfo ri = mAdapter.resolveInfoForPosition(position);
             showAppDetails(ri);
-            if ((getIntent().getFlags()&Intent.FLAG_ACTIVITY_NEW_TASK) != 0) {
-                // This resolver is in the unusual situation where it has been
-                // launched at the top of a new task.  We don't let it be added
-                // to the recent tasks shown to the user, and we need to make sure
-                // that each time we are launched we get the correct launching
-                // uid (not re-using the same resolver from an old launching uid),
-                // so we will now finish ourself since being no longer visible,
-                // the user probably can't get back to us.
-                if (!isChangingConfigurations()) {
-                    finish();
-                }
-            }
             return true;
         }
 

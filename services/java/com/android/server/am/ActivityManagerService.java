@@ -34,7 +34,6 @@ import com.android.server.firewall.IntentFirewall;
 import com.android.server.pm.UserManagerService;
 import com.android.server.wm.AppTransition;
 import com.android.server.wm.WindowManagerService;
-import static com.android.internal.util.ArrayUtils.appendInt;
 
 import dalvik.system.Zygote;
 
@@ -61,7 +60,6 @@ import android.app.Instrumentation;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
-import android.app.Service;
 import android.app.backup.IBackupManager;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
@@ -78,7 +76,6 @@ import android.content.IIntentSender;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.IntentSender;
-import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.ConfigurationInfo;
@@ -168,12 +165,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.text.SimpleDateFormat;
 
-// ASF imports
-import com.intel.asf.AsfAosp;
-
-public class ActivityManagerService  extends ActivityManagerNative
+public final class ActivityManagerService  extends ActivityManagerNative
         implements Watchdog.Monitor, BatteryStatsImpl.BatteryCallback {
     private static final String USER_DATA_DIR = "/data/user/";
     static final String TAG = "ActivityManager";
@@ -704,12 +697,6 @@ public class ActivityManagerService  extends ActivityManagerNative
     boolean mProcessesReady = false;
     boolean mSystemReady = false;
     boolean mBooting = false;
-    /**
-     * ARKHAM 596 - need this at pm/Settings.java. Used to stop pm to write package-restrictions.xml
-     */
-    public boolean isBooting() {
-        return !mBooted;
-    }
     boolean mWaitingUpdate = false;
     boolean mDidUpdate = false;
     boolean mOnBattery = false;
@@ -885,7 +872,7 @@ public class ActivityManagerService  extends ActivityManagerNative
 
     private int mCurrentUserId = 0;
     private int[] mCurrentUserArray = new int[] { 0 };
-    protected UserManagerService mUserManager;
+    private UserManagerService mUserManager;
 
     private final class AppDeathRecipient implements IBinder.DeathRecipient {
         final ProcessRecord mApp;
@@ -1382,7 +1369,7 @@ public class ActivityManagerService  extends ActivityManagerNative
                         }
                         dropBuilder.append(catSw.toString());
                         addErrorToDropBox("lowmem", null, "system_server", null,
-                                null, tag.toString(), dropBuilder.toString(), null, null, null);
+                                null, tag.toString(), dropBuilder.toString(), null, null);
                         Slog.i(TAG, logBuilder.toString());
                         synchronized (ActivityManagerService.this) {
                             long now = SystemClock.uptimeMillis();
@@ -1493,7 +1480,7 @@ public class ActivityManagerService  extends ActivityManagerNative
         context.setTheme(android.R.style.Theme_Holo);
         m.mContext = context;
         m.mFactoryTest = factoryTest;
-        m.mMainStack = new ExtendActivityStack(m, context, true, thr.mLooper);
+        m.mMainStack = new ActivityStack(m, context, true, thr.mLooper);
         m.mIntentFirewall = new IntentFirewall(m.new IntentFirewallInterface());
 
         m.mBatteryStatsService.publish(context);
@@ -1530,7 +1517,7 @@ public class ActivityManagerService  extends ActivityManagerNative
                     android.os.Process.THREAD_PRIORITY_FOREGROUND);
             android.os.Process.setCanSelfBackground(false);
 
-            ActivityManagerService m = new ExtendActivityManagerService();
+            ActivityManagerService m = new ActivityManagerService();
 
             synchronized (this) {
                 mService = m;
@@ -1641,7 +1628,7 @@ public class ActivityManagerService  extends ActivityManagerNative
         }
     }
 
-    protected ActivityManagerService() {
+    private ActivityManagerService() {
         Slog.i(TAG, "Memory class: " + ActivityManager.staticGetMemoryClass());
         
         mFgBroadcastQueue = new BroadcastQueue(this, "foreground", BROADCAST_FG_TIMEOUT);
@@ -2171,7 +2158,6 @@ public class ActivityManagerService  extends ActivityManagerNative
                     }
                 } catch (PackageManager.NameNotFoundException e) {
                     Slog.w(TAG, "Unable to retrieve gids", e);
-                    return;
                 }
 
                 /*
@@ -2218,16 +2204,6 @@ public class ActivityManagerService  extends ActivityManagerNative
             }
             if ("1".equals(SystemProperties.get("debug.assert"))) {
                 debugFlags |= Zygote.DEBUG_ENABLE_ASSERT;
-            }
-            // ARKHAM - 125, Include container group id in process group list.
-            gids = appendContainerGroupId(uid, gids);
-            // ARKHAM - Changes end.
-
-            // ASF HOOK: application start event
-            if (AsfAosp.ENABLE) {
-                if (! AsfAosp.sendAppStartEvent(app.info, app.userId)) {
-                    throw new SecurityException("process start is disallowed by policy.");
-                }
             }
 
             // Start the process.  It will either succeed and return a result containing
@@ -3048,11 +3024,6 @@ public class ActivityManagerService  extends ActivityManagerNative
             finishInstrumentationLocked(app, Activity.RESULT_CANCELED, info);
         }
 
-        // ASF HOOK: application stop event
-        if (AsfAosp.ENABLE) {
-            AsfAosp.sendAppStopEvent(app.info, app.userId, app.pid);
-        }
-
         if (!restarting) {
             if (!mMainStack.resumeTopActivityLocked(null)) {
                 // If there was nothing to resume, and we are not already
@@ -3198,9 +3169,6 @@ public class ActivityManagerService  extends ActivityManagerNative
             return null;
         }
 
-        // Try to add the error to the dropbox, but assuming that the ActivityManager
-        // itself may be deadlocked.  (which has happened, causing this statement to
-        // deadlock and the watchdog as a whole to be ineffective)
         dumpStackTraces(tracesPath, firstPids, processStats, lastPids, nativeProcs);
         return tracesFile;
     }
@@ -3452,44 +3420,14 @@ public class ActivityManagerService  extends ActivityManagerNative
 
         info.append(processStats.printCurrentState(anrTime));
 
-        if (!IS_USER_BUILD && app.thread != null) {
-            try {
-                // This is a one-way binder call, meaning that the caller returns immediately,
-                // without waiting for a result from the callee.
-                app.thread.dumpANRInfo();
-            } catch (RemoteException e) {
-                Slog.e(ActivityManagerService.TAG, "Exception in dumpANRInfo", e);
-            }
-        }
-
-        String buildtype = SystemProperties.get("ro.build.type", null);
-        String stackname = null;
-        if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
-            final String dropboxTag = processClass(app) + "_anr";
-            final DropBoxManager dbox = (DropBoxManager)
-                    mContext.getSystemService(Context.DROPBOX_SERVICE);
-            if (dbox != null && dbox.isTagEnabled(dropboxTag) && !dbox.isFull()) {
-                String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
-                String subString = tracesPath.substring(0,10);
-                SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
-                stackname = subString + sDateFormat.format(new java.util.Date()) + ".txt";
-                DebugAnr da = new DebugAnr();
-                da.logToFile(stackname);
-           }
-        }
-
         Slog.e(TAG, info.toString());
         if (tracesFile == null) {
             // There is no trace file, so dump (only) the alleged culprit's threads to the log
             Process.sendSignal(app.pid, Process.SIGNAL_QUIT);
         }
-        if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
-             addErrorToDropBox("anr", app, app.processName, activity, parent, annotation, cpuInfo, tracesFile, null, stackname);
-         }
-         else
-         {
-             addErrorToDropBox("anr", app, app.processName, activity, parent, annotation, cpuInfo, tracesFile, null, null);
-         }
+
+        addErrorToDropBox("anr", app, app.processName, activity, parent, annotation,
+                cpuInfo, tracesFile, null);
 
         if (mController != null) {
             try {
@@ -4390,7 +4328,6 @@ public class ActivityManagerService  extends ActivityManagerNative
         mProcessesOnHold.remove(app);
 
         boolean badApp = false;
-        String reason = "Exception occurred";
         boolean didSomething = false;
 
         // See if the top visible activity is waiting to run in this process...
@@ -4405,9 +4342,8 @@ public class ActivityManagerService  extends ActivityManagerNative
                         didSomething = true;
                     }
                 } catch (Exception e) {
-                    reason = "Exception in new application when starting activity "
-                           + hr.intent.getComponent().flattenToShortString();
-                    Slog.w(TAG, reason, e);
+                    Slog.w(TAG, "Exception in new application when starting activity "
+                          + hr.intent.getComponent().flattenToShortString(), e);
                     badApp = true;
                 }
             } else {
@@ -4420,8 +4356,6 @@ public class ActivityManagerService  extends ActivityManagerNative
             try {
                 didSomething |= mServices.attachApplicationLocked(app, processName);
             } catch (Exception e) {
-                reason = "Exception on attaching required services to application "
-                       + processName;
                 badApp = true;
             }
         }
@@ -4453,10 +4387,7 @@ public class ActivityManagerService  extends ActivityManagerNative
         if (badApp) {
             // todo: Also need to kill application to deal with all
             // kinds of exceptions.
-            removeProcessLocked(app, false, true, reason);
-            if (hr != null) {
-                mMainStack.requestFinishActivityLocked(hr.appToken, Activity.RESULT_CANCELED, null, "start-failed", false);
-            }
+            handleAppDiedLocked(app, false, true);
             return false;
         }
 
@@ -5914,12 +5845,6 @@ public class ActivityManagerService  extends ActivityManagerNative
         return list;
     }
 
-    protected boolean isUsersTask(TaskRecord tr, int userId) {
-        if (tr.userId != userId)
-            return false;
-        return true;
-    }
-
     public List<ActivityManager.RecentTaskInfo> getRecentTasks(int maxNum,
             int flags, int userId) {
         userId = handleIncomingUser(Binder.getCallingPid(), Binder.getCallingUid(), userId,
@@ -5941,8 +5866,7 @@ public class ActivityManagerService  extends ActivityManagerNative
             for (int i=0; i<N && maxNum > 0; i++) {
                 TaskRecord tr = mRecentTasks.get(i);
                 // Only add calling user's recent tasks
-                if (!isUsersTask(tr, userId))
-                    continue;
+                if (tr.userId != userId) continue;
                 // Return the entry if desired by the caller.  We always return
                 // the first entry, because callers always expect this to be the
                 // foreground app.  We may filter others if the caller has
@@ -5965,8 +5889,7 @@ public class ActivityManagerService  extends ActivityManagerNative
                     }
                     rti.origActivity = tr.origActivity;
                     rti.description = tr.lastDescription;
-                    rti.userId = tr.userId;
-
+                    
                     if ((flags&ActivityManager.RECENT_IGNORE_UNAVAILABLE) != 0) {
                         // Check whether this activity is currently available.
                         try {
@@ -6556,11 +6479,6 @@ public class ActivityManagerService  extends ActivityManagerNative
         return false;
     }
 
-    protected int processSpecialContentProviderImpl(int uid, String name) {
-        int userId = uid;
-        return userId;
-    }
-
     private final ContentProviderHolder getContentProviderImpl(IApplicationThread caller,
             String name, IBinder token, boolean stable, int userId) {
         ContentProviderRecord cpr;
@@ -6578,10 +6496,6 @@ public class ActivityManagerService  extends ActivityManagerNative
                           + ") when getting content provider " + name);
                 }
             }
-
-            // ARKHAM 356,358 - redirection request to container owner
-            userId = processSpecialContentProviderImpl(userId, name);
-            // ARKHAM Changes End.
 
             // First check if this content provider has been published...
             cpr = mProviderMap.getProviderByName(name, userId);
@@ -6704,8 +6618,6 @@ public class ActivityManagerService  extends ActivityManagerNative
                 cpr = mProviderMap.getProviderByClass(comp, userId);
                 final boolean firstClass = cpr == null;
                 if (firstClass) {
-                    // ARKHAM 356- Clearing identity to bypass interact across user check.
-                    final long origId2 = Binder.clearCallingIdentity();
                     try {
                         ApplicationInfo ai =
                             AppGlobals.getPackageManager().
@@ -6721,8 +6633,6 @@ public class ActivityManagerService  extends ActivityManagerNative
                         cpr = new ContentProviderRecord(this, cpi, ai, comp, singleton);
                     } catch (RemoteException ex) {
                         // pm is in same process, this will never happen.
-                    } finally {
-                        Binder.restoreCallingIdentity(origId2);
                     }
                 }
 
@@ -8068,89 +7978,7 @@ public class ActivityManagerService  extends ActivityManagerNative
             }
         }
     }
-
-    // ASF launch timeout.  The system will ungracefully timeout at 20 seconds.
-    // To avoid this ungraceful timeout, we impose our own 15 second timeout
-    // for ASF launch.  (The ASF security manager service will itself impose a
-    // timeout of 10 seconds for ASF client launch.)
-    private static final long ONE_SECOND_MS = 1000;
-    private static final long ASF_LAUNCH_TIMEOUT = 15 * ONE_SECOND_MS;
-
-    /**
-     * Launch ASF by using a broadcast intent to launch the security
-     * manager service, which will in turn launch any ASF clients.  This
-     * method will block until the ASF launch has completed.
-     */
-    private void launchAsf() {
-        if (AsfAosp.ENABLE) {
-            // A class is needed to contain this variable, so that the
-            // object can be final (and accessible from the callback inner
-            // class) but the value be mutable.  We need a real
-            // java.lang.Object to use for locking, besides.
-            class CompletionCondition {
-                public boolean finished = false;
-            };
-            final CompletionCondition completionCondition =
-                new CompletionCondition();
-
-            // Launch the ASF security manager service.
-            Log.i(TAG, "Preparing to launch ASF security manager.");
-            Intent intent = AsfAosp.getLaunchIntent(new Runnable() {
-                public void run() {
-                    // When the security manager service signals readiness,
-                    // allow the activity manager to continue where we
-                    // block, below.
-                    synchronized(completionCondition) {
-                        completionCondition.finished = true;
-                        completionCondition.notify();
-                    }
-                }
-            });
-            if (intent == null) {
-                Log.e(TAG, "Unable to create 'ASF Launch' intent for launching "
-                        + "ASF security manager service.");
-                return;
-            }
-            // Send the broadcast intent.
-            synchronized (this) {
-                broadcastIntentLocked(
-                                      null, null, intent, null,
-                                      null, 0, null, null,
-                                      AsfAosp.LAUNCH_SECURITY_MANAGER_PERMISSION,
-                                      AppOpsManager.OP_NONE,
-                                      true, false,
-                                      MY_PID, Process.SYSTEM_UID, UserHandle.USER_ALL
-                                      );
-            }
-
-            // Flush the broadcast queue so our intent is delivered
-            // immediately.  (Otherwise, ASF launch will be delayed during
-            // first boot.)
-            mFgBroadcastQueue.processNextBroadcast(true);
-
-            // Block until the ASF security manager service signals
-            // readiness.
-            synchronized(completionCondition) {
-                if (!completionCondition.finished) {
-                    try {
-                        completionCondition.wait(ASF_LAUNCH_TIMEOUT);
-                    } catch (InterruptedException e) {
-                        Log.e(
-                              TAG,
-                              "Interruption while waiting for completion of ASF launch.",
-                              e
-                              );
-                    }
-                }
-                if (!completionCondition.finished) {
-                    Log.e(TAG, "Timeout while launching ASF security manager.");
-                } else {
-                    Log.i(TAG, "Finished launching ASF security manager.");
-                }
-            }
-        }
-    }
-
+    
     public void systemReady(final Runnable goingCallback) {
         synchronized(this) {
             if (mSystemReady) {
@@ -8316,13 +8144,6 @@ public class ActivityManagerService  extends ActivityManagerNative
         }
 
         retrieveSettings();
-
-        // Launch the ASF security manager service and any client apps.
-        // This should happen before calling the goingCallback, so ASF
-        // can monitor the apps launched from the callback, and so the
-        // activity manager "storm" resulting from the callback will not
-        // adversely impact our synchronous launch scheme.
-        launchAsf();
 
         if (goingCallback != null) goingCallback.run();
         
@@ -8629,7 +8450,7 @@ public class ActivityManagerService  extends ActivityManagerNative
                 crashInfo.throwFileName,
                 crashInfo.throwLineNumber);
 
-        addErrorToDropBox(eventType, r, processName, null, null, null, null, null, crashInfo, null);
+        addErrorToDropBox(eventType, r, processName, null, null, null, null, null, crashInfo);
 
         crashApplication(r, crashInfo);
     }
@@ -8826,7 +8647,7 @@ public class ActivityManagerService  extends ActivityManagerNative
                 r == null ? -1 : r.info.flags,
                 tag, crashInfo.exceptionMessage);
 
-        addErrorToDropBox("wtf", r, processName, null, null, tag, null, null, crashInfo, null);
+        addErrorToDropBox("wtf", r, processName, null, null, tag, null, null, crashInfo);
 
         if (r != null && r.pid != Process.myPid() &&
                 Settings.Global.getInt(mContext.getContentResolver(),
@@ -8932,7 +8753,7 @@ public class ActivityManagerService  extends ActivityManagerNative
             ProcessRecord process, String processName, ActivityRecord activity,
             ActivityRecord parent, String subject,
             final String report, final File logFile,
-            final ApplicationErrorReport.CrashInfo crashInfo, final String stackname) {
+            final ApplicationErrorReport.CrashInfo crashInfo) {
         // NOTE -- this must never acquire the ActivityManagerService lock,
         // otherwise the watchdog may be prevented from resetting the system.
 
@@ -8944,9 +8765,6 @@ public class ActivityManagerService  extends ActivityManagerNative
         if (dbox == null || !dbox.isTagEnabled(dropboxTag)) return;
 
         final StringBuilder sb = new StringBuilder(1024);
-        if (stackname != null) {
-            sb.append("Trace file:" + stackname).append("\n");
-        }
         appendDropBoxProcessHeaders(process, processName, sb);
         if (activity != null) {
             sb.append("Activity: ").append(activity.shortComponentName).append("\n");
@@ -8976,20 +8794,9 @@ public class ActivityManagerService  extends ActivityManagerNative
                 }
                 if (logFile != null) {
                     try {
-                        sb.append(FileUtils.readTextFile(logFile, 256 * 1024, "\n\n[[TRUNCATED]]"));
+                        sb.append(FileUtils.readTextFile(logFile, 128 * 1024, "\n\n[[TRUNCATED]]"));
                     } catch (IOException e) {
                         Slog.e(TAG, "Error reading " + logFile, e);
-                    }
-                    // When Dropbox is full, the DropBoxManager only produces zero-length log files.
-                    // So in case of ANR or System_Server_Watchdog, we dump here the stack traces file
-                    // content (if not null) to the System log to keep some debug data before losing them
-                    String buildtype = SystemProperties.get("ro.build.type", null);
-                    if ( "userdebug".equals(buildtype) || "eng".equals(buildtype) ) {
-                        if ( ( dropboxTag.contains("anr") || dropboxTag.contains("system_server_watchdog") ) && dbox.isFull() ) {
-                            Slog.i(TAG, "---- DropBox full: Begin dumping dropbox logfile " + dropboxTag + " ----");
-                            Slog.i(TAG, sb.toString());
-                            Slog.i(TAG, "---- End dumping dropbox logfile " + dropboxTag + " ----");
-                        }
                     }
                 }
                 if (crashInfo != null && crashInfo.stackTrace != null) {
@@ -9023,18 +8830,6 @@ public class ActivityManagerService  extends ActivityManagerNative
                 }
 
                 dbox.addText(dropboxTag, sb.toString());
-
-                if (dbox.isFull() == true) {
-                    try {
-                        File file = new File(stackname);
-                        if (file.exists() && file.isFile()) {
-                            file.delete();
-                            Slog.d(TAG, "DropBox is full, so remove the stack trace file.");
-                        }
-                    } catch(Exception ex) {
-                        ex.printStackTrace();
-                    }
-                }
             }
         };
 
@@ -12057,17 +11852,7 @@ public class ActivityManagerService  extends ActivityManagerNative
         return receivers;
     }
 
-    protected boolean broadcastCheckUserStopped(Intent intent, int callingUid, int userId) {
-        if (userId != UserHandle.USER_ALL && mStartedUsers.get(userId) == null) {
-            if (callingUid != Process.SYSTEM_UID || (intent.getFlags()
-                    & Intent.FLAG_RECEIVER_BOOT_UPGRADE) == 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    protected int broadcastIntentLocked(ProcessRecord callerApp,
+    private final int broadcastIntentLocked(ProcessRecord callerApp,
             String callerPackage, Intent intent, String resolvedType,
             IIntentReceiver resultTo, int resultCode, String resultData,
             Bundle map, String requiredPermission, int appOp,
@@ -12090,10 +11875,13 @@ public class ActivityManagerService  extends ActivityManagerNative
 
         // Make sure that the user who is receiving this broadcast is started.
         // If not, we will just skip it.
-        if (broadcastCheckUserStopped(intent, callingUid, userId)) {
+        if (userId != UserHandle.USER_ALL && mStartedUsers.get(userId) == null) {
+            if (callingUid != Process.SYSTEM_UID || (intent.getFlags()
+                    & Intent.FLAG_RECEIVER_BOOT_UPGRADE) == 0) {
                 Slog.w(TAG, "Skipping broadcast of " + intent
                         + ": user " + userId + " is stopped");
                 return ActivityManager.BROADCAST_SUCCESS;
+            }
         }
 
         /*
@@ -12314,7 +12102,8 @@ public class ActivityManagerService  extends ActivityManagerNative
             // Caller wants broadcast to go to all started users.
             users = mStartedUserArray;
         } else {
-            users = getUsersForSpecificBroadcast(userId, ordered);
+            // Caller wants broadcast to go to one specific user.
+            users = new int[] {userId};
         }
 
         // Figure out who all will receive this broadcast.
@@ -13492,14 +13281,7 @@ public class ActivityManagerService  extends ActivityManagerNative
                                         } else {
                                             app.pendingUiClean = true;
                                             if (adj > ProcessList.VISIBLE_APP_ADJ) {
-                                                if (app.foregroundServices) {
-                                                    // Finally, if this process has foreground
-                                                    // services, we would like to avoid killing it
-                                                    adj = ProcessList.FOREGROUND_APP_ADJ;
-                                                    adjType = "fg-service";
-                                                } else {
-                                                    adj = ProcessList.VISIBLE_APP_ADJ;
-                                                }
+                                                adj = ProcessList.VISIBLE_APP_ADJ;
                                             }
                                         }
                                         if (!client.hidden) {
@@ -13508,11 +13290,7 @@ public class ActivityManagerService  extends ActivityManagerNative
                                         if (client.keeping) {
                                             app.keeping = true;
                                         }
-                                        // If this is not a foreground service, so
-                                        // type it as a simple service
-                                        if (adjType == null) {
-                                            adjType = "service";
-                                        }
+                                        adjType = "service";
                                     }
                                 }
                                 if (adjType != null) {
@@ -14710,12 +14488,6 @@ public class ActivityManagerService  extends ActivityManagerNative
                     return false;
                 }
 
-                // ARKHAM-166 ActivityManager: Don't expose container users
-                if (userInfo.isContainer()) {
-                    Slog.w(TAG, "Cannot switch to user. (uid " + userId + ")");
-                    return false;
-                }
-
                 mWindowManager.startFreezingScreen(R.anim.screen_user_exit,
                         R.anim.screen_user_enter);
 
@@ -15190,7 +14962,7 @@ public class ActivityManagerService  extends ActivityManagerNative
         }
     }
 
-    protected void updateStartedUserArrayLocked() {
+    private void updateStartedUserArrayLocked() {
         int num = 0;
         for (int i=0; i<mStartedUsers.size();  i++) {
             UserStartedState uss = mStartedUsers.valueAt(i);
@@ -15282,16 +15054,5 @@ public class ActivityManagerService  extends ActivityManagerNative
         ActivityInfo info = new ActivityInfo(aInfo);
         info.applicationInfo = getAppInfoForUser(info.applicationInfo, userId);
         return info;
-    }
-    protected int[]  appendContainerGroupId(int uid , int[] gids) {
-        return gids;
-    }
-
-    public boolean isTopRunningActivityInContainter(int cid) {
-        return false;
-    }
-
-    protected int[] getUsersForSpecificBroadcast(int userId, boolean ordered) {
-        return new int[] {userId};
     }
 }

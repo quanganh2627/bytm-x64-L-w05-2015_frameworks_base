@@ -32,9 +32,7 @@ import android.view.IWindowFocusObserver;
 import android.view.IWindowId;
 import com.android.server.input.InputWindowHandle;
 
-import com.android.server.pm.UserManagerService;
 import android.content.Context;
-import android.content.pm.UserInfo;
 import android.content.res.Configuration;
 import android.graphics.Matrix;
 import android.graphics.PixelFormat;
@@ -42,10 +40,8 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Region;
 import android.os.IBinder;
-import android.os.IUserManager;
 import android.os.RemoteException;
 import android.os.UserHandle;
-import android.os.ServiceManager;
 import android.util.Slog;
 import android.view.DisplayInfo;
 import android.view.Gravity;
@@ -56,8 +52,6 @@ import android.view.View;
 import android.view.ViewTreeObserver;
 import android.view.WindowManager;
 import android.view.WindowManagerPolicy;
-
-import com.intel.config.FeatureConfig;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -1175,14 +1169,6 @@ final class WindowState implements WindowManagerPolicy.WindowState {
             }
         }
 
-        // ARKHAM-138 Allow displaying container applications from the container owner
-        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
-            UserInfo userInfo = getUserInfoLocked(win.mOwnerUid);
-            if (userInfo != null && userInfo.isContainer() &&
-                    mService.mCurrentUserId == userInfo.containerOwner)
-                return false;
-        }
-
         return win.mShowToOwnerOnly
                 && UserHandle.getUserId(win.mOwnerUid) != mService.mCurrentUserId;
     }
@@ -1442,15 +1428,5 @@ final class WindowState implements WindowManagerPolicy.WindowState {
                     + " " + mLastTitle + (mExiting ? " EXITING}" : "}");
         }
         return mStringNameCache;
-    }
-
-    // ARKAHM-138 New helper function to access user information
-    private UserInfo getUserInfoLocked(int ownerUid) {
-        IBinder b = ServiceManager.getService(Context.USER_SERVICE);
-        UserManagerService um = (UserManagerService)IUserManager.Stub.asInterface(b);
-        if (um == null) {
-            return null;
-        }
-        return um.getUserInfo(UserHandle.getUserId(ownerUid));
     }
 }
