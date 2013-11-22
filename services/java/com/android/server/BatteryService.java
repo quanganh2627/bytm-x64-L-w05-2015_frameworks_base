@@ -18,6 +18,7 @@ package com.android.server;
 
 import android.os.BatteryStats;
 import com.android.internal.app.IBatteryStats;
+import com.android.internal.telephony.TelephonyIntents;
 import com.android.server.am.BatteryStatsService;
 
 import android.app.ActivityManagerNative;
@@ -135,6 +136,8 @@ public final class BatteryService extends Binder {
     private Led mLed;
 
     private boolean mSentLowBatteryBroadcast = false;
+    private boolean mShutdownAfterEmergencyCall = false;
+    private boolean mEmergencyCallOngoing = false;
 
     private BatteryListener mBatteryPropertiesListener;
     private IBatteryPropertiesRegistrar mBatteryPropertiesRegistrar;
@@ -185,6 +188,11 @@ public final class BatteryService extends Binder {
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_SHUTDOWN);
         mContext.registerReceiver(new ShutDownReceiver(), filter);
+
+        // register for ongoing emergency call intent
+        IntentFilter emergencyIntentFilter = new IntentFilter();
+        emergencyIntentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALL_STATUS_CHANGED);
+        mContext.registerReceiver(new EmergencyCallReceiver(), emergencyIntentFilter);
     }
 
     private final class ShutDownReceiver extends BroadcastReceiver {
@@ -197,6 +205,20 @@ public final class BatteryService extends Binder {
                 Runtime.getRuntime().exec("/system/bin/fg_conf -r");
             } catch (IOException e) {
                 throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private final class EmergencyCallReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (action.equals(TelephonyIntents.ACTION_EMERGENCY_CALL_STATUS_CHANGED)) {
+                mEmergencyCallOngoing = intent.getBooleanExtra("emergencyCallOngoing", false);
+                Slog.i(TAG, "Emergency call status = " + mEmergencyCallOngoing);
+                if (!mEmergencyCallOngoing && mShutdownAfterEmergencyCall) {
+                    initiateShutdown();
+                }
             }
         }
     }
@@ -233,6 +255,13 @@ public final class BatteryService extends Binder {
     }
 
     private void initiateShutdown() {
+        // do not shutdown if emergency call is ongoing
+        if (mEmergencyCallOngoing) {
+            Slog.i(TAG, "Emergency call ongoing. Can't shutdown right now...");
+            mShutdownAfterEmergencyCall = true;
+            return;
+        }
+
         // wait until the system has booted before attempting to display the shutdown dialog.
         if (ActivityManagerNative.isSystemReady()) {
             Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
