@@ -68,6 +68,7 @@ import com.android.server.search.SearchManagerService;
 import com.android.server.usb.UsbService;
 import com.android.server.wifi.WifiService;
 import com.android.server.wm.WindowManagerService;
+import com.intel.multidisplay.DisplayObserver;
 
 import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
@@ -638,6 +639,14 @@ class ServerThread {
                 } catch (Throwable e) {
                     reportWtf("starting Audio Service", e);
                 }
+            }
+
+            try {
+                Slog.i(TAG, "Intel Display Observer");
+                // Listen for display changes
+                DisplayObserver dso = new DisplayObserver(context);
+            } catch (Throwable e) {
+                reportWtf("starting Intel DisplayObserver", e);
             }
 
             if (!disableNonCoreServices) {
