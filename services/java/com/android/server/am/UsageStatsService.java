@@ -75,25 +75,25 @@ public final class UsageStatsService extends IUsageStats.Stub {
     private static final boolean localLOGV = false;
     private static final boolean REPORT_UNEXPECTED = false;
     private static final String TAG = "UsageStats";
-    
+
     // Current on-disk Parcel version
     private static final int VERSION = 1008;
 
     private static final int CHECKIN_VERSION = 4;
-    
+
     private static final String FILE_PREFIX = "usage-";
 
     private static final String FILE_HISTORY = FILE_PREFIX + "history.xml";
 
     private static final int FILE_WRITE_INTERVAL = 30*60*1000; //ms
-    
+
     private static final int MAX_NUM_FILES = 5;
-    
+
     private static final int NUM_LAUNCH_TIME_BINS = 10;
     private static final int[] LAUNCH_TIME_BINS = {
         250, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000
     };
-    
+
     static IUsageStats sService;
     private Context mContext;
     // structure used to maintain statistics since the last checkin.
@@ -125,18 +125,18 @@ public final class UsageStatsService extends IUsageStats.Stub {
     private final AtomicInteger mLastWriteDay = new AtomicInteger(-1);
     private final AtomicLong mLastWriteElapsedTime = new AtomicLong(0);
     private final AtomicBoolean mUnforcedDiskWriteRunning = new AtomicBoolean(false);
-    
+
     static class TimeStats {
         int count;
         int[] times = new int[NUM_LAUNCH_TIME_BINS];
-        
+
         TimeStats() {
         }
-        
+
         void incCount() {
             count++;
         }
-        
+
         void add(int val) {
             final int[] bins = LAUNCH_TIME_BINS;
             for (int i=0; i<NUM_LAUNCH_TIME_BINS-1; i++) {
@@ -147,7 +147,7 @@ public final class UsageStatsService extends IUsageStats.Stub {
             }
             times[NUM_LAUNCH_TIME_BINS-1]++;
         }
-        
+
         TimeStats(Parcel in) {
             count = in.readInt();
             final int[] localTimes = times;
@@ -155,7 +155,7 @@ public final class UsageStatsService extends IUsageStats.Stub {
                 localTimes[i] = in.readInt();
             }
         }
-        
+
         void writeToParcel(Parcel out) {
             out.writeInt(count);
             final int[] localTimes = times;
@@ -164,7 +164,7 @@ public final class UsageStatsService extends IUsageStats.Stub {
             }
         }
     }
-    
+
     private class PkgUsageStatsExtended {
         final ArrayMap<String, TimeStats> mLaunchTimes
                 = new ArrayMap<String, TimeStats>();
@@ -174,18 +174,19 @@ public final class UsageStatsService extends IUsageStats.Stub {
         long mUsageTime;
         long mPausedTime;
         long mResumedTime;
-        
+        final List<Long> mHist = new ArrayList<Long>();
+
         PkgUsageStatsExtended() {
             mLaunchCount = 0;
             mUsageTime = 0;
         }
-        
+
         PkgUsageStatsExtended(Parcel in) {
             mLaunchCount = in.readInt();
             mUsageTime = in.readLong();
             if (localLOGV) Slog.v(TAG, "Launch count: " + mLaunchCount
                     + ", Usage time:" + mUsageTime);
-            
+
             final int numLaunchTimeStats = in.readInt();
             if (localLOGV) Slog.v(TAG, "Reading launch times: " + numLaunchTimeStats);
             mLaunchTimes.ensureCapacity(numLaunchTimeStats);
@@ -194,6 +195,11 @@ public final class UsageStatsService extends IUsageStats.Stub {
                 if (localLOGV) Slog.v(TAG, "Component: " + comp);
                 TimeStats times = new TimeStats(in);
                 mLaunchTimes.put(comp, times);
+            }
+
+            final int numHist = in.readInt();
+            for (int i = 0; i < numHist; i++) {
+                mHist.add(in.readLong());
             }
 
             final int numFullyDrawnTimeStats = in.readInt();
@@ -212,13 +218,19 @@ public final class UsageStatsService extends IUsageStats.Stub {
                 mLaunchCount ++;
             }
             mResumedTime = SystemClock.elapsedRealtime();
+            if ((mHist.size() & 1) == 0) {
+                mHist.add(System.currentTimeMillis());
+            }
         }
-        
+
         void updatePause() {
             mPausedTime =  SystemClock.elapsedRealtime();
             mUsageTime += (mPausedTime - mResumedTime);
+            if ((mHist.size() & 1) != 0) {
+                mHist.add(System.currentTimeMillis());
+            }
         }
-        
+
         void addLaunchCount(String comp) {
             TimeStats times = mLaunchTimes.get(comp);
             if (times == null) {
@@ -227,7 +239,7 @@ public final class UsageStatsService extends IUsageStats.Stub {
             }
             times.incCount();
         }
-        
+
         void addLaunchTime(String comp, int millis) {
             TimeStats times = mLaunchTimes.get(comp);
             if (times == null) {
@@ -261,16 +273,21 @@ public final class UsageStatsService extends IUsageStats.Stub {
                 out.writeString(mFullyDrawnTimes.keyAt(i));
                 mFullyDrawnTimes.valueAt(i).writeToParcel(out);
             }
+            out.writeInt(mHist.size());
+            for (Long i:mHist) {
+                out.writeLong(i);
+            }
         }
-        
+
         void clear() {
             mLaunchTimes.clear();
             mFullyDrawnTimes.clear();
             mLaunchCount = 0;
             mUsageTime = 0;
+            mHist.clear();
         }
     }
-    
+
     UsageStatsService(String dir) {
         mStats = new ArrayMap<String, PkgUsageStatsExtended>();
         mLastResumeTimes = new ArrayMap<String, ArrayMap<String, Long>>();
@@ -278,9 +295,9 @@ public final class UsageStatsService extends IUsageStats.Stub {
         mFileLock = new Object();
         mDir = new File(dir);
         mCal = Calendar.getInstance(TimeZone.getTimeZone("GMT+0"));
-        
+
         mDir.mkdir();
-        
+
         // Remove any old usage files from previous versions.
         File parentDir = mDir.getParentFile();
         String fList[] = parentDir.list();
@@ -295,7 +312,7 @@ public final class UsageStatsService extends IUsageStats.Stub {
                 }
             }
         }
-        
+
         // Update current stats which are binned by date
         mFileLeaf = getCurrentDateStr(FILE_PREFIX);
         mFile = new File(mDir, mFileLeaf);
@@ -331,7 +348,7 @@ public final class UsageStatsService extends IUsageStats.Stub {
         }
         return sb.toString();
     }
-    
+
     private Parcel getParcelForFile(File file) throws IOException {
         FileInputStream stream = new FileInputStream(file);
         byte[] raw = readFully(stream);

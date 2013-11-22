@@ -220,6 +220,7 @@ LOCAL_SRC_FILES += \
 	core/java/com/android/internal/app/IAppOpsCallback.aidl \
 	core/java/com/android/internal/app/IAppOpsService.aidl \
 	core/java/com/android/internal/app/IBatteryStats.aidl \
+	core/java/com/android/internal/app/IBatteryStatsResetCallback.aidl \
 	core/java/com/android/internal/app/IProcessStats.aidl \
 	core/java/com/android/internal/app/IUsageStats.aidl \
 	core/java/com/android/internal/app/IMediaContainerService.aidl \
