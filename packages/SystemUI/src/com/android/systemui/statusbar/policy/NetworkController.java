@@ -66,6 +66,7 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
     final TelephonyManager mPhone;
     boolean mDataConnected;
     IccCardConstants.State mSimState = IccCardConstants.State.READY;
+    IccCardConstants.State mLastSimState = IccCardConstants.State.READY;
     int mPhoneState = TelephonyManager.CALL_STATE_IDLE;
     int mDataNetType = TelephonyManager.NETWORK_TYPE_UNKNOWN;
     int mDataState = TelephonyManager.DATA_DISCONNECTED;
@@ -300,6 +301,14 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
                     mContentDescriptionDataType);
         } else {
             // normal mobile data
+            if (mSimState == IccCardConstants.State.ABSENT) {
+                if (mShowPhoneRSSIForData) {
+                    mPhoneSignalIconId = R.drawable.stat_sys_no_sim;
+                } else {
+                    mDataSignalIconId = R.drawable.stat_sys_no_sim;
+                }
+            }
+
             cluster.setMobileDataIndicators(
                     mHasMobileDataFeature,
                     mShowPhoneRSSIForData ? mPhoneSignalIconId : mDataSignalIconId,
@@ -1154,7 +1163,8 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
          || mLastWimaxIconId                != mWimaxIconId
          || mLastDataTypeIconId             != mDataTypeIconId
          || mLastAirplaneMode               != mAirplaneMode
-         || mLastLocale                     != mLocale)
+         || mLastLocale                     != mLocale
+         || mLastSimState                   != mSimState)
         {
             // NB: the mLast*s will be updated later
             for (SignalCluster cluster : mSignalClusters) {
@@ -1164,6 +1174,10 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
 
         if (mLastAirplaneMode != mAirplaneMode) {
             mLastAirplaneMode = mAirplaneMode;
+        }
+
+        if (mLastSimState != mSimState) {
+            mLastSimState = mSimState;
         }
 
         if (mLastLocale != mLocale) {
