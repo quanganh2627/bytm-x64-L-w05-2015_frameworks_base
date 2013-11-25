@@ -43,7 +43,7 @@
 #include <signal.h>
 #include <dirent.h>
 #include <assert.h>
-#include <fcntl.h>                                                          |
+#include <fcntl.h>
 #include <errno.h>
 
 using namespace android;
@@ -154,6 +154,9 @@ extern int register_android_server_NetworkManagementSocketTagger(JNIEnv* env);
 extern int register_android_server_Watchdog(JNIEnv* env);
 extern int register_android_ddm_DdmHandleNativeHeap(JNIEnv *env);
 extern int register_com_android_internal_os_ZygoteInit(JNIEnv* env);
+#ifdef WITH_HOUDINI
+extern int register_com_android_internal_os_ZygoteConnection(JNIEnv* env);
+#endif
 extern int register_android_backup_BackupDataInput(JNIEnv *env);
 extern int register_android_backup_BackupDataOutput(JNIEnv *env);
 extern int register_android_backup_FileBackupHelperBase(JNIEnv *env);
@@ -1385,6 +1388,9 @@ static const RegJNIRec gRegJNI[] = {
     REG_JNI(register_android_net_wifi_WifiManager),
     REG_JNI(register_android_os_MemoryFile),
     REG_JNI(register_com_android_internal_os_ZygoteInit),
+#ifdef WITH_HOUDINI
+    REG_JNI(register_com_android_internal_os_ZygoteConnection),
+#endif
     REG_JNI(register_android_hardware_Camera),
     REG_JNI(register_android_hardware_SensorManager),
     REG_JNI(register_android_hardware_SerialPort),
