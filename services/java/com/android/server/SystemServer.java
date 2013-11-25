@@ -79,6 +79,7 @@ import android.view.InputChannel;
 import com.intel.arkham.ExtendAccountManagerService;
 import com.intel.config.FeatureConfig;
 import com.intel.multidisplay.DisplayObserver;
+import com.intel.cws.cwsservicemanager.CwsServiceMgr;
 
 import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
@@ -170,6 +171,7 @@ class ServerThread {
         InputManagerService inputManager = null;
         TelephonyRegistry telephonyRegistry = null;
         ConsumerIrService consumerIr = null;
+        CwsServiceMgr cwsService = null;
 
         // Create a handler thread just for the window manager to enjoy.
         HandlerThread wmHandlerThread = new HandlerThread("WindowManager");
@@ -573,6 +575,18 @@ class ServerThread {
                     ServiceManager.addService(Context.WIFI_SERVICE, wifi);
                 } catch (Throwable e) {
                     reportWtf("starting Wi-Fi Service", e);
+                }
+
+                try {
+                    Slog.i(TAG, "Cws Service Manager");
+                    cwsService = CwsServiceMgr.getInstance(context);
+                    if (null != cwsService) {
+                        ServiceManager.addService(Context.CSM_SERVICE, cwsService);
+                    } else {
+                        Slog.e(TAG, "cwsService is null");
+                    }
+                } catch (Throwable e) {
+                    reportWtf("starting Cws Service Manager", e);
                 }
 
                 try {
