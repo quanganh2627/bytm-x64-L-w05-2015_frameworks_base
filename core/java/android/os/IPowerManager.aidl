@@ -55,4 +55,5 @@ interface IPowerManager
 
     // Thermal Management Specific apis
     void setThermalBrightnessLimit(int newBrightness, boolean immediate);
+    int getThermalBrightnessLimit();
 }

@@ -30,9 +30,12 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Handler;
+import android.os.IPowerManager;
 import android.os.Looper;
 import android.os.Message;
 import android.os.PowerManager;
+import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.text.format.DateUtils;
 import android.util.FloatMath;
@@ -177,6 +180,9 @@ final class DisplayPowerController {
     // Only invoked from the handler thread while no locks are held.
     private final Callbacks mCallbacks;
     private Handler mCallbackHandler;
+
+    // The PowerManager Service
+    private static IPowerManager sPower;
 
     // The lights service.
     private final LightsService mLights;
@@ -385,6 +391,8 @@ final class DisplayPowerController {
         mButtonLedHandler = new Handler(true /*async*/);
 
         final Resources resources = context.getResources();
+
+        sPower = IPowerManager.Stub.asInterface(ServiceManager.getService("power"));
 
         mScreenBrightnessDimConfig = clampAbsoluteBrightness(resources.getInteger(
                 com.android.internal.R.integer.config_screenBrightnessDim));
@@ -856,7 +864,21 @@ final class DisplayPowerController {
         return clamp(value, PowerManager.BRIGHTNESS_OFF, PowerManager.BRIGHTNESS_ON);
     }
 
+    private static int checkThermalLimit(int max) {
+        if (sPower != null) {
+            try {
+                return Math.min(max, sPower.getThermalBrightnessLimit());
+            } catch (RemoteException e) {
+                Slog.e(TAG, "remote exception for getThermalBrightnessLimit()");
+            }
+        }
+
+        return max;
+    }
+
     private static int clamp(int value, int min, int max) {
+        // Cap the Brightness Limit to max brightness allowed thermally.
+        max = checkThermalLimit(max);
         if (value <= min) {
             return min;
         }
