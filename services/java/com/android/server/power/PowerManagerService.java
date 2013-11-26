@@ -425,6 +425,23 @@ public final class PowerManagerService extends IPowerManager.Stub
         mDisplayBlanker.unblankAllDisplays();
     }
 
+    /* new function added, called from display plugin */
+    public void setThermalBrightnessLimit(int newBrightness, boolean immediate) {
+        // Update the max allowed brightness val synchronously.
+        // synchronize the step on mLock. This lock is used by PowerMangerService
+        // to synchronize operations
+        synchronized (mLock) {
+            // mScreenBrightnessSettingMaximum is the maximum allowed brightness val
+            mScreenBrightnessSettingMaximum = newBrightness;
+        }
+
+        // mScreenBrightnessSetting stores the current brightness value
+        // set the new brightness only if its lesser than the current brightness
+        if ((immediate) && (newBrightness < mScreenBrightnessSetting)) {
+                setScreenBrightnessOverrideFromWindowManager(newBrightness);
+        }
+    }
+
     public void setPolicy(WindowManagerPolicy policy) {
         synchronized (mLock) {
             mPolicy = policy;

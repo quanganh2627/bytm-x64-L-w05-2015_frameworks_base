@@ -67,6 +67,7 @@ import com.android.server.power.PowerManagerService;
 import com.android.server.power.ShutdownThread;
 import com.android.server.print.PrintManagerService;
 import com.android.server.search.SearchManagerService;
+import com.android.server.thermal.ThermalService;
 import com.android.server.usb.UsbService;
 import com.android.server.wifi.WifiService;
 import com.android.server.wifi.CsmWifiOffloadSystemService;
@@ -156,6 +157,7 @@ class ServerThread {
         UiModeManagerService uiMode = null;
         RecognitionManagerService recognition = null;
         NetworkTimeUpdateService networkTimeUpdater = null;
+        ThermalService thermalservice = null;
         CommonTimeManagementService commonTimeMgmtService = null;
         InputManagerService inputManager = null;
         TelephonyRegistry telephonyRegistry = null;
@@ -280,6 +282,15 @@ class ServerThread {
 
             Slog.i(TAG, "Lights Service");
             lights = new LightsService(context);
+
+            //THERMAL
+            if ("1".equals(SystemProperties.get("persist.service.thermal", "0"))) {
+               Slog.i(TAG, "Thermal Service enabled");
+               thermalservice = new ThermalService(context);
+               ServiceManager.addService("thermalservice", thermalservice);
+            } else {
+               Log.i(TAG, "Thermal Service disabled");
+            }
 
             Slog.i(TAG, "Battery Service");
             battery = new BatteryService(context, lights);
