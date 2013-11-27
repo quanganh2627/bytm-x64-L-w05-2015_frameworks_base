@@ -386,18 +386,18 @@ public class KeyguardViewMediator {
                             } else {
                                 resetStateLocked(null);
                             }
-                        // reset lock screen in case of sim removal
+                        // reset lock screen in case of sim removal or not ready
                         // after the device is provisioned
                         } else {
-                            if (isShowing()
-                                && simState == IccCardConstants.State.ABSENT)
-                                    if (mLockPatternUtils.isLockScreenDisabled()) {
-                                        if (DEBUG) Log.d(TAG, "Lock screen will be hidden because,"
-                                                + " the user has set the preference to None.");
-                                        hideLocked();
-                                    } else {
-                                        resetStateLocked(null);
-                                    }
+                            if (isShowing()) {
+                                if (mLockPatternUtils.isLockScreenDisabled()) {
+                                    if (DEBUG) Log.d(TAG, "Lock screen will be hidden because,"
+                                            + " the user has set the preference to None.");
+                                    hideLocked();
+                                } else {
+                                    resetStateLocked(null);
+                                }
+                            }
                         }
                     }
                     break;
