@@ -65,6 +65,9 @@ import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.content.res.XmlResourceParser;
 import android.database.ContentObserver;
+/* DOLBY_DAP */
+import android.media.AudioServiceHelper;
+/* DOLBY_DAP END */
 import android.media.MediaPlayer.OnCompletionListener;
 import android.media.MediaPlayer.OnErrorListener;
 import android.net.Uri;
@@ -485,6 +488,10 @@ public class AudioService extends IAudioService.Stub {
     private final Object mA2dpAvrcpLock = new Object();
     // If absolute volume is supported in AVRCP device
     private boolean mAvrcpAbsVolSupported = false;
+
+/* DOLBY_DAP */
+    private AudioServiceHelper mAudioServiceHelper;
+/* DOLBY_DAP END */
 
     ///////////////////////////////////////////////////////////////////////////
     // Construction
@@ -3680,10 +3687,10 @@ public class AudioService extends IAudioService.Stub {
                                         AudioSystem.FORCE_ANALOG_DOCK : AudioSystem.FORCE_NONE);
                     }
                     /* DOLBY_DAP */
-                    // Send a broadcast to DsService
-                    Intent broadcast = new Intent("media_server_started");
-                    broadcast.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-                    mContext.sendBroadcast(broadcast);
+                    if (SystemProperties.getBoolean("dolby.ds1.enable", false)) {
+                        mAudioServiceHelper = new AudioServiceHelper();
+                        mContext.sendBroadcast(mAudioServiceHelper.getBroadcast());
+                    }
                     /* DOLBY_DAP END */
                     // indicate the end of reconfiguration phase to audio HAL
                     AudioSystem.setParameters("restarting=false");
