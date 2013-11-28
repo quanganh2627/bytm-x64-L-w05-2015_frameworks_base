@@ -15,11 +15,6 @@ ifeq ($(WITH_JIT),true)
 	LOCAL_CFLAGS += -DWITH_JIT
 endif
 
-ifeq ($(INTEL_HOUDINI), true)
-    LOCAL_CFLAGS += -DWITH_HOUDINI
-    LOCAL_STATIC_LIBRARIES += libhoudini_hook
-endif
-
 ifeq ($(INTEL_INGREDIENTS_VERSIONS), true)
     LOCAL_CFLAGS += -DRETRIEVE_INGREDIENTS_VERSIONS
 endif
@@ -221,6 +216,12 @@ LOCAL_SHARED_LIBRARIES := \
 	libusbhost \
 	libharfbuzz \
 	libz
+
+ifeq ($(INTEL_HOUDINI), true)
+    LOCAL_CFLAGS += -DWITH_HOUDINI
+    LOCAL_STATIC_LIBRARIES += libhoudini_hook
+    LOCAL_SRC_FILES += com_android_internal_os_ZygoteConnection.cpp
+endif
 
 ifeq ($(HAVE_SELINUX),true)
 LOCAL_C_INCLUDES += external/libselinux/include
