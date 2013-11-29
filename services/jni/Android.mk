@@ -15,9 +15,11 @@ LOCAL_SRC_FILES:= \
     com_android_server_UsbDeviceManager.cpp \
     com_android_server_UsbHostManager.cpp \
     com_android_server_VibratorService.cpp \
+    com_android_server_CurrentMgmtService.cpp \
     com_android_server_location_GpsLocationProvider.cpp \
     com_android_server_location_FlpHardwareProvider.cpp \
     com_android_server_connectivity_Vpn.cpp \
+    com_android_server_thermal_ThermalManager.cpp\
     onload.cpp
 
 LOCAL_C_INCLUDES += \
@@ -53,6 +55,17 @@ LOCAL_SHARED_LIBRARIES := \
     libGLESv2
 
 LOCAL_CFLAGS += -DEGL_EGLEXT_PROTOTYPES -DGL_GLEXT_PROTOTYPES
+
+ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
+ifeq ($(USE_MDS_LEGACY),true)
+    LOCAL_CFLAGS += -DUSE_MDS_LEGACY
+endif
+    LOCAL_SHARED_LIBRARIES += \
+        libmultidisplay \
+        libbinder \
+        libmultidisplayjni
+    LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
+endif
 
 ifeq ($(WITH_MALLOC_LEAK_CHECK),true)
     LOCAL_CFLAGS += -DMALLOC_LEAK_CHECK

@@ -51,6 +51,7 @@ import com.android.server.accessibility.AccessibilityManagerService;
 import com.android.server.accounts.AccountManagerService;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.am.BatteryStatsService;
+import com.android.server.cms.CurrentMgmtService;
 import com.android.server.content.ContentService;
 import com.android.server.display.DisplayManagerService;
 import com.android.server.dreams.DreamManagerService;
@@ -65,9 +66,12 @@ import com.android.server.power.PowerManagerService;
 import com.android.server.power.ShutdownThread;
 import com.android.server.print.PrintManagerService;
 import com.android.server.search.SearchManagerService;
+import com.android.server.thermal.ThermalService;
 import com.android.server.usb.UsbService;
 import com.android.server.wifi.WifiService;
+import com.android.server.wifi.CsmWifiOffloadSystemService;
 import com.android.server.wm.WindowManagerService;
+import com.intel.multidisplay.DisplayObserver;
 
 import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
@@ -130,6 +134,7 @@ class ServerThread {
         PowerManagerService power = null;
         DisplayManagerService display = null;
         BatteryService battery = null;
+        CurrentMgmtService current = null;
         VibratorService vibrator = null;
         AlarmManagerService alarm = null;
         MountService mountService = null;
@@ -151,6 +156,7 @@ class ServerThread {
         UiModeManagerService uiMode = null;
         RecognitionManagerService recognition = null;
         NetworkTimeUpdateService networkTimeUpdater = null;
+        ThermalService thermalservice = null;
         CommonTimeManagementService commonTimeMgmtService = null;
         InputManagerService inputManager = null;
         TelephonyRegistry telephonyRegistry = null;
@@ -276,9 +282,22 @@ class ServerThread {
             Slog.i(TAG, "Lights Service");
             lights = new LightsService(context);
 
+            //THERMAL
+            if ("1".equals(SystemProperties.get("persist.service.thermal", "0"))) {
+               Slog.i(TAG, "Thermal Service enabled");
+               thermalservice = new ThermalService(context);
+               ServiceManager.addService("thermalservice", thermalservice);
+            } else {
+               Log.i(TAG, "Thermal Service disabled");
+            }
+
             Slog.i(TAG, "Battery Service");
             battery = new BatteryService(context, lights);
             ServiceManager.addService("battery", battery);
+
+            Slog.i(TAG, "Current Mgmt Service");
+            current = new CurrentMgmtService(context);
+            ServiceManager.addService("current", current);
 
             Slog.i(TAG, "Vibrator Service");
             vibrator = new VibratorService(context);
@@ -493,6 +512,14 @@ class ServerThread {
                 }
 
                try {
+                   Slog.i(TAG, "CSM Wifi Offload Service");
+                   CsmWifiOffloadSystemService csmWifiOffload = new CsmWifiOffloadSystemService(context);
+                   ServiceManager.addService("CsmWifiOffloadService", csmWifiOffload);
+               } catch (Throwable e) {
+                   reportWtf("starting CSM Wifi Offload system service", e);
+               }
+
+               try {
                     Slog.i(TAG, "Wi-Fi P2pService");
                     wifiP2p = new WifiP2pService(context);
                     ServiceManager.addService(Context.WIFI_P2P_SERVICE, wifiP2p);
@@ -638,6 +665,14 @@ class ServerThread {
                 } catch (Throwable e) {
                     reportWtf("starting Audio Service", e);
                 }
+            }
+
+            try {
+                Slog.i(TAG, "Intel Display Observer");
+                // Listen for display changes
+                DisplayObserver dso = new DisplayObserver(context);
+            } catch (Throwable e) {
+                reportWtf("starting Intel DisplayObserver", e);
             }
 
             if (!disableNonCoreServices) {

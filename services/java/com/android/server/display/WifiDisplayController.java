@@ -142,6 +142,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
     // The device to which we are currently connected, which means we have an active P2P group.
     private WifiP2pDevice mConnectedDevice;
 
+    // The device to which we want to reconnect.
+    private WifiP2pDevice mReconnectDesiredDevice;
+
     // The group info obtained after connecting.
     private WifiP2pGroup mConnectedDeviceGroupInfo;
 
@@ -165,6 +168,12 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private int mAdvertisedDisplayHeight;
     private int mAdvertisedDisplayFlags;
 
+    /* For WFD certification TC 5.1.3.
+     * The variables will not be used outside of certification scope.
+     */
+    private String mSigmaWfdAutogo;
+    private NetworkInfo mSigmaNetworkInfo;
+
     // Certification
     private boolean mWifiDisplayCertMode;
     private int mWifiDisplayWpsConfig = WpsInfo.INVALID;
@@ -185,6 +194,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_DISCOVERY_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION);
         context.registerReceiver(mWifiP2pReceiver, intentFilter, null, mHandler);
 
@@ -311,6 +321,10 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 }
             }
         });
+    }
+
+    public void requestReconnect() {
+        reconnect();
     }
 
     private void updateWfdEnableState() {
@@ -484,6 +498,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
         mWifiP2pManager.requestPeers(mWifiP2pChannel, new PeerListListener() {
             @Override
             public void onPeersAvailable(WifiP2pDeviceList peers) {
+                boolean tryReconnect = false;
                 if (DEBUG) {
                     Slog.d(TAG, "Received list of peers.");
                 }
@@ -496,10 +511,19 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
                     if (isWifiDisplay(device)) {
                         mAvailableWifiDisplayPeers.add(device);
+                        if (mReconnectDesiredDevice != null &&
+                            device.deviceAddress.equals(mReconnectDesiredDevice.deviceAddress))
+                            tryReconnect = true;
                     }
                 }
 
                 handleScanFinished();
+                if (tryReconnect) {
+                    if (DEBUG) {
+                        Slog.d(TAG, "Reconnecting (connection) to " + mReconnectDesiredDevice);
+                    }
+                    connect(mReconnectDesiredDevice);
+                }
             }
         });
     }
@@ -569,6 +593,16 @@ final class WifiDisplayController implements DumpUtils.Dump {
         }
 
         mDesiredDevice = device;
+        mReconnectDesiredDevice = null;
+        mSigmaWfdAutogo = SystemProperties.get("sigma.wfd.autogo", "");
+        if (!mSigmaWfdAutogo.equals("")) {
+            if (mSigmaNetworkInfo != null) {
+                handleConnectionChanged(mSigmaNetworkInfo);
+            }
+            // Do not call updateConnection() for now, will be done
+            // from handleConnectionChanged()
+            return;
+        }
         mConnectionRetriesLeft = CONNECT_MAX_RETRIES;
         updateConnection();
     }
@@ -576,6 +610,14 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private void disconnect() {
         mDesiredDevice = null;
         updateConnection();
+    }
+
+    private void reconnect() {
+        if (DEBUG) {
+            Slog.d(TAG, "Reconnecting (disconnection) to " + mConnectedDevice);
+        }
+        mReconnectDesiredDevice = mConnectedDevice;
+        disconnect();
     }
 
     private void retryConnection() {
@@ -878,6 +920,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
     private void handleConnectionChanged(NetworkInfo networkInfo) {
         mNetworkInfo = networkInfo;
+        if (networkInfo.getState() == NetworkInfo.State.CONNECTING)
+            return;
+
         if (mWfdEnabled && networkInfo.isConnected()) {
             if (mDesiredDevice != null || mWifiDisplayCertMode) {
                 mWifiP2pManager.requestGroupInfo(mWifiP2pChannel, new GroupInfoListener() {
@@ -899,6 +944,11 @@ final class WifiDisplayController implements DumpUtils.Dump {
                         if (mDesiredDevice != null && !info.contains(mDesiredDevice)) {
                             disconnect();
                             return;
+                        }
+
+                        mSigmaWfdAutogo = SystemProperties.get("sigma.wfd.autogo", "");
+                        if (!mSigmaWfdAutogo.equals("")) {
+                            mConnectingDevice = mDesiredDevice;
                         }
 
                         if (mWifiDisplayCertMode) {
@@ -1081,7 +1131,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private static boolean isWifiDisplay(WifiP2pDevice device) {
         return device.wfdInfo != null
                 && device.wfdInfo.isWfdEnabled()
-                && isPrimarySinkDeviceType(device.wfdInfo.getDeviceType());
+                && isPrimarySinkDeviceType(device.wfdInfo.getDeviceType())
+                && device.wfdInfo.isSessionAvailable();
     }
 
     private static boolean isPrimarySinkDeviceType(int deviceType) {
@@ -1127,6 +1178,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
             } else if (action.equals(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)) {
                 NetworkInfo networkInfo = (NetworkInfo)intent.getParcelableExtra(
                         WifiP2pManager.EXTRA_NETWORK_INFO);
+                mSigmaNetworkInfo = (NetworkInfo)intent.getParcelableExtra(
+                        WifiP2pManager.EXTRA_NETWORK_INFO); // Remember latest info received
                 if (DEBUG) {
                     Slog.d(TAG, "Received WIFI_P2P_CONNECTION_CHANGED_ACTION: networkInfo="
                             + networkInfo);
@@ -1139,6 +1192,22 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 if (DEBUG) {
                     Slog.d(TAG, "Received WIFI_P2P_THIS_DEVICE_CHANGED_ACTION: mThisDevice= "
                             + mThisDevice);
+                }
+            } else if (action.equals(WifiP2pManager.WIFI_P2P_DISCOVERY_CHANGED_ACTION)) {
+                boolean stopped = (intent.getIntExtra(WifiP2pManager.EXTRA_DISCOVERY_STATE,
+                        WifiP2pManager.WIFI_P2P_DISCOVERY_STOPPED)) ==
+                        WifiP2pManager.WIFI_P2P_DISCOVERY_STOPPED;
+
+                if (DEBUG) {
+                    Slog.d(TAG, "Received WIFI_P2P_DISCOVERY_CHANGED_ACTION: state = "
+                           + (stopped ? "stopped" : "started"));
+                }
+
+                if (stopped && mReconnectDesiredDevice != null) {
+                    if (DEBUG) {
+                        Slog.d(TAG, "Cannot find device " + mReconnectDesiredDevice + ", abort reconnection" );
+                    }
+                    mReconnectDesiredDevice = null;
                 }
             } else if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
                 NetworkInfo networkInfo = (NetworkInfo)intent.getParcelableExtra(

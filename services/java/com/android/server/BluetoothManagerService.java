@@ -32,6 +32,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.media.AudioManager;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
@@ -44,6 +45,9 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
+import com.intel.cws.cwsservicemanagerclient.CsmClient;
+import com.intel.cws.cwsservicemanager.CsmException;
+
 class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final String TAG = "BluetoothManagerService";
     private static final boolean DBG = true;
@@ -63,6 +67,8 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final int ERROR_RESTART_TIME_MS = 3000;
     //Maximum msec to delay MESSAGE_USER_SWITCHED
     private static final int USER_SWITCHED_TIME_MS = 200;
+
+    private static final String AUDIO_PARAMETER_KEY_BLUETOOTH_STATE = "bluetooth_enabled";
 
     private static final int MESSAGE_ENABLE = 1;
     private static final int MESSAGE_DISABLE = 2;
@@ -124,6 +130,16 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private final BluetoothHandler mHandler;
     private int mErrorRecoveryRetryCounter;
     private BluetoothAdapter mAdapter;
+
+    private AudioManager mAudioManager;
+
+    private CsmClientBt mCsmClient;
+
+    private class CsmClientBt extends CsmClient {
+        public CsmClientBt(Context context) throws CsmException {
+            super(context, CsmClientBt.CSM_ID_BT, 1);
+        }
+    }
 
     private void registerForAirplaneMode(IntentFilter filter) {
         final ContentResolver resolver = mContext.getContentResolver();
@@ -229,6 +245,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         mAddress = null;
         mName = null;
         mErrorRecoveryRetryCounter = 0;
+        mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         mContentResolver = context.getContentResolver();
         mCallbacks = new RemoteCallbackList<IBluetoothManagerCallback>();
         mStateChangeCallbacks = new RemoteCallbackList<IBluetoothStateChangeCallback>();
@@ -240,6 +257,12 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         loadStoredNameAndAddress();
         if (isBluetoothPersistedStateOn()) {
             mEnableExternal = true;
+        }
+
+        try {
+            mCsmClient = new CsmClientBt(mContext);
+        } catch (CsmException e) {
+            if (DBG) Log.d(TAG, "Unable to create CsmClientBt.", e);
         }
     }
 
@@ -1100,6 +1123,9 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     Log.e(TAG,"Unable to call enable()",e);
                 }
             }
+
+            // Inform AudioRouteManager that bluetooth is enabled
+            mAudioManager.setParameters(AUDIO_PARAMETER_KEY_BLUETOOTH_STATE + "=true");
         }
     }
 
@@ -1119,6 +1145,9 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
             // service will be unbinded after Name and Address are saved
             if ((mBluetooth != null) && (!mConnection.isGetNameAddressOnly())) {
                 if (DBG) Log.d(TAG,"Sending off request.");
+
+                // Inform AudioRouteManager that bluetooth is disabled
+                mAudioManager.setParameters(AUDIO_PARAMETER_KEY_BLUETOOTH_STATE + "=false");
 
                 try {
                     if(!mBluetooth.disable()) {
@@ -1161,6 +1190,13 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 sendBluetoothStateCallback(isUp);
 
                 if (isUp) {
+                    if (mCsmClient != null) {
+                        try {
+                            mCsmClient.startAsync();
+                        } catch (CsmException e) {
+                            if (DBG) Log.d(TAG, "Unable to start CsmClientBt.", e);
+                        }
+                    }
                     // connect to GattService
                     if (mContext.getPackageManager().hasSystemFeature(
                                                      PackageManager.FEATURE_BLUETOOTH_LE)) {
@@ -1168,6 +1204,9 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                         doBind(i, mConnection, Context.BIND_AUTO_CREATE, UserHandle.CURRENT);
                     }
                 } else {
+                    if (mCsmClient != null) {
+                        mCsmClient.stop();
+                    }
                     //If Bluetooth is off, send service down event to proxy objects, and unbind
                     if (!isUp && canUnbindBluetoothService()) {
                         sendBluetoothServiceDownCallback();

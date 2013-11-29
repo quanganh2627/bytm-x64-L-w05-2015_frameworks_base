@@ -93,6 +93,7 @@ import android.view.WindowManagerPolicy;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.widget.Toast;
 
 import com.android.internal.R;
 import com.android.internal.policy.PolicyManager;
@@ -170,6 +171,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
 // length of vibration before shutting down is started on long power key press
     private static final int SHUTDOWN_VIBRATE_MS = 500;
+
+    // private lock for thread sync
+    private Object lock = new Object();
 
     /**
      * Keyguard stuff
@@ -686,16 +690,20 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     private boolean interceptPowerKeyUp(boolean canceled) {
+        synchronized(lock) {
         if (!mPowerKeyHandled) {
             // Cancel pending action scheduled in interceptPowerKeyDown
             Log.i(TAG, "interceptPowerKeyUp: key up event: remove pending callbacks for long press");
             mHandler.removeCallbacks(mPowerLongPress);
+            lock.notify();
             return !canceled;
         }
         // Cancel pending action scheduled in interceptPowerKeyDown
         Log.i(TAG, "interceptPowerKeyUp: key up event: remove pending callbacks for very long press");
         mHandler.removeCallbacks(mPowerLongLongPress);
+        lock.notify();
         return false;
+        }
     }
 
     private void cancelPendingPowerKeyAction() {
@@ -739,6 +747,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private final Runnable mPowerLongPress = new Runnable() {
         @Override
         public void run() {
+            synchronized(lock) {
+            // Allow to cancel mPowerLongLongPress callback in interceptPowerKeyUp function
+            mPowerKeyHandled = true;
+
             // The context isn't read
             if (mLongPressOnPowerBehavior < 0) {
                 mLongPressOnPowerBehavior = mContext.getResources().getInteger(
@@ -749,13 +761,26 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 resolvedBehavior = LONG_PRESS_POWER_SHUT_OFF_NO_CONFIRM;
             }
 
+            if (!"".equals(SystemProperties.get("vold.encrypt_progress"))) {
+                // When encryption is running, the user is not allowed to do a graceful shutdown,
+                // only a hardware forced shutdown is authorized.
+                // The close dialog is not displayed and the mPowerLongLongPress callback is
+                // not scheduled.
+                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms:"
+                        + " encryption in progress, no shutdown authorized", mPowerKeyTimeout));
+                Toast.makeText(mContext,
+                        com.android.internal.R.string.forbid_shutdown_when_encrypt,
+                        Toast.LENGTH_SHORT).show();
+                lock.notify();
+                return;
+            }
+
             switch (resolvedBehavior) {
             case LONG_PRESS_POWER_NOTHING:
                 Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: nothing to do", mPowerKeyTimeout));
                 break;
             case LONG_PRESS_POWER_GLOBAL_ACTIONS:
                 Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: display close dialog", mPowerKeyTimeout));
-                mPowerKeyHandled = true;
                 if (!performHapticFeedbackLw(null, HapticFeedbackConstants.LONG_PRESS, false)) {
                     performAuditoryFeedbackForAccessibilityIfNeed();
                 }
@@ -765,7 +790,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             case LONG_PRESS_POWER_SHUT_OFF:
             case LONG_PRESS_POWER_SHUT_OFF_NO_CONFIRM:
                 Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: run shutdown", mPowerKeyTimeout));
-                mPowerKeyHandled = true;
                 performHapticFeedbackLw(null, HapticFeedbackConstants.LONG_PRESS, false);
                 sendCloseSystemWindows(SYSTEM_DIALOG_REASON_GLOBAL_ACTIONS);
                 mWindowManagerFuncs.shutdown(resolvedBehavior == LONG_PRESS_POWER_SHUT_OFF);
@@ -773,6 +797,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             }
             mHandler.postDelayed(mPowerLongLongPress,
                     ViewConfiguration.getGlobalActionKeyShutdownTimeout());
+            lock.notify();
+            }
         }
     };
 

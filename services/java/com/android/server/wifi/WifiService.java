@@ -74,8 +74,11 @@ import java.util.List;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.intel.cws.cwsservicemanager.CsmException;
+
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
+import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
 import com.android.server.am.BatteryStatsService;
@@ -130,6 +133,9 @@ public final class WifiService extends IWifiManager.Stub {
     private WifiTrafficPoller mTrafficPoller;
     /* Tracks the persisted states for wi-fi & airplane mode */
     final WifiSettingsStore mSettingsStore;
+
+    WifiCsmClient mWifiCsmClient;
+
     private final WizardFinishedObserver mwizardFinishedObserver;
 
     final boolean mBatchedScanSupported;
@@ -283,6 +289,12 @@ public final class WifiService extends IWifiManager.Stub {
         mContext = context;
 
         mInterfaceName =  SystemProperties.get("wifi.interface", "wlan0");
+
+        try {
+            mWifiCsmClient = new WifiCsmClient(mContext, this);
+        } catch (CsmException e) {
+            Log.e(TAG, "Unable to create WifiCsmClient.", e);
+        }
 
         mWifiStateMachine = new WifiStateMachine(mContext, mInterfaceName);
         mWifiStateMachine.enableRssiPolling(true);
@@ -749,6 +761,23 @@ public final class WifiService extends IWifiManager.Stub {
         }
     }
 
+    /**
+     * see {@link android.net.wifi.WifiManager#updateIccNetworks(boolean)}
+     * @param enable true/false to enable/disable networks configured
+     * with an enterprise security related to SIM/USIM card (EAP-SIM/AKA)
+     * @return {@code true} if the operation succeeded
+     * @hide
+     */
+    public boolean updateIccNetworks(boolean enable) {
+        enforceChangePermission();
+        if (mWifiStateMachineChannel != null) {
+            return mWifiStateMachine.syncUpdateIccNetworks(mWifiStateMachineChannel, enable);
+        } else {
+            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
+            return false;
+        }
+    }
+
      /**
      * See {@link android.net.wifi.WifiManager#removeNetwork(int)}
      * @param netId the integer that identifies the network configuration
@@ -1177,6 +1206,16 @@ public final class WifiService extends IWifiManager.Stub {
                 mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, emergencyMode ? 1 : 0, 0);
             } else if (action.equals(WifiStateMachine.SHUT_DOWN_WIFI_ACTION)) {
                 mWifiController.sendMessage(CMD_DEVICE_IDLE);
+            } else if (action.equals(TelephonyIntents.ACTION_SIM_STATE_CHANGED)) {
+                String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
+                if (IccCardConstants.INTENT_VALUE_ICC_LOADED.equals(stateExtra)) {
+                    if (DBG) Slog.d(TAG, "SIM Card inserted");
+                    updateIccNetworks(true);
+                } else if (IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra)
+                        || IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra)) {
+                    if (DBG) Slog.d(TAG, "SIM Card removed or not ready");
+                    updateIccNetworks(false);
+                }
             }
         }
     };
@@ -1208,6 +1247,7 @@ public final class WifiService extends IWifiManager.Stub {
         intentFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
         intentFilter.addAction(WifiStateMachine.SHUT_DOWN_WIFI_ACTION);
+        intentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
         mContext.registerReceiver(mReceiver, intentFilter);
     }
 

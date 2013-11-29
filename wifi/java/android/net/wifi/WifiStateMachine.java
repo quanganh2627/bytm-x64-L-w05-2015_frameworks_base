@@ -118,7 +118,8 @@ public class WifiStateMachine extends StateMachine {
     private ConnectivityManager mCm;
 
     private final boolean mP2pSupported;
-    private final AtomicBoolean mP2pConnected = new AtomicBoolean(false);
+    private final AtomicBoolean mP2pConnecting = new AtomicBoolean(false);
+    private final AtomicBoolean mP2pConnected  = new AtomicBoolean(false);
     private boolean mTemporarilyDisconnectWifi = false;
     private final String mPrimaryDeviceType;
 
@@ -354,6 +355,9 @@ public class WifiStateMachine extends StateMachine {
     static final int CMD_SAVE_CONFIG                      = BASE + 58;
     /* Get configured networks*/
     static final int CMD_GET_CONFIGURED_NETWORKS          = BASE + 59;
+    /* Update )enable/disable) ICC related networks */
+    static final int CMD_UPDATE_ICC_NETWORKS              = BASE + 60;
+
 
     /* Supplicant commands after driver start*/
     /* Initiate a scan */
@@ -1363,6 +1367,25 @@ public class WifiStateMachine extends StateMachine {
         return result;
     }
 
+    /**
+     * Update all ICC related network (which use EAP-SIM/AKA) synchronously
+     * @param enable ,true/false to enable/disable networks that use security related to SIM/USIM
+     * (EAP-SIM/AKA)
+     *
+     * @return {@code true} if the operation succeeds, {@code false} otherwise
+     * @hide
+     */
+    public boolean syncUpdateIccNetworks(AsyncChannel channel, boolean enable) {
+        Message resultMsg = channel.sendMessageSynchronously(CMD_UPDATE_ICC_NETWORKS,
+                enable ? 1 : 0);
+        boolean result = false;
+        if (resultMsg != null) {
+            result = (resultMsg.arg1 != FAILURE);
+            resultMsg.recycle();
+        }
+        return result;
+    }
+
     public List<WifiConfiguration> syncGetConfiguredNetworks(AsyncChannel channel) {
         Message resultMsg = channel.sendMessageSynchronously(CMD_GET_CONFIGURED_NETWORKS);
         List<WifiConfiguration> result = (List<WifiConfiguration>) resultMsg.obj;
@@ -1648,7 +1671,10 @@ public class WifiStateMachine extends StateMachine {
             } else {
                 //Allow 2s for suspend optimizations to be set
                 mSuspendWakeLock.acquire(2000);
-                sendMessage(CMD_SET_SUSPEND_OPT_ENABLED, 1, 0);
+                if (!mP2pConnecting.get())
+                    sendMessage(obtainMessage(CMD_SET_SUSPEND_OPT_ENABLED, 1, 0));
+                else
+                    log("P2P connecting ongoing discard SET_SUSPEND");
             }
         }
         mScreenBroadcastReceived.set(true);
@@ -2472,6 +2498,7 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_ADD_OR_UPDATE_NETWORK:
                 case CMD_REMOVE_NETWORK:
                 case CMD_SAVE_CONFIG:
+                case CMD_UPDATE_ICC_NETWORKS:
                     replyToMessage(message, message.what, FAILURE);
                     break;
                 case CMD_GET_CONFIGURED_NETWORKS:
@@ -2606,6 +2633,7 @@ public class WifiStateMachine extends StateMachine {
                 case WifiP2pService.P2P_CONNECTION_CHANGED:
                     NetworkInfo info = (NetworkInfo) message.obj;
                     mP2pConnected.set(info.isConnected());
+                    mP2pConnecting.set(info.getState() == NetworkInfo.State.CONNECTING);
                     break;
                 case WifiP2pService.DISCONNECT_WIFI_REQUEST:
                     mTemporarilyDisconnectWifi = (message.arg1 == 1);
@@ -3119,6 +3147,7 @@ public class WifiStateMachine extends StateMachine {
                     if (DBG) log("set frequency band " + band);
                     if (mWifiNative.setBand(band)) {
                         mFrequencyBand.set(band);
+                        mWifiNative.flushBSS();
                         // flush old data - like scan results
                         mWifiNative.bssFlush();
                         //Fetch the latest scan results when frequency band is set
@@ -3456,6 +3485,11 @@ public class WifiStateMachine extends StateMachine {
                     config = (WifiConfiguration) message.obj;
                     replyToMessage(message, CMD_ADD_OR_UPDATE_NETWORK,
                             mWifiConfigStore.addOrUpdateNetwork(config));
+                    break;
+                case CMD_UPDATE_ICC_NETWORKS:
+                    int enable = (int) message.arg1;
+                    mWifiConfigStore.updateIccNetworks(enable == 1 ? true: false);
+                    replyToMessage(message, CMD_UPDATE_ICC_NETWORKS, SUCCESS);
                     break;
                 case CMD_REMOVE_NETWORK:
                     ok = mWifiConfigStore.removeNetwork(message.arg1);
@@ -4071,7 +4105,9 @@ public class WifiStateMachine extends StateMachine {
                 case WifiP2pService.P2P_CONNECTION_CHANGED:
                     NetworkInfo info = (NetworkInfo) message.obj;
                     mP2pConnected.set(info.isConnected());
-                    if (mP2pConnected.get()) {
+                    mP2pConnecting.set(info.getState() == NetworkInfo.State.CONNECTING);
+
+                    if (mP2pConnected.get() || mP2pConnecting.get()) {
                         int defaultInterval = mContext.getResources().getInteger(
                                 R.integer.config_wifi_scan_interval_p2p_connected);
                         long scanIntervalMs = Settings.Global.getLong(mContext.getContentResolver(),

@@ -398,7 +398,11 @@ public class NetworkManagementService extends INetworkManagementService.Stub
         }
 
         // TODO: Push any existing firewall state
-        setFirewallEnabled(mFirewallEnabled || LockdownVpnTracker.isEnabled());
+        try {
+            setFirewallEnabled(mFirewallEnabled || LockdownVpnTracker.isEnabled());
+        } catch (IllegalArgumentException e) {
+            Log.wtf(TAG, "problem enabling or disabling firewall", e);
+        }
     }
 
     /**
