@@ -516,6 +516,8 @@ class WifiController extends StateMachine {
             mDisabledTimestamp = SystemClock.elapsedRealtime();
             mDeferredEnableSerialNumber++;
             mHaveDeferredEnable = false;
+            if (mWifiCsmClient != null)
+                mWifiCsmClient.putModem();
         }
 
         @Override
@@ -585,7 +587,10 @@ class WifiController extends StateMachine {
             sendMessageDelayed(deferredMsg, mReEnableDelayMillis - delaySoFar + DEFER_MARGIN_MS);
             return true;
         }
-
+        public void exit() {
+            if (mWifiCsmClient != null)
+                mWifiCsmClient.getModem();
+        }
     }
 
     class ApEnabledState extends State {
