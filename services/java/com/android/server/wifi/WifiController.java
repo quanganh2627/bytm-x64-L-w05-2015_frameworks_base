@@ -48,6 +48,8 @@ import com.android.server.wifi.WifiService.LockList;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 class WifiController extends StateMachine {
     private static final String TAG = "WifiController";
@@ -134,6 +136,31 @@ class WifiController extends StateMachine {
     private FullHighPerfLockHeldState mFullHighPerfLockHeldState = new FullHighPerfLockHeldState();
     private NoLockHeldState mNoLockHeldState = new NoLockHeldState();
     private EcmState mEcmState = new EcmState();
+
+    private class APStateReceiver extends BroadcastReceiver {
+        private final CountDownLatch mReceiveLatch = new CountDownLatch(1);
+        private final int mExpectedState;
+
+        APStateReceiver(int expectedState) {
+            mExpectedState = expectedState;
+        }
+
+        public void onReceive(Context context, Intent intent) {
+            int state = intent.getIntExtra(WifiManager.EXTRA_WIFI_AP_STATE,
+                    WifiManager.WIFI_AP_STATE_FAILED);
+            if (state == mExpectedState) {
+                mReceiveLatch.countDown();
+            }
+        }
+
+        public boolean waitForStateChange() throws InterruptedException {
+            return mReceiveLatch.await(5, TimeUnit.SECONDS) || hasExpectedState();
+        }
+
+        private boolean hasExpectedState() {
+            return mExpectedState == mWifiStateMachine.syncGetWifiApState();
+        }
+    }
 
     WifiController(Context context, WifiService service, Looper looper) {
         super(TAG, looper);
@@ -652,7 +679,23 @@ class WifiController extends StateMachine {
                     break;
                 case CMD_SET_AP:
                     if (msg.arg1 == 0) {
+                        APStateReceiver receiver = new APStateReceiver(
+                                WifiManager.WIFI_AP_STATE_DISABLED);
+                        IntentFilter filter = new IntentFilter(
+                                WifiManager.WIFI_AP_STATE_CHANGED_ACTION);
                         mWifiStateMachine.setHostApRunning(null, false);
+                        mContext.registerReceiver(receiver, filter);
+                        try {
+                            if(!receiver.waitForStateChange()) {
+                                loge("A problem occured while disabling AP");
+                            }
+                        } catch(InterruptedException e) {
+                            loge("Caught InterruptedException");
+                        }
+                        mContext.unregisterReceiver(receiver);
+                        if (mSettingsStore.isScanAlwaysAvailable()) {
+                            deferMessage(obtainMessage(CMD_SCAN_ALWAYS_MODE_CHANGED));
+                        }
                         transitionTo(mApStaDisabledState);
                     }
                     break;
