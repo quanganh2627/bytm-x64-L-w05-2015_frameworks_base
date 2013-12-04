@@ -165,6 +165,22 @@ android_mtp_MtpServer_remove_storage(JNIEnv *env, jobject thiz, jint storageId)
         ALOGE("server is null in remove_storage");
 }
 
+static void
+android_mtp_MtpServer_change_storageinfo(JNIEnv *env, jobject thiz, jint storageId)
+{
+    Mutex::Autolock autoLock(sMutex);
+
+    MtpServer* server = getMtpServer(env, thiz);
+    if (server) {
+        MtpStorage* storage = server->getStorage(storageId);
+        if (storage) {
+            server->changeStorageInfo(storage);
+            delete storage;
+        }
+    } else
+        ALOGE("server is null in change_storageinfo");
+}
+
 // ----------------------------------------------------------------------------
 
 static JNINativeMethod gMethods[] = {
@@ -177,6 +193,7 @@ static JNINativeMethod gMethods[] = {
     {"native_add_storage",          "(Landroid/mtp/MtpStorage;)V",
                                             (void *)android_mtp_MtpServer_add_storage},
     {"native_remove_storage",       "(I)V", (void *)android_mtp_MtpServer_remove_storage},
+    {"native_change_storageinfo",       "(I)V", (void *)android_mtp_MtpServer_change_storageinfo},
 };
 
 static const char* const kClassPathName = "android/mtp/MtpServer";
