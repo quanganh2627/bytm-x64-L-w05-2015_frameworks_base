@@ -368,6 +368,11 @@ public class ThermalCooling {
             return false;
         }
 
+        if (device.getClassPath().equalsIgnoreCase("auto")) {
+            Log.i(TAG, "ClassPath- <auto>");
+            return true;
+        }
+
         /* Load the cooling device class */
         try {
             cls = Class.forName(device.getClassPath());
@@ -515,31 +520,97 @@ public class ThermalCooling {
         }
     }
 
+    /*
+     * defaultThrottleMethod is called for cooling devices for which an additional
+     * plugin file is not provided. Since the throttle path and the throttle values
+     * are known, we dont need an additional plugin to implement the policy. This info
+     * is provided via thermal_throttle_config file. If for a cooling device,
+     * Assumptions -
+     * 1. If CDeviceClassPath is 'auto' this triggers a call to defaultThrottleMethod().
+     * if a false throttle path is provided, the write fails and function exits gracefully
+     * with a warning message.
+     * 2. If 'auto' mode is used for CDeviceClassPath, and no throttle values are provided,
+     * thermal state will be written.
+     * 3. If CDeviceThrottlePath is 'auto', then throttle path will be constrcuted.
+     * The Cooling device name should contain a subset string that matches the type for
+     * /sys/class/thermal/cooling_deviceX/type inorder to find the right index X
+     * 4. CDeviceThrottlePath is null no write operation will be done
+     **/
+    private static void defaultThrottleMethod(ThermalCoolingDevice cdev, int level) {
+        int finalValue;
+        String throttlePath = null;
+
+        if (cdev == null) return;
+
+        if (level < ThermalManager.NUM_THERMAL_STATES - 1) {
+            try {
+                ArrayList<Integer> values = cdev.getThrottleValuesList();
+                if (values == null || values.size() == 0) {
+                    finalValue = level;
+                } else {
+                    finalValue =  values.get(level);
+                }
+
+                throttlePath = cdev.getThrottlePath();
+                if (throttlePath == null) {
+                    Log.i(TAG, "throttle path is null");
+                    return;
+                }
+
+                if (throttlePath.equalsIgnoreCase("auto")) {
+                    //construct the throttle path
+                    int indx = ThermalManager.getCoolingDeviceIndexContains(cdev.getDeviceName());
+                    if (indx != -1) {
+                        throttlePath = ThermalManager.sCoolingDeviceBasePath + indx
+                                + ThermalManager.sCoolingDeviceState;
+                    } else {
+                        throttlePath = null;
+                    }
+                }
+
+                if (!ThermalManager.isFileExists(throttlePath)) {
+                    Log.i(TAG, "invalid throttle path for cooling device:" + cdev.getDeviceName());
+                    return;
+                }
+
+                if (ThermalManager.writeSysfs(throttlePath, finalValue) == -1) {
+                    Log.i (TAG, "write to sysfs failed");
+                }
+            } catch (IndexOutOfBoundsException e) {
+                Log.i(TAG, "IndexOutOfBoundsException caught in defaultThrottleMethod()");
+            }
+        }
+    }
+
     /* Method to throttle cooling device */
     private static void throttleDevice(int coolingDevId, int throttleLevel) {
         /* Retrieve the cooling device based on ID */
         ThermalCoolingDevice dev = ThermalManager.sListOfCoolers.get(coolingDevId);
         if (dev != null) {
-            Class c = dev.getDeviceClass();
-            Method throt = dev.getThrottleMethod();
-            if (throt == null)
-                return;
-            Object arglist[] = new Object[1];
-            arglist[0] = new Integer(throttleLevel);
+            if (dev.getClassPath() != null && dev.getClassPath().equalsIgnoreCase("auto")) {
+                defaultThrottleMethod(dev, throttleLevel);
+            } else {
+                Class c = dev.getDeviceClass();
+                Method throt = dev.getThrottleMethod();
+                if (throt == null)
+                    return;
+                Object arglist[] = new Object[1];
+                arglist[0] = new Integer(throttleLevel);
 
-            // Invoke the throttle method passing the throttle level as parameter
-            try {
-                throt.invoke(c, arglist);
-            } catch (IllegalAccessException e) {
-                Log.i(TAG, "IllegalAccessException caught throttleDevice() ");
-            } catch (IllegalArgumentException e) {
-                Log.i(TAG, "IllegalArgumentException caught throttleDevice() ");
-            } catch (ExceptionInInitializerError e) {
-                Log.i(TAG, "ExceptionInInitializerError caught throttleDevice() ");
-            } catch (SecurityException e) {
-                Log.i(TAG, "SecurityException caught throttleDevice() ");
-            } catch (InvocationTargetException e) {
-                Log.i(TAG, "InvocationTargetException caught throttleDevice() ");
+                // Invoke the throttle method passing the throttle level as parameter
+                try {
+                    throt.invoke(c, arglist);
+                } catch (IllegalAccessException e) {
+                    Log.i(TAG, "IllegalAccessException caught throttleDevice() ");
+                } catch (IllegalArgumentException e) {
+                    Log.i(TAG, "IllegalArgumentException caught throttleDevice() ");
+                } catch (ExceptionInInitializerError e) {
+                    Log.i(TAG, "ExceptionInInitializerError caught throttleDevice() ");
+                } catch (SecurityException e) {
+                    Log.i(TAG, "SecurityException caught throttleDevice() ");
+                } catch (InvocationTargetException e) {
+                    Log.i(TAG, "InvocationTargetException caught throttleDevice() ");
+                }
             }
         } else {
             Log.i(TAG, "throttleDevice: Unable to retrieve cooling device " + coolingDevId);
