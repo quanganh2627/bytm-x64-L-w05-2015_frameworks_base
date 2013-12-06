@@ -271,8 +271,8 @@ public class LockPatternUtils extends ParentLockPatternUtils {
     public int getCurrentUser() {
         if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
             // ARKHAM - 596, return container if isContainerUserMode set to true.
-            if (isContainerUserMode) {
-                return sContainerUserId;
+            if (isContainerUserMode()) {
+                return getsContainerUserId();
             }
             // ARKHAM - 596 Ends.
         }
@@ -282,7 +282,17 @@ public class LockPatternUtils extends ParentLockPatternUtils {
             return sCurrentUserId;
         }
         try {
-            return ActivityManagerNative.getDefault().getCurrentUser().id;
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+
+                final int userId = UserHandle.getCallingUserId();
+                if (isContainerUser(userId)) {
+                    return UserHandle.getCallingUserId();
+                } else {
+                    return ActivityManagerNative.getDefault().getCurrentUser().id;
+                }
+            } else {
+                return ActivityManagerNative.getDefault().getCurrentUser().id;
+            }
         } catch (RemoteException re) {
             return UserHandle.USER_OWNER;
         }
