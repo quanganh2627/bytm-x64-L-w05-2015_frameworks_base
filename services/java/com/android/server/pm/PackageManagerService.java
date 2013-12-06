@@ -164,6 +164,9 @@ import libcore.io.StructStat;
 
 import com.android.internal.R;
 
+// INTEL_FEATURE_ASF
+import com.intel.asf.AsfAosp;
+
 /**
  * Keep track of all those .apks everywhere.
  * 
@@ -4385,6 +4388,11 @@ public class PackageManagerService extends IPackageManager.Stub {
             
             if (mSettings.isDisabledSystemPackageLPr(pkg.packageName)) {
                 pkg.applicationInfo.flags |= ApplicationInfo.FLAG_UPDATED_SYSTEM_APP;
+                // ASF HOOK: system package update event
+                if (AsfAosp.ENABLE) {
+                    AsfAosp.sendSystemAppUpdateEvent(pkg,
+                                                     sUserManager.getUserInfo(UserHandle.myUserId()));
+                }
             }
 
             if (mFoundPolicyFile) {
@@ -4465,7 +4473,26 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
 
         final String pkgName = pkg.packageName;
-        
+
+        // ASF HOOK: package installation event
+        if (AsfAosp.ENABLE) {
+            if ((scanMode & SCAN_NEW_INSTALL) != 0) {
+                if (!AsfAosp.sendPackageInstallEvent(
+                        pkg,
+                        generatePackageInfo(
+                                pkg,
+                                AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
+                                (user != null) ? UserHandle.getUserId(user.getIdentifier()) : 0
+                        ),
+                        (scanMode & SCAN_UPDATE_TIME)!=0,
+                        sUserManager.getUserInfo(UserHandle.myUserId()))
+                ) {
+                    mLastScanError = PackageManager.INSTALL_FAILED_VERIFICATION_FAILURE;
+                    return null;
+                }
+            }
+        }
+
         final long scanFileTime = scanFile.lastModified();
         final boolean forceDex = (scanMode&SCAN_FORCE_DEX) != 0;
         pkg.applicationInfo.processName = fixProcessName(
@@ -9573,6 +9600,15 @@ public class PackageManagerService extends IPackageManager.Stub {
                 }
             }
         }
+        // ASF HOOK: System package delete event
+        if (AsfAosp.ENABLE) {
+            PackageInfo packageInfo = getPackageInfo(
+                    newPs.name, AsfAosp.SECURITY_PACKAGEINFO_FLAGS, 0);
+            if (!AsfAosp.sendSystemAppDeleteEvent(packageInfo, newPs.pkg.mPath,
+                    sUserManager.getUserInfo(UserHandle.myUserId()))) {
+                return false;
+            }
+        }
         // Delete the updated package
         outInfo.isRemovedPackageSystemUpdate = true;
         if (disabledPs.versionCode < newPs.versionCode) {
@@ -9671,6 +9707,22 @@ public class PackageManagerService extends IPackageManager.Stub {
         boolean dataOnly = false;
         int removeUser = -1;
         int appId = -1;
+
+        // ASF HOOK: package deletion event
+        if (AsfAosp.ENABLE) {
+            if (!AsfAosp.sendPackageDeleteEvent(
+                    packageName,
+                    getPackageInfo(
+                            packageName,
+                            AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
+                            (user != null) ? UserHandle.getUserId(user.getIdentifier()) : 0
+                    ),
+                    sUserManager.getUserInfo(UserHandle.myUserId())
+            )) {
+                return false;
+            }
+        }
+
         synchronized (mPackages) {
             ps = mSettings.mPackages.get(packageName);
             if (ps == null) {
