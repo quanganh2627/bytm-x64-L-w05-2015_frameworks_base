@@ -197,11 +197,6 @@ public final class UsageStatsService extends IUsageStats.Stub {
                 mLaunchTimes.put(comp, times);
             }
 
-            final int numHist = in.readInt();
-            for (int i = 0; i < numHist; i++) {
-                mHist.add(in.readLong());
-            }
-
             final int numFullyDrawnTimeStats = in.readInt();
             if (localLOGV) Slog.v(TAG, "Reading fully drawn times: " + numFullyDrawnTimeStats);
             mFullyDrawnTimes.ensureCapacity(numFullyDrawnTimeStats);
@@ -210,6 +205,11 @@ public final class UsageStatsService extends IUsageStats.Stub {
                 if (localLOGV) Slog.v(TAG, "Component: " + comp);
                 TimeStats times = new TimeStats(in);
                 mFullyDrawnTimes.put(comp, times);
+            }
+
+            final int numHist = in.readInt();
+            for (int i = 0; i < numHist; i++) {
+                mHist.add(in.readLong());
             }
         }
 
