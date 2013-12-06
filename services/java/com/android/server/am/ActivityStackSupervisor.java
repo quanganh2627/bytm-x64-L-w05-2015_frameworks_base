@@ -50,20 +50,24 @@ import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.IPackageManager;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.content.pm.UserInfo;
 import android.content.res.Configuration;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Debug;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.IUserManager;
 import android.os.Looper;
 import android.os.Message;
 import android.os.ParcelFileDescriptor;
 import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.util.EventLog;
@@ -74,8 +78,11 @@ import com.android.internal.app.HeavyWeightSwitcherActivity;
 import com.android.internal.os.TransferPipe;
 import com.android.server.am.ActivityManagerService.PendingActivityLaunch;
 import com.android.server.am.ActivityStack.ActivityState;
+import com.android.server.pm.UserManagerService;
 import com.android.server.wm.StackBox;
 import com.android.server.wm.WindowManagerService;
+
+import com.intel.config.FeatureConfig;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
@@ -236,7 +243,7 @@ public final class ActivityStackSupervisor {
         }
     }
 
-    ActivityStack getFocusedStack() {
+    public ActivityStack getFocusedStack() {
         if (mFocusedStack == null) {
             return mHomeStack;
         }
@@ -580,6 +587,50 @@ public final class ActivityStackSupervisor {
         return r;
     }
 
+
+    // Begin of ARKHAM feature
+    //
+
+    UserInfo getUserInfoLocked(int userId) {
+        // ARKAHM-138 New helper function to get a reference to the UserManager service
+        final long origId = Binder.clearCallingIdentity();
+        try {
+            IBinder b = ServiceManager.getService(Context.USER_SERVICE);
+            UserManagerService um = (UserManagerService) IUserManager.Stub.asInterface(b);
+            if (um == null) {
+                Slog.e(TAG, "Failed to retrieve a UserManagerService instance.");
+                return null;
+            } else {
+                return um.getUserInfo(userId);
+            }
+        } finally {
+            Binder.restoreCallingIdentity(origId);
+        }
+    }
+
+
+    // ARKHAM-375. Resolve Activity in container owner space.
+    protected ResolveInfo resolveParentActivity(ResolveInfo rInfo,
+            int userId, Intent intent, String resolvedType)
+        throws RemoteException {
+        ResolveInfo info = rInfo;
+        UserInfo userinfo = getUserInfoLocked(userId);
+        if (rInfo == null && userinfo != null && userinfo.isContainer()) {
+            IPackageManager pm = AppGlobals.getPackageManager();
+            if (pm == null) {
+                return info;
+            }
+            info = pm.resolveIntent(
+                    intent, resolvedType,
+                    PackageManager.MATCH_DEFAULT_ONLY
+                    | ActivityManagerService.STOCK_PM_FLAGS, userinfo.containerOwner);
+        }
+        return info;
+    }
+
+    // End of ARKHAM feature
+
+
     ActivityInfo resolveActivity(Intent intent, String resolvedType, int startFlags,
             String profileFile, ParcelFileDescriptor profileFd, int userId) {
         // Collect information about the target of the Intent.
@@ -590,6 +641,10 @@ public final class ActivityStackSupervisor {
                         intent, resolvedType,
                         PackageManager.MATCH_DEFAULT_ONLY
                                     | ActivityManagerService.STOCK_PM_FLAGS, userId);
+            // ARKHAM - 375, expand the container visible space till its owner's.
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                rInfo = resolveParentActivity(rInfo, userId, intent, resolvedType);
+            }
             aInfo = rInfo != null ? rInfo.activityInfo : null;
         } catch (RemoteException e) {
             aInfo = null;
