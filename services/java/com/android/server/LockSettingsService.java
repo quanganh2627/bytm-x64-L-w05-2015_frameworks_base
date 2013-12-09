@@ -48,6 +48,9 @@ import android.util.Slog;
 import com.android.internal.widget.ILockSettings;
 import com.android.internal.widget.LockPatternUtils;
 
+import com.intel.arkham.ContainerCommons;
+import com.intel.config.FeatureConfig;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -315,8 +318,21 @@ public class LockSettingsService extends ILockSettings.Stub {
             return matched;
         } catch (FileNotFoundException fnfe) {
             Slog.e(TAG, "Cannot read file " + fnfe);
+            // ARKHAM-477, ARKHAM-990: for containers, if the pattern is incorrect we will not
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                // be able to read the pattern file (since it's encrypted)
+                if (ContainerCommons.isContainerUser(mContext, userId)) {
+                    return false;
+                }
+            }
         } catch (IOException ioe) {
             Slog.e(TAG, "Cannot read file " + ioe);
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                if (ContainerCommons.isContainerUser(mContext, userId)) {
+                    return false;
+                }
+            }
+            // End ARKHAM-477, ARKHAM-990
         }
         return true;
     }
@@ -343,8 +359,22 @@ public class LockSettingsService extends ILockSettings.Stub {
             return matched;
         } catch (FileNotFoundException fnfe) {
             Slog.e(TAG, "Cannot read file " + fnfe);
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                // ARKHAM-477: for containers, if the password is incorrect we will not
+                // be able to read the password file (since it's encrypted)
+                if (ContainerCommons.isContainerUser(mContext, userId)) {
+                    return false;
+                }
+            }
         } catch (IOException ioe) {
             Slog.e(TAG, "Cannot read file " + ioe);
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                // ARKHAM-477: for containers, if the password is incorrect we will not
+                // be able to read the password file (since it's encrypted)
+                if (ContainerCommons.isContainerUser(mContext, userId)) {
+                    return false;
+                }
+            }
         }
         return true;
     }

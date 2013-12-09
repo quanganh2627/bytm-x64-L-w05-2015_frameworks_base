@@ -24,6 +24,10 @@ import android.content.ServiceConnection;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteException;
+
+import com.intel.arkham.ParentKeyChain;
+import com.intel.config.FeatureConfig;
+
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.security.InvalidKeyException;
@@ -343,7 +347,13 @@ public final class KeyChain {
                 return null;
             }
 
-            TrustedCertificateStore store = new TrustedCertificateStore();
+            // ARKHAM-624: Get specific CA store
+            TrustedCertificateStore store;
+            if ( FeatureConfig.INTEL_FEATURE_ARKHAM ) {
+                store = ParentKeyChain.getTrustedCertificateStore();
+            } else {
+                store = new TrustedCertificateStore();
+            }
             List<X509Certificate> chain = store
                     .getCertificateChain(toCertificate(certificateBytes));
             return chain.toArray(new X509Certificate[chain.size()]);

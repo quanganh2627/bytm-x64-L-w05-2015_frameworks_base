@@ -156,6 +156,11 @@ LOCAL_SRC_FILES:= \
 	android_animation_PropertyValuesHolder.cpp \
 	com_android_internal_net_NetworkStatsFactory.cpp
 
+ifeq ($(strip $(INTEL_FEATURE_ARKHAM)),true)
+LOCAL_SRC_FILES += ../../../../vendor/intel/arkham/frameworks/enabled/base/core/jni/com_intel_arkham_ContainerCommons.cpp
+LOCAL_CFLAGS += -DINTEL_FEATURE_ARKHAM
+endif
+
 LOCAL_C_INCLUDES += \
 	$(JNI_H_INCLUDE) \
 	$(LOCAL_PATH)/android/graphics \

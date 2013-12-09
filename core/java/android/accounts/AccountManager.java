@@ -48,6 +48,7 @@ import java.util.Map;
 
 import com.android.internal.R;
 import com.google.android.collect.Maps;
+import com.intel.config.FeatureConfig;
 
 /**
  * This class provides access to a centralized registry of the user's
@@ -2011,7 +2012,8 @@ public class AccountManager {
      */
     private final BroadcastReceiver mAccountsChangedBroadcastReceiver = new BroadcastReceiver() {
         public void onReceive(final Context context, final Intent intent) {
-            final Account[] accounts = getAccounts();
+            final Account[] accounts = (FeatureConfig.INTEL_FEATURE_ARKHAM
+                    ? getContainerAccounts() : getAccounts());
             // send the result to the listeners
             synchronized (mAccountsUpdatedListeners) {
                 for (Map.Entry<OnAccountsUpdateListener, Handler> entry :
@@ -2071,7 +2073,11 @@ public class AccountManager {
         }
 
         if (updateImmediately) {
-            postToHandler(handler, listener, getAccounts());
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                postToHandler(handler, listener, getContainerAccounts());
+            } else {
+                postToHandler(handler, listener, getAccounts());
+            }
         }
     }
 
@@ -2100,5 +2106,10 @@ public class AccountManager {
                 mContext.unregisterReceiver(mAccountsChangedBroadcastReceiver);
             }
         }
+    }
+
+    /** @hide */
+    protected Account[] getContainerAccounts() {
+        return getAccounts();
     }
 }

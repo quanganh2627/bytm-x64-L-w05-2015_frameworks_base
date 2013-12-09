@@ -52,6 +52,8 @@ import android.view.ViewManager;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 
+import com.intel.config.FeatureConfig;
+
 /**
  * Manages creating, showing, hiding and resetting the keyguard.  Calls back
  * via {@link KeyguardViewMediator.ViewMediatorCallback} to poke
@@ -126,7 +128,15 @@ public class KeyguardViewManager {
         // useful on any keyguard screen but can be re-shown by dialogs or SHOW_WHEN_LOCKED
         // activities. Other disabled bits are handled by the KeyguardViewMediator talking
         // directly to the status bar service.
-        int visFlags = View.STATUS_BAR_DISABLE_HOME;
+        /* For ARKHAM-1138: Replace the Back key with the Home key for container keyguard */
+        int visFlags;
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            visFlags = (mLockPatternUtils.isContainerUserMode()
+                    ? View.SYSTEM_UI_FLAG_VISIBLE : View.STATUS_BAR_DISABLE_HOME);
+            /* End ARKHAM-1138 */
+        } else {
+            visFlags = View.STATUS_BAR_DISABLE_HOME;
+        }
         if (shouldEnableTranslucentDecor()) {
             mWindowLayoutParams.flags |= WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
                                        | WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION;
@@ -249,6 +259,13 @@ public class KeyguardViewManager {
                         return true;
                     } else if (keyCode == KeyEvent.KEYCODE_MENU && mKeyguardView.handleMenuKey()) {
                         return true;
+                    }
+                    // ARKHAM-1088:dismiss container keyguard on home key.
+                    else if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        if (keyCode == KeyEvent.KEYCODE_HOME
+                                && mKeyguardView.handleHomeKey()) {
+                            return true;
+                        }
                     }
                 }
                 // Always process media keys, regardless of focus

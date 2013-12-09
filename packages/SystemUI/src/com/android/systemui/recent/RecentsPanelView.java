@@ -26,6 +26,7 @@ import android.app.TaskStackBuilder;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.UserInfo;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
@@ -39,6 +40,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.provider.Settings;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -65,6 +67,7 @@ import com.android.systemui.R;
 import com.android.systemui.statusbar.BaseStatusBar;
 import com.android.systemui.statusbar.StatusBarPanel;
 import com.android.systemui.statusbar.phone.PhoneStatusBar;
+import com.intel.config.FeatureConfig;
 
 import java.util.ArrayList;
 
@@ -118,6 +121,9 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
         ImageView thumbnailViewImage;
         Drawable thumbnailViewDrawable;
         ImageView iconView;
+        // ARKHAM-276 - Use icon to identify container activities
+        // Create a view for the container icon
+        ImageView containerView;
         TextView labelView;
         TextView descriptionView;
         View calloutLine;
@@ -155,6 +161,16 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
             updateThumbnail(holder, mRecentTasksLoader.getDefaultThumbnail(), false, false);
             holder.iconView = (ImageView) convertView.findViewById(R.id.app_icon);
             holder.iconView.setImageDrawable(mRecentTasksLoader.getDefaultIcon());
+
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                // ARKHAM-276 - START Use icon to identify container activities
+                holder.containerView = (ImageView) convertView.findViewById(R.id.container_icon);
+                if (holder.containerView != null) {
+                    holder.containerView.setImageDrawable(mRecentTasksLoader.getDefaultIcon());
+                    holder.containerView.setMaxWidth(holder.containerView.getMaxWidth() / 2);
+                    holder.containerView.setMaxHeight(holder.containerView.getMaxHeight() / 2);
+                } else Log.w(TAG, "Couldn't find container icon.");
+            }
             holder.labelView = (TextView) convertView.findViewById(R.id.app_label);
             holder.calloutLine = convertView.findViewById(R.id.recents_callout_line);
             holder.descriptionView = (TextView) convertView.findViewById(R.id.app_description);
@@ -175,11 +191,16 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
             final TaskDescription td = mRecentTaskDescriptions.get(index);
 
             holder.labelView.setText(td.getLabel());
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                // ARKHAM-276 - Use icon to identify container activities
+                // Set the task description using the container name
+                holder.descriptionView.setText(td.getContainerLabel());
+            }
             holder.thumbnailView.setContentDescription(td.getLabel());
             holder.loadedThumbnailAndIcon = td.isLoaded();
             if (td.isLoaded()) {
                 updateThumbnail(holder, td.getThumbnail(), true, false);
-                updateIcon(holder, td.getIcon(), true, false);
+                updateIcon(holder, td.getIcon(), td.getContainerIcon(), true, false);
             }
             if (index == 0) {
                 if (mAnimateIconOfFirstTask) {
@@ -196,6 +217,15 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
                             oldHolder.calloutLine.setTranslationX(0f);
                             oldHolder.calloutLine.setTranslationY(0f);
                         }
+
+                        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                            // ARKHAM-276 - START Use icon to identify container activities
+                            if (oldHolder.containerView != null) {
+                                oldHolder.containerView.setAlpha(1f);
+                                oldHolder.containerView.setTranslationX(0f);
+                                oldHolder.containerView.setTranslationY(0f);
+                            }
+                        }
                     }
                     mItemToAnimateInWhenWindowAnimationIsFinished = holder;
                     int translation = -getResources().getDimensionPixelSize(
@@ -207,6 +237,13 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
                         }
                         holder.iconView.setAlpha(0f);
                         holder.iconView.setTranslationX(translation);
+                        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                            // ARKHAM-276 - START Use icon to identify container activities
+                            if (holder.containerView != null) {
+                                holder.containerView.setAlpha(0f);
+                                holder.containerView.setTranslationX(translation);
+                            }
+                        }
                         holder.labelView.setAlpha(0f);
                         holder.labelView.setTranslationX(translation);
                         if (holder.calloutLine != null) {
@@ -216,6 +253,13 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
                     } else {
                         holder.iconView.setAlpha(0f);
                         holder.iconView.setTranslationY(translation);
+                        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                            // ARKHAM-276 - START Use icon to identify container activities
+                            if (holder.containerView != null) {
+                                holder.containerView.setAlpha(0f);
+                                holder.containerView.setTranslationY(translation);
+                            }
+                        }
                     }
                     if (!mWaitingForWindowAnimation) {
                         animateInIconOfFirstTask();
@@ -235,6 +279,13 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
             holder.iconView.setImageDrawable(mRecentTasksLoader.getDefaultIcon());
             holder.iconView.setVisibility(INVISIBLE);
             holder.iconView.animate().cancel();
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                // ARKHAM-276 - START Use icon to identify container activities
+                if (holder.containerView != null) {
+                    holder.containerView.setImageDrawable(mRecentTasksLoader.getDefaultIcon());
+                    holder.containerView.setVisibility(INVISIBLE);
+                }
+            }
             holder.labelView.setText(null);
             holder.labelView.animate().cancel();
             holder.thumbnailView.setContentDescription(null);
@@ -244,6 +295,14 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
             holder.iconView.setAlpha(1f);
             holder.iconView.setTranslationX(0f);
             holder.iconView.setTranslationY(0f);
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                // ARKHAM-276 - START Use icon to identify container activities
+                if (holder.containerView != null) {
+                    holder.containerView.setAlpha(1f);
+                    holder.containerView.setTranslationX(0f);
+                    holder.containerView.setTranslationY(0f);
+                }
+            }
             holder.labelView.setAlpha(1f);
             holder.labelView.setTranslationX(0f);
             holder.labelView.setTranslationY(0f);
@@ -470,7 +529,8 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
         transitioner.setAnimator(LayoutTransition.DISAPPEARING, null);
     }
 
-    private void updateIcon(ViewHolder h, Drawable icon, boolean show, boolean anim) {
+    private void updateIcon(ViewHolder h, Drawable icon, Drawable containerIcon,
+            boolean show, boolean anim) {
         if (icon != null) {
             h.iconView.setImageDrawable(icon);
             if (show && h.iconView.getVisibility() != View.VISIBLE) {
@@ -479,6 +539,20 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
                             AnimationUtils.loadAnimation(mContext, R.anim.recent_appear));
                 }
                 h.iconView.setVisibility(View.VISIBLE);
+            }
+        }
+
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            // ARKHAM-276 - START Use icon to identify container activities
+            if (containerIcon != null) {
+                h.containerView.setImageDrawable(containerIcon);
+                if (show && h.containerView.getVisibility() != View.VISIBLE) {
+                    if (anim) {
+                        h.containerView.setAnimation(
+                                AnimationUtils.loadAnimation(mContext, R.anim.recent_appear));
+                    }
+                    h.containerView.setVisibility(View.VISIBLE);
+                }
             }
         }
     }
@@ -535,7 +609,8 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
                             //boolean animateShow = mShowing &&
                             //    mRecentsContainer.getAlpha() > ViewConfiguration.ALPHA_THRESHOLD;
                             boolean animateShow = false;
-                            updateIcon(h, td.getIcon(), true, animateShow);
+                            // ARKHAM-276 - Use icon to identify container activities
+                            updateIcon(h, td.getIcon(), td.getContainerIcon(), true, animateShow);
                             updateThumbnail(h, td.getThumbnail(), true, animateShow);
                             h.loadedThumbnailAndIcon = true;
                         }
@@ -558,13 +633,26 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
             final ViewHolder holder = mItemToAnimateInWhenWindowAnimationIsFinished;
             final TimeInterpolator cubic = new DecelerateInterpolator(1.5f);
             FirstFrameAnimatorHelper.initializeDrawListener(holder.iconView);
-            for (View v :
-                new View[] { holder.iconView, holder.labelView, holder.calloutLine }) {
-                if (v != null) {
-                    ViewPropertyAnimator vpa = v.animate().translationX(0).translationY(0)
-                            .alpha(1f).setStartDelay(startDelay)
-                            .setDuration(duration).setInterpolator(cubic);
-                    FirstFrameAnimatorHelper h = new FirstFrameAnimatorHelper(vpa, v);
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                // ARKHAM-276 - START Use icon to identify container activities
+                for (View v : new View[] { holder.iconView, holder.containerView,
+                    holder.labelView, holder.calloutLine }) {
+                    if (v != null) {
+                        ViewPropertyAnimator vpa = v.animate().translationX(0).translationY(0)
+                                .alpha(1f).setStartDelay(startDelay)
+                                .setDuration(duration).setInterpolator(cubic);
+                        FirstFrameAnimatorHelper h = new FirstFrameAnimatorHelper(vpa, v);
+                    }
+                }
+            } else {
+                for (View v : new View[] { holder.iconView,
+                    holder.labelView, holder.calloutLine }) {
+                    if (v != null) {
+                        ViewPropertyAnimator vpa = v.animate().translationX(0).translationY(0)
+                                .alpha(1f).setStartDelay(startDelay)
+                                .setDuration(duration).setInterpolator(cubic);
+                        FirstFrameAnimatorHelper h = new FirstFrameAnimatorHelper(vpa, v);
+                    }
                 }
             }
             mItemToAnimateInWhenWindowAnimationIsFinished = null;
@@ -690,8 +778,27 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
                     | Intent.FLAG_ACTIVITY_NEW_TASK);
             if (DEBUG) Log.v(TAG, "Starting activity " + intent);
             try {
-                context.startActivityAsUser(intent, opts,
-                        new UserHandle(UserHandle.USER_CURRENT));
+                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                    // ARKHAM-326 - Restart stopped container activities as container user
+                    UserHandle userHandle = new UserHandle(UserHandle.USER_CURRENT);
+                    int containerId = ad.getContainerId();
+                    if (containerId > 0) {
+                        UserInfo userInfo = null;
+                        UserManager um = (UserManager) context.getSystemService(
+                                Context.USER_SERVICE);
+                        if (um != null) {
+                            userInfo = um.getUserInfo(containerId);
+                        }
+                        if (userInfo != null && UserHandle.myUserId() == userInfo.containerOwner) {
+                            userHandle = new UserHandle(containerId);
+                        }
+                    }
+                    context.startActivityAsUser(intent, opts, userHandle);
+                    // ARKHAM-326 - END
+                } else {
+                    context.startActivityAsUser(intent, opts,
+                            new UserHandle(UserHandle.USER_CURRENT));
+                }
             } catch (SecurityException e) {
                 Log.e(TAG, "Recents does not have the permission to launch " + intent, e);
             } catch (ActivityNotFoundException e) {

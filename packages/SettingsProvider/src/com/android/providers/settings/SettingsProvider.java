@@ -59,6 +59,8 @@ import android.util.LruCache;
 import android.util.Slog;
 import android.util.SparseArray;
 
+import com.intel.config.FeatureConfig;
+
 public class SettingsProvider extends ContentProvider {
     private static final String TAG = "SettingsProvider";
     private static final boolean LOCAL_LOGV = false;
@@ -76,9 +78,9 @@ public class SettingsProvider extends ContentProvider {
     // Caches for each user's settings, access-ordered for acting as LRU.
     // Guarded by themselves.
     private static final int MAX_CACHE_ENTRIES = 200;
-    private static final SparseArray<SettingsCache> sSystemCaches
+    protected static final SparseArray<SettingsCache> sSystemCaches
             = new SparseArray<SettingsCache>();
-    private static final SparseArray<SettingsCache> sSecureCaches
+    protected static final SparseArray<SettingsCache> sSecureCaches
             = new SparseArray<SettingsCache>();
     private static final SettingsCache sGlobalCache = new SettingsCache(TABLE_GLOBAL);
 
@@ -86,7 +88,7 @@ public class SettingsProvider extends ContentProvider {
     // database mutations are currently being handled for this user.
     // Used by file observers to not reload the database when it's ourselves
     // modifying it.
-    private static final SparseArray<AtomicInteger> sKnownMutationsInFlight
+    protected static final SparseArray<AtomicInteger> sKnownMutationsInFlight
             = new SparseArray<AtomicInteger>();
 
     // Each defined user has their own settings
@@ -103,7 +105,7 @@ public class SettingsProvider extends ContentProvider {
     // want to cache the existence of a key, but not store its value.
     private static final Bundle TOO_LARGE_TO_CACHE_MARKER = Bundle.forPair("_dummy", null);
 
-    private UserManager mUserManager;
+    protected UserManager mUserManager;
     private BackupManager mBackupManager;
 
     /**
@@ -292,11 +294,11 @@ public class SettingsProvider extends ContentProvider {
     // normally the exclusive owner of the database.  But we keep this
     // enabled all the time to minimize development-vs-user
     // differences in testing.
-    private static SparseArray<SettingsFileObserver> sObserverInstances
+    protected static SparseArray<SettingsFileObserver> sObserverInstances
             = new SparseArray<SettingsFileObserver>();
-    private class SettingsFileObserver extends FileObserver {
+    protected class SettingsFileObserver extends FileObserver {
         private final AtomicBoolean mIsDirty = new AtomicBoolean(false);
-        private final int mUserHandle;
+        protected final int mUserHandle;
         private final String mPath;
 
         public SettingsFileObserver(int userHandle, String path) {
@@ -400,7 +402,12 @@ public class SettingsProvider extends ContentProvider {
         // itself was set up by the DatabaseHelper.
         synchronized (sObserverInstances) {
             if (sObserverInstances.get(userHandle) == null) {
-                SettingsFileObserver observer = new SettingsFileObserver(userHandle, db.getPath());
+                SettingsFileObserver observer;
+                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                    observer = newSettingsFileObserver(userHandle, db.getPath());
+                } else {
+                    observer = new SettingsFileObserver(userHandle, db.getPath());
+                }
                 sObserverInstances.append(userHandle, observer);
                 observer.startWatching();
             }
@@ -1176,5 +1183,9 @@ public class SettingsProvider extends ContentProvider {
                 return oldValue.equals(value);
             }
         }
+    }
+
+    protected SettingsFileObserver newSettingsFileObserver(int userHandle, String path) {
+        return new SettingsFileObserver(userHandle, path);
     }
 }

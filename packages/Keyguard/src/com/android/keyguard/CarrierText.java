@@ -26,6 +26,8 @@ import android.widget.TextView;
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.IccCardConstants.State;
 import com.android.internal.widget.LockPatternUtils;
+import com.intel.arkham.ContainerPolicyCommons;
+import com.intel.config.FeatureConfig;
 
 import java.util.Locale;
 
@@ -87,7 +89,12 @@ public class CarrierText extends TextView {
     }
 
     protected void updateCarrierText(State simState, CharSequence plmn, CharSequence spn) {
-        setText(getCarrierTextForSimState(simState, plmn, spn));
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            setText(ContainerPolicyCommons.updateCarrierText(getContext(),
+                    mLockPatternUtils, getCarrierTextForSimState(simState, plmn, spn)));
+        } else {
+            setText(getCarrierTextForSimState(simState, plmn, spn));
+        }
     }
 
     @Override

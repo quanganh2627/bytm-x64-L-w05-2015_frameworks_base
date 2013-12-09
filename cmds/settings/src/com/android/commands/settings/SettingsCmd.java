@@ -27,6 +27,9 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.provider.Settings;
 
+import com.intel.arkham.ContainerCommons;
+import com.intel.config.FeatureConfig;
+
 public final class SettingsCmd {
     static final String TAG = "settings";
 
@@ -110,6 +113,16 @@ public final class SettingsCmd {
             }
         } catch (Exception e) {
             valid = false;
+        }
+
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            // ARKHAM-756 START: Shell user should not change container settings
+            if (ContainerCommons.isContainer(mUser)) {
+                String fmt = "user %d is not allowed to change the settings from shell!!!";
+                System.err.println(String.format(fmt, mUser));
+                return;
+            }
+            // ARKHAM-756 END
         }
 
         if (valid) {
