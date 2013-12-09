@@ -43,6 +43,7 @@ import com.android.server.EventLogTags;
 import com.android.server.IntentResolver;
 
 import com.android.server.Watchdog;
+import com.intel.config.FeatureConfig;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlSerializer;
@@ -87,6 +88,7 @@ import android.content.pm.ProviderInfo;
 import android.content.pm.ResolveInfo;
 import android.content.pm.ServiceInfo;
 import android.content.pm.Signature;
+import android.content.pm.UserInfo;
 import android.content.pm.ManifestDigest;
 import android.content.pm.VerificationParams;
 import android.content.pm.VerifierDeviceIdentity;
@@ -210,7 +212,7 @@ public class PackageManagerService extends IPackageManager.Stub {
     private static final int ADD_EVENTS =
         FileObserver.CLOSE_WRITE /*| FileObserver.CREATE*/ | FileObserver.MOVED_TO;
 
-    private static final int OBSERVER_EVENTS = REMOVE_EVENTS | ADD_EVENTS;
+    protected static final int OBSERVER_EVENTS = REMOVE_EVENTS | ADD_EVENTS;
     // Suffix used during package installation when copying/moving
     // package apks to install directory.
     private static final String INSTALL_PACKAGE_SUFFIX = "-";
@@ -1051,8 +1053,9 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     public static final IPackageManager main(Context context, Installer installer,
             boolean factoryTest, boolean onlyCore) {
-        PackageManagerService m = new PackageManagerService(context, installer,
-                factoryTest, onlyCore);
+        PackageManagerService m = (FeatureConfig.INTEL_FEATURE_ARKHAM
+                ? new ExtendPackageManagerService(context, installer, factoryTest, onlyCore)
+                : new PackageManagerService(context, installer, factoryTest, onlyCore));
         ServiceManager.addService("package", m);
         return m;
     }
@@ -1093,7 +1096,8 @@ public class PackageManagerService extends IPackageManager.Stub {
         mOnlyCore = onlyCore;
         mNoDexOpt = "eng".equals(SystemProperties.get("ro.build.type"));
         mMetrics = new DisplayMetrics();
-        mSettings = new Settings(context);
+        mSettings = (FeatureConfig.INTEL_FEATURE_ARKHAM
+                ? new ExtendSettings(context) : new Settings(context));
         mSettings.addSharedUserLPw("android.uid.system", Process.SYSTEM_UID,
                 ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_PRIVILEGED);
         mSettings.addSharedUserLPw("android.uid.phone", RADIO_UID,
@@ -1148,8 +1152,9 @@ public class PackageManagerService extends IPackageManager.Stub {
             mUserAppDataDir = new File(dataDir, "user");
             mDrmAppPrivateInstallDir = new File(dataDir, "app-private");
 
-            sUserManager = new UserManagerService(context, this,
-                    mInstallLock, mPackages);
+            sUserManager = (FeatureConfig.INTEL_FEATURE_ARKHAM
+                    ? new ExtendUserManagerService(context, this, mInstallLock, mPackages)
+                    : new UserManagerService(context, this, mInstallLock, mPackages));
 
             readPermissions();
 
@@ -2236,7 +2241,7 @@ public class PackageManagerService extends IPackageManager.Stub {
      * @param message the message to log on security exception
      * @return
      */
-    private void enforceCrossUserPermission(int callingUid, int userId,
+    protected void enforceCrossUserPermission(int callingUid, int userId,
             boolean requireFullPermission, String message) {
         if (userId < 0) {
             throw new IllegalArgumentException("Invalid userId " + userId);
@@ -2684,7 +2689,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                 false, false, false, userId);
     }
 
-    private ResolveInfo chooseBestActivity(Intent intent, String resolvedType,
+    protected ResolveInfo chooseBestActivity(Intent intent, String resolvedType,
             int flags, List<ResolveInfo> query, int userId) {
         if (query != null) {
             final int N = query.size();
@@ -3484,7 +3489,7 @@ public class PackageManagerService extends IPackageManager.Stub {
         return finalList;
     }
 
-    private void scanDirLI(File dir, int flags, int scanMode, long currentTime) {
+    protected void scanDirLI(File dir, int flags, int scanMode, long currentTime) {
         String[] files = dir.list();
         if (files == null) {
             Log.d(TAG, "No files in app dir " + dir);
@@ -3567,11 +3572,23 @@ public class PackageManagerService extends IPackageManager.Stub {
         return true;
     }
 
+    protected boolean isContainerLauncher(File scanFile) {
+        return false;
+    }
+
+    protected String getContainerId(File scanFile) {
+        return null;
+    }
+
+    protected String fixAuthority(String authority, String packageName) {
+        return authority;
+    }
+
     /*
      *  Scan a package and return the newly parsed package.
      *  Returns null in case of errors and the error code is stored in mLastScanError
      */
-    private PackageParser.Package scanPackageLI(File scanFile,
+    protected PackageParser.Package scanPackageLI(File scanFile,
             int parseFlags, int scanMode, long currentTime, UserHandle user) {
         mLastScanError = PackageManager.INSTALL_SUCCEEDED;
         String scanPath = scanFile.getPath();
@@ -3580,6 +3597,17 @@ public class PackageManagerService extends IPackageManager.Stub {
         PackageParser pp = new PackageParser(scanPath);
         pp.setSeparateProcesses(mSeparateProcesses);
         pp.setOnlyCoreApps(mOnlyCore);
+
+        String containerId = null;
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            if (isContainerLauncher(scanFile)) {
+                containerId = getContainerId(scanFile);
+                if (containerId == null) {
+                    return null;
+                }
+            }
+        }
+
         final PackageParser.Package pkg = pp.parsePackage(scanFile,
                 scanPath, mMetrics, parseFlags);
 
@@ -3748,8 +3776,14 @@ public class PackageManagerService extends IPackageManager.Stub {
         // Set application objects path explicitly.
         setApplicationInfoPaths(pkg, codePath, resPath);
         // Note that we invoke the following method only if we are about to unpack an application
-        PackageParser.Package scannedPkg = scanPackageLI(pkg, parseFlags, scanMode
-                | SCAN_UPDATE_SIGNATURE, currentTime, user);
+        PackageParser.Package scannedPkg;
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            scannedPkg = scanPackageLI(pkg, parseFlags, scanMode
+                    | SCAN_UPDATE_SIGNATURE, currentTime, user, containerId);
+        } else {
+            scannedPkg = scanPackageLI(pkg, parseFlags, scanMode
+                    | SCAN_UPDATE_SIGNATURE, currentTime, user);
+        }
 
         /*
          * If the system app should be overridden by a previously installed
@@ -3778,10 +3812,18 @@ public class PackageManagerService extends IPackageManager.Stub {
         pkg.applicationInfo.publicSourceDir = destResPath;
     }
 
+    // ARKHAM-100, modified function signature to include containerID
     private static String fixProcessName(String defProcessName,
-            String processName, int uid) {
+            String processName, int uid, String containerId) {
         if (processName == null) {
             return defProcessName;
+        }
+
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            // ARKHAM-100,append container id for container launchers.
+            if (containerId != null) {
+                return processName + "_container_" + containerId;
+            }
         }
         return processName;
     }
@@ -4191,6 +4233,12 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     private PackageParser.Package scanPackageLI(PackageParser.Package pkg,
             int parseFlags, int scanMode, long currentTime, UserHandle user) {
+        return scanPackageLI(pkg, parseFlags, scanMode, currentTime, user, null);
+    }
+
+    // ARKHAM - 100, including containerID
+    private PackageParser.Package scanPackageLI(PackageParser.Package pkg,
+            int parseFlags, int scanMode, long currentTime, UserHandle user, String containerId) {
         File scanFile = new File(pkg.mScanPath);
         if (scanFile == null || pkg.applicationInfo.sourceDir == null ||
                 pkg.applicationInfo.publicSourceDir == null) {
@@ -4212,6 +4260,17 @@ public class PackageManagerService extends IPackageManager.Stub {
         if (mCustomResolverComponentName != null &&
                 mCustomResolverComponentName.getPackageName().equals(pkg.packageName)) {
             setUpCustomResolverActivity(pkg);
+        }
+
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            // ARKHAM-701, Including metaData in applicationInfo for ContainerLauncher.
+            if (containerId != null) {
+                if ( pkg.applicationInfo.metaData == null) {
+                    pkg.applicationInfo.metaData = new Bundle();
+                }
+                pkg.applicationInfo.metaData.putInt("containerId", Integer.parseInt(containerId));
+            }
+            // ARKHAM-701, Ends.
         }
 
         if (pkg.packageName.equals("android")) {
@@ -4523,10 +4582,12 @@ public class PackageManagerService extends IPackageManager.Stub {
 
         final long scanFileTime = scanFile.lastModified();
         final boolean forceDex = (scanMode&SCAN_FORCE_DEX) != 0;
+        // ARKHAM - 100, including containerID
         pkg.applicationInfo.processName = fixProcessName(
                 pkg.applicationInfo.packageName,
                 pkg.applicationInfo.processName,
-                pkg.applicationInfo.uid);
+                pkg.applicationInfo.uid,
+                containerId);
 
         File dataPath;
         if (mPlatformPackage == pkg) {
@@ -4737,10 +4798,20 @@ public class PackageManagerService extends IPackageManager.Stub {
                         for (int userId : userIds) {
                             if (mInstaller.linkNativeLibraryDirectory(pkg.packageName,
                                     pkg.applicationInfo.nativeLibraryDir, userId) < 0) {
-                                Slog.w(TAG, "Failed linking native library dir (user=" + userId
-                                        + ")");
-                                mLastScanError = PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
-                                return null;
+                                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                                    if (!processPackageInContainer(userId, pkg)) {
+                                        Slog.w(TAG, "Failed linking native library dir (user="
+                                                + userId + ")");
+                                        mLastScanError =
+                                                PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
+                                        return null;
+                                    }
+                                } else {
+                                    Slog.w(TAG, "Failed linking native library dir (user=" + userId
+                                                + ")");
+                                    mLastScanError = PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
+                                    return null;
+                                }
                             }
                         }
                     }
@@ -4963,11 +5034,17 @@ public class PackageManagerService extends IPackageManager.Stub {
             int i;
             for (i=0; i<N; i++) {
                 PackageParser.Provider p = pkg.providers.get(i);
+                // ARKHAM - 100, including containerID
                 p.info.processName = fixProcessName(pkg.applicationInfo.processName,
-                        p.info.processName, pkg.applicationInfo.uid);
+                        p.info.processName, pkg.applicationInfo.uid, containerId);
                 mProviders.addProvider(p);
                 p.syncable = p.info.isSyncable;
                 if (p.info.authority != null) {
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        // ARKHAM-903: if the provider is from container launcher
+                        // package, change his autorithy to a unique one
+                        p.info.authority = fixAuthority(p.info.authority, p.info.packageName);
+                    }
                     String names[] = p.info.authority.split(";");
                     p.info.authority = null;
                     for (int j = 0; j < names.length; j++) {
@@ -5022,8 +5099,9 @@ public class PackageManagerService extends IPackageManager.Stub {
             r = null;
             for (i=0; i<N; i++) {
                 PackageParser.Service s = pkg.services.get(i);
+                // ARKHAM - 100, including containerID
                 s.info.processName = fixProcessName(pkg.applicationInfo.processName,
-                        s.info.processName, pkg.applicationInfo.uid);
+                        s.info.processName, pkg.applicationInfo.uid, containerId);
                 mServices.addService(s);
                 if ((parseFlags&PackageParser.PARSE_CHATTY) != 0) {
                     if (r == null) {
@@ -5042,8 +5120,9 @@ public class PackageManagerService extends IPackageManager.Stub {
             r = null;
             for (i=0; i<N; i++) {
                 PackageParser.Activity a = pkg.receivers.get(i);
+                // ARKHAM - 100, including containerID
                 a.info.processName = fixProcessName(pkg.applicationInfo.processName,
-                        a.info.processName, pkg.applicationInfo.uid);
+                        a.info.processName, pkg.applicationInfo.uid, containerId);
                 mReceivers.addActivity(a, "receiver");
                 if ((parseFlags&PackageParser.PARSE_CHATTY) != 0) {
                     if (r == null) {
@@ -5062,8 +5141,9 @@ public class PackageManagerService extends IPackageManager.Stub {
             r = null;
             for (i=0; i<N; i++) {
                 PackageParser.Activity a = pkg.activities.get(i);
+                // ARKHAM - 100, including containerID
                 a.info.processName = fixProcessName(pkg.applicationInfo.processName,
-                        a.info.processName, pkg.applicationInfo.uid);
+                        a.info.processName, pkg.applicationInfo.uid, containerId);
                 mActivities.addActivity(a, "activity");
                 if ((parseFlags&PackageParser.PARSE_CHATTY) != 0) {
                     if (r == null) {
@@ -6547,7 +6627,7 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
     }
     
-    private final class AppDirObserver extends FileObserver {
+    protected final class AppDirObserver extends FileObserver {
         public AppDirObserver(String path, int mask, boolean isrom, boolean isPrivileged) {
             super(path, mask);
             mRootDir = path;
@@ -6610,33 +6690,81 @@ public class PackageManagerService extends IPackageManager.Stub {
                     }
                 }
 
-                if ((event&ADD_EVENTS) != 0) {
-                    if (p == null) {
-                        if (DEBUG_INSTALL) Slog.d(TAG, "New file appeared: " + fullPath);
-                        int flags = PackageParser.PARSE_CHATTY | PackageParser.PARSE_MUST_BE_APK;
-                        if (mIsRom) {
-                            flags |= PackageParser.PARSE_IS_SYSTEM
-                                    | PackageParser.PARSE_IS_SYSTEM_DIR;
-                            if (mIsPrivileged) {
-                                flags |= PackageParser.PARSE_IS_PRIVILEGED;
+                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                    // ARKHAM-123 Use symbolic links for the ContainerLauncher.
+                    // apk instead of copying it
+                    if (checkEventType(event)) {
+                        if (p == null) {
+                            if (DEBUG_INSTALL) Slog.d(TAG, "New file appeared: " + fullPath);
+                            int flags =
+                                    PackageParser.PARSE_CHATTY | PackageParser.PARSE_MUST_BE_APK;
+                            if (mIsRom) {
+                                flags |= PackageParser.PARSE_IS_SYSTEM
+                                        | PackageParser.PARSE_IS_SYSTEM_DIR;
+                                if (mIsPrivileged) {
+                                    flags |= PackageParser.PARSE_IS_PRIVILEGED;
+                                }
+                            }
+                            p = scanPackageLI(fullPath, flags,
+                                    SCAN_MONITOR | SCAN_NO_PATHS | SCAN_UPDATE_TIME,
+                                    System.currentTimeMillis(), UserHandle.ALL);
+                            if (p != null) {
+                                /*
+                                 * TODO this seems dangerous as the package may have
+                                 * changed since we last acquired the mPackages
+                                 * lock.
+                                 */
+                                // writer
+                                synchronized (mPackages) {
+                                    updatePermissionsLPw(p.packageName, p,
+                                            p.permissions.size() > 0 ? UPDATE_PERMISSIONS_ALL : 0);
+                                }
+                                addedPackage = p.applicationInfo.packageName;
+                                addedAppId = UserHandle.getAppId(p.applicationInfo.uid);
+                                /**
+                                 * ARKHAM-1042 Fixing launcher appearing in Container User space.
+                                 */
+                                if (isContainerLauncher(fullPath)) {
+                                    PackageSetting pkgSetting = mSettings.mPackages
+                                            .get(addedPackage);
+                                    pkgSetting.setEnabled(COMPONENT_ENABLED_STATE_DISABLED,
+                                            Integer.parseInt(getContainerId(fullPath)), null);
+                                }
                             }
                         }
-                        p = scanPackageLI(fullPath, flags,
-                                SCAN_MONITOR | SCAN_NO_PATHS | SCAN_UPDATE_TIME,
-                                System.currentTimeMillis(), UserHandle.ALL);
-                        if (p != null) {
-                            /*
-                             * TODO this seems dangerous as the package may have
-                             * changed since we last acquired the mPackages
-                             * lock.
-                             */
-                            // writer
-                            synchronized (mPackages) {
-                                updatePermissionsLPw(p.packageName, p,
-                                        p.permissions.size() > 0 ? UPDATE_PERMISSIONS_ALL : 0);
+                    }
+                } else {
+                    if ((event & ADD_EVENTS) != 0) {
+                        if (p == null) {
+                            if (DEBUG_INSTALL) {
+                                Slog.d(TAG, "New file appeared: " + fullPath);
                             }
-                            addedPackage = p.applicationInfo.packageName;
-                            addedAppId = UserHandle.getAppId(p.applicationInfo.uid);
+                            int flags =
+                                    PackageParser.PARSE_CHATTY | PackageParser.PARSE_MUST_BE_APK;
+                            if (mIsRom) {
+                                flags |= PackageParser.PARSE_IS_SYSTEM
+                                        | PackageParser.PARSE_IS_SYSTEM_DIR;
+                                if (mIsPrivileged) {
+                                    flags |= PackageParser.PARSE_IS_PRIVILEGED;
+                                }
+                            }
+                            p = scanPackageLI(fullPath, flags,
+                                    SCAN_MONITOR | SCAN_NO_PATHS | SCAN_UPDATE_TIME,
+                                    System.currentTimeMillis(), UserHandle.ALL);
+                            if (p != null) {
+                                /*
+                                 * TODO this seems dangerous as the package may have
+                                 * changed since we last acquired the mPackages
+                                 * lock.
+                                 */
+                                // writer
+                                synchronized (mPackages) {
+                                    updatePermissionsLPw(p.packageName, p,
+                                            p.permissions.size() > 0 ? UPDATE_PERMISSIONS_ALL : 0);
+                                }
+                                addedPackage = p.applicationInfo.packageName;
+                                addedAppId = UserHandle.getAppId(p.applicationInfo.uid);
+                            }
                         }
                     }
                 }
@@ -6709,6 +6837,14 @@ public class PackageManagerService extends IPackageManager.Stub {
         UserHandle user;
         if ((flags&PackageManager.INSTALL_ALL_USERS) != 0) {
             user = UserHandle.ALL;
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                // ARKHAM-578 Don't allow instalation for all users when installing from container
+                UserInfo ui = sUserManager.getUserInfo(UserHandle.getUserId(uid));
+                if (ui != null && ui.isContainer()) {
+                    user = new UserHandle(UserHandle.getUserId(uid));
+                }
+                // ARKHAM-578 end changes
+            }
         } else {
             user = new UserHandle(UserHandle.getUserId(uid));
         }
@@ -7095,7 +7231,7 @@ public class PackageManagerService extends IPackageManager.Stub {
      *
      * @return true if verification should be performed
      */
-    private boolean isVerificationEnabled(int flags) {
+    protected boolean isVerificationEnabled(int userId, int flags) {
         if (!DEFAULT_VERIFY_ENABLE) {
             return false;
         }
@@ -7669,7 +7805,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                  */
                 final int requiredUid = mRequiredVerifierPackage == null ? -1
                         : getPackageUid(mRequiredVerifierPackage, userIdentifier);
-                if (requiredUid != -1 && isVerificationEnabled(flags)) {
+                if (requiredUid != -1 && isVerificationEnabled(userIdentifier, flags)) {
                     final Intent verification = new Intent(
                             Intent.ACTION_PACKAGE_NEEDS_VERIFICATION);
                     verification.setDataAndType(getPackageUri(), PACKAGE_MIME_TYPE);
@@ -9286,7 +9422,7 @@ public class PackageManagerService extends IPackageManager.Stub {
         return (pkg.applicationInfo.flags & ApplicationInfo.FLAG_PRIVILEGED) != 0;
     }
 
-    private static boolean isSystemApp(ApplicationInfo info) {
+    protected static boolean isSystemApp(ApplicationInfo info) {
         return (info.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
     }
 
@@ -11721,9 +11857,11 @@ public class PackageManagerService extends IPackageManager.Stub {
     }
 
     /** Called by UserManagerService */
-    void createNewUserLILPw(int userHandle, File path) {
+    // ARKHAM-433 pass UserInfo instead of user handle
+    void createNewUserLILPw(UserInfo userInfo, File path) {
         if (mInstaller != null) {
-            mSettings.createNewUserLILPw(this, mInstaller, userHandle, path);
+            // ARKHAM-433 pass UserInfo instead of user handle
+            mSettings.createNewUserLILPw(this, mInstaller, userInfo, path);
         }
     }
 
@@ -11781,5 +11919,23 @@ public class PackageManagerService extends IPackageManager.Stub {
         } finally {
             Binder.restoreCallingIdentity(token);
         }
+    }
+
+    /* @hide*/
+    protected boolean processPackageInContainer(int userId, PackageParser.Package pkg) {
+        return false;
+    }
+
+    protected boolean allowSystemServices(int uid) {
+        return false;
+    }
+
+
+    protected boolean checkEventType(int event) {
+        // ARKHAM-123 Use symbolic links for the ContainerLauncher.apk instead of copying it
+        if ((event & (ADD_EVENTS)) != 0) {
+            return true;
+        }
+        return false;
     }
 }

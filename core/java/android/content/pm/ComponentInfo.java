@@ -20,6 +20,9 @@ import android.graphics.drawable.Drawable;
 import android.os.Parcel;
 import android.util.Printer;
 
+import com.intel.arkham.ContainerCommons;
+import com.intel.config.FeatureConfig;
+
 /**
  * Base class containing information common to all application components
  * ({@link ActivityInfo}, {@link ServiceInfo}).  This class is not intended
@@ -80,7 +83,17 @@ public class ComponentInfo extends PackageItemInfo {
             return nonLocalizedLabel;
         }
         ApplicationInfo ai = applicationInfo;
+
         CharSequence label;
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            // ARKHAM-100 - Add support for Container Launcher App
+            label = ContainerCommons.getContainerLabel(this, pm);
+            if (label != null) {
+                return label;
+            }
+            // ARKHAM-100 - Ends.
+        }
+
         if (labelRes != 0) {
             label = pm.getText(packageName, labelRes, ai);
             if (label != null) {

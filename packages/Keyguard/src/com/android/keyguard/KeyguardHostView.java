@@ -56,6 +56,9 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.RemoteViews.OnClickHandler;
 
+import com.intel.arkham.ContainerPolicyCommons;
+import com.intel.config.FeatureConfig;
+
 import java.io.File;
 import java.lang.ref.WeakReference;
 import java.util.List;
@@ -98,6 +101,8 @@ public class KeyguardHostView extends KeyguardViewBase {
     private KeyguardSecurityModel mSecurityModel;
     private KeyguardViewStateManager mViewStateManager;
 
+    private ContainerPolicyCommons mContainerPolicyCommons;
+
     private Rect mTempRect = new Rect();
 
     private int mDisabledFeatures;
@@ -135,7 +140,7 @@ public class KeyguardHostView extends KeyguardViewBase {
         void userActivity();
     }
 
-    /*package*/ interface OnDismissAction {
+    public interface OnDismissAction {
         /* returns true if the dismiss should be deferred */
         boolean onDismiss();
     }
@@ -162,6 +167,12 @@ public class KeyguardHostView extends KeyguardViewBase {
         if (dpm != null) {
             mDisabledFeatures = getDisabledFeatures(dpm);
             mCameraDisabled = dpm.getCameraDisabled(null);
+        }
+
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mContainerPolicyCommons = new ContainerPolicyCommons(context, mLockPatternUtils);
+            mDisabledFeatures = mContainerPolicyCommons.setContainerKeyguardFeatures(
+                    mDisabledFeatures);
         }
 
         mSafeModeEnabled = LockPatternUtils.isSafeModeEnabled();
@@ -398,6 +409,9 @@ public class KeyguardHostView extends KeyguardViewBase {
         showPrimarySecurityScreen(false);
         updateSecurityViews();
         enableUserSelectorIfNecessary();
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mContainerPolicyCommons.editKeyguardForContainer(this);
+        }
     }
 
     private void updateAndAddWidgets() {
@@ -651,16 +665,48 @@ public class KeyguardHostView extends KeyguardViewBase {
         }
     }
 
+    /* ARKHAM-545 Disable container after reaching max failed unlock attempts. */
     private void showAlmostAtWipeDialog(int attempts, int remaining) {
-        String message = mContext.getString(R.string.kg_failed_attempts_almost_at_wipe,
-                attempts, remaining);
+        String message;
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            if (mLockPatternUtils.isContainerUserMode()) {
+                message = mContext.getString(R.string.kg_failed_attempts_almost_at_wipe_container,
+                        attempts, remaining, "disabled or wiped");
+            } else {
+                message = mContext.getString(R.string.kg_failed_attempts_almost_at_wipe,
+                        attempts, remaining);
+            }
+        } else {
+            message = mContext.getString(R.string.kg_failed_attempts_almost_at_wipe,
+                    attempts, remaining);
+        }
         showDialog(null, message);
     }
 
     private void showWipeDialog(int attempts) {
-        String message = mContext.getString(R.string.kg_failed_attempts_now_wiping, attempts);
+        String message;
+
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            if (mLockPatternUtils.isContainerUserMode()) {
+                message = mContext.getString(R.string.kg_failed_attempts_now_wiping_container,
+                        attempts, "disabled or wiped");
+            } else {
+                message = mContext.getString(R.string.kg_failed_attempts_now_wiping, attempts);
+            }
+        } else {
+            message = mContext.getString(R.string.kg_failed_attempts_now_wiping, attempts);
+        }
         showDialog(null, message);
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            if (mLockPatternUtils.isContainerUserMode()) {
+                /* Clear the number of failed unlock attempts and hide the keyguard
+                 * after disabling or wiping the container. */
+                KeyguardUpdateMonitor.getInstance(mContext).clearFailedUnlockAttempts();
+                handleHomeKey();
+            }
+        }
     }
+    /* End ARKHAM-545 */
 
     private void showAlmostAtAccountLoginDialog() {
         final int timeoutInSeconds = (int) LockPatternUtils.FAILED_ATTEMPT_TIMEOUT_MS / 1000;
@@ -1014,6 +1060,16 @@ public class KeyguardHostView extends KeyguardViewBase {
                 mSecurityViewContainer.setDisplayedChild(i);
                 break;
             }
+        }
+
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            /* ARKHAM-1140 Set keyguard softkeys based on user type. */
+            if (!mLockPatternUtils.isContainerUserMode()) {
+                setSystemUiVisibility(getSystemUiVisibility() | View.STATUS_BAR_DISABLE_HOME);
+            } else {
+                setSystemUiVisibility(getSystemUiVisibility() & ~View.STATUS_BAR_DISABLE_HOME);
+            }
+            /* End ARKHAM-1140. */
         }
 
         if (securityMode == SecurityMode.None) {
@@ -1595,6 +1651,10 @@ public class KeyguardHostView extends KeyguardViewBase {
             return;
         }
 
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mContainerPolicyCommons.removeContainerUser(users);
+        }
+
         final View multiUserView = findViewById(R.id.keyguard_user_selector);
         if (multiUserView == null) {
             Throwable t = new Throwable();
@@ -1682,6 +1742,18 @@ public class KeyguardHostView extends KeyguardViewBase {
         // The following enables the MENU key to work for testing automation
         if (shouldEnableMenuKey()) {
             showNextSecurityScreenOrFinish(false);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * ARKHAM:1088 - dismiss container keyguard when home key is pressed.
+     */
+    public boolean handleHomeKey() {
+        mDismissAction = mContainerPolicyCommons.handleContainerKeyguardDismiss(
+                mViewMediatorCallback, mDismissAction);
+        if (mLockPatternUtils.isContainerUserMode()) {
             return true;
         }
         return false;

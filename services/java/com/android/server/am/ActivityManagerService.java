@@ -27,6 +27,8 @@ import static org.xmlpull.v1.XmlPullParser.START_TAG;
 
 import static com.android.server.am.ActivityStackSupervisor.HOME_STACK_ID;
 
+import com.intel.config.FeatureConfig;
+
 import android.app.AppOpsManager;
 import android.appwidget.AppWidgetManager;
 import android.util.ArrayMap;
@@ -204,7 +206,7 @@ import java.util.concurrent.atomic.AtomicLong;
 // ASF imports
 import com.intel.asf.AsfAosp;
 
-public final class ActivityManagerService extends ActivityManagerNative
+public class ActivityManagerService extends ActivityManagerNative
         implements Watchdog.Monitor, BatteryStatsImpl.BatteryCallback {
     private static final String USER_DATA_DIR = "/data/user/";
     static final String TAG = "ActivityManager";
@@ -994,6 +996,12 @@ public final class ActivityManagerService extends ActivityManagerNative
      * Set to true after the system has finished booting.
      */
     boolean mBooted = false;
+    /**
+     * ARKHAM 596 - need this at pm/Settings.java. Used to stop pm to write package-restrictions.xml
+     */
+    public boolean isBooting() {
+        return !mBooted;
+    }
 
     int mProcessLimit = ProcessList.MAX_CACHED_APPS;
     int mProcessLimitOverride = -1;
@@ -1004,7 +1012,7 @@ public final class ActivityManagerService extends ActivityManagerNative
     static ActivityThread mSystemThread;
 
     int mCurrentUserId = 0;
-    private UserManagerService mUserManager;
+    protected UserManagerService mUserManager;
 
     private final class AppDeathRecipient implements IBinder.DeathRecipient {
         final ProcessRecord mApp;
@@ -1848,7 +1856,9 @@ public final class ActivityManagerService extends ActivityManagerNative
                     android.os.Process.THREAD_PRIORITY_FOREGROUND);
             android.os.Process.setCanSelfBackground(false);
 
-            ActivityManagerService m = new ActivityManagerService();
+            ActivityManagerService m = (FeatureConfig.INTEL_FEATURE_ARKHAM
+                    ? new ExtendActivityManagerService()
+                    : new ActivityManagerService());
 
             synchronized (this) {
                 mService = m;
@@ -1959,7 +1969,7 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
     }
 
-    private ActivityManagerService() {
+    protected ActivityManagerService() {
         Slog.i(TAG, "Memory class: " + ActivityManager.staticGetMemoryClass());
 
         mFgBroadcastQueue = new BroadcastQueue(this, "foreground", BROADCAST_FG_TIMEOUT, false);
@@ -2773,6 +2783,12 @@ public final class ActivityManagerService extends ActivityManagerNative
                 if (!AsfAosp.sendAppStartEvent(app.info, app.userId, getCurrentUser())) {
                     throw new SecurityException("process start is disallowed by policy.");
                 }
+            }
+
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                // ARKHAM - 125, Include container group id in process group list.
+                gids = appendContainerGroupId(uid, gids);
+                // ARKHAM - Changes end.
             }
 
             // Start the process.  It will either succeed and return a result containing
@@ -6837,6 +6853,13 @@ public final class ActivityManagerService extends ActivityManagerNative
         return mRecentTasks.get(0);
     }
 
+    protected boolean isUsersTask(TaskRecord tr, int userId) {
+        if (tr.userId != userId) {
+            return false;
+        }
+        return true;
+    }
+
     @Override
     public List<ActivityManager.RecentTaskInfo> getRecentTasks(int maxNum,
             int flags, int userId) {
@@ -6859,7 +6882,15 @@ public final class ActivityManagerService extends ActivityManagerNative
             for (int i=0; i<N && maxNum > 0; i++) {
                 TaskRecord tr = mRecentTasks.get(i);
                 // Only add calling user's recent tasks
-                if (tr.userId != userId) continue;
+                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                    if (!isUsersTask(tr, userId)) {
+                        continue;
+                    }
+                } else {
+                    if (tr.userId != userId) {
+                        continue;
+                    }
+                }
                 // Return the entry if desired by the caller.  We always return
                 // the first entry, because callers always expect this to be the
                 // foreground app.  We may filter others if the caller has
@@ -6883,6 +6914,9 @@ public final class ActivityManagerService extends ActivityManagerNative
                     rti.origActivity = tr.origActivity;
                     rti.description = tr.lastDescription;
                     rti.stackId = tr.stack.mStackId;
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        rti.userId = tr.userId;
+                    }
 
                     if ((flags&ActivityManager.RECENT_IGNORE_UNAVAILABLE) != 0) {
                         // Check whether this activity is currently available.
@@ -7557,6 +7591,11 @@ public final class ActivityManagerService extends ActivityManagerNative
         return false;
     }
 
+    protected int processSpecialContentProviderImpl(int uid, String name) {
+        int userId = uid;
+        return userId;
+    }
+
     private final ContentProviderHolder getContentProviderImpl(IApplicationThread caller,
             String name, IBinder token, boolean stable, int userId) {
         ContentProviderRecord cpr;
@@ -7573,6 +7612,12 @@ public final class ActivityManagerService extends ActivityManagerNative
                           + " (pid=" + Binder.getCallingPid()
                           + ") when getting content provider " + name);
                 }
+            }
+
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                // ARKHAM 356,358 - redirection request to container owner
+                userId = processSpecialContentProviderImpl(userId, name);
+                // ARKHAM Changes End.
             }
 
             // First check if this content provider has been published...
@@ -7696,21 +7741,44 @@ public final class ActivityManagerService extends ActivityManagerNative
                 cpr = mProviderMap.getProviderByClass(comp, userId);
                 final boolean firstClass = cpr == null;
                 if (firstClass) {
-                    try {
-                        ApplicationInfo ai =
-                            AppGlobals.getPackageManager().
-                                getApplicationInfo(
-                                        cpi.applicationInfo.packageName,
-                                        STOCK_PM_FLAGS, userId);
-                        if (ai == null) {
-                            Slog.w(TAG, "No package info for content provider "
-                                    + cpi.name);
-                            return null;
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        // ARKHAM 356- Clearing identity to bypass interact across user check.
+                        final long origId2 = Binder.clearCallingIdentity();
+                        try {
+                            ApplicationInfo ai =
+                                AppGlobals.getPackageManager().
+                                    getApplicationInfo(
+                                            cpi.applicationInfo.packageName,
+                                            STOCK_PM_FLAGS, userId);
+                            if (ai == null) {
+                                Slog.w(TAG, "No package info for content provider "
+                                        + cpi.name);
+                                return null;
+                            }
+                            ai = getAppInfoForUser(ai, userId);
+                            cpr = new ContentProviderRecord(this, cpi, ai, comp, singleton);
+                        } catch (RemoteException ex) {
+                            // pm is in same process, this will never happen.
+                        } finally {
+                            Binder.restoreCallingIdentity(origId2);
                         }
-                        ai = getAppInfoForUser(ai, userId);
-                        cpr = new ContentProviderRecord(this, cpi, ai, comp, singleton);
-                    } catch (RemoteException ex) {
-                        // pm is in same process, this will never happen.
+                    } else {
+                        try {
+                            ApplicationInfo ai =
+                                AppGlobals.getPackageManager().
+                                    getApplicationInfo(
+                                            cpi.applicationInfo.packageName,
+                                            STOCK_PM_FLAGS, userId);
+                            if (ai == null) {
+                                Slog.w(TAG, "No package info for content provider "
+                                        + cpi.name);
+                                return null;
+                            }
+                            ai = getAppInfoForUser(ai, userId);
+                            cpr = new ContentProviderRecord(this, cpi, ai, comp, singleton);
+                        } catch (RemoteException ex) {
+                            // pm is in same process, this will never happen.
+                        }
                     }
                 }
 
@@ -13418,7 +13486,17 @@ public final class ActivityManagerService extends ActivityManagerNative
         return receivers;
     }
 
-    private final int broadcastIntentLocked(ProcessRecord callerApp,
+    protected boolean broadcastCheckUserStopped(Intent intent, int callingUid, int userId) {
+        if (userId != UserHandle.USER_ALL && mStartedUsers.get(userId) == null) {
+            if (callingUid != Process.SYSTEM_UID || (intent.getFlags()
+                    & Intent.FLAG_RECEIVER_BOOT_UPGRADE) == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected final int broadcastIntentLocked(ProcessRecord callerApp,
             String callerPackage, Intent intent, String resolvedType,
             IIntentReceiver resultTo, int resultCode, String resultData,
             Bundle map, String requiredPermission, int appOp,
@@ -13441,12 +13519,20 @@ public final class ActivityManagerService extends ActivityManagerNative
 
         // Make sure that the user who is receiving this broadcast is started.
         // If not, we will just skip it.
-        if (userId != UserHandle.USER_ALL && mStartedUsers.get(userId) == null) {
-            if (callingUid != Process.SYSTEM_UID || (intent.getFlags()
-                    & Intent.FLAG_RECEIVER_BOOT_UPGRADE) == 0) {
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            if (broadcastCheckUserStopped(intent, callingUid, userId)) {
                 Slog.w(TAG, "Skipping broadcast of " + intent
                         + ": user " + userId + " is stopped");
                 return ActivityManager.BROADCAST_SUCCESS;
+            }
+        } else {
+            if (userId != UserHandle.USER_ALL && mStartedUsers.get(userId) == null) {
+                if (callingUid != Process.SYSTEM_UID || (intent.getFlags()
+                        & Intent.FLAG_RECEIVER_BOOT_UPGRADE) == 0) {
+                    Slog.w(TAG, "Skipping broadcast of " + intent
+                            + ": user " + userId + " is stopped");
+                    return ActivityManager.BROADCAST_SUCCESS;
+                }
             }
         }
 
@@ -13674,8 +13760,12 @@ public final class ActivityManagerService extends ActivityManagerNative
             // Caller wants broadcast to go to all started users.
             users = mStartedUserArray;
         } else {
-            // Caller wants broadcast to go to one specific user.
-            users = new int[] {userId};
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                users = getUsersForSpecificBroadcast(userId, ordered);
+            } else {
+                // Caller wants broadcast to go to one specific user.
+                users = new int[] {userId};
+            }
         }
 
         // Figure out who all will receive this broadcast.
@@ -16208,6 +16298,14 @@ public final class ActivityManagerService extends ActivityManagerNative
                     return false;
                 }
 
+                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                    // ARKHAM-166 ActivityManager: Don't expose container users
+                    if (userInfo.isContainer()) {
+                        Slog.w(TAG, "Cannot switch to user. (uid " + userId + ")");
+                        return false;
+                    }
+                }
+
                 mWindowManager.startFreezingScreen(R.anim.screen_user_exit,
                         R.anim.screen_user_enter);
 
@@ -16687,7 +16785,7 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
     }
 
-    private void updateStartedUserArrayLocked() {
+    protected void updateStartedUserArrayLocked() {
         int num = 0;
         for (int i=0; i<mStartedUsers.size();  i++) {
             UserStartedState uss = mStartedUsers.valueAt(i);
@@ -16772,5 +16870,17 @@ public final class ActivityManagerService extends ActivityManagerNative
         ActivityInfo info = new ActivityInfo(aInfo);
         info.applicationInfo = getAppInfoForUser(info.applicationInfo, userId);
         return info;
+    }
+
+    protected int[] appendContainerGroupId(int uid , int[] gids) {
+        return gids;
+    }
+
+    public boolean isTopRunningActivityInContainter(int cid) {
+        return false;
+    }
+
+    protected int[] getUsersForSpecificBroadcast(int userId, boolean ordered) {
+        return new int[] {userId};
     }
 }

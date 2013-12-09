@@ -17,6 +17,8 @@
 package android.widget;
 
 import com.android.internal.R;
+import com.intel.arkham.ParentQuickContactBadge;
+import com.intel.config.FeatureConfig;
 
 import android.content.AsyncQueryHandler;
 import android.content.ContentResolver;
@@ -52,6 +54,8 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
     private QueryHandler mQueryHandler;
     private Drawable mDefaultAvatar;
     private Bundle mExtras = null;
+
+    private ParentQuickContactBadge mPQCB;
 
     protected String[] mExcludeMimes = null;
 
@@ -96,11 +100,17 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
             mQueryHandler = new QueryHandler(mContext.getContentResolver());
         }
         setOnClickListener(this);
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mPQCB = new ParentQuickContactBadge();
+        }
     }
 
     @Override
     protected void drawableStateChanged() {
         super.drawableStateChanged();
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mPQCB.drawableStateChanged(mOverlay, getDrawableState());
+        }
         if (mOverlay != null && mOverlay.isStateful()) {
             mOverlay.setState(getDrawableState());
             invalidate();
@@ -137,6 +147,9 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
             canvas.translate(mPaddingLeft, mPaddingTop);
             mOverlay.draw(canvas);
             canvas.restoreToCount(saveCount);
+        }
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mPQCB.onContainerDraw(canvas, getWidth(), getHeight(), mPaddingTop, mPaddingLeft);
         }
     }
 
@@ -253,6 +266,9 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
 
     private void onContactUriChanged() {
         setEnabled(isAssigned());
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mPQCB.onContactUriChanged(mContactUri, mContext);
+        }
     }
 
     @Override

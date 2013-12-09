@@ -772,7 +772,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
         notifyClearAccessibilityNodeInfoCacheLocked();
     }
 
-    private void switchUser(int userId) {
+    protected void switchUser(int userId) {
         synchronized (mLock) {
             if (mCurrentUserId == userId && mInitialized) {
                 return;

@@ -102,6 +102,9 @@ import com.android.internal.statusbar.IStatusBarService;
 import com.android.internal.telephony.ITelephony;
 import com.android.internal.widget.PointerLocationView;
 
+import com.intel.arkham.ParentPhoneWindowManager;
+import com.intel.config.FeatureConfig;
+
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
@@ -119,7 +122,7 @@ import static android.view.WindowManagerPolicy.WindowManagerFuncs.LID_CLOSED;
  * can be acquired with either the Lw and Li lock held, so has the restrictions
  * of both of those when held.
  */
-public class PhoneWindowManager implements WindowManagerPolicy {
+public class PhoneWindowManager extends ParentPhoneWindowManager implements WindowManagerPolicy {
     static final String TAG = "WindowManager";
     static final boolean DEBUG = false;
     static final boolean localLOGV = false;
@@ -4330,6 +4333,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     @Override
     public void screenTurnedOff(int why) {
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            super.screenTurnedOff(why);
+        }
         Log.i(TAG, "Screen turned off...");
         EventLog.writeEvent(70000, 0);
         synchronized (mLock) {
@@ -4744,6 +4750,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     public void systemReady() {
         if (!mHeadless) {
             mKeyguardDelegate = new KeyguardServiceDelegate(mContext, null);
+            if ( FeatureConfig.INTEL_FEATURE_ARKHAM ) {
+                super.init(mContext);
+            }
             mKeyguardDelegate.onSystemReady();
         }
         synchronized (mLock) {
@@ -4851,6 +4860,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 mHandler.postDelayed(mScreenLockTimeout, mLockScreenTimeout);
             }
         }
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            super.userActivity();
+        }
     }
 
     class ScreenLockTimeout implements Runnable {
@@ -4861,6 +4873,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             synchronized (this) {
                 if (localLOGV) Log.v(TAG, "mScreenLockTimeout activating keyguard");
                 if (mKeyguardDelegate != null) {
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        PhoneWindowManager.super.doScreenLockTimeout();
+                    }
                     mKeyguardDelegate.doKeyguardTimeout(options);
                 }
                 mLockScreenTimerActive = false;
@@ -5508,5 +5523,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         pw.print(prefix); pw.print("mUndockedHdmiRotation="); pw.println(mUndockedHdmiRotation);
         mStatusBarController.dump(pw, prefix);
         mNavigationBarController.dump(pw, prefix);
+    }
+    protected Handler getHandler() {
+        return mHandler;
+    }
+    protected KeyguardServiceDelegate getKeyguardServiceDelegate() {
+        return mKeyguardDelegate;
     }
 }

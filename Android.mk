@@ -71,6 +71,7 @@ LOCAL_SRC_FILES += \
 ## across process boundaries.
 ##
 ## READ ME: ########################################################
+## ARKHAM-242 add container policy service and container manager
 LOCAL_SRC_FILES += \
 	core/java/android/accessibilityservice/IAccessibilityServiceConnection.aidl \
 	core/java/android/accessibilityservice/IAccessibilityServiceClient.aidl \
@@ -294,6 +295,19 @@ LOCAL_SRC_FILES += \
 	packages/services/Proxy/com/android/net/IProxyCallback.aidl \
 	packages/services/Proxy/com/android/net/IProxyPortListener.aidl \
 
+LOCAL_ARKHAM_PATH := vendor/intel/arkham
+ifeq ($(strip $(INTEL_FEATURE_ARKHAM)),true)
+LOCAL_SRC_FILES += \
+	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java,) \
+	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/keystore/java,) \
+	../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java/com/intel/arkham/IContainerManager.aidl \
+	../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java/com/intel/arkham/IContainerPolicyManager.aidl
+LOCAL_AIDL_INCLUDES += $(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java
+else
+LOCAL_SRC_FILES += \
+	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/core/java,)\
+	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/keystore/java,)
+endif
 # FRAMEWORKS_BASE_JAVA_SRC_DIRS comes from build/core/pathmap.mk
 LOCAL_AIDL_INCLUDES += $(FRAMEWORKS_BASE_JAVA_SRC_DIRS)
 
@@ -304,6 +318,8 @@ LOCAL_INTERMEDIATE_SOURCES := \
 
 LOCAL_NO_STANDARD_LIBRARIES := true
 LOCAL_JAVA_LIBRARIES := bouncycastle conscrypt core core-junit ext okhttp
+
+LOCAL_JAVA_LIBRARIES += com.intel.config
 
 LOCAL_MODULE := framework-base
 

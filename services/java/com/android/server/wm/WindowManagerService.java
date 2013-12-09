@@ -44,6 +44,7 @@ import com.android.server.input.InputManagerService;
 import com.android.server.power.PowerManagerService;
 import com.android.server.power.ShutdownThread;
 
+import com.intel.config.FeatureConfig;
 import android.Manifest;
 import android.app.ActivityManager.StackBoxInfo;
 import android.app.ActivityManagerNative;
@@ -2668,6 +2669,15 @@ public class WindowManagerService extends IWindowManager.Stub
             outDisplayFrame.set(win.mDisplayFrame);
         }
     }
+
+    /* ARKHAM-424: START - Set the timeout password period based on device activity
+     * Public function needed by ContainerManagerService to get the current WindowManagerPolicy,
+     * which is PhoneWindowManager.
+     */
+    public WindowManagerPolicy getPolicy() {
+        return mPolicy;
+    }
+    // ARKHAM-424: END
 
     public void setWindowWallpaperPositionLocked(WindowState window, float x, float y,
             float xStep, float yStep) {
@@ -5743,6 +5753,15 @@ public class WindowManagerService extends IWindowManager.Stub
 
         Bitmap bm = Bitmap.createBitmap(width, height, force565 ? Config.RGB_565 : rawss.getConfig());
         frame.scale(scale);
+        // ARKHAM: REVERT-ME: Saltbay workaround
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM == true) {
+            Bitmap.Config config = rawss.getConfig();
+            if (config == null) {
+                config = Bitmap.Config.ARGB_8888;
+            }
+            bm = Bitmap.createBitmap(width, height, config);
+        }
+        // ARKHAM: end changes
         Matrix matrix = new Matrix();
         ScreenRotationAnimation.createRotationMatrix(rot, dw, dh, matrix);
         // TODO: Test for RTL vs. LTR and use frame.right-width instead of -frame.left

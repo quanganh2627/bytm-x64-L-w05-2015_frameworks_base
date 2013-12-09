@@ -181,6 +181,10 @@ extern int register_android_animation_PropertyValuesHolder(JNIEnv *env);
 extern int register_com_android_internal_content_NativeLibraryHelper(JNIEnv *env);
 extern int register_com_android_internal_net_NetworkStatsFactory(JNIEnv *env);
 
+#ifdef INTEL_FEATURE_ARKHAM
+extern int register_com_intel_arkham_ContainerCommons(JNIEnv *env);
+#endif
+
 static AndroidRuntime* gCurRuntime = NULL;
 
 static void doThrow(JNIEnv* env, const char* exc, const char* msg = NULL)
@@ -1431,6 +1435,9 @@ static const RegJNIRec gRegJNI[] = {
     REG_JNI(register_android_animation_PropertyValuesHolder),
     REG_JNI(register_com_android_internal_content_NativeLibraryHelper),
     REG_JNI(register_com_android_internal_net_NetworkStatsFactory),
+#ifdef INTEL_FEATURE_ARKHAM
+    REG_JNI(register_com_intel_arkham_ContainerCommons),
+#endif
 };
 
 /*

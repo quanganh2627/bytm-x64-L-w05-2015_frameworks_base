@@ -20,11 +20,14 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.UserHandle;
 
+import com.intel.arkham.ParentUserInfo;
+import com.intel.config.FeatureConfig;
+
 /**
  * Per-user information.
  * @hide
  */
-public class UserInfo implements Parcelable {
+public class UserInfo extends ParentUserInfo implements Parcelable {
 
     /** 6 bits for user type */
     public static final int FLAG_MASK_USER_TYPE = 0x0000003F;
@@ -105,6 +108,7 @@ public class UserInfo implements Parcelable {
     }
 
     public UserInfo(UserInfo orig) {
+        super(orig);
         name = orig.name;
         iconPath = orig.iconPath;
         id = orig.id;
@@ -129,6 +133,9 @@ public class UserInfo implements Parcelable {
     }
 
     public void writeToParcel(Parcel dest, int parcelableFlags) {
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            super.writeToParcel(dest, parcelableFlags);
+        }
         dest.writeInt(id);
         dest.writeString(name);
         dest.writeString(iconPath);
@@ -150,6 +157,7 @@ public class UserInfo implements Parcelable {
     };
 
     private UserInfo(Parcel source) {
+        super(source);
         id = source.readInt();
         name = source.readString();
         iconPath = source.readString();
@@ -158,5 +166,9 @@ public class UserInfo implements Parcelable {
         creationTime = source.readLong();
         lastLoggedInTime = source.readLong();
         partial = source.readInt() != 0;
+    }
+
+    protected int getFlags() {
+        return flags;
     }
 }

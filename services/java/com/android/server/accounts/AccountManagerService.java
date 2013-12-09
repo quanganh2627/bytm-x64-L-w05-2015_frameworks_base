@@ -76,6 +76,7 @@ import com.android.internal.R;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.IndentingPrintWriter;
 import com.android.server.FgThread;
+import com.intel.config.FeatureConfig;
 import com.google.android.collect.Lists;
 import com.google.android.collect.Sets;
 
@@ -155,7 +156,7 @@ public class AccountManagerService
 
     private static final String[] ACCOUNT_TYPE_COUNT_PROJECTION =
             new String[] { ACCOUNTS_TYPE, ACCOUNTS_TYPE_COUNT};
-    private static final Intent ACCOUNTS_CHANGED_INTENT;
+    protected static final Intent ACCOUNTS_CHANGED_INTENT;
 
     private static final String COUNT_OF_MATCHING_GRANTS = ""
             + "SELECT COUNT(*) FROM " + TABLE_GRANTS + ", " + TABLE_ACCOUNTS
@@ -204,7 +205,7 @@ public class AccountManagerService
         }
     }
 
-    private final SparseArray<UserAccounts> mUsers = new SparseArray<UserAccounts>();
+    protected final SparseArray<UserAccounts> mUsers = new SparseArray<UserAccounts>();
 
     private static AtomicReference<AccountManagerService> sThis =
             new AtomicReference<AccountManagerService>();
@@ -286,7 +287,7 @@ public class AccountManagerService
     public void systemReady() {
     }
 
-    private UserManager getUserManager() {
+    protected UserManager getUserManager() {
         if (mUserManager == null) {
             mUserManager = UserManager.get(mContext);
         }
@@ -433,7 +434,7 @@ public class AccountManagerService
         }
     }
 
-    private void onUserRemoved(Intent intent) {
+    protected void onUserRemoved(Intent intent) {
         int userId = intent.getIntExtra(Intent.EXTRA_USER_HANDLE, -1);
         if (userId < 1) return;
 
@@ -1137,7 +1138,7 @@ public class AccountManagerService
         }
     }
 
-    private void sendAccountsChangedBroadcast(int userId) {
+    protected void sendAccountsChangedBroadcast(int userId) {
         Log.i(TAG, "the accounts changed, sending broadcast of "
                 + ACCOUNTS_CHANGED_INTENT.getAction());
         mContext.sendBroadcastAsUser(ACCOUNTS_CHANGED_INTENT, new UserHandle(userId));
@@ -3085,5 +3086,22 @@ public class AccountManagerService
             cursor.close();
         }
         return authTokensForAccount;
+    }
+
+    protected void closeAccountDatabase(int userId) {
+        if (!FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            return;
+        }
+
+        UserAccounts accounts;
+        synchronized (mUsers) {
+            accounts = mUsers.get(userId);
+        }
+        if (accounts == null) {
+            return;
+        }
+        synchronized (accounts.cacheLock) {
+            accounts.openHelper.close();
+        }
     }
 }

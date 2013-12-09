@@ -47,6 +47,7 @@ import android.view.WindowManager;
 import com.android.internal.R;
 import com.android.internal.os.BinderInternal;
 import com.android.internal.os.SamplingProfilerIntegration;
+import com.android.server.accessibility.ExtendAccessibilityManagerService;
 import com.android.server.accessibility.AccessibilityManagerService;
 import com.android.server.accounts.AccountManagerService;
 import com.android.server.am.ActivityManagerService;
@@ -69,16 +70,21 @@ import com.android.server.print.PrintManagerService;
 import com.android.server.search.SearchManagerService;
 import com.android.server.thermal.ThermalService;
 import com.android.server.usb.UsbService;
+import com.android.server.wifi.ExtendWifiService;
 import com.android.server.wifi.WifiService;
 import com.android.server.wifi.CsmWifiOffloadSystemService;
 import com.android.server.wm.WindowManagerService;
 import android.view.InputChannel;
+
+import com.intel.arkham.ExtendAccountManagerService;
+import com.intel.config.FeatureConfig;
 import com.intel.multidisplay.DisplayObserver;
 
 import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
 
 import java.io.File;
+import java.lang.reflect.Method;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -268,7 +274,11 @@ class ServerThread {
             try {
                 // TODO: seems like this should be disable-able, but req'd by ContentService
                 Slog.i(TAG, "Account Manager");
-                accountManager = new AccountManagerService(context);
+                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                    accountManager = new ExtendAccountManagerService(context);
+                } else {
+                    accountManager = new AccountManagerService(context);
+                }
                 ServiceManager.addService(Context.ACCOUNT_SERVICE, accountManager);
             } catch (Throwable e) {
                 Slog.e(TAG, "Failure starting Account Manager", e);
@@ -385,7 +395,11 @@ class ServerThread {
             if (true) {
                 try {
                     Slog.i(TAG, "Input Method Service");
-                    imm = new InputMethodManagerService(context, wm);
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        imm = new ExtendInputMethodManagerService(context, wm);
+                    } else {
+                        imm = new InputMethodManagerService(context, wm);
+                    }
                     ServiceManager.addService(Context.INPUT_METHOD_SERVICE, imm);
                 } catch (Throwable e) {
                     reportWtf("starting Input Manager Service", e);
@@ -393,8 +407,13 @@ class ServerThread {
 
                 try {
                     Slog.i(TAG, "Accessibility Manager");
-                    ServiceManager.addService(Context.ACCESSIBILITY_SERVICE,
-                            new AccessibilityManagerService(context));
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        ServiceManager.addService(Context.ACCESSIBILITY_SERVICE,
+                                new ExtendAccessibilityManagerService(context));
+                    } else {
+                        ServiceManager.addService(Context.ACCESSIBILITY_SERVICE,
+                                new AccessibilityManagerService(context));
+                    }
                 } catch (Throwable e) {
                     reportWtf("starting Accessibility Manager", e);
                 }
@@ -430,7 +449,11 @@ class ServerThread {
                      * (for media / usb notifications) so we must start MountService first.
                      */
                     Slog.i(TAG, "Mount Service");
-                    mountService = new MountService(context);
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        mountService = new ExtendMountService(context);
+                    } else {
+                        mountService = new MountService(context);
+                    }
                     ServiceManager.addService("mount", mountService);
                 } catch (Throwable e) {
                     reportWtf("starting Mount Service", e);
@@ -448,7 +471,11 @@ class ServerThread {
 
                 try {
                     Slog.i(TAG, "Device Policy");
-                    devicePolicy = new DevicePolicyManagerService(context);
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        devicePolicy = new ExtendDevicePolicyManagerService(context);
+                    } else {
+                        devicePolicy = new DevicePolicyManagerService(context);
+                    }
                     ServiceManager.addService(Context.DEVICE_POLICY_SERVICE, devicePolicy);
                 } catch (Throwable e) {
                     reportWtf("starting DevicePolicyService", e);
@@ -468,8 +495,13 @@ class ServerThread {
             if (!disableNonCoreServices) {
                 try {
                     Slog.i(TAG, "Clipboard Service");
-                    ServiceManager.addService(Context.CLIPBOARD_SERVICE,
-                            new ClipboardService(context));
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        ServiceManager.addService(Context.CLIPBOARD_SERVICE,
+                                new ExtendClipboardService(context));
+                    } else {
+                        ServiceManager.addService(Context.CLIPBOARD_SERVICE,
+                                new ClipboardService(context));
+                    }
                 } catch (Throwable e) {
                     reportWtf("starting Clipboard Service", e);
                 }
@@ -532,7 +564,11 @@ class ServerThread {
 
                try {
                     Slog.i(TAG, "Wi-Fi Service");
-                    wifi = new WifiService(context);
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        wifi = new ExtendWifiService(context);
+                    } else {
+                        wifi = new WifiService(context);
+                    }
                     ServiceManager.addService(Context.WIFI_SERVICE, wifi);
                 } catch (Throwable e) {
                     reportWtf("starting Wi-Fi Service", e);
@@ -597,7 +633,11 @@ class ServerThread {
 
             try {
                 Slog.i(TAG, "Notification Manager");
-                notification = new NotificationManagerService(context, statusBar, lights);
+                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                    notification = new ExtendNotificationManagerService(context, statusBar, lights);
+                } else {
+                    notification = new NotificationManagerService(context, statusBar, lights);
+                }
                 ServiceManager.addService(Context.NOTIFICATION_SERVICE, notification);
                 networkPolicy.bindNotificationManager(notification);
             } catch (Throwable e) {
@@ -848,6 +888,25 @@ class ServerThread {
                 ServiceManager.addService(Context.PRINT_SERVICE, printManager);
             } catch (Throwable e) {
                 reportWtf("starting Print Service", e);
+            }
+
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM
+                    && !ENCRYPTED_STATE.equals(SystemProperties.get("vold.decrypt"))
+                    && !ENCRYPTING_STATE.equals(SystemProperties.get("vold.decrypt"))) {
+                Class[] ptype = new Class[]{Context.class};
+                Object[] obj = new Object[]{context};
+
+                String name = "com.intel.arkham.ContainerPolicyManagerService";
+                Object containerPolicy = registerService(name, ptype , obj);
+
+                ptype = new Class[]{Context.class, java.lang.Object.class,
+                    PackageManagerService.class, WindowManagerService.class};
+                obj = new Object[]{context, containerPolicy,
+                    (PackageManagerService) pm, wm};
+                name = "com.intel.arkham.ContainerManagerService";
+                Object containerManager = registerService(name, ptype , obj);
+
+                Slog.i(TAG, "Container Services");
             }
 
             if (!disableNonCoreServices) {
@@ -1144,6 +1203,25 @@ class ServerThread {
         //Slog.d(TAG, "Starting service: " + intent);
         context.startServiceAsUser(intent, UserHandle.OWNER);
     }
+
+    private Object registerService(String serviceClassName, java.lang.Class[] ptype,
+            java.lang.Object[] objArray) {
+        Object object = null;
+        Slog.d(TAG, "registerService service: " + serviceClassName);
+        try {
+            Class c = Class.forName(serviceClassName);
+            Method m = c.getMethod("main", ptype);
+            object = m.invoke(c, objArray);
+        } catch (IllegalAccessException iae) {
+            Slog.e(TAG, "Got expected PackageAccess complaint", iae);
+        } catch (InstantiationError ie) {
+            Slog.e(TAG, "Got expected InstantationError", ie);
+        } catch (Exception ex) {
+            Slog.e(TAG, "Got unexpected MaybeAbstract failure", ex);
+        }
+        return object;
+    }
+
 }
 
 public class SystemServer {

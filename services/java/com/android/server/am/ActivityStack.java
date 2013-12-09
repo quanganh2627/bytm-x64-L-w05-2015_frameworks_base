@@ -89,7 +89,7 @@ import java.util.List;
 /**
  * State and management of a single stack of activities.
  */
-final class ActivityStack {
+class ActivityStack {
 
     // Ticks during which we check progress while waiting for an app to launch.
     static final int LAUNCH_TICK = 500;

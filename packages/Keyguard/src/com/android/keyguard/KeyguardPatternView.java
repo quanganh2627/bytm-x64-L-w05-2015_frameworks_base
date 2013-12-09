@@ -37,6 +37,7 @@ import android.widget.LinearLayout;
 
 import com.android.internal.widget.LockPatternUtils;
 import com.android.internal.widget.LockPatternView;
+import com.intel.config.FeatureConfig;
 
 import java.io.IOException;
 import java.util.List;
@@ -140,7 +141,14 @@ public class KeyguardPatternView extends LinearLayout implements KeyguardSecurit
 
         setFocusableInTouchMode(true);
 
-        maybeEnableFallback(mContext);
+        // ARKHAM-544, cannot open user account before mounting ecryptfs
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            if (!mLockPatternUtils.isContainerUserMode()) {
+                maybeEnableFallback(mContext);
+            }
+        } else {
+            maybeEnableFallback(mContext);
+        }
         mSecurityMessageDisplay = new KeyguardMessageArea.Helper(this);
         mEcaView = findViewById(R.id.keyguard_selector_fade_container);
         View bouncerFrameView = findViewById(R.id.keyguard_bouncer_frame);

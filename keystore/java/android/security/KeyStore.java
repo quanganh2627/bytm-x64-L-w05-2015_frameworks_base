@@ -334,4 +334,14 @@ public class KeyStore {
     public int getLastError() {
         return mError;
     }
+
+    // ARKHAM-1087: Add wipe option for container's keystore
+    public boolean wipeUser(int userId) {
+        try {
+            return mBinder.wipe_user(userId) == NO_ERROR;
+        } catch (RemoteException e) {
+            Log.w(TAG, "Cannot connect to keystore", e);
+            return false;
+        }
+    }
 }

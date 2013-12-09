@@ -30,6 +30,7 @@ import com.android.internal.view.IInputMethodSession;
 import com.android.internal.view.InputBindResult;
 import com.android.server.EventLogTags;
 import com.android.server.wm.WindowManagerService;
+import com.intel.config.FeatureConfig;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -788,7 +789,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
                 true /* resetDefaultImeLocked */);
     }
 
-    private void switchUserLocked(int newUserId) {
+    protected void switchUserLocked(int newUserId) {
         mSettings.setCurrentUserId(newUserId);
         // InputMethodFileManager should be reset when the user is changed
         mFileManager = new InputMethodFileManager(mMethodMap, newUserId);
@@ -895,7 +896,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
     // Check whether or not this is a valid IPC. Assumes an IPC is valid when either
     // 1) it comes from the system process
     // 2) the calling process' user id is identical to the current user id IMMS thinks.
-    private boolean calledFromValidUser() {
+    protected boolean calledFromValidUser() {
         final int uid = Binder.getCallingUid();
         final int userId = UserHandle.getUserId(uid);
         if (DEBUG) {
@@ -1127,11 +1128,18 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
         return startInputUncheckedLocked(cs, inputContext, attribute, controlFlags);
     }
 
+    protected void checkAndShowSystemImeForContainer() {
+    }
+
     InputBindResult startInputUncheckedLocked(ClientState cs,
             IInputContext inputContext, EditorInfo attribute, int controlFlags) {
         // If no method is currently selected, do nothing.
         if (mCurMethodId == null) {
             return mNoBinding;
+        }
+
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            checkAndShowSystemImeForContainer();
         }
 
         if (mCurClient != cs) {
@@ -2605,7 +2613,7 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
         mContext.startActivityAsUser(intent, null, UserHandle.CURRENT);
     }
 
-    private boolean isScreenLocked() {
+    protected boolean isScreenLocked() {
         return mKeyguardManager != null
                 && mKeyguardManager.isKeyguardLocked() && mKeyguardManager.isKeyguardSecure();
     }
