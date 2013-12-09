@@ -267,6 +267,11 @@ public class KeyguardViewMediator {
      */
     private static MultiUserAvatarCache sMultiUserAvatarCache = new MultiUserAvatarCache();
 
+     /**
+      * INTEL_LPAL: when phrase heared by the phone, the phone will wake up itself
+      */
+    private static final String INTEL_LPAL_TAG = "INTEL_LPAL_KeyguardViewMediator";
+
     /**
      * The callback used by the keyguard view to tell the {@link KeyguardViewMediator}
      * various things.
@@ -602,12 +607,22 @@ public class KeyguardViewMediator {
             // Note that the biometric unlock will still not show if it is not the selected method.
             // Calling setAlternateUnlockEnabled(true) simply says don't suppress it if it is the
             // selected method.
-            if (mLockPatternUtils.usingBiometricWeak()
-                    && mLockPatternUtils.isBiometricWeakInstalled()) {
-                if (DEBUG) Log.d(TAG, "suppressing biometric unlock during boot");
-                mUpdateMonitor.setAlternateUnlockEnabled(false);
+
+            // INTEL_LPAL
+            if (FeatureConfig.INTEL_FEATURE_LPAL
+                        && mLockPatternUtils.usingBiometricVoiceWeak()
+                        && mLockPatternUtils.isBiometricVoiceWeakInstalled()) {
+                    if (DEBUG) Log.d(INTEL_LPAL_TAG, "suppressing voice unlock during boot");
+                    mUpdateMonitor.setAlternateUnlockEnabled(false);
             } else {
-                mUpdateMonitor.setAlternateUnlockEnabled(true);
+
+                if (mLockPatternUtils.usingBiometricWeak()
+                        && mLockPatternUtils.isBiometricWeakInstalled()) {
+                    if (DEBUG) Log.d(TAG, "suppressing biometric unlock during boot");
+                    mUpdateMonitor.setAlternateUnlockEnabled(false);
+                } else {
+                    mUpdateMonitor.setAlternateUnlockEnabled(true);
+                }
             }
 
             doKeyguardLocked(null);

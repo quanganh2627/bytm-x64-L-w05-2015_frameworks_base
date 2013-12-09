@@ -231,6 +231,16 @@ public class DevicePolicyManager {
     public static final int PASSWORD_QUALITY_BIOMETRIC_WEAK = 0x8000;
 
     /**
+     * INTEL_LPAL: Constant for {@link #setPasswordQuality}: the policy allows for low-security
+     * speech verification technology.  This implies technologies that can recognize the identity
+     * of an individual to about a 3 digit PIN (false detection is less than 1 in 1,000).
+     * Note that quality constants are ordered so that higher values are more restrictive.
+     * intel vtsv feature
+     * @hide
+     */
+    public static final int PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK = 0x8100;
+
+    /**
      * Constant for {@link #setPasswordQuality}: the policy requires some kind
      * of password, but doesn't care what it is.  Note that quality constants
      * are ordered so that higher values are more restrictive.
