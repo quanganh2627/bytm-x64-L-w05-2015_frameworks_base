@@ -18,7 +18,13 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := $(call all-java-files-under, src) $(call all-subdir-Iaidl-files)
 
-LOCAL_JAVA_LIBRARIES := services
+ifeq ($(strip $(INTEL_FEATURE_ARKHAM)),true)
+LOCAL_SRC_FILES += $(call all-java-files-under, ../../../../vendor/intel/arkham/frameworks/enabled/base/packages/Keyguard/src)
+else
+LOCAL_SRC_FILES += $(call all-java-files-under, ../../../../vendor/intel/arkham/frameworks/disabled/base/packages/Keyguard/src)
+endif
+
+LOCAL_JAVA_LIBRARIES := services com.intel.config
 
 LOCAL_PACKAGE_NAME := Keyguard
 

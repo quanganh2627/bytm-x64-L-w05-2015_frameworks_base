@@ -93,17 +93,21 @@ import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_USER_PRESENT;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
 import static com.android.server.wifi.WifiController.CMD_DEVICE_IDLE;
+
+import com.intel.arkham.ContainerCommons;
+import com.intel.config.FeatureConfig;
+
 /**
  * WifiService handles remote WiFi operation requests by implementing
  * the IWifiManager interface.
  *
  * @hide
  */
-public final class WifiService extends IWifiManager.Stub {
+public class WifiService extends IWifiManager.Stub {
     private static final String TAG = "WifiService";
     private static final boolean DBG = false;
 
-    final WifiStateMachine mWifiStateMachine;
+    protected final WifiStateMachine mWifiStateMachine;
     private final WifiNative mWifiNative;
 
     private final Context mContext;
@@ -603,7 +607,7 @@ public final class WifiService extends IWifiManager.Stub {
                 responsibleWorkSource);
     }
 
-    private void enforceAccessPermission() {
+    protected void enforceAccessPermission() {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.ACCESS_WIFI_STATE,
                                                 "WifiService");
     }
@@ -896,10 +900,20 @@ public final class WifiService extends IWifiManager.Stub {
                 return new ArrayList<ScanResult>();
             }
             int currentUser = ActivityManager.getCurrentUser();
-            if (userId != currentUser) {
-                return new ArrayList<ScanResult>();
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                /* ARKHAM-621 Let WiFi networks be displayed in container Settings. */
+                if (userId != currentUser && !ContainerCommons.isContainerUser(mContext, userId)) {
+                    return new ArrayList<ScanResult>();
+                /* END ARKHAM-621 changes. */
+                } else {
+                    return mWifiStateMachine.syncGetScanResultsList();
+                }
             } else {
-                return mWifiStateMachine.syncGetScanResultsList();
+                if (userId != currentUser) {
+                    return new ArrayList<ScanResult>();
+                } else {
+                    return mWifiStateMachine.syncGetScanResultsList();
+                }
             }
         } finally {
             Binder.restoreCallingIdentity(ident);
