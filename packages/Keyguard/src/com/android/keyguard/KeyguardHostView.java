@@ -125,6 +125,11 @@ public class KeyguardHostView extends KeyguardViewBase {
 
     private final Rect mInsets = new Rect();
 
+    /**
+     * INTEL_LPAL: low power always listening
+     */
+    private static final String INTEL_LPAL_TAG = "INTEL_LPAL_KeyguardHostView";
+
     private MyOnClickHandler mOnClickHandler = new MyOnClickHandler(this);
 
     private Runnable mPostBootCompletedRunnable;
@@ -593,6 +598,15 @@ public class KeyguardHostView extends KeyguardViewBase {
         }
 
         public void dismiss(boolean authenticated) {
+            // INTEL_LPAL: BiometricVoice
+            if (FeatureConfig.INTEL_FEATURE_LPAL
+                    && mCurrentSecuritySelection == SecurityMode.BiometricVoice) {
+                Log.d(INTEL_LPAL_TAG, "show next security screen or finsih for BiometricVoice");
+                showNextSecurityScreenOrFinishLPAL(authenticated);
+                return;
+            }
+            // INTEL_LPAL end
+
             showNextSecurityScreenOrFinish(authenticated);
         }
 
@@ -795,7 +809,17 @@ public class KeyguardHostView extends KeyguardViewBase {
      */
     private void showBackupSecurityScreen() {
         if (DEBUG) Log.d(TAG, "showBackupSecurity()");
-        SecurityMode backup = mSecurityModel.getBackupSecurityMode(mCurrentSecuritySelection);
+
+        // INTEL_LPAL: for BiometricVoice
+        SecurityMode backup = mCurrentSecuritySelection;
+        if (FeatureConfig.INTEL_FEATURE_LPAL
+                && mCurrentSecuritySelection == SecurityMode.BiometricVoice) {
+            Log.d(INTEL_LPAL_TAG, "get backup security mode for BiometricVoice");
+            backup = mSecurityModel.getBackupSecurityModeForVoiceUnlock();
+        } else {
+            backup = mSecurityModel.getBackupSecurityMode(mCurrentSecuritySelection);
+        }
+
         showSecurityScreen(backup);
     }
 
@@ -875,6 +899,43 @@ public class KeyguardHostView extends KeyguardViewBase {
             mViewStateManager.showBouncer(true);
         }
     }
+    /**
+     * INTEL_LPAL: add BiometricVoice branch
+     *
+     * @param authenticated  the primary screen is authenticated or not.
+     */
+    private void showNextSecurityScreenOrFinishLPAL(boolean authenticated) {
+        if (DEBUG) Log.d(INTEL_LPAL_TAG, "showNextSecurityScreenOrFinish(" + authenticated + ")");
+        boolean finish = false;
+        if (authenticated) {
+            finish = true;
+        } else {
+            showPrimarySecurityScreen(false);
+        }
+        if (finish) {
+            // If the alternate unlock was suppressed, it can now be safely
+            // enabled because the user has left keyguard.
+            KeyguardUpdateMonitor.getInstance(mContext).setAlternateUnlockEnabled(true);
+
+            // If there's a pending runnable because the user interacted with a widget
+            // and we're leaving keyguard, then run it.
+            boolean deferKeyguardDone = false;
+            if (mDismissAction != null) {
+                deferKeyguardDone = mDismissAction.onDismiss();
+                mDismissAction = null;
+            }
+            if (mViewMediatorCallback != null) {
+                if (deferKeyguardDone) {
+                    mViewMediatorCallback.keyguardDonePending();
+                } else {
+                    mViewMediatorCallback.keyguardDone(true);
+                }
+            }
+        } else {
+            mViewStateManager.showBouncer(true);
+        }
+    }
+
 
     private static class MyOnClickHandler extends OnClickHandler {
 
@@ -979,7 +1040,20 @@ public class KeyguardHostView extends KeyguardViewBase {
     }
 
     private KeyguardSecurityView getSecurityView(SecurityMode securityMode) {
-        final int securityViewIdForMode = getSecurityViewIdForMode(securityMode);
+
+        final int securityViewIdForMode;
+
+        // INTEL_LPAL start
+        if (FeatureConfig.INTEL_FEATURE_LPAL
+                && securityMode == SecurityMode.BiometricVoice) {
+            Log.d(INTEL_LPAL_TAG, "get security view for BiometricVoice");
+            securityViewIdForMode = R.id.keyguard_voice_unlock_view;
+        }
+        // INTEL_LPAL end
+        else {
+            securityViewIdForMode = getSecurityViewIdForMode(securityMode);
+        }
+
         KeyguardSecurityView view = null;
         final int children = mSecurityViewContainer.getChildCount();
         for (int child = 0; child < children; child++) {
@@ -988,7 +1062,19 @@ public class KeyguardHostView extends KeyguardViewBase {
                 break;
             }
         }
-        int layoutId = getLayoutIdFor(securityMode);
+
+        int layoutId;
+        // INTEL_LPAL start
+        if (FeatureConfig.INTEL_FEATURE_LPAL
+                && securityMode == SecurityMode.BiometricVoice) {
+            Log.d(INTEL_LPAL_TAG, "get layoutId for BiometricVoice");
+            layoutId = R.layout.keyguard_voice_unlock_view;;
+        }
+        // INTEL_LPAL end
+        else {
+            layoutId = getLayoutIdFor(securityMode);
+        }
+
         if (view == null && layoutId != 0) {
             final LayoutInflater inflater = LayoutInflater.from(mContext);
             if (DEBUG) Log.v(TAG, "inflating id = " + layoutId);
@@ -1054,7 +1140,18 @@ public class KeyguardHostView extends KeyguardViewBase {
         // Find and show this child.
         final int childCount = mSecurityViewContainer.getChildCount();
 
-        final int securityViewIdForMode = getSecurityViewIdForMode(securityMode);
+        final int securityViewIdForMode;
+
+        // INTEL_LPAL start
+        if (FeatureConfig.INTEL_FEATURE_LPAL
+                && securityMode == SecurityMode.BiometricVoice) {
+            Log.d(INTEL_LPAL_TAG, "get security view id for voice unlok");
+            securityViewIdForMode = R.id.keyguard_voice_unlock_view;
+        }
+        // INTEL_LPAL end
+        else {
+            securityViewIdForMode = getSecurityViewIdForMode(securityMode);
+        }
         for (int i = 0; i < childCount; i++) {
             if (mSecurityViewContainer.getChildAt(i).getId() == securityViewIdForMode) {
                 mSecurityViewContainer.setDisplayedChild(i);
@@ -1777,6 +1874,15 @@ public class KeyguardHostView extends KeyguardViewBase {
      *  Dismisses the keyguard by going to the next screen or making it gone.
      */
     public void dismiss() {
+        // INTEL_LPAL start
+        if (FeatureConfig.INTEL_FEATURE_LPAL
+                && mCurrentSecuritySelection == SecurityMode.BiometricVoice) {
+            Log.d(INTEL_LPAL_TAG, "show next secrity screen or finsih for BiometricVoice");
+            showNextSecurityScreenOrFinishLPAL(false);
+            return;
+        }
+        // INTEL_LPAL end
+
         showNextSecurityScreenOrFinish(false);
     }
 
