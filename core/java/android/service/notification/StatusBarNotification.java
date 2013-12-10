@@ -230,4 +230,27 @@ public class StatusBarNotification implements Parcelable {
     public int getScore() {
         return score;
     }
+
+    /* ARKHAM-982 Set container userid for container notifications.
+     * This method extracts the container id from a notification tag, if set.
+     * This is done to load application resources from container packages,
+     * in case the app is only installed in container space. */
+    /** @hide */
+    public int getCidFromTag() {
+        int cid = -1;
+        if (tag != null) {
+            int from = tag.indexOf("[");
+            int to = tag.indexOf("]");
+            // Currently, container notification tags look like this: [<cid>]<tag>
+            if (from == 0 && to > 2) {
+                try {
+                    cid = Integer.parseInt(tag.substring(++from, to));
+                } catch (NumberFormatException e) {
+                } catch (IndexOutOfBoundsException ex) {
+                }
+            }
+        }
+        return cid;
+    }
+    /* End ARKHAM-982 */
 }
