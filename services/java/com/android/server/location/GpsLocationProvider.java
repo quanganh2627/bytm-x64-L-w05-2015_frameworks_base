@@ -82,6 +82,7 @@ import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.RILConstants;
 
+import com.intel.config.FeatureConfig;
 import com.intel.asf.AsfAosp;
 import com.intel.cws.cwsservicemanager.CsmException;
 import com.intel.cws.cwsservicemanagerclient.CsmClient;
@@ -1198,7 +1199,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
             mPositionMode = GPS_POSITION_MODE_STANDALONE;
 
             try {
-                if (AsfAosp.ENABLE && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+                if (FeatureConfig.INTEL_FEATURE_ASF
+                        && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
                     // Place call to function that acts as a hook point for gps events
                     boolean asfResult = GpsLocationProvider.notifyGpsCallback();
                     // If response is false, deny access to requested application and return NULL.

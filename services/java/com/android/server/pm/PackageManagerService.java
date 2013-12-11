@@ -131,6 +131,10 @@ import android.util.Xml;
 import android.view.Display;
 import android.view.WindowManager;
 
+// INTEL_FEATURE_ASF
+import com.intel.asf.AsfAosp;
+import com.intel.config.FeatureConfig;
+
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileDescriptor;
@@ -166,8 +170,6 @@ import libcore.io.StructStat;
 
 import com.android.internal.R;
 
-// INTEL_FEATURE_ASF
-import com.intel.asf.AsfAosp;
 
 /**
  * Keep track of all those .apks everywhere.
@@ -4476,7 +4478,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             if (mSettings.isDisabledSystemPackageLPr(pkg.packageName)) {
                 pkg.applicationInfo.flags |= ApplicationInfo.FLAG_UPDATED_SYSTEM_APP;
                 // ASF HOOK: system package update event
-                if (AsfAosp.ENABLE) {
+                if (FeatureConfig.INTEL_FEATURE_ASF) {
                     AsfAosp.sendSystemAppUpdateEvent(pkg,
                                                      sUserManager.getUserInfo(UserHandle.myUserId()));
                 }
@@ -4562,7 +4564,7 @@ public class PackageManagerService extends IPackageManager.Stub {
         final String pkgName = pkg.packageName;
 
         // ASF HOOK: package installation event
-        if (AsfAosp.ENABLE) {
+        if (FeatureConfig.INTEL_FEATURE_ASF) {
             if ((scanMode & SCAN_NEW_INSTALL) != 0) {
                 if (!AsfAosp.sendPackageInstallEvent(
                         pkg,
@@ -9777,7 +9779,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
         }
         // ASF HOOK: System package delete event
-        if (AsfAosp.ENABLE) {
+        if (FeatureConfig.INTEL_FEATURE_ASF) {
             PackageInfo packageInfo = getPackageInfo(
                     newPs.name, AsfAosp.SECURITY_PACKAGEINFO_FLAGS, 0);
             if (!AsfAosp.sendSystemAppDeleteEvent(packageInfo, newPs.pkg.mPath,
@@ -9885,7 +9887,7 @@ public class PackageManagerService extends IPackageManager.Stub {
         int appId = -1;
 
         // ASF HOOK: package deletion event
-        if (AsfAosp.ENABLE) {
+        if (FeatureConfig.INTEL_FEATURE_ASF) {
             PackageParser.Package pkg;
             synchronized (mPackages) {
                 PackageSetting packageSetting = mSettings.mPackages.get(packageName);
