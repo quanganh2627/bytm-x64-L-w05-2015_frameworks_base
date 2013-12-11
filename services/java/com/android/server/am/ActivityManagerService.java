@@ -174,6 +174,10 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowManager;
 
+// ASF imports
+import com.intel.asf.AsfAosp;
+import com.intel.config.FeatureConfig;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
@@ -203,8 +207,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-// ASF imports
-import com.intel.asf.AsfAosp;
 
 public class ActivityManagerService extends ActivityManagerNative
         implements Watchdog.Monitor, BatteryStatsImpl.BatteryCallback {
@@ -2779,7 +2781,7 @@ public class ActivityManagerService extends ActivityManagerNative
             }
 
             // ASF HOOK: application start event
-            if (AsfAosp.ENABLE) {
+            if (FeatureConfig.INTEL_FEATURE_ASF) {
                 if (!AsfAosp.sendAppStartEvent(app.info, app.userId, getCurrentUser())) {
                     throw new SecurityException("process start is disallowed by policy.");
                 }
@@ -3653,7 +3655,7 @@ public class ActivityManagerService extends ActivityManagerNative
         }
 
         // ASF HOOK: application stop event
-        if (AsfAosp.ENABLE) {
+        if (FeatureConfig.INTEL_FEATURE_ASF) {
             UserInfo userInfo = getCurrentUser();
             AsfAosp.sendAppStopEvent(app.info, app.userId, app.pid, userInfo);
         }
@@ -9317,7 +9319,7 @@ public class ActivityManagerService extends ActivityManagerNative
      * method will block until the ASF launch has completed.
      */
     private void launchAsf() {
-        if (AsfAosp.ENABLE) {
+        if (FeatureConfig.INTEL_FEATURE_ASF) {
             // A class is needed to contain this variable, so that the
             // object can be final (and accessible from the callback inner
             // class) but the value be mutable.  We need a real
