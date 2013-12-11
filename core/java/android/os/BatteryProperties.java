@@ -31,6 +31,7 @@ public class BatteryProperties implements Parcelable {
     public int batteryLevel;
     public int batteryVoltage;
     public int batteryCurrentNow;
+    public int batteryCurrentAvg;
     public int batteryChargeCounter;
     public int batteryTemperature;
     public String batteryTechnology;
@@ -50,6 +51,7 @@ public class BatteryProperties implements Parcelable {
         batteryLevel = p.readInt();
         batteryVoltage = p.readInt();
         batteryCurrentNow = p.readInt();
+        batteryCurrentAvg = p.readInt();
         batteryChargeCounter = p.readInt();
         batteryTemperature = p.readInt();
         batteryTechnology = p.readString();
@@ -65,6 +67,7 @@ public class BatteryProperties implements Parcelable {
         p.writeInt(batteryLevel);
         p.writeInt(batteryVoltage);
         p.writeInt(batteryCurrentNow);
+        p.writeInt(batteryCurrentAvg);
         p.writeInt(batteryChargeCounter);
         p.writeInt(batteryTemperature);
         p.writeString(batteryTechnology);
