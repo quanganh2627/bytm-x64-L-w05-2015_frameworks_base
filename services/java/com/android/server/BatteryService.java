@@ -335,6 +335,7 @@ public final class BatteryService extends Binder {
                 pw.println("Voltage now:" + mBatteryProps.batteryVoltage);
                 pw.println("Health:" + mBatteryProps.batteryHealth);
                 pw.println("Temp:" + mBatteryProps.batteryTemperature);
+                pw.println("Current avg:" + mBatteryProps.batteryCurrentAvg);
                 pw.close();
             }
         } catch (Exception e) {
@@ -471,6 +472,7 @@ public final class BatteryService extends Binder {
                     + ", batteryTechnology=" + mBatteryProps.batteryTechnology
                     + ", batteryVoltage=" + mBatteryProps.batteryVoltage
                     + ", batteryCurrentNow=" + mBatteryProps.batteryCurrentNow
+                    + ", batteryCurrentAvg=" + mBatteryProps.batteryCurrentAvg
                     + ", batteryChargeCounter=" + mBatteryProps.batteryChargeCounter
                     + ", batteryTemperature=" + mBatteryProps.batteryTemperature
                     + ", mBatteryLevelCritical=" + mBatteryLevelCritical
@@ -530,7 +532,8 @@ public final class BatteryService extends Binder {
                 // Don't do this just from voltage or temperature changes, that is
                 // too noisy.
                 EventLog.writeEvent(EventLogTags.BATTERY_LEVEL,
-                        mBatteryProps.batteryLevel, mBatteryProps.batteryVoltage, mBatteryProps.batteryTemperature);
+                        mBatteryProps.batteryLevel, mBatteryProps.batteryVoltage, mBatteryProps.batteryTemperature,
+                        mBatteryProps.batteryCurrentAvg);
             }
             if (mBatteryLevelCritical && !mLastBatteryLevelCritical &&
                     mPlugType == BATTERY_PLUGGED_NONE) {
@@ -769,6 +772,10 @@ public final class BatteryService extends Binder {
 
                 if (mBatteryProps.batteryCurrentNow != Integer.MIN_VALUE) {
                     pw.println("  current now: " + mBatteryProps.batteryCurrentNow);
+                }
+
+                if (mBatteryProps.batteryCurrentAvg != Integer.MIN_VALUE) {
+                    pw.println("  current avg: " + mBatteryProps.batteryCurrentAvg);
                 }
 
                 if (mBatteryProps.batteryChargeCounter != Integer.MIN_VALUE) {
