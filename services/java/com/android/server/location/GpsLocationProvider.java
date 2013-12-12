@@ -204,6 +204,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
     private static final int AGPS_REF_LOCATION_TYPE_GSM_CELLID = 1;
     private static final int AGPS_REF_LOCATION_TYPE_UMTS_CELLID = 2;
     private static final int AGPS_REF_LOCATION_TYPE_MAC = 3;
+    private static final int AGPS_REF_LOCATION_TYPE_LTE_CELLID = 4;
 
     // set id info
     private static final int AGPS_SETID_TYPE_NONE = 0;
@@ -1909,7 +1910,9 @@ public class GpsLocationProvider implements LocationProviderInterface {
                 int mcc = Integer.parseInt(mTelephonyManager.getNetworkOperator().substring(0,3));
                 int mnc = Integer.parseInt(mTelephonyManager.getNetworkOperator().substring(3));
                 int networkType = mTelephonyManager.getNetworkType();
-                if (networkType == TelephonyManager.NETWORK_TYPE_UMTS
+                if (networkType == TelephonyManager.NETWORK_TYPE_LTE) {
+                    type = AGPS_REF_LOCATION_TYPE_LTE_CELLID;
+                } else if (networkType == TelephonyManager.NETWORK_TYPE_UMTS
                         || networkType == TelephonyManager.NETWORK_TYPE_HSDPA
                         || networkType == TelephonyManager.NETWORK_TYPE_HSUPA
                         || networkType == TelephonyManager.NETWORK_TYPE_HSPA
@@ -1922,7 +1925,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
                 synchronized(mWaitingRefLocations) {
                     if (mWaitingRefLocations.booleanValue())
                         native_agps_set_ref_location(new String(String.valueOf(type) + ":" + mcc
-                                + ":" + mnc + ":" + gsm_cell.getLac() + ":" + gsm_cell.getCid()));
+                                + ":" + mnc + ":" + gsm_cell.getLac() + ":" + gsm_cell.getCid()
+                                + ":" + gsm_cell.getPsc()));
                 }
 
             } else {
