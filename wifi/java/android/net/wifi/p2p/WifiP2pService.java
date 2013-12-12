@@ -1583,17 +1583,9 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                             removeClientFromList(netId, mSavedPeerConfig.deviceAddress, true);
                         }
 
-                        // Reinvocation has failed, try group negotiation
+                        // Reinvocation has failed, try group negotiation with provisionning
                         mSavedPeerConfig.netId = WifiP2pGroup.PERSISTENT_NET_ID;
-                        p2pConnectWithPinDisplay(mSavedPeerConfig);
-                    } else if (status == P2pStatus.INFORMATION_IS_CURRENTLY_UNAVAILABLE) {
-
-                        // Devices setting persistent_reconnect to 0 in wpa_supplicant
-                        // always defer the invocation request and return
-                        // "information is currently unable" error.
-                        // So, try another way to connect for interoperability.
-                        mSavedPeerConfig.netId = WifiP2pGroup.PERSISTENT_NET_ID;
-                        p2pConnectWithPinDisplay(mSavedPeerConfig);
+                        transitionTo(mProvisionDiscoveryState);
                     } else if (status == P2pStatus.NO_COMMON_CHANNEL) {
                         transitionTo(mFrequencyConflictState);
                     } else {
