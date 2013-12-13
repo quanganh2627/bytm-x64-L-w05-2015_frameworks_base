@@ -54,6 +54,7 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.SystemProperties;
+import android.provider.Settings;
 import android.util.Log;
 import android.util.Slog;
 import android.util.SparseBooleanArray;
@@ -1087,11 +1088,40 @@ public class NetworkManagementService extends INetworkManagementService.Stub
             if (wifiConfig == null) {
                 mConnector.execute("softap", "set", wlanIface);
             } else {
-                mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
-                                   "broadcast", "6", getSecurityType(wifiConfig),
-                                   new SensitiveArg(wifiConfig.preSharedKey));
+                executeSetSoftap(wifiConfig, wlanIface);
             }
             mConnector.execute("softap", "startap");
+        } catch (NativeDaemonConnectorException e) {
+            throw e.rethrowAsParcelableException();
+        }
+    }
+
+    private void executeSetSoftap(
+            WifiConfiguration wifiConfig, String wlanIface) {
+        String hwMode = wifiConfig.getWifiApConfigurationAdv().mHwMode;
+        // mode "ac" is not yet supported by lower layers
+        if (hwMode.equals("c"))
+            hwMode = "a";
+        String countryCode = Settings.Global.getString(mContext.getContentResolver(),
+                Settings.Global.WIFI_COUNTRY_CODE);
+        try {
+            if (countryCode != null && !countryCode.isEmpty()) {
+                countryCode = countryCode.toUpperCase();
+                mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
+                        "broadcast", wifiConfig.getWifiApConfigurationAdv().mChannel.toString(),
+                        getSecurityType(wifiConfig),
+                        new SensitiveArg(wifiConfig.preSharedKey),
+                        " ", " ",
+                        hwMode, wifiConfig.getWifiApConfigurationAdv().mIs80211n ? "1" : "0",
+                        countryCode);
+            } else {
+                mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
+                        "broadcast", wifiConfig.getWifiApConfigurationAdv().mChannel.toString(),
+                        getSecurityType(wifiConfig),
+                        new SensitiveArg(wifiConfig.preSharedKey),
+                        " ", " ",
+                        hwMode, wifiConfig.getWifiApConfigurationAdv().mIs80211n ? "1" : "0");
+            }
         } catch (NativeDaemonConnectorException e) {
             throw e.rethrowAsParcelableException();
         }
@@ -1137,9 +1167,7 @@ public class NetworkManagementService extends INetworkManagementService.Stub
             if (wifiConfig == null) {
                 mConnector.execute("softap", "set", wlanIface);
             } else {
-                mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
-                                   "broadcast", "6", getSecurityType(wifiConfig),
-                                   new SensitiveArg(wifiConfig.preSharedKey));
+                executeSetSoftap(wifiConfig, wlanIface);
             }
         } catch (NativeDaemonConnectorException e) {
             throw e.rethrowAsParcelableException();

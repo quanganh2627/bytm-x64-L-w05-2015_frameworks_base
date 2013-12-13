@@ -117,6 +117,26 @@ static void android_net_wifi_closeSupplicantConnection(JNIEnv* env, jobject)
     ::wifi_close_supplicant_connection();
 }
 
+static jstring android_net_wifi_getWifiApChannelList(JNIEnv* env, jobject)
+{
+    char reply[4096];
+    size_t reply_len = sizeof(reply) - 1;
+
+    if (::wifi_get_AP_channel_list( reply, &reply_len ) != 0 )
+        return NULL;
+    else {
+        // Strip off trailing newline
+        if (reply_len > 0 && reply[reply_len-1] == '\n')
+            reply[reply_len-1] = '\0';
+        else
+            reply[reply_len] = '\0';
+    }
+
+    String16 str((char *)reply);
+    return env->NewString((const jchar *)str.string(), str.size());
+}
+
+
 static jstring android_net_wifi_waitForEvent(JNIEnv* env, jobject)
 {
     char buf[EVENT_BUF_SIZE];
@@ -158,6 +178,8 @@ static JNINativeMethod gWifiMethods[] = {
     { "connectToSupplicantNative", "()Z", (void *)android_net_wifi_connectToSupplicant },
     { "closeSupplicantConnectionNative", "()V",
             (void *)android_net_wifi_closeSupplicantConnection },
+    { "getWifiApChannelList", "()Ljava/lang/String;",
+            (void *) android_net_wifi_getWifiApChannelList },
     { "waitForEventNative", "()Ljava/lang/String;", (void*)android_net_wifi_waitForEvent },
     { "doBooleanCommandNative", "(Ljava/lang/String;)Z", (void*)android_net_wifi_doBooleanCommand },
     { "doIntCommandNative", "(Ljava/lang/String;)I", (void*)android_net_wifi_doIntCommand },

@@ -341,6 +341,7 @@ public class WifiMonitor {
     /* hostap events */
     public static final int AP_STA_DISCONNECTED_EVENT            = BASE + 41;
     public static final int AP_STA_CONNECTED_EVENT               = BASE + 42;
+    public static final int AP_CONNECTION_FAIL                   = BASE + 43;
 
     /* Indicates assoc reject event */
     public static final int ASSOCIATION_REJECTION_EVENT          = BASE + 43;
