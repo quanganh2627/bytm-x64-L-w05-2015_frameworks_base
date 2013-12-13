@@ -75,6 +75,9 @@ public class WifiNative {
 
     private native void closeSupplicantConnectionNative();
 
+    /* Wifi_Hotspot */
+    public native String getWifiApChannelList();
+
     /**
      * Wait for the supplicant to send an event, returning the event string.
      * @return the event string sent by the supplicant.

@@ -1114,7 +1114,7 @@ public class WifiManager {
      * Note that starting in access point mode disables station
      * mode operation
      * @param wifiConfig SSID, security and channel details as
-     *        part of WifiConfiguration
+     *        part of WifiApConfiguration
      * @return {@code true} if the operation succeeds, {@code false} otherwise
      *
      * @hide Dont open up yet
@@ -1166,6 +1166,21 @@ public class WifiManager {
         try {
             return mService.getWifiApConfiguration();
         } catch (RemoteException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Gets the Wi-Fi AP Configuration Advanced.
+     * @return AP details in WifiConfiguration#WifiApConfiguration
+     *
+     * @hide Dont open yet
+     */
+    public WifiApConfiguration getWifiApConfigurationAdv() {
+        try {
+            return mService.getWifiApConfigurationAdv();
+        } catch (RemoteException e) {
+            Log.e(TAG, "getWifiApConfigurationAdv exception " + e);
             return null;
         }
     }
@@ -1301,6 +1316,20 @@ public class WifiManager {
             mService.enableTdlsWithMacAddress(remoteMacAddress, enable);
         } catch (RemoteException e) {
             // Just ignore the exception
+        }
+    }
+
+    /**
+     * Wifi_Hotspot: Request the list of authorized channels for Wifi_Hotspot.
+     * @return {@code List} if the operation succeeds, {@code null} otherwise
+     *
+     * @hide
+     */
+    public List<WifiChannel> getWifiAuthorizedChannels() {
+        try {
+            return mService.getWifiAuthorizedChannels();
+        } catch (RemoteException e) {
+            return null;
         }
     }
 
