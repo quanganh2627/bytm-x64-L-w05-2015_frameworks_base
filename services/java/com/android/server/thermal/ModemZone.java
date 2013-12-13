@@ -94,9 +94,12 @@ public class ModemZone extends ThermalZone {
     private int mLastKnownZoneState = ThermalManager.THERMAL_STATE_OFF;
     // read from thermal throttle config, critical shutdown flag
     // if shutdown flag is true, donot switch to AIRPLANE mode
-    private boolean isCriticalShutdownEnable = false;
-    private boolean isCriticalShutdownflagUpdated = false;
+    private boolean mIsCriticalShutdownEnable = false;
+    private boolean mIsCriticalShutdownflagUpdated = false;
     private ModemStateBroadcastReceiver intentReceiver = new ModemStateBroadcastReceiver();
+    private int mModemOffState = ThermalManager.THERMAL_STATE_OFF;
+    private ThermalManager.ZoneCoolerBindingInfo mZoneCoolerBindInfo = null;
+
     public ModemZone(Context context) {
         super();
         mPhoneService = IOemTelephony.Stub.asInterface(ServiceManager.getService("oemtelephony"));
@@ -124,6 +127,39 @@ public class ModemZone extends ThermalZone {
         Log.i(TAG, "Modem thermal zone registered successfully");
     }
 
+    private void updateModemOffState() {
+        int finalState = ThermalManager.THERMAL_STATE_OFF;
+        ThermalCoolingDevice device = null;
+
+        if (mZoneCoolerBindInfo != null &&
+                mZoneCoolerBindInfo.getCoolingDeviceInfoList() != null) {
+            for (ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo cDeviceInfo :
+                    mZoneCoolerBindInfo.getCoolingDeviceInfoList()) {
+                device = ThermalManager.sListOfCoolers.get(cDeviceInfo.getCoolingDeviceId());
+                if (device != null && device.getDeviceName() != null &&
+                        device.getDeviceName().equalsIgnoreCase("ModemAirplane")) {
+                    ArrayList<Integer> list = cDeviceInfo.getThrottleMaskList();
+                    if (list == null) break;
+                    // iterate the list and take highest enabled state
+                    for (int i = 0; i < ThermalManager.NUM_THERMAL_STATES - 1; i++) {
+                       if (list.get(i) == 1) {
+                           finalState = i;
+                       }
+                    }
+                }
+            }
+        }
+
+        if (finalState == ThermalManager.THERMAL_STATE_OFF ||
+                (finalState ==  ThermalManager.THERMAL_STATE_CRITICAL &&
+                mIsCriticalShutdownEnable == true)) {
+            mModemOffState = ThermalManager.THERMAL_STATE_OFF;
+        } else {
+            mModemOffState = finalState;
+        }
+        Log.i(TAG, "ModemOff State=" + mModemOffState);
+    }
+
     public void unregisterReceiver() {
         Log.i(TAG, "Modem zone unregister called");
         if (mContext != null) mContext.unregisterReceiver(intentReceiver);
@@ -138,12 +174,13 @@ public class ModemZone extends ThermalZone {
 
     void updateCriticalShutdownFlag() {
         // one time update
-        if (isCriticalShutdownflagUpdated ==  false) {
-            ThermalManager.ZoneCoolerBindingInfo zone = ThermalManager.sListOfZones.get(getZoneId());
-            if (zone != null) {
-                isCriticalShutdownEnable = (zone.getCriticalActionShutdown() == 1) ? true : false;
+        if (mIsCriticalShutdownflagUpdated ==  false) {
+            mZoneCoolerBindInfo = ThermalManager.sListOfZones.get(getZoneId());
+            if (mZoneCoolerBindInfo != null) {
+                mIsCriticalShutdownEnable = mZoneCoolerBindInfo.getCriticalActionShutdown() == 1;
             }
-            isCriticalShutdownflagUpdated = true;
+            updateModemOffState();
+            mIsCriticalShutdownflagUpdated = true;
         }
     }
 
@@ -202,7 +239,12 @@ public class ModemZone extends ThermalZone {
             sendThermalEvent(mCurrEventType, mCurrThermalState, mZoneTemp);
         }
 
-        if (currMaxSensorState == ThermalManager.THERMAL_STATE_CRITICAL) {
+        if (currMaxSensorState == ThermalManager.THERMAL_STATE_CRITICAL &&
+                mIsCriticalShutdownEnable == true) {
+            // if shutdown flag is enabled for critical state, The intent sent to
+            // Thermal Cooling takes care of platform shutfdown. so just return
+            return;
+        } else if (currMaxSensorState == mModemOffState) {
             triggerCriticalMonitor();
             setZoneMonitorStatus(false);
         } else {
@@ -210,8 +252,7 @@ public class ModemZone extends ThermalZone {
             // to prevent race condition
             for (ThermalSensor t : mThermalSensors) {
                 sensorState = t.getSensorThermalState();
-                if (sensorState != ThermalManager.THERMAL_STATE_CRITICAL &&
-                        sensorState != ThermalManager.THERMAL_STATE_OFF) {
+                if (sensorState != ThermalManager.THERMAL_STATE_OFF) {
                     minTemp = t.getLowerThresholdTemp(sensorState);
                     maxTemp = t.getUpperThresholdTemp(sensorState);
                     minTemp -= debounceInterval;
@@ -478,9 +519,10 @@ public class ModemZone extends ThermalZone {
             setCriticalMonitorStatus(true);
             // if last known state of zone was already CRITICAL,
             // user need not be notified again, while the polling begins again.
-            if (getLastKnownZoneState() != ThermalManager.THERMAL_STATE_CRITICAL) {
+            if (getLastKnownZoneState() != mModemOffState) {
                 vibrate();
-                publishProgress("Modem temperature critical!Switching to Airplane mode for sometime");
+                publishProgress("Modem heating up!" +
+                        "Switching to Airplane mode for sometime");
             }
             Log.i(TAG, "setting airplaneMode ON...");
             setAirplaneMode(true);
@@ -556,8 +598,14 @@ public class ModemZone extends ThermalZone {
                 sendThermalEvent(mCurrEventType, mCurrThermalState, mZoneTemp);
             }
 
-            if (mCurrThermalState == ThermalManager.THERMAL_STATE_CRITICAL) {
+            if (currSensorstate == ThermalManager.THERMAL_STATE_CRITICAL &&
+                    mIsCriticalShutdownEnable == true) {
+                // if shutdown flag is enabled for critical state, The intent sent to
+                // Thermal Cooling takes care of platform shutfdown. so just return
+                return;
+            } else if (currSensorstate == mModemOffState) {
                 triggerCriticalMonitor();
+                setZoneMonitorStatus(false);
             } else {
                 // if temp below critical, reset thresholds
                 // reactivate thresholds
@@ -608,12 +656,14 @@ public class ModemZone extends ThermalZone {
             if (callStatus == false) {
                 if (sCriticalMonitorPending == false) {
                     return;
-                } else {
-                    sCriticalMonitorPending = false;
                 }
+                sCriticalMonitorPending = false;
                 // if critical shutdown enable , just exit. since an intent is sent
                 // to ThermalCooling to shutdown the platform
-                if (isCriticalShutdownEnable == true) return;
+                if (getLastKnownZoneState() == ThermalManager.THERMAL_STATE_CRITICAL &&
+                        mIsCriticalShutdownEnable == true) {
+                    return;
+                }
                 // if critical monitor is pending start a async task.
                 if (getCriticalMonitorStatus() == false) {
                     CriticalStateMonitor monitor = new CriticalStateMonitor();
@@ -658,16 +708,9 @@ public class ModemZone extends ThermalZone {
         // monitor if not already started. if call in progress set the pending critical
         // monitor flag and exit. When emergency call exits, the intent handler checks
         // for this flag and starts a new monitor if needed.
-        boolean criticalMonitorStatus = getCriticalMonitorStatus();
-        boolean onGoingEmergencyCall = isEmergencyCallOnGoing();
-        if (onGoingEmergencyCall == false) {
-            // if critical shutdown enable , just exit. since an intent is sent
-            // to ThermalCooling to shutdown the platform
-            if (isCriticalShutdownEnable == true) return;
-            if (criticalMonitorStatus == false) {
+        if (isEmergencyCallOnGoing() == false && getCriticalMonitorStatus() ==  false) {
                 CriticalStateMonitor monitor = new CriticalStateMonitor();
                 monitor.execute();
-            }
         } else {
             setCriticalMonitorPendingStatus(true);
         }
