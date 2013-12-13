@@ -51,13 +51,13 @@ class WifiApConfigStore extends StateMachine {
     private static final String AP_CONFIG_FILE = Environment.getDataDirectory() +
         "/misc/wifi/softap.conf";
 
-    private static final int AP_CONFIG_FILE_VERSION = 1;
+    private static final int AP_CONFIG_FILE_VERSION = 2;
 
     private State mDefaultState = new DefaultState();
     private State mInactiveState = new InactiveState();
     private State mActiveState = new ActiveState();
 
-    private WifiConfiguration mWifiApConfig = null;
+    private WifiConfiguration mWifiConfig = null;
     private AsyncChannel mReplyChannel = new AsyncChannel();
 
     WifiApConfigStore(Context context, Handler target) {
@@ -86,7 +86,7 @@ class WifiApConfigStore extends StateMachine {
                     break;
                 case WifiStateMachine.CMD_REQUEST_AP_CONFIG:
                     mReplyChannel.replyToMessage(message,
-                            WifiStateMachine.CMD_RESPONSE_AP_CONFIG, mWifiApConfig);
+                            WifiStateMachine.CMD_RESPONSE_AP_CONFIG, mWifiConfig);
                     break;
                 default:
                     Log.e(TAG, "Failed to handle " + message);
@@ -100,7 +100,7 @@ class WifiApConfigStore extends StateMachine {
         public boolean processMessage(Message message) {
             switch (message.what) {
                 case WifiStateMachine.CMD_SET_AP_CONFIG:
-                    mWifiApConfig = (WifiConfiguration) message.obj;
+                    mWifiConfig = (WifiConfiguration) message.obj;
                     transitionTo(mActiveState);
                     break;
                 default:
@@ -114,7 +114,7 @@ class WifiApConfigStore extends StateMachine {
         public void enter() {
             new Thread(new Runnable() {
                 public void run() {
-                    writeApConfiguration(mWifiApConfig);
+                    writeApConfiguration(mWifiConfig);
                     sendMessage(WifiStateMachine.CMD_SET_AP_CONFIG_COMPLETED);
                 }
             }).start();
@@ -145,18 +145,31 @@ class WifiApConfigStore extends StateMachine {
                             AP_CONFIG_FILE)));
 
             int version = in.readInt();
-            if (version != 1) {
+            if (version != AP_CONFIG_FILE_VERSION) {
                 Log.e(TAG, "Bad version on hotspot configuration file, set defaults");
                 setDefaultApConfiguration();
                 return;
             }
-            config.SSID = in.readUTF();
-            int authType = in.readInt();
-            config.allowedKeyManagement.set(authType);
-            if (authType != KeyMgmt.NONE) {
-                config.preSharedKey = in.readUTF();
+
+            if (config != null) {
+                WifiApConfiguration cfg = config.getWifiApConfigurationAdv();
+
+                config.SSID = in.readUTF();
+                int authType = in.readInt();
+                config.allowedKeyManagement.set(authType);
+                if (authType != KeyMgmt.NONE) {
+                    config.preSharedKey = in.readUTF();
+                }
+
+                if (cfg != null) {
+                    cfg.mChannel = new WifiChannel(in.readInt());
+                    cfg.mHwMode = in.readUTF();
+                    cfg.mIs80211n = (in.readInt() != 0);
+                }
+
+                mWifiConfig = config;
             }
-            mWifiApConfig = config;
+
         } catch (IOException ignore) {
             setDefaultApConfiguration();
         } finally {
@@ -178,12 +191,22 @@ class WifiApConfigStore extends StateMachine {
             out = new DataOutputStream(new BufferedOutputStream(
                         new FileOutputStream(AP_CONFIG_FILE)));
 
-            out.writeInt(AP_CONFIG_FILE_VERSION);
-            out.writeUTF(config.SSID);
-            int authType = config.getAuthType();
-            out.writeInt(authType);
-            if(authType != KeyMgmt.NONE) {
-                out.writeUTF(config.preSharedKey);
+            if (config != null) {
+                WifiApConfiguration cfg = config.getWifiApConfigurationAdv();
+
+                out.writeInt(AP_CONFIG_FILE_VERSION);
+                out.writeUTF(config.SSID);
+                int authType = config.getAuthType();
+                out.writeInt(authType);
+                if (authType != KeyMgmt.NONE) {
+                    out.writeUTF(config.preSharedKey);
+                }
+
+                if (cfg != null) {
+                    out.writeInt(cfg.mChannel.getChannel());
+                    out.writeUTF(cfg.mHwMode);
+                    out.writeInt(cfg.mIs80211n ? 1 : 0);
+                }
             }
         } catch (IOException e) {
             Log.e(TAG, "Error writing hotspot configuration" + e);
@@ -202,11 +225,21 @@ class WifiApConfigStore extends StateMachine {
        will keep the device secure after the update */
     private void setDefaultApConfiguration() {
         WifiConfiguration config = new WifiConfiguration();
-        config.SSID = mContext.getString(R.string.wifi_tether_configure_ssid_default);
-        config.allowedKeyManagement.set(KeyMgmt.WPA2_PSK);
-        String randomUUID = UUID.randomUUID().toString();
-        //first 12 chars from xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-        config.preSharedKey = randomUUID.substring(0, 8) + randomUUID.substring(9,13);
-        sendMessage(WifiStateMachine.CMD_SET_AP_CONFIG, config);
+        if (config != null) {
+
+            config.SSID = mContext.getString(R.string.wifi_tether_configure_ssid_default);
+            config.allowedKeyManagement.set(KeyMgmt.WPA2_PSK);
+            String randomUUID = UUID.randomUUID().toString();
+            //first 12 chars from xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+            config.preSharedKey = randomUUID.substring(0, 8) + randomUUID.substring(9, 13);
+
+            WifiApConfiguration cfg = config.getWifiApConfigurationAdv();
+            if (cfg != null) {
+                cfg.mChannel = new WifiChannel(WifiChannel.DEFAULT_2_4_CHANNEL);
+                cfg.mHwMode = cfg.HW_MODE_BG;
+                cfg.mIs80211n = true;
+            }
+            sendMessage(WifiStateMachine.CMD_SET_AP_CONFIG, config);
+        }
     }
 }
