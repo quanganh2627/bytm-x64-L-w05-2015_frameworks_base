@@ -11,17 +11,10 @@ else
 	LOCAL_CFLAGS += -DPACKED=""
 endif
 
-ifeq ($(INTEL_INGREDIENTS_VERSIONS), true)
-	LOCAL_CFLAGS += -DRETRIEVE_INGREDIENTS_VERSIONS
-endif
-
 ifeq ($(USE_OPENGL_RENDERER),true)
 	LOCAL_CFLAGS += -DUSE_OPENGL_RENDERER
 endif
 
-ifeq ($(strip $(INTEL_FEATURE_ASF)),true)
-    LOCAL_CPPFLAGS += -DPLATFORM_ASF_VERSION=$(PLATFORM_ASF_VERSION)
-endif
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES
 
 LOCAL_SRC_FILES:= \
@@ -224,15 +217,6 @@ ifeq ($(USE_OPENGL_RENDERER),true)
 	LOCAL_SHARED_LIBRARIES += libhwui
 endif
 
-ifeq ($(strip $(INTEL_FEATURE_ASF)),true)
-ifneq ($(strip $(PLATFORM_ASF_VERSION)),1)
-ifneq ($(strip $(PLATFORM_ASF_VERSION)),0)
-    LOCAL_SHARED_LIBRARIES += libsecuritydeviceserviceclient
-    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/libsecuritydeviceserviceclient
-endif
-endif
-endif
-
 LOCAL_SHARED_LIBRARIES += \
 	libdl
 # we need to access the private Bionic header
@@ -243,12 +227,6 @@ LOCAL_LDLIBS += -lpthread -ldl
 
 ifeq ($(WITH_MALLOC_LEAK_CHECK),true)
 	LOCAL_CFLAGS += -DMALLOC_LEAK_CHECK
-endif
-
-ifeq ($(INTEL_HOUDINI), true)
-    LOCAL_CFLAGS += -DWITH_HOUDINI
-	LOCAL_SHARED_LIBRARIES += libdvm
-    LOCAL_STATIC_LIBRARIES += libhoudini_hook
 endif
 
 LOCAL_MODULE:= libandroid_runtime

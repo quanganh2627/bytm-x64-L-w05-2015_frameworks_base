@@ -101,8 +101,6 @@ interface IWifiManager
 
     void stopWifi();
 
-    void haltWifi();
-
     void addToBlacklist(String bssid);
 
     void clearBlacklist();
@@ -128,9 +126,5 @@ interface IWifiManager
     boolean isBatchedScanSupported();
 
     void pollBatchedScan();
-
-    String setRTCoexMode(int enable, int safeChannelBitmap);
-
-    String setSafeChannel(int safeChannelBitmap);
 }
 

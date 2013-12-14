@@ -72,10 +72,8 @@ import android.util.AndroidRuntimeException;
 import android.util.ArrayMap;
 import android.util.DisplayMetrics;
 import android.util.EventLog;
-import android.util.LocalLog;
 import android.util.Log;
 import android.util.LogPrinter;
-import android.util.LogWriter;
 import android.util.PrintWriterPrinter;
 import android.util.Slog;
 import android.util.SuperNotCalledException;
@@ -104,7 +102,6 @@ import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.security.Security;
@@ -192,7 +189,6 @@ public final class ActivityThread {
     String mInstrumentedAppLibraryDir = null;
     boolean mSystemThread = false;
     boolean mJitEnabled = false;
-    static LocalLog sLocalLog;
 
     // These can be accessed by multiple threads; mPackages is the lock.
     // XXX For now we keep around information about all packages we have
@@ -1287,37 +1283,6 @@ public final class ActivityThread {
         public void scheduleInstallProvider(ProviderInfo provider) {
             queueOrSendMessage(H.INSTALL_PROVIDER, provider);
         }
-
-        /** @hide */
-        public void dumpLooperHistory() {
-            if (sLocalLog == null) return;
-            // upload to server in case app is killed before logcat is done.
-            final DropBoxManager db = (DropBoxManager) mInitialApplication.
-                    getSystemService(Context.DROPBOX_SERVICE);
-            if (db != null) {
-                StringWriter sw = new StringWriter();
-                PrintWriter pw = new PrintWriter(sw);
-                sLocalLog.dump(FileDescriptor.out, pw, new String[0]);
-                db.addText("ANR_LOOPER_HISTORY", sw.toString());
-                pw.close();
-            }
-
-            // sometimes dropbox is missing, so logcat it.
-            PrintWriter pw = new PrintWriter(new LogWriter(Log.DEBUG, TAG));
-            sLocalLog.dump(FileDescriptor.out, pw, new String[0]);
-            pw.close();
-        }
-
-        public void dumpANRInfo() {
-            // dump current message queue.
-            Log.d(TAG, "===MessageQueue.dump() of the mainLooper begin===");
-            getLooper().dump(new LogPrinter(Log.DEBUG, "ActivityThread"), "");
-            Log.d(TAG, "===MessageQueue.dump() of the mainLooper end===");
-            // dump dispatch history.
-            Log.d(TAG, "===Dispatch history of the mainLooper begin===");
-            dumpLooperHistory();
-            Log.d(TAG, "===Dispatch history of the mainLooper end===");
-        }
     }
 
     private class H extends Handler {
@@ -1367,11 +1332,6 @@ public final class ActivityThread {
         public static final int REQUEST_ASSIST_CONTEXT_EXTRAS = 143;
         public static final int TRANSLUCENT_CONVERSION_COMPLETE = 144;
         public static final int INSTALL_PROVIDER        = 145;
-
-        public String getMessageName(Message message) {
-            return codeToString(message.what);
-        }
-
         String codeToString(int code) {
             if (DEBUG_MESSAGES) {
                 switch (code) {
@@ -5033,10 +4993,6 @@ public final class ActivityThread {
         if (false) {
             Looper.myLooper().setMessageLogging(new
                     LogPrinter(Log.DEBUG, "ActivityThread"));
-        }
-        if (!"user".equals(android.os.Build.TYPE)) {
-            sLocalLog = new LocalLog(128);
-            Looper.myLooper().setMessageLogging(sLocalLog);
         }
 
         Looper.loop();

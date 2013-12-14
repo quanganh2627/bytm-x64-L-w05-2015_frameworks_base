@@ -90,7 +90,7 @@ public class ViewFlipper extends ViewAnimator {
         final IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_SCREEN_OFF);
         filter.addAction(Intent.ACTION_USER_PRESENT);
-        getContext().registerReceiver(mReceiver, filter, null, mHandler);
+        getContext().registerReceiver(mReceiver, filter);
 
         if (mAutoStart) {
             // Automatically start when requested

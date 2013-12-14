@@ -18,7 +18,6 @@ package com.android.tools.layoutlib.create;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,9 +86,7 @@ public class Main {
         }
 
         try {
-            CreateInfo info = new CreateInfo();
-            Set<String> excludeClasses = getExcludedClasses(info);
-            AsmGenerator agen = new AsmGenerator(log, osDestJar, info);
+            AsmGenerator agen = new AsmGenerator(log, osDestJar, new CreateInfo());
 
             AsmAnalyzer aa = new AsmAnalyzer(log, osJarPath, agen,
                     new String[] {                          // derived from
@@ -113,8 +110,7 @@ public class Main {
                         "android.pim.*", // for datepicker
                         "android.os.*",  // for android.os.Handler
                         "android.database.ContentObserver", // for Digital clock
-                    },
-                    excludeClasses);
+                        });
             aa.analyze();
             agen.generate();
 
@@ -148,16 +144,6 @@ public class Main {
         }
 
         return 1;
-    }
-
-    private static Set<String> getExcludedClasses(CreateInfo info) {
-        String[] refactoredClasses = info.getJavaPkgClasses();
-        Set<String> excludedClasses = new HashSet<String>(refactoredClasses.length);
-        for (int i = 0; i < refactoredClasses.length; i+=2) {
-            excludedClasses.add(refactoredClasses[i]);
-        }
-        return excludedClasses;
-
     }
 
     private static int listDeps(ArrayList<String> osJarPath, Log log) {

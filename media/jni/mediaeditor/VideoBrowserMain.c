@@ -20,10 +20,6 @@
 #include "VideoBrowserInternal.h"
 #include "LVOSA_FileReader_optim.h"
 
-#ifdef VIDEOEDITOR_INTEL_NV12_VERSION
-#include "VideoEditorToolsNV12.h"
-#endif
-
 //#define M4OSA_TRACE_LEVEL 1
 #if (M4OSA_TRACE_LEVEL >= 1)
 #undef M4OSA_TRACE1_0
@@ -331,22 +327,12 @@ M4OSA_ERR videoBrowserCreate(
 
 
     if (pContext->m_frameColorType == VideoBrowser_kGB565) {
-#ifdef VIDEOEDITOR_INTEL_NV12_VERSION
-        FilterOption.m_pFilterFunction =
-            (M4OSA_Void*)M4VIFI_ResizeBilinearNV12toBGR565;
-#else
         FilterOption.m_pFilterFunction =
             (M4OSA_Void*)M4VIFI_ResizeBilinearYUV420toBGR565;
-#endif
     }
     else if (pContext->m_frameColorType == VideoBrowser_kYUV420) {
-#ifdef VIDEOEDITOR_INTEL_NV12_VERSION
-        FilterOption.m_pFilterFunction =
-            (M4OSA_Void*)M4VIFI_ResizeBilinearNV12toYUV420;
-#else
         FilterOption.m_pFilterFunction =
             (M4OSA_Void*)M4VIFI_ResizeBilinearYUV420toYUV420;
-#endif
     }
     else {
         err = M4ERR_PARAMETER;
@@ -358,13 +344,6 @@ M4OSA_ERR videoBrowserCreate(
             M4DECODER_kOptionID_OutputFilter,
             (M4OSA_DataOption)&FilterOption);
 
-    CHECK_ERR(videoBrowserCreate, err);
-
-    M4OSA_Int32 mThumbnailMode = 1;
-    err = pContext->m_pDecoder->m_pFctSetOption(
-            pContext->m_pDecoderCtx,
-            M4DECODER_kOptionID_VideoDecodersThumbnailMode,
-            (M4OSA_DataOption)&mThumbnailMode);
     CHECK_ERR(videoBrowserCreate, err);
 
     /* store the callback details */
@@ -507,25 +486,14 @@ M4OSA_ERR videoBrowserPrepareFrame(M4OSA_Context pContext, M4OSA_UInt32* pTime,
         return err;
     }
 
-    if (timeMS < 0) {
-        M4OSA_TRACE2_0("videoBrowserPrepareFrame:  get a black frame for thumbnail");
-        timeMS = (M4_MediaTime)targetTime;
-        memset((void *)pC->m_outputPlane[0].pac_data,0x00,pC->m_outputPlane[0].u_stride *
-                                         pC->m_outputPlane[0].u_height);
-        memset((void *)pC->m_outputPlane[1].pac_data,128,pC->m_outputPlane[1].u_stride *
-                                         pC->m_outputPlane[1].u_height);
-        memset((void *)pC->m_outputPlane[2].pac_data,128,pC->m_outputPlane[2].u_stride *
-                                         pC->m_outputPlane[2].u_height);
-    } else {
-        err = pC->m_pDecoder->m_pFctRender(
-            pC->m_pDecoderCtx, &timeMS, pC->m_outputPlane, M4OSA_TRUE);
+    err = pC->m_pDecoder->m_pFctRender(
+        pC->m_pDecoderCtx, &timeMS, pC->m_outputPlane, M4OSA_TRUE);
 
-        if (M4WAR_VIDEORENDERER_NO_NEW_FRAME == err)
-        {
-            return err;
-        }
-        CHECK_ERR(videoBrowserPrepareFrame, err) ;
+    if (M4WAR_VIDEORENDERER_NO_NEW_FRAME == err)
+    {
+        return err;
     }
+    CHECK_ERR(videoBrowserPrepareFrame, err) ;
 
     pC->m_currentCTS = (M4OSA_UInt32)timeMS;
 

@@ -76,15 +76,6 @@ public class ViewConfiguration {
     private static final int GLOBAL_ACTIONS_KEY_TIMEOUT = 500;
 
     /**
-     * Defines the duration in milliseconds a user needs to continue holding
-     * down the power button to initiate shutdown after global actions dialog
-     * is shown
-     *
-     * @hide
-     */
-    private static final int GLOBAL_ACTIONS_KEY_SHUTDOWN_TIMEOUT = 3500;
-
-    /**
      * Defines the duration in milliseconds we will wait to see if a touch event
      * is a tap or a scroll. If the user does not move within this interval, it is
      * considered to be a tap.
@@ -680,19 +671,6 @@ public class ViewConfiguration {
      */
     public static long getGlobalActionKeyTimeout() {
         return GLOBAL_ACTIONS_KEY_TIMEOUT;
-    }
-
-    /**
-     * The amount of time a user needs to the press power key to initiate
-     * shutdown after the global actions dialog is brought up.
-     *
-     * @return how long a user needs to press the power key to initiate
-     *   shutdown  after the global actions dialog is brought up.
-     *
-     * @hide
-     */
-    public static long getGlobalActionKeyShutdownTimeout() {
-        return GLOBAL_ACTIONS_KEY_SHUTDOWN_TIMEOUT;
     }
 
     /**

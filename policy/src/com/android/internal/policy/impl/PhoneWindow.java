@@ -23,8 +23,6 @@ import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
 import static android.view.WindowManager.LayoutParams.*;
 
 import android.view.ViewConfiguration;
-
-import com.android.internal.R;
 import com.android.internal.view.RootViewSurfaceTaker;
 import com.android.internal.view.StandaloneActionMode;
 import com.android.internal.view.menu.ContextMenuBuilder;
@@ -711,8 +709,6 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
             if (st.decorView != null) {
                 wm.removeView(st.decorView);
                 // Log.v(TAG, "Removing main menu from window manager.");
-                st.isOpen = false;
-                st.decorView.removeAllViews();
                 if (st.isCompact) {
                     sRotationWatcher.removeWindow(this);
                 }
@@ -729,8 +725,7 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
 
         // This view is no longer shown, so null it out
         st.shownPanelView = null;
-        // Reset the decorView to null;
-        st.decorView = null;
+
         if (st.isInExpandedMode) {
             // Next time the menu opens, it should not be in expanded mode, so
             // force a refresh of the decor
@@ -1925,9 +1920,6 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
         private PopupWindow mActionModePopup;
         private Runnable mShowActionModePopup;
 
-        // View added at runtime to IME windows to cover the navigation bar
-        private View mNavigationGuard;
-
         public DecorView(Context context, int featureId) {
             super(context);
             mFeatureId = featureId;
@@ -2487,33 +2479,6 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
         @Override
         protected boolean fitSystemWindows(Rect insets) {
             mFrameOffsets.set(insets);
-
-            // IMEs lay out below the nav bar, but the content view must not (for back compat)
-            if (getAttributes().type == WindowManager.LayoutParams.TYPE_INPUT_METHOD) {
-                // prevent the content view from including the nav bar height
-                if (mContentParent != null) {
-                    if (mContentParent.getLayoutParams() instanceof MarginLayoutParams) {
-                        MarginLayoutParams mlp =
-                                (MarginLayoutParams) mContentParent.getLayoutParams();
-                        mlp.bottomMargin = insets.bottom;
-                        mContentParent.setLayoutParams(mlp);
-                    }
-                }
-                // position the navigation guard view, creating it if necessary
-                if (mNavigationGuard == null) {
-                    mNavigationGuard = new View(mContext);
-                    mNavigationGuard.setBackgroundColor(mContext.getResources()
-                            .getColor(R.color.input_method_navigation_guard));
-                    addView(mNavigationGuard, new LayoutParams(
-                            LayoutParams.MATCH_PARENT, insets.bottom,
-                            Gravity.START | Gravity.BOTTOM));
-                } else {
-                    LayoutParams lp = (LayoutParams) mNavigationGuard.getLayoutParams();
-                    lp.height = insets.bottom;
-                    mNavigationGuard.setLayoutParams(lp);
-                }
-            }
-
             if (getForeground() != null) {
                 drawableChanged();
             }

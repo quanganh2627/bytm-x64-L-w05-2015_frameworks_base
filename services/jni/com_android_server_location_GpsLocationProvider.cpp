@@ -28,11 +28,6 @@
 #include "android_runtime/AndroidRuntime.h"
 #include "android_runtime/Log.h"
 
-#if PLATFORM_ASF_VERSION >= 2
-// The interface file for inserting hooks to communicate with native service securitydevice
-#include "AsfDeviceAosp.h"
-#endif
-
 #include <string.h>
 #include <pthread.h>
 
@@ -390,14 +385,6 @@ static void android_location_GpsLocationProvider_class_init_native(JNIEnv* env, 
             (const GpsGeofencingInterface*)sGpsInterface->get_extension(GPS_GEOFENCING_INTERFACE);
     }
 }
-#if PLATFORM_ASF_VERSION >= 2
-static bool notifyGpsAccess(const int pid, const int uid) {
-    // Adding hook to call security device service
-    AsfDeviceAosp asfDevice;
-    bool response = asfDevice.sendGpsEvent(uid, pid);
-    return response;
-}
-#endif
 
 static jboolean android_location_GpsLocationProvider_is_supported(JNIEnv* env, jclass clazz) {
     return (sGpsInterface != NULL);
@@ -498,73 +485,31 @@ static jint android_location_GpsLocationProvider_read_sv_status(JNIEnv* env, job
     return num_svs;
 }
 
-static int ascii_hex_2_bin(char c)
-{
-    if (c >= '0' && c <= '9')
-        return c - '0';
-    if (c >= 'a' && c <= 'f')
-        return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F')
-        return c - 'A' + 10;
-    return -1;
-}
-
-static void android_location_GpsLocationProvider_agps_set_reference_location(JNIEnv* env,
-       jobject obj, jstring reflocation)
+static void android_location_GpsLocationProvider_agps_set_reference_location_cellid(JNIEnv* env,
+        jobject obj, jint type, jint mcc, jint mnc, jint lac, jint cid)
 {
     AGpsRefLocation location;
-    char *str_ptr = NULL, *str_ptr_orig = NULL,  *substr_ptr = NULL;
-    int type;
 
     if (!sAGpsRilInterface) {
-        ALOGE("no AGPS RIL interface in agps_set_reference_location");
+        ALOGE("no AGPS RIL interface in agps_set_reference_location_cellid");
         return;
     }
-
-    str_ptr = strdup(env->GetStringUTFChars(reflocation, 0));
-    str_ptr_orig = str_ptr;
-
-    // decode the type (first element of the string)
-    substr_ptr = strsep(&str_ptr, ":");
-    type = atoi(substr_ptr);
 
     switch(type) {
         case AGPS_REF_LOCATION_TYPE_GSM_CELLID:
         case AGPS_REF_LOCATION_TYPE_UMTS_CELLID:
             location.type = type;
-            // format is : "mcc:mnc:lac:cid"
-            substr_ptr = strsep(&str_ptr, ":");
-            location.u.cellID.mcc = atoi(substr_ptr);
-            substr_ptr = strsep(&str_ptr, ":");
-            location.u.cellID.mnc = atoi(substr_ptr);
-            substr_ptr = strsep(&str_ptr, ":");
-            location.u.cellID.lac = atoi(substr_ptr);
-            location.u.cellID.cid = atoi(str_ptr);
-            break;
-        case AGPS_REF_LOCATION_TYPE_MAC:
-            unsigned char high_byte, low_byte;
-
-            location.type = type;
-            // format is "12:34:56:78:90:AB"
-            // conversion from string with colons to char array
-            for (int i = 0; i < 6; i++) {
-                high_byte = ascii_hex_2_bin(*str_ptr++);
-                low_byte = ascii_hex_2_bin(*str_ptr++);
-                location.u.mac.mac[i] = (high_byte << 4) | low_byte;
-                str_ptr++;
-            }
-            break;
-        case AGPS_REF_LOCATION_END:
-            location.type = type;
+            location.u.cellID.mcc = mcc;
+            location.u.cellID.mnc = mnc;
+            location.u.cellID.lac = lac;
+            location.u.cellID.cid = cid;
             break;
         default:
-            ALOGE("Neither a GSM/UMTS nor MAC reference location (%s:%d).",__FUNCTION__,__LINE__);
-            free(str_ptr_orig);
+            ALOGE("Neither a GSM nor a UMTS cellid (%s:%d).",__FUNCTION__,__LINE__);
             return;
             break;
     }
     sAGpsRilInterface->set_ref_location(&location, sizeof(location));
-    free(str_ptr_orig);
 }
 
 static void android_location_GpsLocationProvider_agps_send_ni_message(JNIEnv* env,
@@ -791,35 +736,6 @@ static jboolean android_location_GpsLocationProvider_resume_geofence(JNIEnv* env
     return JNI_FALSE;
 }
 
-// INTEL_FEATURE_ASF
-static jboolean android_location_GpsLocationProvider_notify_gps_access(JNIEnv* env,
-        jobject obj, jint pid, jint uid) {
-    if (env == NULL) {
-        ALOGE("env is NULL");
-        // Events not populated from Java service properly.
-        // Hence allowing to work with default implementation.
-        return JNI_TRUE;
-    }
-    if (mCallbacksObj == NULL) {
-        ALOGE("mCallbacksObj is NULL");
-        // Events not populated from Java service properly.
-        // Hence allowing to work with default implementation.
-        return JNI_TRUE;
-    }
-
-#if PLATFORM_ASF_VERSION >=2
-    // Place call to function that acts as a hook point for Gps events
-    bool response = notifyGpsAccess(pid, uid);
-    // If response is false the ASF had denied permission to access Location
-    // If response is true then ASF either allowed or not running.
-    if (!response) {
-        ALOGE("ASF client denied permission, returning NULL");
-        return JNI_FALSE;
-    }
-#endif
-    return JNI_TRUE;
-}
-// INTEL_FEATURE_ASF_END
 static JNINativeMethod sMethods[] = {
      /* name, signature, funcPtr */
     {"class_init_native", "()V", (void *)android_location_GpsLocationProvider_class_init_native},
@@ -840,15 +756,12 @@ static JNINativeMethod sMethods[] = {
     {"native_agps_data_conn_closed", "()V", (void*)android_location_GpsLocationProvider_agps_data_conn_closed},
     {"native_agps_data_conn_failed", "()V", (void*)android_location_GpsLocationProvider_agps_data_conn_failed},
     {"native_agps_set_id","(ILjava/lang/String;)V",(void*)android_location_GpsLocationProvider_agps_set_id},
-    {"native_agps_set_ref_location","(Ljava/lang/String;)V",(void*)android_location_GpsLocationProvider_agps_set_reference_location},
+    {"native_agps_set_ref_location_cellid","(IIIII)V",(void*)android_location_GpsLocationProvider_agps_set_reference_location_cellid},
     {"native_set_agps_server", "(ILjava/lang/String;I)V", (void*)android_location_GpsLocationProvider_set_agps_server},
     {"native_send_ni_response", "(II)V", (void*)android_location_GpsLocationProvider_send_ni_response},
     {"native_agps_ni_message", "([BI)V", (void *)android_location_GpsLocationProvider_agps_send_ni_message},
     {"native_get_internal_state", "()Ljava/lang/String;", (void*)android_location_GpsLocationProvider_get_internal_state},
     {"native_update_network_state", "(ZIZZLjava/lang/String;Ljava/lang/String;)V", (void*)android_location_GpsLocationProvider_update_network_state },
-    // INTEL_FEATURE_ASF
-    {"native_notify_gps_access", "(II)Z", (void*)android_location_GpsLocationProvider_notify_gps_access},
-    // INTEL_FEATURE_ASF_END
     {"native_is_geofence_supported", "()Z", (void*) android_location_GpsLocationProvider_is_geofence_supported},
     {"native_add_geofence", "(IDDDIIII)Z", (void *)android_location_GpsLocationProvider_add_geofence},
     {"native_remove_geofence", "(I)Z", (void *)android_location_GpsLocationProvider_remove_geofence},

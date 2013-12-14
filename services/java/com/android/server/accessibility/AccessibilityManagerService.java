@@ -2955,20 +2955,15 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
 
         private Service mUiAutomationService;
         private IAccessibilityServiceClient mUiAutomationServiceClient;
-        private final Object mLock = new Object();
 
         private IBinder mUiAutomationServiceOwner;
         private final DeathRecipient mUiAutomationSerivceOnwerDeathRecipient =
                 new DeathRecipient() {
             @Override
             public void binderDied() {
-                synchronized (mLock) {
-                    if (mUiAutomationServiceOwner != null) {
-                        mUiAutomationServiceOwner.unlinkToDeath(
-                                mUiAutomationSerivceOnwerDeathRecipient, 0);
-                        mUiAutomationServiceOwner = null;
-                    }
-                }
+                mUiAutomationServiceOwner.unlinkToDeath(
+                        mUiAutomationSerivceOnwerDeathRecipient, 0);
+                mUiAutomationServiceOwner = null;
                 if (mUiAutomationService != null) {
                     mUiAutomationService.binderDied();
                 }
@@ -3020,13 +3015,11 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
         public void destroyUiAutomationService() {
             mUiAutomationService = null;
             mUiAutomationServiceClient = null;
-            synchronized (mLock) {
-               if (mUiAutomationServiceOwner != null) {
-                   mUiAutomationServiceOwner.unlinkToDeath(
-                           mUiAutomationSerivceOnwerDeathRecipient, 0);
-                   mUiAutomationServiceOwner = null;
-               }
-           }
+            if (mUiAutomationServiceOwner != null) {
+                mUiAutomationServiceOwner.unlinkToDeath(
+                        mUiAutomationSerivceOnwerDeathRecipient, 0);
+                mUiAutomationServiceOwner = null;
+            }
         }
     }
 

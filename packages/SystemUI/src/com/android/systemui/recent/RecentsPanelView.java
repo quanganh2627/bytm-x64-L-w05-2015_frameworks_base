@@ -209,10 +209,8 @@ public class RecentsPanelView extends FrameLayout implements OnItemClickListener
                         holder.iconView.setTranslationX(translation);
                         holder.labelView.setAlpha(0f);
                         holder.labelView.setTranslationX(translation);
-                        if (holder.calloutLine != null) {
-                            holder.calloutLine.setAlpha(0f);
-                            holder.calloutLine.setTranslationX(translation);
-                        }
+                        holder.calloutLine.setAlpha(0f);
+                        holder.calloutLine.setTranslationX(translation);
                     } else {
                         holder.iconView.setAlpha(0f);
                         holder.iconView.setTranslationY(translation);

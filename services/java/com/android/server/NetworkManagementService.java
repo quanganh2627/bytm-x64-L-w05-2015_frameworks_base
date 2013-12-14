@@ -398,11 +398,7 @@ public class NetworkManagementService extends INetworkManagementService.Stub
         }
 
         // TODO: Push any existing firewall state
-        try {
-            setFirewallEnabled(mFirewallEnabled || LockdownVpnTracker.isEnabled());
-        } catch (IllegalArgumentException e) {
-            Log.wtf(TAG, "problem enabling or disabling firewall", e);
-        }
+        setFirewallEnabled(mFirewallEnabled || LockdownVpnTracker.isEnabled());
     }
 
     /**
@@ -994,14 +990,10 @@ public class NetworkManagementService extends INetworkManagementService.Stub
 
     private void modifyNat(String action, String internalInterface, String externalInterface)
             throws SocketException {
-        NetworkInterface internalNetworkInterface = null;
         final Command cmd = new Command("nat", action, internalInterface, externalInterface);
-        try {
-           internalNetworkInterface = NetworkInterface.getByName(internalInterface);
-        } catch (SocketException se) {
-                Log.w(TAG, "modifyNat , cmd: " + cmd + ",got Exception " + se.toString());
-                internalNetworkInterface = null;
-        }
+
+        final NetworkInterface internalNetworkInterface = NetworkInterface.getByName(
+                internalInterface);
         if (internalNetworkInterface == null) {
             cmd.appendArg("0");
         } else {

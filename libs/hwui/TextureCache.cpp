@@ -301,27 +301,19 @@ void TextureCache::uploadToTexture(bool resize, GLenum format, GLsizei stride,
         GLsizei width, GLsizei height, GLenum type, const GLvoid * data) {
     // TODO: With OpenGL ES 2.0 we need to copy the bitmap in a temporary buffer
     //       if the stride doesn't match the width
-    if (Extensions::getInstance().hasUnpackRowLength()) {
-        const bool useStride = stride != width;
-        if (useStride) {
-            glPixelStorei(GL_UNPACK_ROW_LENGTH, stride);
-        }
-
-        if (resize) {
-            glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, type, data);
-        } else {
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, format, type, data);
-        }
-
-        if (useStride) {
-            glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-        }
-    } else {
-        if (resize) {
-            glTexImage2D(GL_TEXTURE_2D, 0, format, stride, height, 0, format, type, data);
-        } else {
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, stride, height, format, type, data);
+    const bool useStride = stride != width && Extensions::getInstance().hasUnpackRowLength();
+    if (useStride) {
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, stride);
     }
+
+    if (resize) {
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, type, data);
+    } else {
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, format, type, data);
+    }
+
+    if (useStride) {
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     }
 }
 

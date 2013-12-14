@@ -52,7 +52,6 @@ public class KeyguardServiceDelegate {
         public int offReason;
         public int currentUser;
         public boolean screenIsOn;
-        public boolean bootCompleted;
     };
 
     public interface ShowListener {
@@ -117,9 +116,6 @@ public class KeyguardServiceDelegate {
                 mKeyguardService.onSystemReady();
                 // This is used to hide the scrim once keyguard displays.
                 mKeyguardService.onScreenTurnedOn(new KeyguardShowDelegate(null));
-            }
-            if (mKeyguardState.bootCompleted) {
-                mKeyguardService.onBootCompleted();
             }
         }
 
@@ -307,13 +303,6 @@ public class KeyguardServiceDelegate {
                 mScrim.setVisibility(View.GONE);
             }
         });
-    }
-
-    public void onBootCompleted() {
-        if (mKeyguardService != null) {
-            mKeyguardService.onBootCompleted();
-        }
-        mKeyguardState.bootCompleted = true;
     }
 
 }

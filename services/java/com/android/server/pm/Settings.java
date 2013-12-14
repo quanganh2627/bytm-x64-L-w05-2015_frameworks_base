@@ -426,12 +426,12 @@ final class Settings {
                         + "; replacing with new");
                 p = null;
             } else {
-                // If what we are scanning is a system (and possibly privileged) package,
-                // then make it so, regardless of whether it was previously installed only
-                // in the data partition.
-                final int sysPrivFlags = pkgFlags
-                        & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_PRIVILEGED);
-                p.pkgFlags |= sysPrivFlags;
+                if ((pkgFlags&ApplicationInfo.FLAG_SYSTEM) != 0) {
+                    // If what we are scanning is a system package, then
+                    // make it so, regardless of whether it was previously
+                    // installed only in the data partition.
+                    p.pkgFlags |= ApplicationInfo.FLAG_SYSTEM;
+                }
             }
         }
         if (p == null) {
@@ -2210,11 +2210,7 @@ final class Settings {
 
         int pkgFlags = 0;
         pkgFlags |= ApplicationInfo.FLAG_SYSTEM;
-        final File codePathFile = new File(codePathStr);
-        if (PackageManagerService.locationIsPrivileged(codePathFile)) {
-            pkgFlags |= ApplicationInfo.FLAG_PRIVILEGED;
-        }
-        PackageSetting ps = new PackageSetting(name, realName, codePathFile,
+        PackageSetting ps = new PackageSetting(name, realName, new File(codePathStr),
                 new File(resourcePathStr), nativeLibraryPathStr, versionCode, pkgFlags);
         String timeStampStr = parser.getAttributeValue(null, "ft");
         if (timeStampStr != null) {
@@ -2270,7 +2266,6 @@ final class Settings {
                 XmlUtils.skipCurrentTag(parser);
             }
         }
-
         mDisabledSysPackages.put(name, ps);
     }
 

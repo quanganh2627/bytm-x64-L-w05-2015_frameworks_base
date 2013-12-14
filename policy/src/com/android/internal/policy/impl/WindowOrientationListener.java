@@ -58,23 +58,6 @@ public abstract class WindowOrientationListener {
 
     private final Object mLock = new Object();
 
-    /* Using Terminal Sensor to detect rotation first */
-    private boolean mEnabledTerminal = false;
-    private final int SENSOR_TYPE_TERMINAL = 103;
-    private final int TERMINAL_FACE_UP = 129;
-    private final int TERMINAL_FACE_DOWN = 130;
-    private final int TERMINAL_PORTRAIT_UP = 131;
-    private final int TERMINAL_PORTRAIT_DOWN = 132;
-    private final int TERMINAL_HORIZONTAL_UP = 133;
-    private final int TERMINAL_HORIZONTAL_DOWN = 134;
-    private final int TERMINAL_UNKNOWN = 135;
-    /* 8 seconds, SensorManager.SENSOR_DELAY_UI is 15HZ,  8 * 15 = 120 */
-    private final int ACCEL_EVENT_MAX = 120;
-    private Sensor mTerminal;
-    private TerminalEventListenerImpl mTerminalEventListener;
-    private int mAccelEventCount = 0;
-    private boolean mAccelRegistered = false;
-
     /**
      * Creates a new WindowOrientationListener.
      * 
@@ -83,10 +66,6 @@ public abstract class WindowOrientationListener {
      */
     public WindowOrientationListener(Context context, Handler handler) {
         this(context, handler, SensorManager.SENSOR_DELAY_UI);
-        boolean nonPolling = context.getResources().getBoolean(
-                com.android.internal.R.bool.config_nonPollingWindowOrientation);
-        if (nonPolling)
-            mRate = SensorManager.SENSOR_DELAY_NOPOLL;
     }
     
     /**
@@ -102,9 +81,6 @@ public abstract class WindowOrientationListener {
      * This constructor is private since no one uses it.
      */
     private WindowOrientationListener(Context context, Handler handler, int rate) {
-        mEnabledTerminal = context.getResources().getBoolean(
-            com.android.internal.R.bool.config_TerminalDetectWindowOrientation);
-
         mHandler = handler;
         mSensorManager = (SensorManager)context.getSystemService(Context.SENSOR_SERVICE);
         mRate = rate;
@@ -113,15 +89,6 @@ public abstract class WindowOrientationListener {
         if (mSensor != null) {
             // Create listener only if sensors do exist
             mSensorEventListener = new SensorEventListenerImpl();
-        }
-
-        if (mEnabledTerminal) {
-            mTerminal = mSensorManager.getDefaultSensor(SENSOR_TYPE_TERMINAL);
-            if (mTerminal != null) {
-                mTerminalEventListener = new TerminalEventListenerImpl();
-            } else {
-                mEnabledTerminal = false;
-            }
         }
     }
 
@@ -140,11 +107,7 @@ public abstract class WindowOrientationListener {
                     Log.d(TAG, "WindowOrientationListener enabled");
                 }
                 mSensorEventListener.resetLocked();
-                if (mEnabledTerminal)
-                    mSensorManager.registerListener(mTerminalEventListener, mTerminal,
-                                                    SensorManager.SENSOR_DELAY_NORMAL, mHandler);
-                else
-                    mSensorManager.registerListener(mSensorEventListener, mSensor, mRate, mHandler);
+                mSensorManager.registerListener(mSensorEventListener, mSensor, mRate, mHandler);
                 mEnabled = true;
             }
         }
@@ -163,14 +126,7 @@ public abstract class WindowOrientationListener {
                 if (LOG) {
                     Log.d(TAG, "WindowOrientationListener disabled");
                 }
-                if (mEnabledTerminal) {
-                    mSensorManager.unregisterListener(mTerminalEventListener);
-                    if (mAccelRegistered) {
-                        mSensorManager.unregisterListener(mSensorEventListener);
-                        mAccelRegistered = false;
-                    }
-                } else
-                    mSensorManager.unregisterListener(mSensorEventListener);
+                mSensorManager.unregisterListener(mSensorEventListener);
                 mEnabled = false;
             }
         }
@@ -224,19 +180,6 @@ public abstract class WindowOrientationListener {
      * @see android.view.Surface
      */
     public abstract void onProposedRotationChanged(int rotation);
-
-    private class RotationDone extends Thread {
-        @Override
-        public void run() {
-            synchronized (mLock) {
-                if (mAccelRegistered) {
-                    mSensorManager.unregisterListener(mSensorEventListener);
-                    mAccelRegistered = false;
-                }
-                mAccelEventCount = 0;
-            }
-        }
-    }
 
     /**
      * This class filters the raw accelerometer data and tries to detect actual changes in
@@ -619,14 +562,6 @@ public abstract class WindowOrientationListener {
                 }
                 onProposedRotationChanged(proposedRotation);
             }
-
-            if (mEnabledTerminal) {
-                mAccelEventCount++;
-                if ((proposedRotation != oldProposedRotation && proposedRotation >= 0) ||
-                    mAccelEventCount >= ACCEL_EVENT_MAX) {
-                    new RotationDone().start();
-                }
-            }
         }
 
         /**
@@ -793,30 +728,6 @@ public abstract class WindowOrientationListener {
 
         private float remainingMS(long now, long until) {
             return now >= until ? 0 : (until - now) * 0.000001f;
-        }
-    }
-
-    final class TerminalEventListenerImpl implements SensorEventListener {
-        @Override
-        public void onAccuracyChanged(Sensor sensor, int accuracy) {
-        }
-
-        @Override
-        public void onSensorChanged(SensorEvent event) {
-            synchronized (mLock) {
-                if (event.values[0] == TERMINAL_PORTRAIT_UP ||
-                    event.values[0] == TERMINAL_PORTRAIT_DOWN ||
-                    event.values[0] == TERMINAL_HORIZONTAL_UP ||
-                    event.values[0] == TERMINAL_HORIZONTAL_DOWN) {
-                    if (!mAccelRegistered) {
-                        mSensorManager.registerListener(mSensorEventListener, mSensor,
-                                                        SensorManager.SENSOR_DELAY_UI,
-                                                        mHandler);
-                        mAccelRegistered = true;
-                    }
-                    mAccelEventCount = 0;
-                }
-            }
         }
     }
 }

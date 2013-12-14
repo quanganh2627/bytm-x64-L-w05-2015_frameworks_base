@@ -62,8 +62,6 @@ public final class WifiDisplayStatus implements Parcelable {
     public static final int DISPLAY_STATE_CONNECTING = 1;
     /** Display state: Connected to active display. */
     public static final int DISPLAY_STATE_CONNECTED = 2;
-    /** Display state: Disconnecting from active display. */
-    public static final int DISPLAY_STATE_DISCONNECTING = 3;
 
     public static final Creator<WifiDisplayStatus> CREATOR = new Creator<WifiDisplayStatus>() {
         public WifiDisplayStatus createFromParcel(Parcel in) {
@@ -108,8 +106,8 @@ public final class WifiDisplayStatus implements Parcelable {
         mScanState = scanState;
         mActiveDisplayState = activeDisplayState;
         mActiveDisplay = activeDisplay;
-        Arrays.sort(displays);
         mDisplays = displays;
+
         mSessionInfo = (sessionInfo != null) ? sessionInfo : new WifiDisplaySessionInfo();
     }
 

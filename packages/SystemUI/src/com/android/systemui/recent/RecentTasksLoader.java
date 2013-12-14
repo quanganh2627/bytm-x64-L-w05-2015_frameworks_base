@@ -434,10 +434,6 @@ public class RecentTasksLoader implements View.OnTouchListener {
                 // of items. Then, we update with the rest of the items
                 final int origPri = Process.getThreadPriority(Process.myTid());
                 Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
-
-                // Start mThumbnailLoader before loading tasks.
-                loadThumbnailsAndIconsInBackground(tasksWaitingForThumbnails);
-
                 final PackageManager pm = mContext.getPackageManager();
                 final ActivityManager am = (ActivityManager)
                 mContext.getSystemService(Context.ACTIVITY_SERVICE);
@@ -518,6 +514,7 @@ public class RecentTasksLoader implements View.OnTouchListener {
             }
         };
         mTaskLoader.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+        loadThumbnailsAndIconsInBackground(tasksWaitingForThumbnails);
     }
 
     private void loadThumbnailsAndIconsInBackground(

@@ -232,13 +232,9 @@ public class RenderScriptGL extends RenderScript {
         validate();
         //android.util.Log.v("rs", "set surface " + sur + " w=" + w + ", h=" + h);
 
-        Surface s = null;
-        if (sur != null) {
-            s = new Surface(sur);
-        }
         mWidth = w;
         mHeight = h;
-        nContextSetSurface(w, h, s);
+        nContextSetSurfaceTexture(w, h, sur);
     }
 
     /**

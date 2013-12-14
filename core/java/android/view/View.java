@@ -8875,7 +8875,6 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                 invalidate(true);
 
                 needGlobalAttributesUpdate(true);
-                requestLayout();
 
                 // a view becoming visible is worth notifying the parent
                 // about in case nothing has focus.  even if this specific view
@@ -10740,8 +10739,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             scrollCache.scrollBar = new ScrollBarDrawable();
         }
 
-        if (isHorizontalScrollBarEnabled() ||
-                (isVerticalScrollBarEnabled() && !isVerticalScrollBarHidden())) {
+        if (isHorizontalScrollBarEnabled() || isVerticalScrollBarEnabled()) {
 
             if (invalidate) {
                 // Invalidate to show the scrollbars
@@ -13535,8 +13533,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
             final boolean opaque = drawingCacheBackgroundColor != 0 || isOpaque();
             final boolean use32BitCache = attachInfo != null && attachInfo.mUse32BitDrawingCache;
 
-            final long projectedBitmapSize = (long) width * height * (opaque
-                    && !use32BitCache ? 2 : 4);
+            final long projectedBitmapSize = width * height * (opaque && !use32BitCache ? 2 : 4);
             final long drawingCacheSize =
                     ViewConfiguration.get(mContext).getScaledMaximumDrawingCacheSize();
             if (width <= 0 || height <= 0 || projectedBitmapSize > drawingCacheSize) {
@@ -16854,7 +16851,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         final AttachInfo attachInfo = mAttachInfo;
         if (region != null && attachInfo != null) {
             final int pflags = mPrivateFlags;
-            if ((pflags & PFLAG_SKIP_DRAW) == 0 && (pflags & PFLAG_ONLY_DRAWS_BACKGROUND) == 0) {
+            if ((pflags & PFLAG_SKIP_DRAW) == 0) {
                 // The SKIP_DRAW flag IS NOT set, so this view draws. We need to
                 // remove it from the transparent region.
                 final int[] location = attachInfo.mTransparentLocation;
@@ -17370,9 +17367,6 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (DBG) {
             Log.i("View", "Getting transparent region for: " + this);
         }
-        // sometimes dr is transparent, but getTransparentRegion returns null
-        if (dr.getOpacity() == PixelFormat.TRANSPARENT) return;
-
         final Region r = dr.getTransparentRegion();
         final Rect db = dr.getBounds();
         final AttachInfo attachInfo = mAttachInfo;

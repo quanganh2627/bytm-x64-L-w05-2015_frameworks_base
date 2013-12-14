@@ -138,7 +138,6 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FilenameFilter;
 import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.io.PrintWriter;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
@@ -163,9 +162,6 @@ import libcore.io.Libcore;
 import libcore.io.StructStat;
 
 import com.android.internal.R;
-
-// INTEL_FEATURE_ASF
-import com.intel.asf.AsfAosp;
 
 /**
  * Keep track of all those .apks everywhere.
@@ -193,13 +189,10 @@ public class PackageManagerService extends IPackageManager.Stub {
     private static final boolean DEBUG_PACKAGE_SCANNING = false;
     private static final boolean DEBUG_APP_DIR_OBSERVER = false;
     private static final boolean DEBUG_VERIFY = false;
-    private static final boolean ENABLE_HOUDINI = Build.CPU_ABI.equals("x86") &&
-            (Build.CPU_ABI2.length()!=0);
 
     private static final int RADIO_UID = Process.PHONE_UID;
     private static final int LOG_UID = Process.LOG_UID;
     private static final int NFC_UID = Process.NFC_UID;
-    private static final int SMARTCARD_UID = Process.SMARTCARD_UID;
     private static final int BLUETOOTH_UID = Process.BLUETOOTH_UID;
     private static final int SHELL_UID = Process.SHELL_UID;
 
@@ -506,11 +499,6 @@ public class PackageManagerService extends IPackageManager.Stub {
     // or internal storage.
     private IMediaContainerService mContainerService = null;
 
-    // Packages that have been installed with library matching 2nd ABI.
-    final HashMap<Integer, String> mPackagesMatchABI2 = new HashMap<Integer,String>();
-    // Packages that have been installed with library matching 2nd ABI and matching neon app list
-    final HashMap<Integer, String> mPackagesMatchABI2Neon = new HashMap<Integer,String>();
-
     static final int SEND_PENDING_BROADCAST = 1;
     static final int MCS_BOUND = 3;
     static final int END_COPY = 4;
@@ -761,9 +749,9 @@ public class PackageManagerService extends IPackageManager.Stub {
                                 packages[i] = ent.getKey();
                                 components[i] = ent.getValue();
                                 PackageSetting ps = mSettings.mPackages.get(ent.getKey());
-                                // No need to send PACKAGE_CHAGED broadcast for the package which was not exist.
-                                if (ps == null) continue;
-                                uids[i] = UserHandle.getUid(packageUserId, ps.appId);
+                                uids[i] = (ps != null)
+                                        ? UserHandle.getUid(packageUserId, ps.appId)
+                                        : -1;
                                 i++;
                             }
                         }
@@ -1094,8 +1082,6 @@ public class PackageManagerService extends IPackageManager.Stub {
                 ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_PRIVILEGED);
         mSettings.addSharedUserLPw("android.uid.nfc", NFC_UID,
                 ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_PRIVILEGED);
-        mSettings.addSharedUserLPw("org.simalliance.uid.openmobileapi", SMARTCARD_UID,
-                 ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_PRIVILEGED);
         mSettings.addSharedUserLPw("android.uid.bluetooth", BLUETOOTH_UID,
                 ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_PRIVILEGED);
         mSettings.addSharedUserLPw("android.uid.shell", SHELL_UID,
@@ -3599,13 +3585,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                                 + ps.name + " changing from " + updatedPkg.codePathString
                                 + " to " + scanFile);
                         updatedPkg.codePath = scanFile;
-                        updatedPkg.codePathString = scanFile.toString();
-                        // This is the point at which we know that the system-disk APK
-                        // for this package has moved during a reboot (e.g. due to an OTA),
-                        // so we need to reevaluate it for privilege policy.
-                        if (locationIsPrivileged(scanFile)) {
-                            updatedPkg.pkgFlags |= ApplicationInfo.FLAG_PRIVILEGED;
-                        }
+                        updatedPkg.codePathString = scanFile.toString();                        
                     }
                     updatedPkg.pkg = pkg;
                     mLastScanError = PackageManager.INSTALL_FAILED_DUPLICATE_PACKAGE;
@@ -3956,53 +3936,6 @@ public class PackageManagerService extends IPackageManager.Stub {
         return new File(mUserAppDataDir.getAbsolutePath() + File.separator + userId);
     }
 
-    private void writeAppwithABI2Internal(String fileName, HashMap<Integer, String> map) {
-        File outputFile;
-        FileOutputStream out = null;
-        File appDataDir = new File("/data/data");
-
-        try {
-            File tempFile = File.createTempFile("tmp", "tmp", appDataDir);
-            String tempFilePath = tempFile.getPath();
-            outputFile = new File(fileName);
-            if (FileUtils.setPermissions(tempFilePath,
-                    FileUtils.S_IRUSR | FileUtils.S_IWUSR |
-                    FileUtils.S_IRGRP | FileUtils.S_IROTH, -1, -1) != 0
-                    || !tempFile.renameTo(outputFile)) {
-                tempFile.delete();
-            }
-            out = new FileOutputStream(outputFile);
-            Iterator<HashMap.Entry<Integer, String>>
-            it = map.entrySet().iterator();
-            while (it.hasNext()) {
-                HashMap.Entry<Integer, String> ent = it.next();
-                int userID = ent.getKey().intValue();
-                out.write(userID & 0xff);
-                out.write((userID>>8)  & 0xff);
-                out.write((userID>>16) & 0xff);
-                out.write((userID>>24) & 0xff);
-                Slog.i(TAG, "Data written:"+ userID);
-            }
-        } catch (Exception e) {
-            Slog.e(TAG, "File Access Error: Not Able to write Data into " + fileName);
-        } finally {
-            try {
-                if (out != null) {
-                    out.close();
-                    Slog.i(TAG, "Data written into " + fileName);
-                }
-            } catch (IOException e) {}
-        }
-    }
-
-    private void writeAppwithABI2() {
-        writeAppwithABI2Internal(new String("/data/data/.appwithABI2"), mPackagesMatchABI2);
-    }
-
-    private void writeAppwithABI2Neon() {
-        writeAppwithABI2Internal(new String("/data/data/.appwithABI2neon"), mPackagesMatchABI2Neon);
-    }
-
     private File getDataPathForPackage(String packageName, int userId) {
         /*
          * Until we fully support multiple users, return the directory we
@@ -4331,25 +4264,6 @@ public class PackageManagerService extends IPackageManager.Stub {
                 Slog.w(TAG, "Package " + pkg.packageName
                         + " was transferred to another, but its .apk remains");
             }
-
-            if (ENABLE_HOUDINI) {
-                PackageSetting p = mSettings.mPackages.get(pkg.packageName);
-                if ((p != null) && (!p.codePath.equals(destCodeFile))) {
-
-                   // Already existing package. Make sure not upgrade to black list
-                    int result = NativeLibraryHelper.listNativeBinariesLI(scanFile);
-
-                    if (result == PackageManager.INSTALL_ABI2_SUCCEEDED) {
-                        ICheckExt check = new CheckExt();
-                        if(check.doCheck(pkg.packageName, new String("filter"))) {
-                            Slog.i(TAG, "Reject application in black list::" + pkg.packageName);
-                            mLastScanError = PackageManager.INSTALL_FAILED_INVALID_APK;
-                            return null;
-                        }
-                    }
-
-                }
-            }
             
             // Just create the setting, don't add it yet. For already existing packages
             // the PkgSetting exists already and doesn't have to be created.
@@ -4388,11 +4302,6 @@ public class PackageManagerService extends IPackageManager.Stub {
             
             if (mSettings.isDisabledSystemPackageLPr(pkg.packageName)) {
                 pkg.applicationInfo.flags |= ApplicationInfo.FLAG_UPDATED_SYSTEM_APP;
-                // ASF HOOK: system package update event
-                if (AsfAosp.ENABLE) {
-                    AsfAosp.sendSystemAppUpdateEvent(pkg,
-                                                     sUserManager.getUserInfo(UserHandle.myUserId()));
-                }
             }
 
             if (mFoundPolicyFile) {
@@ -4473,26 +4382,7 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
 
         final String pkgName = pkg.packageName;
-
-        // ASF HOOK: package installation event
-        if (AsfAosp.ENABLE) {
-            if ((scanMode & SCAN_NEW_INSTALL) != 0) {
-                if (!AsfAosp.sendPackageInstallEvent(
-                        pkg,
-                        generatePackageInfo(
-                                pkg,
-                                AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
-                                (user != null) ? UserHandle.getUserId(user.getIdentifier()) : 0
-                        ),
-                        (scanMode & SCAN_UPDATE_TIME)!=0,
-                        sUserManager.getUserInfo(UserHandle.myUserId()))
-                ) {
-                    mLastScanError = PackageManager.INSTALL_FAILED_VERIFICATION_FAILURE;
-                    return null;
-                }
-            }
-        }
-
+        
         final long scanFileTime = scanFile.lastModified();
         final boolean forceDex = (scanMode&SCAN_FORCE_DEX) != 0;
         pkg.applicationInfo.processName = fixProcessName(
@@ -4679,21 +4569,10 @@ public class PackageManagerService extends IPackageManager.Stub {
                         }
 
                         try {
-                            int copyRet = copyNativeLibrariesForInternalApp(scanFile,
-                                    nativeLibraryDir);
-                            if (ENABLE_HOUDINI) {
-                                if (copyRet != PackageManager.INSTALL_SUCCEEDED
-                                        && copyRet != PackageManager.INSTALL_ABI2_SUCCEEDED) {
-                                    Slog.e(TAG, "Unable to copy native libraries");
-                                    mLastScanError = PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
-                                    return null;
-                                }
-                            } else {
-                                if (copyRet != PackageManager.INSTALL_SUCCEEDED) {
-                                    Slog.e(TAG, "Unable to copy native libraries");
-                                    mLastScanError = PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
-                                    return null;
-                                }
+                            if (copyNativeLibrariesForInternalApp(scanFile, nativeLibraryDir) != PackageManager.INSTALL_SUCCEEDED) {
+                                Slog.e(TAG, "Unable to copy native libraries");
+                                mLastScanError = PackageManager.INSTALL_FAILED_INTERNAL_ERROR;
+                                return null;
                             }
                         } catch (IOException e) {
                             Slog.e(TAG, "Unable to copy native libraries", e);
@@ -4701,7 +4580,6 @@ public class PackageManagerService extends IPackageManager.Stub {
                             return null;
                         }
                     }
-
 
                     if (DEBUG_INSTALL) Slog.i(TAG, "Linking native library dir for " + path);
                     final int[] userIds = sUserManager.getUserIds();
@@ -4717,40 +4595,6 @@ public class PackageManagerService extends IPackageManager.Stub {
                         }
                     }
                 }
-
-                // Check the apk to see whether it contains ABI2 library.
-                int result = NativeLibraryHelper.listNativeBinariesLI(scanFile);
-                if (result == PackageManager.INSTALL_SUCCEEDED) {
-                    if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
-                        Slog.i(TAG, "Replace package with primary ABI Library");
-                        mPackagesMatchABI2.remove(pkg.applicationInfo.uid);
-                        writeAppwithABI2();
-                        if (mPackagesMatchABI2Neon.containsKey(pkg.applicationInfo.uid)) {
-                            mPackagesMatchABI2Neon.remove(pkg.applicationInfo.uid);
-                            writeAppwithABI2Neon();
-                        }
-                    }
-                } else if (ENABLE_HOUDINI && result == PackageManager.INSTALL_ABI2_SUCCEEDED
-                        && !mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
-                    ICheckExt check = new CheckExt();
-                    if (check.doCheck(pkgName, new String("filter"))) {
-                        Slog.i(TAG, "Package with second ABI is in black list: "
-                                + pkg.applicationInfo.uid + pkg.applicationInfo.processName);
-                        mLastScanError = PackageManager.INSTALL_FAILED_INVALID_APK;
-                        return null;
-                    }
-                    Slog.i(TAG, "Package installed with second ABI Library: "
-                            + pkg.applicationInfo.uid + pkg.applicationInfo.processName);
-                    mPackagesMatchABI2.put(pkg.applicationInfo.uid,
-                            pkg.applicationInfo.processName);
-                    writeAppwithABI2();
-                    if (check.doCheck(pkgName, new String("neon"))) {
-                        mPackagesMatchABI2Neon.put(pkg.applicationInfo.uid,
-                                pkg.applicationInfo.processName);
-                        writeAppwithABI2Neon();
-                    }
-                }
-
             } catch (IOException ioe) {
                 Slog.e(TAG, "Unable to get canonical file " + ioe.toString());
             }
@@ -5273,18 +5117,6 @@ public class PackageManagerService extends IPackageManager.Stub {
             final PackageParser.Package pkg = ps.pkg;
             if (pkg != null) {
                 cleanPackageDataStructuresLILPw(pkg, chatty);
-
-                Integer pkgUidInt = new Integer(pkg.applicationInfo.uid);
-                if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(pkgUidInt)) {
-                    Slog.i(TAG, "Uninstall package with second ABI Library");
-                    mPackagesMatchABI2.remove(pkgUidInt);
-                    writeAppwithABI2();
-                    if (mPackagesMatchABI2Neon.containsKey(pkgUidInt)) {
-                        mPackagesMatchABI2Neon.remove(pkgUidInt);
-                        writeAppwithABI2Neon();
-                    }
-                }
-
             }
         }
     }
@@ -5302,18 +5134,6 @@ public class PackageManagerService extends IPackageManager.Stub {
                 mAppDirs.remove(pkg.mPath);
             }
             cleanPackageDataStructuresLILPw(pkg, chatty);
-
-            if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(new
-                    Integer(pkg.applicationInfo.uid))) {
-                Slog.i(TAG, "Uninstall package with second ABI Library");
-                mPackagesMatchABI2.remove(new Integer(pkg.applicationInfo.uid));
-                writeAppwithABI2();
-                if (mPackagesMatchABI2Neon.containsKey(new Integer(pkg.applicationInfo.uid))) {
-                    mPackagesMatchABI2Neon.remove(new Integer(pkg.applicationInfo.uid));
-                    writeAppwithABI2Neon();
-                }
-            }
-
         }
     }
 
@@ -5746,9 +5566,9 @@ public class PackageManagerService extends IPackageManager.Stub {
                         // version of the one on the data partition, but which
                         // granted a new system permission that it didn't have
                         // before.  In this case we do want to allow the app to
-                        // now get the new permission if the ancestral apk is
-                        // privileged to get it.
-                        if (sysPs.pkg != null && sysPs.isPrivileged()) {
+                        // now get the new permission if the new system-partition
+                        // apk is privileged to get it.
+                        if (sysPs.pkg != null && isPrivilegedApp(pkg)) {
                             for (int j=0;
                                     j<sysPs.pkg.requestedPermissions.size(); j++) {
                                 if (perm.equals(
@@ -8151,15 +7971,8 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
             try {
                 int copyRet = copyNativeLibrariesForInternalApp(codeFile, nativeLibraryFile);
-                if (ENABLE_HOUDINI) {
-                    if (copyRet != PackageManager.INSTALL_SUCCEEDED
-                            && copyRet != PackageManager.INSTALL_ABI2_SUCCEEDED) {
-                        return copyRet;
-                    }
-                } else {
-                    if (copyRet != PackageManager.INSTALL_SUCCEEDED) {
-                        return copyRet;
-                    }
+                if (copyRet != PackageManager.INSTALL_SUCCEEDED) {
+                    return copyRet;
                 }
             } catch (IOException e) {
                 Slog.e(TAG, "Copying native libraries failed", e);
@@ -9557,7 +9370,7 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
     }
 
-    static boolean locationIsPrivileged(File path) {
+    boolean locationIsPrivileged(File path) {
         try {
             final String privilegedAppDir = new File(Environment.getRootDirectory(), "priv-app")
                     .getCanonicalPath();
@@ -9598,15 +9411,6 @@ public class PackageManagerService extends IPackageManager.Stub {
                 for (int i = 0; i < allUserHandles.length; i++) {
                     Slog.d(TAG, "   u=" + allUserHandles[i] + " inst=" + perUserInstalled[i]);
                 }
-            }
-        }
-        // ASF HOOK: System package delete event
-        if (AsfAosp.ENABLE) {
-            PackageInfo packageInfo = getPackageInfo(
-                    newPs.name, AsfAosp.SECURITY_PACKAGEINFO_FLAGS, 0);
-            if (!AsfAosp.sendSystemAppDeleteEvent(packageInfo, newPs.pkg.mPath,
-                    sUserManager.getUserInfo(UserHandle.myUserId()))) {
-                return false;
             }
         }
         // Delete the updated package
@@ -9707,22 +9511,6 @@ public class PackageManagerService extends IPackageManager.Stub {
         boolean dataOnly = false;
         int removeUser = -1;
         int appId = -1;
-
-        // ASF HOOK: package deletion event
-        if (AsfAosp.ENABLE) {
-            if (!AsfAosp.sendPackageDeleteEvent(
-                    packageName,
-                    getPackageInfo(
-                            packageName,
-                            AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
-                            (user != null) ? UserHandle.getUserId(user.getIdentifier()) : 0
-                    ),
-                    sUserManager.getUserInfo(UserHandle.myUserId())
-            )) {
-                return false;
-            }
-        }
-
         synchronized (mPackages) {
             ps = mSettings.mPackages.get(packageName);
             if (ps == null) {

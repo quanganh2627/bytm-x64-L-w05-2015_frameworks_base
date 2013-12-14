@@ -295,8 +295,6 @@ public class WindowManagerService extends IWindowManager.Stub
 
     private final boolean mHeadless;
 
-    private boolean mForceLandScape;
-
     final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -304,25 +302,6 @@ public class WindowManagerService extends IWindowManager.Stub
             if (DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED.equals(action)) {
                 mKeyguardDisableHandler.sendEmptyMessage(
                     KeyguardDisableHandler.KEYGUARD_POLICY_CHANGED);
-            }
-            if (Intent.ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE.equals(action)) {
-                Bundle extras = intent.getExtras();
-                if (extras == null) {
-                    Slog.d(TAG, "No extra content");
-                    return;
-                }
-                boolean forceToLandscape = extras.getBoolean(Intent.EXTRA_SET_LANDSCAPE);
-                if (forceToLandscape == mForceLandScape)
-                    return;
-
-                mForceLandScape = forceToLandscape;
-                if (updateOrientationFromAppTokensLocked(false)) {
-                    Configuration config = null;
-                    config = computeNewConfiguration();
-                    if (config != null)
-                        setNewConfiguration(config);
-                }
-                Slog.d(TAG, forceToLandscape ? "Force to landscape." : "Screen can rotate.");
             }
         }
     };
@@ -602,7 +581,6 @@ public class WindowManagerService extends IWindowManager.Stub
         private static final int DISPLAY_CONTENT_MIRROR = 1;
         private static final int DISPLAY_CONTENT_UNIQUE = 2;
         private int mDisplayHasContent = DISPLAY_CONTENT_UNKNOWN;
-        private boolean mDisplayHasBgPresentation;
     }
     final LayoutFields mInnerFields = new LayoutFields();
 
@@ -759,9 +737,6 @@ public class WindowManagerService extends IWindowManager.Stub
         mPointerEventDispatcher = new PointerEventDispatcher(mInputManager.monitorInput(TAG));
 
         mFxSession = new SurfaceSession();
-
-        mForceLandScape = false;
-
         mDisplayManager = (DisplayManager)context.getSystemService(Context.DISPLAY_SERVICE);
         mDisplayManager.registerDisplayListener(this, null);
         Display[] displays = mDisplayManager.getDisplays();
@@ -802,7 +777,6 @@ public class WindowManagerService extends IWindowManager.Stub
         // Track changes to DevicePolicyManager state so we can enable/disable keyguard.
         IntentFilter filter = new IntentFilter();
         filter.addAction(DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED);
-        filter.addAction(Intent.ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE);
         mContext.registerReceiver(mBroadcastReceiver, filter);
 
         mHoldingScreenWakeLock = pmc.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK
@@ -3697,9 +3671,6 @@ public class WindowManagerService extends IWindowManager.Stub
             int req = getOrientationFromWindowsLocked();
             if (req == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
                 req = getOrientationFromAppTokensLocked();
-            }
-            if (mForceLandScape && req == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
-                req = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
             }
 
             if (req != mForcedAppOrientation) {
@@ -6984,8 +6955,7 @@ public class WindowManagerService extends IWindowManager.Stub
         }
         if (mSafeMode) {
             Log.i(TAG, "SAFE MODE ENABLED (menu=" + menuState + " s=" + sState
-                    + " dpad=" + dpadState + " trackball=" + trackballState
-                    + " voldown=" + volumeDownState + ")");
+                    + " dpad=" + dpadState + " trackball=" + trackballState + ")");
         } else {
             Log.i(TAG, "SAFE MODE not enabled");
         }
@@ -8819,10 +8789,6 @@ public class WindowManagerService extends IWindowManager.Stub
                         == LayoutFields.DISPLAY_CONTENT_UNKNOWN) {
                     mInnerFields.mDisplayHasContent = LayoutFields.DISPLAY_CONTENT_UNIQUE;
                 }
-                if (!w.isDefaultDisplay() && type == TYPE_SYSTEM_ALERT) {
-                    // We found a background presentation.
-                    mInnerFields.mDisplayHasBgPresentation = true;
-                }
             }
         }
 
@@ -8949,9 +8915,6 @@ public class WindowManagerService extends IWindowManager.Stub
                 if (mInnerFields.mDisplayHasContent != LayoutFields.DISPLAY_CONTENT_MIRROR) {
                     mInnerFields.mDisplayHasContent = LayoutFields.DISPLAY_CONTENT_UNKNOWN;
                 }
-
-                // Reset for each display. Will be set to true if bg presentation is found.
-                mInnerFields.mDisplayHasBgPresentation = false;
 
                 int repeats = 0;
                 do {
@@ -9160,7 +9123,7 @@ public class WindowManagerService extends IWindowManager.Stub
                     updateResizingWindows(w);
                 }
 
-                boolean hasUniqueContent;
+                final boolean hasUniqueContent;
                 switch (mInnerFields.mDisplayHasContent) {
                     case LayoutFields.DISPLAY_CONTENT_MIRROR:
                         hasUniqueContent = isDefaultDisplay;
@@ -9173,11 +9136,6 @@ public class WindowManagerService extends IWindowManager.Stub
                         hasUniqueContent = false;
                         break;
                 }
-                if (mInnerFields.mDisplayHasBgPresentation) {
-                    // We have a background presentation. Make sure it is displayed.
-                    hasUniqueContent = true;
-                }
-
                 mDisplayManagerService.setDisplayHasContent(displayId, hasUniqueContent,
                         true /* inTraversal, must call performTraversalInTrans... below */);
 

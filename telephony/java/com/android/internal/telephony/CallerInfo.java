@@ -581,10 +581,6 @@ public class CallerInfo {
         return countryIso;
     }
 
-    protected static String getCurrentCountryIso(Context context) {
-        return getCurrentCountryIso(context, Locale.getDefault());
-    }
-
     /**
      * @return a string debug representation of this instance.
      */

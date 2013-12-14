@@ -37,7 +37,6 @@ import android.os.Process;
 import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.SystemProperties;
-import android.os.DropBoxManager;
 import android.util.EventLog;
 import android.util.Log;
 import android.util.Slog;
@@ -45,11 +44,8 @@ import android.util.Slog;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
-
-import com.android.server.am.DebugAnr;
 
 /** This class calls its monitor every minute. Killing this process if they don't return **/
 public class Watchdog extends Thread {
@@ -85,8 +81,6 @@ public class Watchdog extends Thread {
     IActivityController mController;
     boolean mAllowRestart = true;
 
-    String stackname = null;
-    private Context mContext = null;
     /**
      * Used for checking status of handle threads and scheduling monitor callbacks.
      */
@@ -216,7 +210,6 @@ public class Watchdog extends Thread {
         context.registerReceiver(new RebootRequestReceiver(),
                 new IntentFilter(Intent.ACTION_REBOOT),
                 android.Manifest.permission.REBOOT, null);
-        mContext = context;
     }
 
     public void processStarted(String name, int pid) {
@@ -352,6 +345,9 @@ public class Watchdog extends Thread {
                 allowRestart = mAllowRestart;
             }
 
+            // If we got here, that means that the system is most likely hung.
+            // First collect stack traces from all threads of the system process.
+            // Then kill this process so that the system will restart.
             EventLog.writeEvent(EventLogTags.WATCHDOG, subject);
 
             ArrayList<Integer> pids = new ArrayList<Integer>();
@@ -369,24 +365,6 @@ public class Watchdog extends Thread {
             // Pull our own kernel thread stacks as well if we're configured for that
             if (RECORD_KERNEL_THREADS) {
                 dumpKernelStackTraces();
-            }
-            // If we got here, that means that the system is most likely hung.
-            // First collect stack traces from all threads of the system process.
-            // Then kill this process so that the system will restart.
-            final String buildtype = SystemProperties.get("ro.build.type", null);
-            stackname = null;
-            if ((buildtype.equals("userdebug") || buildtype.equals("eng")) && mContext != null) {
-                final String dropboxTag = "system_server_watchdog";
-                final DropBoxManager dbox = (DropBoxManager)
-                         mContext.getSystemService(Context.DROPBOX_SERVICE);
-                if (dbox != null && dbox.isTagEnabled(dropboxTag) && !dbox.isFull()) {
-                    final String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
-                    final String subString = tracesPath.substring(0,10);
-                    SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
-                    stackname = subString + sDateFormat.format(new java.util.Date()) + ".txt";
-                    DebugAnr da = new DebugAnr();
-                    da.logToFile(stackname);
-                }
             }
 
             // Trigger the kernel to dump all blocked threads to the kernel log
@@ -406,7 +384,7 @@ public class Watchdog extends Thread {
                     public void run() {
                         mActivity.addErrorToDropBox(
                                 "watchdog", null, "system_server", null, null,
-                                subject, null, stack, null, stackname);
+                                subject, null, stack, null);
                     }
                 };
             dropboxThread.start();

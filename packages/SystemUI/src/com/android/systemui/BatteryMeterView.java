@@ -298,8 +298,7 @@ public class BatteryMeterView extends View implements DemoMode {
         c.drawRect(mFrame, mFramePaint);
 
         // fill 'er up
-        final int color = tracker.status == BatteryManager.BATTERY_STATUS_CHARGING ? mChargeColor
-                : getColorForLevel(level);
+        final int color = tracker.plugged ? mChargeColor : getColorForLevel(level);
         mBatteryPaint.setColor(color);
 
         if (level >= FULL) {
@@ -318,7 +317,7 @@ public class BatteryMeterView extends View implements DemoMode {
         c.drawRect(mFrame, mBatteryPaint);
         c.restore();
 
-        if (tracker.status == BatteryManager.BATTERY_STATUS_CHARGING) {
+        if (tracker.plugged) {
             // draw the bolt
             final int bl = (int)(mFrame.left + mFrame.width() / 4.5f);
             final int bt = (int)(mFrame.top + mFrame.height() / 6f);

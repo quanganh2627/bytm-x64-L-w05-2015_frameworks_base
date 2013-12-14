@@ -306,15 +306,6 @@ public final class DisplayManager {
     }
 
     /**
-     * Stop current scan.
-     * The results are sent as a {@link #ACTION_WIFI_DISPLAY_STATUS_CHANGED} broadcast.
-     * @hide
-     */
-    public void stopScanWifiDisplays() {
-        mGlobal.stopScanWifiDisplays();
-    }
-
-    /**
      * Connects to a Wifi display.
      * The results are sent as a {@link #ACTION_WIFI_DISPLAY_STATUS_CHANGED} broadcast.
      * <p>
@@ -349,15 +340,6 @@ public final class DisplayManager {
      */
     public void disconnectWifiDisplay() {
         mGlobal.disconnectWifiDisplay();
-    }
-
-    /**
-     * Reconnects to the current Wifi display.
-     * The results are sent as a {@link #ACTION_WIFI_DISPLAY_STATUS_CHANGED} broadcast.
-     * @hide
-     */
-    public void reconnectWifiDisplay() {
-        mGlobal.reconnectWifiDisplay();
     }
 
     /**

@@ -34,7 +34,6 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -58,8 +57,6 @@ public class AsmAnalyzer {
     private final String[] mDeriveFrom;
     /** Glob patterns of classes to keep, e.g. "com.foo.*" */
     private final String[] mIncludeGlobs;
-    /** The set of classes to exclude.*/
-    private final Set<String> mExcludedClasses;
 
     /**
      * Creates a new analyzer.
@@ -72,13 +69,12 @@ public class AsmAnalyzer {
      *        ("*" does not matches dots whilst "**" does, "." and "$" are interpreted as-is)
      */
     public AsmAnalyzer(Log log, List<String> osJarPath, AsmGenerator gen,
-            String[] deriveFrom, String[] includeGlobs, Set<String> excludeClasses) {
+            String[] deriveFrom, String[] includeGlobs) {
         mLog = log;
         mGen = gen;
         mOsSourceJar = osJarPath != null ? osJarPath : new ArrayList<String>();
         mDeriveFrom = deriveFrom != null ? deriveFrom : new String[0];
         mIncludeGlobs = includeGlobs != null ? includeGlobs : new String[0];
-        mExcludedClasses = excludeClasses;
     }
 
     /**
@@ -86,6 +82,9 @@ public class AsmAnalyzer {
      * Fills the generator with classes & dependencies found.
      */
     public void analyze() throws IOException, LogAbortException {
+
+        AsmAnalyzer visitor = this;
+
         Map<String, ClassReader> zipClasses = parseZip(mOsSourceJar);
         mLog.info("Found %d classes in input JAR%s.", zipClasses.size(),
                 mOsSourceJar.size() > 1 ? "s" : "");
@@ -233,7 +232,7 @@ public class AsmAnalyzer {
      */
     void findClassesDerivingFrom(String super_name, Map<String, ClassReader> zipClasses,
             Map<String, ClassReader> inOutFound) throws LogAbortException {
-        findClass(super_name, zipClasses, inOutFound);
+        ClassReader super_clazz = findClass(super_name, zipClasses, inOutFound);
 
         for (Entry<String, ClassReader> entry : zipClasses.entrySet()) {
             String className = entry.getKey();
@@ -364,12 +363,11 @@ public class AsmAnalyzer {
 
             className = internalToBinaryClassName(className);
 
-            // exclude classes that have already been found or are marked to be excluded
+            // exclude classes that have already been found
             if (mInKeep.containsKey(className) ||
                     mOutKeep.containsKey(className) ||
                     mInDeps.containsKey(className) ||
-                    mOutDeps.containsKey(className) ||
-                    mExcludedClasses.contains(getBaseName(className))) {
+                    mOutDeps.containsKey(className)) {
                 return;
             }
 
@@ -453,13 +451,6 @@ public class AsmAnalyzer {
             }
         }
 
-        private String getBaseName(String className) {
-            int pos = className.indexOf('$');
-            if (pos > 0) {
-                return className.substring(0, pos);
-            }
-            return className;
-        }
 
         // ---------------------------------------------------
         // --- ClassVisitor, FieldVisitor
@@ -691,7 +682,7 @@ public class AsmAnalyzer {
             }
 
             @Override
-            public void visitTableSwitchInsn(int min, int max, Label dflt, Label... labels) {
+            public void visitTableSwitchInsn(int min, int max, Label dflt, Label[] labels) {
                 // pass -- table switch instruction
 
             }

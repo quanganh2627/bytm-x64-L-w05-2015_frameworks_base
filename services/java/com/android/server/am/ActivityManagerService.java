@@ -186,7 +186,6 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.ref.WeakReference;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -200,9 +199,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-
-// ASF imports
-import com.intel.asf.AsfAosp;
 
 public final class ActivityManagerService extends ActivityManagerNative
         implements Watchdog.Monitor, BatteryStatsImpl.BatteryCallback {
@@ -1602,7 +1598,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                         }
                         dropBuilder.append(catSw.toString());
                         addErrorToDropBox("lowmem", null, "system_server", null,
-                                null, tag.toString(), dropBuilder.toString(), null, null, null);
+                                null, tag.toString(), dropBuilder.toString(), null, null);
                         //Slog.i(TAG, "Sent to dropbox:");
                         //Slog.i(TAG, dropBuilder.toString());
                         synchronized (ActivityManagerService.this) {
@@ -2621,13 +2617,6 @@ public final class ActivityManagerService extends ActivityManagerNative
                 debugFlags |= Zygote.DEBUG_ENABLE_ASSERT;
             }
 
-            // ASF HOOK: application start event
-            if (AsfAosp.ENABLE) {
-                if (!AsfAosp.sendAppStartEvent(app.info, app.userId, getCurrentUser())) {
-                    throw new SecurityException("process start is disallowed by policy.");
-                }
-            }
-
             // Start the process.  It will either succeed and return a result containing
             // the PID of the new process, or else throw a RuntimeException.
             Process.ProcessStartResult startResult = Process.start("android.app.ActivityThread",
@@ -3489,12 +3478,6 @@ public final class ActivityManagerService extends ActivityManagerNative
             finishInstrumentationLocked(app, Activity.RESULT_CANCELED, info);
         }
 
-        // ASF HOOK: application stop event
-        if (AsfAosp.ENABLE) {
-            UserInfo userInfo = getCurrentUser();
-            AsfAosp.sendAppStopEvent(app.info, app.userId, app.pid, userInfo);
-        }
-
         if (!restarting) {
             if (!mStackSupervisor.resumeTopActivitiesLocked()) {
                 // If there was nothing to resume, and we are not already
@@ -3673,9 +3656,6 @@ public final class ActivityManagerService extends ActivityManagerNative
             return null;
         }
 
-        // Try to add the error to the dropbox, but assuming that the ActivityManager
-        // itself may be deadlocked.  (which has happened, causing this statement to
-        // deadlock and the watchdog as a whole to be ineffective)
         dumpStackTraces(tracesPath, firstPids, processCpuTracker, lastPids, nativeProcs);
         return tracesFile;
     }
@@ -3929,40 +3909,14 @@ public final class ActivityManagerService extends ActivityManagerNative
 
         info.append(processCpuTracker.printCurrentState(anrTime));
 
-        // Dump message history on App side
-        if (!IS_USER_BUILD && app.thread != null) {
-            try {
-                // This is a one-way binder call, meaning that the caller returns immediately,
-                // without waiting for a result from the callee.
-                app.thread.dumpANRInfo();
-            } catch (RemoteException e) {
-                Slog.e(ActivityManagerService.TAG, "Exception in dumpANRInfo", e);
-            }
-        }
-
-        String buildtype = SystemProperties.get("ro.build.type", null);
-        String stackname = null;
-        if (buildtype.equals("userdebug") || buildtype.equals("eng")) {
-            final String dropboxTag = processClass(app) + "_anr";
-            final DropBoxManager dbox = (DropBoxManager)
-                    mContext.getSystemService(Context.DROPBOX_SERVICE);
-            if (dbox != null && dbox.isTagEnabled(dropboxTag) && !dbox.isFull()) {
-                String tracesPath = SystemProperties.get("dalvik.vm.stack-trace-file", null);
-                String subString = tracesPath.substring(0,10);
-                SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
-                stackname = subString + sDateFormat.format(new java.util.Date()) + ".txt";
-                DebugAnr da = new DebugAnr();
-                da.logToFile(stackname);
-           }
-        }
-
         Slog.e(TAG, info.toString());
         if (tracesFile == null) {
             // There is no trace file, so dump (only) the alleged culprit's threads to the log
             Process.sendSignal(app.pid, Process.SIGNAL_QUIT);
         }
+
         addErrorToDropBox("anr", app, app.processName, activity, parent, annotation,
-            cpuInfo, tracesFile, null, stackname);
+                cpuInfo, tracesFile, null);
 
         if (mController != null) {
             try {
@@ -9083,87 +9037,7 @@ public final class ActivityManagerService extends ActivityManagerNative
             }
         }
     }
-
-    // ASF launch timeout.  The system will ungracefully timeout at 20 seconds.
-    // To avoid this ungraceful timeout, we impose our own 15 second timeout
-    // for ASF launch.  (The ASF security manager service will itself impose a
-    // timeout of 10 seconds for ASF client launch.)
-    private static final long ONE_SECOND_MS = 1000;
-    private static final long ASF_LAUNCH_TIMEOUT = 15 * ONE_SECOND_MS;
-
-    /**
-     * Launch ASF by using a broadcast intent to launch the security
-     * manager service, which will in turn launch any ASF clients.  This
-     * method will block until the ASF launch has completed.
-     */
-    private void launchAsf() {
-        if (AsfAosp.ENABLE) {
-            // A class is needed to contain this variable, so that the
-            // object can be final (and accessible from the callback inner
-            // class) but the value be mutable.  We need a real
-            // java.lang.Object to use for locking, besides.
-            class CompletionCondition {
-                public boolean finished = false;
-            };
-            final CompletionCondition completionCondition =
-                new CompletionCondition();
-
-            // Launch the ASF security manager service.
-            Log.i(TAG, "Preparing to launch ASF security manager.");
-            Intent intent = AsfAosp.getLaunchIntent(new Runnable() {
-                public void run() {
-                    // When the security manager service signals readiness,
-                    // allow the activity manager to continue where we
-                    // block, below.
-                    synchronized(completionCondition) {
-                        completionCondition.finished = true;
-                        completionCondition.notify();
-                    }
-                }
-            });
-            if (intent == null) {
-                Log.e(TAG, "Unable to create 'ASF Launch' intent for launching "
-                        + "ASF security manager service.");
-                return;
-            }
-            // Send the broadcast intent.
-            synchronized (this) {
-                broadcastIntentLocked(
-                                      null, null, intent, null,
-                                      null, 0, null, null,
-                                      AsfAosp.LAUNCH_SECURITY_MANAGER_PERMISSION,
-                                      AppOpsManager.OP_NONE,
-                                      true, false,
-                                      MY_PID, Process.SYSTEM_UID, UserHandle.USER_ALL
-                                      );
-            }
-
-            // Flush the broadcast queue so our intent is delivered
-            // immediately.  (Otherwise, ASF launch will be delayed during
-            // first boot.)
-            mFgBroadcastQueue.processNextBroadcast(true);
-
-            // Block until the ASF security manager service signals
-            // readiness.
-            synchronized(completionCondition) {
-                if (!completionCondition.finished) {
-                    try {
-                        completionCondition.wait(ASF_LAUNCH_TIMEOUT);
-                    } catch (InterruptedException e) {
-                        Log.e(TAG,
-                                "Interruption while waiting for completion of ASF launch.",
-                                e );
-                    }
-                }
-                if (!completionCondition.finished) {
-                    Log.e(TAG, "Timeout while launching ASF security manager.");
-                } else {
-                    Log.i(TAG, "Finished launching ASF security manager.");
-                }
-            }
-        }
-    }
-
+    
     public void systemReady(final Runnable goingCallback) {
         synchronized(this) {
             if (mSystemReady) {
@@ -9329,13 +9203,6 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
 
         retrieveSettings();
-
-        // Launch the ASF security manager service and any client apps.
-        // This should happen before calling the goingCallback, so ASF
-        // can monitor the apps launched from the callback, and so the
-        // activity manager "storm" resulting from the callback will not
-        // adversely impact our synchronous launch scheme.
-        launchAsf();
 
         synchronized (this) {
             readGrantedUriPermissionsLocked();
@@ -9606,7 +9473,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                 crashInfo.throwFileName,
                 crashInfo.throwLineNumber);
 
-        addErrorToDropBox(eventType, r, processName, null, null, null, null, null, crashInfo, null);
+        addErrorToDropBox(eventType, r, processName, null, null, null, null, null, crashInfo);
 
         crashApplication(r, crashInfo);
     }
@@ -9803,7 +9670,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                 r == null ? -1 : r.info.flags,
                 tag, crashInfo.exceptionMessage);
 
-        addErrorToDropBox("wtf", r, processName, null, null, tag, null, null, crashInfo, null);
+        addErrorToDropBox("wtf", r, processName, null, null, tag, null, null, crashInfo);
 
         if (r != null && r.pid != Process.myPid() &&
                 Settings.Global.getInt(mContext.getContentResolver(),
@@ -9912,7 +9779,7 @@ public final class ActivityManagerService extends ActivityManagerNative
             ProcessRecord process, String processName, ActivityRecord activity,
             ActivityRecord parent, String subject,
             final String report, final File logFile,
-            final ApplicationErrorReport.CrashInfo crashInfo, final String stackname) {
+            final ApplicationErrorReport.CrashInfo crashInfo) {
         // NOTE -- this must never acquire the ActivityManagerService lock,
         // otherwise the watchdog may be prevented from resetting the system.
 
@@ -9924,9 +9791,6 @@ public final class ActivityManagerService extends ActivityManagerNative
         if (dbox == null || !dbox.isTagEnabled(dropboxTag)) return;
 
         final StringBuilder sb = new StringBuilder(1024);
-        if (stackname != null) {
-            sb.append("Trace file:" + stackname).append("\n");
-        }
         appendDropBoxProcessHeaders(process, processName, sb);
         if (activity != null) {
             sb.append("Activity: ").append(activity.shortComponentName).append("\n");
@@ -9956,20 +9820,9 @@ public final class ActivityManagerService extends ActivityManagerNative
                 }
                 if (logFile != null) {
                     try {
-                        sb.append(FileUtils.readTextFile(logFile, 256 * 1024, "\n\n[[TRUNCATED]]"));
+                        sb.append(FileUtils.readTextFile(logFile, 128 * 1024, "\n\n[[TRUNCATED]]"));
                     } catch (IOException e) {
                         Slog.e(TAG, "Error reading " + logFile, e);
-                    }
-                    // When Dropbox is full, the DropBoxManager only produces zero-length log files.
-                    // So in case of ANR or System_Server_Watchdog, we dump here the stack traces file
-                    // content (if not null) to the System log to keep some debug data before losing them
-                    String buildtype = SystemProperties.get("ro.build.type", null);
-                    if ( "userdebug".equals(buildtype) || "eng".equals(buildtype) ) {
-                        if ( ( dropboxTag.contains("anr") || dropboxTag.contains("system_server_watchdog") ) && dbox.isFull() ) {
-                            Slog.i(TAG, "---- DropBox full: Begin dumping dropbox logfile " + dropboxTag + " ----");
-                            Slog.i(TAG, sb.toString());
-                            Slog.i(TAG, "---- End dumping dropbox logfile " + dropboxTag + " ----");
-                        }
                     }
                 }
                 if (crashInfo != null && crashInfo.stackTrace != null) {
@@ -10003,18 +9856,6 @@ public final class ActivityManagerService extends ActivityManagerNative
                 }
 
                 dbox.addText(dropboxTag, sb.toString());
-
-                if (dbox.isFull() == true) {
-                    try {
-                        File file = new File(stackname);
-                        if (file.exists() && file.isFile()) {
-                            file.delete();
-                            Slog.d(TAG, "DropBox is full, so remove the stack trace file.");
-                        }
-                    } catch(Exception ex) {
-                        ex.printStackTrace();
-                    }
-                }
             }
         };
 

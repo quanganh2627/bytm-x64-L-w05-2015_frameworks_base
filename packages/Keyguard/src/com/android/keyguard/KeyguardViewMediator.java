@@ -386,24 +386,11 @@ public class KeyguardViewMediator {
                             } else {
                                 resetStateLocked(null);
                             }
-                        // reset lock screen in case of sim removal or not ready
-                        // after the device is provisioned
-                        } else {
-                            if (isShowing()) {
-                                if (mLockPatternUtils.isLockScreenDisabled()) {
-                                    if (DEBUG) Log.d(TAG, "Lock screen will be hidden because,"
-                                            + " the user has set the preference to None.");
-                                    hideLocked();
-                                } else {
-                                    resetStateLocked(null);
-                                }
-                            }
                         }
                     }
                     break;
                 case PIN_REQUIRED:
                 case PUK_REQUIRED:
-                case NETWORK_LOCKED_PUK:
                     synchronized (this) {
                         if (!isShowing()) {
                             if (DEBUG) Log.d(TAG, "INTENT_VALUE_ICC_LOCKED and keygaurd isn't "
@@ -542,6 +529,9 @@ public class KeyguardViewMediator {
             if (DEBUG) Log.d(TAG, "onSystemReady");
             mSystemReady = true;
             mUpdateMonitor.registerCallback(mUpdateCallback);
+
+            // Send boot completed message if it hasn't already been sent.
+            mUpdateMonitor.dispatchBootCompleted();
 
             // Suppress biometric unlock right after boot until things have settled if it is the
             // selected security method, otherwise unsuppress it.  It must be unsuppressed if it is
@@ -1375,9 +1365,5 @@ public class KeyguardViewMediator {
     public void launchCamera() {
         Message msg = mHandler.obtainMessage(LAUNCH_CAMERA);
         mHandler.sendMessage(msg);
-    }
-
-    public void onBootCompleted() {
-        mUpdateMonitor.dispatchBootCompleted();
     }
 }

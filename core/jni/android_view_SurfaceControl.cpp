@@ -41,13 +41,6 @@
 
 #include <ScopedUtfChars.h>
 
-#if PLATFORM_ASF_VERSION >= 2
-// The interface file for inserting hooks to communicate with native service securitydevice
-#include "AsfDeviceAosp.h"
-#include <private/android_filesystem_config.h>
-#endif
-
-
 // ----------------------------------------------------------------------------
 
 namespace android {
@@ -167,46 +160,8 @@ static inline SkBitmap::Config convertPixelFormat(PixelFormat format) {
     }
 }
 
-#if PLATFORM_ASF_VERSION >= 2
-static bool notifyScreenCaptureAccess() {
-    // Adding hook to call security device service
-    const int pid = IPCThreadState::self()->getCallingPid();
-    const int uid = IPCThreadState::self()->getCallingUid();
-    bool response = true;
-    AsfDeviceAosp asfDevice;
-    if (uid != AID_SYSTEM) {
-        const char * packageName = asfDevice.getPackageName(pid);
-        if (packageName != NULL) {
-            if (!(strncmp(packageName, "com.android.systemui", strlen(packageName)))) {
-                ALOGD("Home screen Key pressed");
-                // Same part of code get executed when home screen is pressed.
-                // Hence returning "true" to work with default implementation.
-                return response;
-            } else {
-                response = asfDevice.sendScreencaptureEvent(uid, pid);
-            }
-        }
-    }
-    return response;
-}
-#endif
-
 static jobject nativeScreenshotBitmap(JNIEnv* env, jclass clazz, jobject displayTokenObj,
         jint width, jint height, jint minLayer, jint maxLayer, bool allLayers) {
-
-#if PLATFORM_ASF_VERSION >= 2
-    // Place call to function that acts as a hook point for camera events
-    bool response = notifyScreenCaptureAccess();
-    // If response is false, deny access to requested application and return NULL.
-    // If response is true, then either ASF allowed access to take screen capture or
-    // ASF Client is not running
-    if (!response) {
-        ALOGE("ASF client denied permission, returning NULL");
-        return NULL;
-    }
-
-#endif
-
     sp<IBinder> displayToken = ibinderForJavaObject(env, displayTokenObj);
     if (displayToken == NULL) {
         return NULL;

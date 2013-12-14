@@ -112,12 +112,6 @@ public class Process {
     public static final int NFC_UID = 1027;
 
     /**
-     * Defines the UID/GID for the SmartCard service process.
-     * @hide
-     */
-    public static final int SMARTCARD_UID = 1999;
-
-    /**
      * Defines the UID/GID for the Bluetooth service process.
      * @hide
      */

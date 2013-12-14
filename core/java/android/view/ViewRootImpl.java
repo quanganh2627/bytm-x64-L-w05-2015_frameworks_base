@@ -1477,7 +1477,7 @@ public final class ViewRootImpl implements ViewParent,
                                 mTranslator.translateCanvas(layerCanvas);
                             }
 
-                            DisplayList displayList = mView.getDisplayList();
+                            DisplayList displayList = mView.mDisplayList;
                             if (displayList != null && displayList.isValid()) {
                                 layerCanvas.drawDisplayList(displayList, null,
                                         DisplayList.FLAG_CLIP_CHILDREN);
@@ -5912,8 +5912,7 @@ public final class ViewRootImpl implements ViewParent,
                 }
             } break;
         }
-        if (mAccessibilityManager.isEnabled())
-            mAccessibilityManager.sendAccessibilityEvent(event);
+        mAccessibilityManager.sendAccessibilityEvent(event);
         return true;
     }
 

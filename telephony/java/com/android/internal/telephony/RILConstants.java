@@ -55,10 +55,6 @@ public interface RILConstants {
     int ILLEGAL_SIM_OR_ME = 15;               /* network selection failure due
                                                  to wrong SIM/ME and no
                                                  retries needed */
-    int NETWORK_PUK_REQUIRED = 16;            /* Network Personalization PUK required */
-    int MISSING_RESOURCE = 17;
-    int NO_SUCH_ELEMENT = 18;
-    int INVALID_PARAMETER = 19;
 
     /* NETWORK_MODE_* See ril.h RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE */
     int NETWORK_MODE_WCDMA_PREF     = 0; /* GSM/WCDMA (WCDMA preferred) */
@@ -86,7 +82,6 @@ public interface RILConstants {
     int GSM_PHONE = 1;
     int CDMA_PHONE = 2;
     int SIP_PHONE  = 3;
-    int IMS_PHONE = 4;
 
     int LTE_ON_CDMA_UNKNOWN = -1;
     int LTE_ON_CDMA_FALSE = 0;
@@ -116,11 +111,6 @@ public interface RILConstants {
     int DEACTIVATE_REASON_NONE = 0;
     int DEACTIVATE_REASON_RADIO_OFF = 1;
     int DEACTIVATE_REASON_PDP_RESET = 2;
-
-    /* Radio power off reasons */
-    int RADIO_OFF_REASON_NONE = 0;
-    int RADIO_OFF_REASON_SHUTDOWN = 1;
-    int RADIO_OFF_REASON_AIRPLANE_MODE = 2;
 
 /*
 cat include/telephony/ril.h | \
@@ -160,9 +150,6 @@ cat include/telephony/ril.h | \
     public static final int DATA_PROFILE_IMS       = 2;
     public static final int DATA_PROFILE_FOTA      = 3;
     public static final int DATA_PROFILE_CBS       = 4;
-    public static final int DATA_PROFILE_MMS       = 5;
-    public static final int DATA_PROFILE_SUPL      = 6;
-    public static final int DATA_PROFILE_HIPRI     = 7;
     public static final int DATA_PROFILE_OEM_BASE  = 1000;
 
     int RIL_REQUEST_GET_SIM_STATUS = 1;
@@ -278,10 +265,6 @@ cat include/telephony/ril.h | \
     int RIL_REQUEST_SET_INITIAL_ATTACH_APN = 111;
     int RIL_REQUEST_IMS_REGISTRATION_STATE = 112;
     int RIL_REQUEST_IMS_SEND_SMS = 113;
-    int RIL_REQUEST_SIM_TRANSMIT_BASIC = 114;
-    int RIL_REQUEST_SIM_OPEN_CHANNEL = 115;
-    int RIL_REQUEST_SIM_CLOSE_CHANNEL = 116;
-    int RIL_REQUEST_SIM_TRANSMIT_CHANNEL = 117;
     int RIL_UNSOL_RESPONSE_BASE = 1000;
     int RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED = 1000;
     int RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED = 1001;

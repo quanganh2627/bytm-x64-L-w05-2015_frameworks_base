@@ -75,7 +75,6 @@ import com.android.server.location.LocationProviderInterface;
 import com.android.server.location.LocationProviderProxy;
 import com.android.server.location.MockProvider;
 import com.android.server.location.PassiveProvider;
-import com.intel.asf.AsfAosp;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -94,11 +93,6 @@ import java.util.Set;
 public class LocationManagerService extends ILocationManager.Stub {
     private static final String TAG = "LocationManagerService";
     public static final boolean D = Log.isLoggable(TAG, Log.DEBUG);
-
-    // INTEL_FEATURE_ASF
-    private static int sPid = 0;
-    private static int sUid = 0;
-    // INTEL_FEATURE_ASF_END
 
     private static final String WAKELOCK_KEY = TAG;
 
@@ -1262,9 +1256,6 @@ public class LocationManagerService extends ILocationManager.Stub {
             }
         }
 
-        if (AsfAosp.ENABLE && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
-            GpsLocationProvider.setDeviceInfo(sPid, sUid);
-        }
         if (D) Log.d(TAG, "provider request: " + provider + " " + providerRequest);
         p.setRequest(providerRequest, worksource);
     }
@@ -1472,13 +1463,6 @@ public class LocationManagerService extends ILocationManager.Stub {
             int pid, int uid, String packageName) {
         // Figure out the provider. Either its explicitly request (legacy use cases), or
         // use the fused provider
-
-        if (AsfAosp.ENABLE && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
-            // Set private variables PID and UID with the corresponding values of
-            // the calling application
-            sPid = pid;
-            sUid = uid;
-        }
         if (request == null) request = DEFAULT_LOCATION_REQUEST;
         String name = request.getProvider();
         if (name == null) {

@@ -92,7 +92,6 @@ class WifiController extends StateMachine {
     final WifiStateMachine mWifiStateMachine;
     final WifiSettingsStore mSettingsStore;
     final LockList mLocks;
-    final WifiCsmClient mWifiCsmClient;
 
     /**
      * Temporary for computing UIDS that are responsible for starting WIFI.
@@ -136,7 +135,6 @@ class WifiController extends StateMachine {
         mWifiStateMachine = service.mWifiStateMachine;
         mSettingsStore = service.mSettingsStore;
         mLocks = service.mLocks;
-        mWifiCsmClient = service.mWifiCsmClient;
 
         mAlarmManager = (AlarmManager)mContext.getSystemService(Context.ALARM_SERVICE);
         Intent idleIntent = new Intent(ACTION_DEVICE_IDLE, null);
@@ -391,8 +389,6 @@ class WifiController extends StateMachine {
             mDisabledTimestamp = SystemClock.elapsedRealtime();
             mDeferredEnableSerialNumber++;
             mHaveDeferredEnable = false;
-            if (mWifiCsmClient != null)
-                mWifiCsmClient.putModem();
         }
         @Override
         public boolean processMessage(Message msg) {
@@ -458,10 +454,6 @@ class WifiController extends StateMachine {
             return true;
         }
 
-        public void exit() {
-            if (mWifiCsmClient != null)
-                mWifiCsmClient.getModem();
-        }
     }
 
     class StaEnabledState extends State {

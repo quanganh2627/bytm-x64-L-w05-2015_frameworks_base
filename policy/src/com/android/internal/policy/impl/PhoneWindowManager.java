@@ -93,7 +93,6 @@ import android.view.WindowManagerPolicy;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
-import android.widget.Toast;
 
 import com.android.internal.R;
 import com.android.internal.policy.PolicyManager;
@@ -168,12 +167,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             | View.SYSTEM_UI_FLAG_FULLSCREEN
             | View.STATUS_BAR_TRANSLUCENT
             | View.NAVIGATION_BAR_TRANSLUCENT;
-
-// length of vibration before shutting down is started on long power key press
-    private static final int SHUTDOWN_VIBRATE_MS = 500;
-
-    // private lock for thread sync
-    private Object lock = new Object();
 
     /**
      * Keyguard stuff
@@ -423,9 +416,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     int mLockScreenTimeout;
     boolean mLockScreenTimerActive;
 
-    // Measure timeout before action corresponding to power key press is triggered.
-    long mPowerKeyTimeout;
-
     // Behavior of ENDCALL Button.  (See Settings.System.END_BUTTON_BEHAVIOR.)
     int mEndcallBehavior;
 
@@ -671,44 +661,23 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
     }
 
-    private void interceptPowerKeyDown(boolean handled, boolean longLongPressCandidate) {
+    private void interceptPowerKeyDown(boolean handled) {
         mPowerKeyHandled = handled;
         if (!handled) {
-            mPowerKeyTimeout = ViewConfiguration.getGlobalActionKeyTimeout();
-            Log.i(TAG, String.format("interceptPowerKeyDown: key down event: not handled: set timeout to %d ms", mPowerKeyTimeout));
-            // Ask mPowerLongPress to be run when specified amount of time elapses.
-            mHandler.postDelayed(mPowerLongPress, mPowerKeyTimeout);
-        } else {
-            // only for calls from POWER BUTTON handling can start longLongPress timer
-            if (longLongPressCandidate) {
-                mPowerKeyTimeout = ViewConfiguration.getGlobalActionKeyShutdownTimeout() + ViewConfiguration.getGlobalActionKeyTimeout();
-                Log.i(TAG, String.format("interceptPowerKeyDown: key down event: handled: set timeout to %d ms", mPowerKeyTimeout));
-                // Ask mPowerLongLongPress to be run when specified amount of time elapses.
-                mHandler.postDelayed(mPowerLongLongPress, mPowerKeyTimeout);
-            }
+            mHandler.postDelayed(mPowerLongPress, ViewConfiguration.getGlobalActionKeyTimeout());
         }
     }
 
     private boolean interceptPowerKeyUp(boolean canceled) {
-        synchronized(lock) {
         if (!mPowerKeyHandled) {
-            // Cancel pending action scheduled in interceptPowerKeyDown
-            Log.i(TAG, "interceptPowerKeyUp: key up event: remove pending callbacks for long press");
             mHandler.removeCallbacks(mPowerLongPress);
-            lock.notify();
             return !canceled;
         }
-        // Cancel pending action scheduled in interceptPowerKeyDown
-        Log.i(TAG, "interceptPowerKeyUp: key up event: remove pending callbacks for very long press");
-        mHandler.removeCallbacks(mPowerLongLongPress);
-        lock.notify();
         return false;
-        }
     }
 
     private void cancelPendingPowerKeyAction() {
         if (!mPowerKeyHandled) {
-            // Cancel pending action scheduled in interceptPowerKeyDown
             mHandler.removeCallbacks(mPowerLongPress);
         }
         if (mPowerKeyTriggered) {
@@ -743,14 +712,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mHandler.removeCallbacks(mScreenshotRunnable);
     }
 
-    // Action associated to the timer triggered in interceptPowerKeyDown. Run once the timer expires.
     private final Runnable mPowerLongPress = new Runnable() {
         @Override
         public void run() {
-            synchronized(lock) {
-            // Allow to cancel mPowerLongLongPress callback in interceptPowerKeyUp function
-            mPowerKeyHandled = true;
-
             // The context isn't read
             if (mLongPressOnPowerBehavior < 0) {
                 mLongPressOnPowerBehavior = mContext.getResources().getInteger(
@@ -761,26 +725,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 resolvedBehavior = LONG_PRESS_POWER_SHUT_OFF_NO_CONFIRM;
             }
 
-            if (!"".equals(SystemProperties.get("vold.encrypt_progress"))) {
-                // When encryption is running, the user is not allowed to do a graceful shutdown,
-                // only a hardware forced shutdown is authorized.
-                // The close dialog is not displayed and the mPowerLongLongPress callback is
-                // not scheduled.
-                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms:"
-                        + " encryption in progress, no shutdown authorized", mPowerKeyTimeout));
-                Toast.makeText(mContext,
-                        com.android.internal.R.string.forbid_shutdown_when_encrypt,
-                        Toast.LENGTH_SHORT).show();
-                lock.notify();
-                return;
-            }
-
             switch (resolvedBehavior) {
             case LONG_PRESS_POWER_NOTHING:
-                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: nothing to do", mPowerKeyTimeout));
                 break;
             case LONG_PRESS_POWER_GLOBAL_ACTIONS:
-                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: display close dialog", mPowerKeyTimeout));
+                mPowerKeyHandled = true;
                 if (!performHapticFeedbackLw(null, HapticFeedbackConstants.LONG_PRESS, false)) {
                     performAuditoryFeedbackForAccessibilityIfNeed();
                 }
@@ -789,28 +738,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 break;
             case LONG_PRESS_POWER_SHUT_OFF:
             case LONG_PRESS_POWER_SHUT_OFF_NO_CONFIRM:
-                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: run shutdown", mPowerKeyTimeout));
+                mPowerKeyHandled = true;
                 performHapticFeedbackLw(null, HapticFeedbackConstants.LONG_PRESS, false);
                 sendCloseSystemWindows(SYSTEM_DIALOG_REASON_GLOBAL_ACTIONS);
                 mWindowManagerFuncs.shutdown(resolvedBehavior == LONG_PRESS_POWER_SHUT_OFF);
                 break;
             }
-            mHandler.postDelayed(mPowerLongLongPress,
-                    ViewConfiguration.getGlobalActionKeyShutdownTimeout());
-            lock.notify();
-            }
-        }
-    };
-
-    // Action associated to the timer triggered in interceptPowerKeyDown. Run once the timer expires.
-    private final Runnable mPowerLongLongPress = new Runnable() {
-        public void run() {
-            Log.i(TAG, String.format("LongLongPressOnPower: force shutdown requested : vibrate %d ms and run shutdown",
-                                       SHUTDOWN_VIBRATE_MS));
-            // vibrate to indicate shutdown is started
-            mVibrator.vibrate(SHUTDOWN_VIBRATE_MS);
-            SystemProperties.set("sys.property_forcedshutdown", "1");
-            mWindowManagerFuncs.shutdown(false);
         }
     };
 
@@ -3676,16 +3609,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
     }
 
-    /** {@inheritDoc} */
-   public void notifySilentSwitchChanged(boolean open) {
-        AudioManager audioManager = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
-        if (open) {
-            audioManager.setRingerMode(AudioManager.RINGER_MODE_HW_SILENT);
-        } else {
-            audioManager.setRingerMode(AudioManager.RINGER_MODE_HW_NORMAL);
-        }
-   }
-
     void setHdmiPlugged(boolean plugged) {
         if (mHdmiPlugged != plugged) {
             mHdmiPlugged = plugged;
@@ -4008,7 +3931,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                             Log.w(TAG, "ITelephony threw RemoteException", ex);
                         }
                     }
-                    interceptPowerKeyDown(!isScreenOn || hungUp, false);
+                    interceptPowerKeyDown(!isScreenOn || hungUp);
                 } else {
                     if (interceptPowerKeyUp(canceled)) {
                         if ((mEndcallBehavior
@@ -4058,7 +3981,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         }
                     }
                     interceptPowerKeyDown(!isScreenOn || hungUp
-                            || mVolumeDownKeyTriggered || mVolumeUpKeyTriggered, true);
+                            || mVolumeDownKeyTriggered || mVolumeUpKeyTriggered);
                 } else {
                     mPowerKeyTriggered = false;
                     cancelPendingScreenshotChordAction();
@@ -4317,7 +4240,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     @Override
     public void screenTurnedOff(int why) {
-        Log.i(TAG, "Screen turned off...");
         EventLog.writeEvent(70000, 0);
         synchronized (mLock) {
             mScreenOnEarly = false;
@@ -4334,12 +4256,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     @Override
     public void screenTurningOn(final ScreenOnListener screenOnListener) {
-        Log.i(TAG, "Screen turning on...");
         EventLog.writeEvent(70000, 1);
         if (false) {
             RuntimeException here = new RuntimeException("here");
             here.fillInStackTrace();
-            Slog.i(TAG, "RuntimeException screen turning on...", here);
+            Slog.i(TAG, "Screen turning on...", here);
         }
 
         synchronized (mLock) {
@@ -4747,9 +4668,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     /** {@inheritDoc} */
     public void systemBooted() {
-        if (mKeyguardDelegate != null) {
-            mKeyguardDelegate.onBootCompleted();
-        }
         synchronized (mLock) {
             mSystemBooted = true;
         }
@@ -5265,8 +5183,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         final int flags = View.SYSTEM_UI_FLAG_IMMERSIVE | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
         return mNavigationBar != null
                 && (vis & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) != 0
-                && (vis & flags) != 0
-                && canHideNavigationBar();
+                && (vis & flags) != 0;
     }
 
     /**

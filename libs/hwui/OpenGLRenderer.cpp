@@ -3081,7 +3081,7 @@ status_t OpenGLRenderer::drawLayer(Layer* layer, float x, float y) {
 
     updateLayer(layer, true);
 
-    mCaches.setScissorEnabled(true);
+    mCaches.setScissorEnabled(mScissorOptimizationDisabled || clipRequired);
     mCaches.activeTexture(0);
 
     if (CC_LIKELY(!layer->region.isEmpty())) {

@@ -17695,7 +17695,6 @@ package android.os {
     method public void addFile(java.lang.String, java.io.File, int) throws java.io.IOException;
     method public void addText(java.lang.String, java.lang.String);
     method public android.os.DropBoxManager.Entry getNextEntry(java.lang.String, long);
-    method public boolean isFull();
     method public boolean isTagEnabled(java.lang.String);
     field public static final java.lang.String ACTION_DROPBOX_ENTRY_ADDED = "android.intent.action.DROPBOX_ENTRY_ADDED";
     field public static final java.lang.String EXTRA_TAG = "tag";
@@ -25795,7 +25794,6 @@ package android.util {
     method public boolean equals(android.util.DisplayMetrics);
     method public void setTo(android.util.DisplayMetrics);
     method public void setToDefaults();
-    field public static final int DENSITY_400 = 400; // 0x190
     field public static final int DENSITY_DEFAULT = 160; // 0xa0
     field public static final int DENSITY_HIGH = 240; // 0xf0
     field public static final int DENSITY_LOW = 120; // 0x78

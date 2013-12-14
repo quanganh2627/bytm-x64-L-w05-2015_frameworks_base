@@ -143,7 +143,6 @@ public class UsbPermissionActivity extends AlertActivity
                 }
             }
             intent.putExtra(UsbManager.EXTRA_PERMISSION_GRANTED, mPermissionGranted);
-            intent.setPackage(mPackageName);
             mPendingIntent.send(this, 0, intent);
         } catch (PendingIntent.CanceledException e) {
             Log.w(TAG, "PendingIntent was cancelled");

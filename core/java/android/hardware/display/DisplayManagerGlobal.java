@@ -275,14 +275,6 @@ public final class DisplayManagerGlobal {
         }
     }
 
-    public void stopScanWifiDisplays() {
-        try {
-            mDm.stopScanWifiDisplays();
-        } catch (RemoteException ex) {
-            Log.e(TAG, "Failed to stop scan for Wifi displays.", ex);
-        }
-    }
-
     public void connectWifiDisplay(String deviceAddress) {
         if (deviceAddress == null) {
             throw new IllegalArgumentException("deviceAddress must not be null");
@@ -316,14 +308,6 @@ public final class DisplayManagerGlobal {
             mDm.disconnectWifiDisplay();
         } catch (RemoteException ex) {
             Log.e(TAG, "Failed to disconnect from Wifi display.", ex);
-        }
-    }
-
-    public void reconnectWifiDisplay() {
-        try {
-            mDm.reconnectWifiDisplay();
-        } catch (RemoteException ex) {
-            Log.e(TAG, "Failed to reconnect to Wifi display.", ex);
         }
     }
 

@@ -16,7 +16,6 @@
 
 package com.android.internal.app;
 
-import com.android.internal.app.IBatteryStatsResetCallback;
 import com.android.internal.os.BatteryStatsImpl;
 
 import android.os.WorkSource;
@@ -76,8 +75,4 @@ interface IBatteryStats {
     void setBatteryState(int status, int health, int plugType, int level, int temp, int volt);
     long getAwakeTimeBattery();
     long getAwakeTimePlugged();
-    void resetStatistic(boolean wait);
-    byte[] getStatisticsBeforeReset();
-    void registerCallback(IBatteryStatsResetCallback callback);
-    void unregisterCallback(IBatteryStatsResetCallback callback);
 }
