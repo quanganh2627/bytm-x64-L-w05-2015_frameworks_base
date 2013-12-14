@@ -131,8 +131,5 @@ public class PhoneConstants {
     public static final String APN_TYPE_CBS = "cbs";
     /** APN type for IA Initial Attach APN */
     public static final String APN_TYPE_IA = "ia";
-    /** APN type for BIP 1 traffic*/
-    public static final String APN_TYPE_BIP_GPRS1 = "bip_gprs1";
-    /** APN type for BIP 2 traffic*/
-    public static final String APN_TYPE_BIP_GPRS2 = "bip_gprs2";
+
 }
