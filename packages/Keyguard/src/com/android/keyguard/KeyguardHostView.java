@@ -16,6 +16,10 @@
 
 package com.android.keyguard;
 
+import com.android.internal.widget.LockPatternUtils;
+import com.android.keyguard.KeyguardSecurityModel.SecurityMode;
+import com.android.keyguard.KeyguardUpdateMonitor.DisplayClientState;
+
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
@@ -51,9 +55,9 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.RemoteViews.OnClickHandler;
-import com.android.internal.widget.LockPatternUtils;
-import com.android.keyguard.KeyguardSecurityModel.SecurityMode;
-import com.android.keyguard.KeyguardUpdateMonitor.DisplayClientState;
+
+import com.intel.arkham.ContainerPolicyCommons;
+import com.intel.config.FeatureConfig;
 
 import java.io.File;
 import java.lang.ref.WeakReference;
@@ -97,6 +101,8 @@ public class KeyguardHostView extends KeyguardViewBase {
     private KeyguardSecurityModel mSecurityModel;
     private KeyguardViewStateManager mViewStateManager;
 
+    private ContainerPolicyCommons mContainerPolicyCommons;
+
     private Rect mTempRect = new Rect();
 
     private int mDisabledFeatures;
@@ -134,7 +140,7 @@ public class KeyguardHostView extends KeyguardViewBase {
         void userActivity();
     }
 
-    /*package*/ interface OnDismissAction {
+    public interface OnDismissAction {
         /* returns true if the dismiss should be deferred */
         boolean onDismiss();
     }
@@ -161,6 +167,12 @@ public class KeyguardHostView extends KeyguardViewBase {
         if (dpm != null) {
             mDisabledFeatures = getDisabledFeatures(dpm);
             mCameraDisabled = dpm.getCameraDisabled(null);
+        }
+
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mContainerPolicyCommons = new ContainerPolicyCommons(context, mLockPatternUtils);
+            mDisabledFeatures = mContainerPolicyCommons.setContainerKeyguardFeatures(
+                    mDisabledFeatures);
         }
 
         mSafeModeEnabled = LockPatternUtils.isSafeModeEnabled();
@@ -217,7 +229,7 @@ public class KeyguardHostView extends KeyguardViewBase {
         mTransportState = (dcs.clearing ? TRANSPORT_GONE :
             (isMusicPlaying(dcs.playbackState) ? TRANSPORT_VISIBLE : TRANSPORT_INVISIBLE));
 
-        if (DEBUG) Log.v(TAG, "Initial transport state: "
+        if (DEBUGXPORT) Log.v(TAG, "Initial transport state: "
                 + mTransportState + ", pbstate=" + dcs.playbackState);
     }
 
@@ -279,7 +291,7 @@ public class KeyguardHostView extends KeyguardViewBase {
             if (newState != mTransportState) {
                 mTransportState = newState;
                 if (DEBUGXPORT) Log.v(TAG, "update widget: transport state changed");
-                KeyguardHostView.this.postShowAppropriateWidgetPage();
+                KeyguardHostView.this.post(mSwitchPageRunnable);
             }
         }
         @Override
@@ -291,7 +303,7 @@ public class KeyguardHostView extends KeyguardViewBase {
                 if (newState != mTransportState) {
                     mTransportState = newState;
                     if (DEBUGXPORT) Log.v(TAG, "update widget: play state changed");
-                    KeyguardHostView.this.postShowAppropriateWidgetPage();
+                    KeyguardHostView.this.post(mSwitchPageRunnable);
                 }
             }
         }
@@ -397,6 +409,9 @@ public class KeyguardHostView extends KeyguardViewBase {
         showPrimarySecurityScreen(false);
         updateSecurityViews();
         enableUserSelectorIfNecessary();
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mContainerPolicyCommons.editKeyguardForContainer(this);
+        }
     }
 
     private void updateAndAddWidgets() {
@@ -495,7 +510,6 @@ public class KeyguardHostView extends KeyguardViewBase {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        removeCallbacks(mSwitchPageRunnable);
         mAppWidgetHost.stopListening();
         KeyguardUpdateMonitor.getInstance(mContext).removeCallback(mUpdateMonitorCallbacks);
     }
@@ -651,16 +665,48 @@ public class KeyguardHostView extends KeyguardViewBase {
         }
     }
 
+    /* ARKHAM-545 Disable container after reaching max failed unlock attempts. */
     private void showAlmostAtWipeDialog(int attempts, int remaining) {
-        String message = mContext.getString(R.string.kg_failed_attempts_almost_at_wipe,
-                attempts, remaining);
+        String message;
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            if (mLockPatternUtils.isContainerUserMode()) {
+                message = mContext.getString(R.string.kg_failed_attempts_almost_at_wipe_container,
+                        attempts, remaining, "disabled or wiped");
+            } else {
+                message = mContext.getString(R.string.kg_failed_attempts_almost_at_wipe,
+                        attempts, remaining);
+            }
+        } else {
+            message = mContext.getString(R.string.kg_failed_attempts_almost_at_wipe,
+                    attempts, remaining);
+        }
         showDialog(null, message);
     }
 
     private void showWipeDialog(int attempts) {
-        String message = mContext.getString(R.string.kg_failed_attempts_now_wiping, attempts);
+        String message;
+
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            if (mLockPatternUtils.isContainerUserMode()) {
+                message = mContext.getString(R.string.kg_failed_attempts_now_wiping_container,
+                        attempts, "disabled or wiped");
+            } else {
+                message = mContext.getString(R.string.kg_failed_attempts_now_wiping, attempts);
+            }
+        } else {
+            message = mContext.getString(R.string.kg_failed_attempts_now_wiping, attempts);
+        }
         showDialog(null, message);
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            if (mLockPatternUtils.isContainerUserMode()) {
+                /* Clear the number of failed unlock attempts and hide the keyguard
+                 * after disabling or wiping the container. */
+                KeyguardUpdateMonitor.getInstance(mContext).clearFailedUnlockAttempts();
+                handleHomeKey();
+            }
+        }
     }
+    /* End ARKHAM-545 */
 
     private void showAlmostAtAccountLoginDialog() {
         final int timeoutInSeconds = (int) LockPatternUtils.FAILED_ATTEMPT_TIMEOUT_MS / 1000;
@@ -1016,6 +1062,16 @@ public class KeyguardHostView extends KeyguardViewBase {
             }
         }
 
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            /* ARKHAM-1140 Set keyguard softkeys based on user type. */
+            if (!mLockPatternUtils.isContainerUserMode()) {
+                setSystemUiVisibility(getSystemUiVisibility() | View.STATUS_BAR_DISABLE_HOME);
+            } else {
+                setSystemUiVisibility(getSystemUiVisibility() & ~View.STATUS_BAR_DISABLE_HOME);
+            }
+            /* End ARKHAM-1140. */
+        }
+
         if (securityMode == SecurityMode.None) {
             // Discard current runnable if we're switching back to the selector view
             setOnDismissAction(null);
@@ -1369,7 +1425,7 @@ public class KeyguardHostView extends KeyguardViewBase {
         }
     }
 
-    Runnable mSwitchPageRunnable = new Runnable() {
+    private final Runnable mSwitchPageRunnable = new Runnable() {
         @Override
         public void run() {
            showAppropriateWidgetPage();
@@ -1438,7 +1494,7 @@ public class KeyguardHostView extends KeyguardViewBase {
         mAppWidgetToShow = ss.appWidgetToShow;
         setInsets(ss.insets);
         if (DEBUG) Log.d(TAG, "onRestoreInstanceState, transport=" + mTransportState);
-        postShowAppropriateWidgetPage();
+        mSwitchPageRunnable.run();
     }
 
     @Override
@@ -1471,20 +1527,22 @@ public class KeyguardHostView extends KeyguardViewBase {
         }
     }
 
-    void showAppropriateWidgetPage() {
-        int state = mTransportState;
-        ensureTransportPresentOrRemoved(state);
-        if (mAppWidgetContainer.isLayoutRequested()) {
-            postShowAppropriateWidgetPage();
-            return;
+    private void showAppropriateWidgetPage() {
+        final int state = mTransportState;
+        final boolean transportAdded = ensureTransportPresentOrRemoved(state);
+        final int pageToShow = getAppropriateWidgetPage(state);
+        if (!transportAdded) {
+            mAppWidgetContainer.setCurrentPage(pageToShow);
+        } else if (state == TRANSPORT_VISIBLE) {
+            // If the transport was just added, we need to wait for layout to happen before
+            // we can set the current page.
+            post(new Runnable() {
+                @Override
+                public void run() {
+                    mAppWidgetContainer.setCurrentPage(pageToShow);
+                }
+            });
         }
-        int pageToShow = getAppropriateWidgetPage(state);
-        mAppWidgetContainer.setCurrentPage(pageToShow);
-    }
-
-    void postShowAppropriateWidgetPage() {
-        removeCallbacks(mSwitchPageRunnable);
-        post(mSwitchPageRunnable);
     }
 
     /**
@@ -1508,12 +1566,11 @@ public class KeyguardHostView extends KeyguardViewBase {
      *
      * @param state
      */
-    private void ensureTransportPresentOrRemoved(int state) {
+    private boolean ensureTransportPresentOrRemoved(int state) {
         final boolean showing = getWidgetPosition(R.id.keyguard_transport_control) != -1;
         final boolean visible = state == TRANSPORT_VISIBLE;
         final boolean shouldBeVisible = state == TRANSPORT_INVISIBLE && isMusicPlaying(state);
         if (!showing && (visible || shouldBeVisible)) {
-            if (DEBUGXPORT) Log.v(TAG, "add transport");
             // insert to left of camera if it exists, otherwise after right-most widget
             int lastWidget = mAppWidgetContainer.getChildCount() - 1;
             int position = 0; // handle no widget case
@@ -1521,13 +1578,16 @@ public class KeyguardHostView extends KeyguardViewBase {
                 position = mAppWidgetContainer.isCameraPage(lastWidget) ?
                         lastWidget : lastWidget + 1;
             }
+            if (DEBUGXPORT) Log.v(TAG, "add transport at " + position);
             mAppWidgetContainer.addWidget(getOrCreateTransportControl(), position);
+            return true;
         } else if (showing && state == TRANSPORT_GONE) {
             if (DEBUGXPORT) Log.v(TAG, "remove transport");
             mAppWidgetContainer.removeWidget(getOrCreateTransportControl());
             mTransportControl = null;
             KeyguardUpdateMonitor.getInstance(getContext()).dispatchSetBackground(null);
         }
+        return false;
     }
 
     private CameraWidgetFrame findCameraPage() {
@@ -1589,6 +1649,10 @@ public class KeyguardHostView extends KeyguardViewBase {
             t.fillInStackTrace();
             Log.e(TAG, "list of users is null.", t);
             return;
+        }
+
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mContainerPolicyCommons.removeContainerUser(users);
         }
 
         final View multiUserView = findViewById(R.id.keyguard_user_selector);
@@ -1678,6 +1742,18 @@ public class KeyguardHostView extends KeyguardViewBase {
         // The following enables the MENU key to work for testing automation
         if (shouldEnableMenuKey()) {
             showNextSecurityScreenOrFinish(false);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * ARKHAM:1088 - dismiss container keyguard when home key is pressed.
+     */
+    public boolean handleHomeKey() {
+        mDismissAction = mContainerPolicyCommons.handleContainerKeyguardDismiss(
+                mViewMediatorCallback, mDismissAction);
+        if (mLockPatternUtils.isContainerUserMode()) {
             return true;
         }
         return false;

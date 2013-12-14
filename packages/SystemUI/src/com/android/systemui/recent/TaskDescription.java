@@ -21,10 +21,10 @@ import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 
-public final class TaskDescription {
-    final ResolveInfo resolveInfo;
+public class TaskDescription {
+    protected final ResolveInfo resolveInfo;
     final int taskId; // application task id for curating apps
-    final int persistentTaskId; // persistent id
+    protected final int persistentTaskId; // persistent id
     final Intent intent; // launch intent for application
     final String packageName; // used to override animations (see onClick())
     final CharSequence description;
@@ -92,4 +92,21 @@ public final class TaskDescription {
     public Drawable getThumbnail() {
         return mThumbnail;
     }
+
+    // ARKHAM-276 - Use icon to identify container activities
+    public Drawable getContainerIcon() {
+        return null;
+    }
+
+    // ARKHAM-276 - Use icon to identify container activities
+    public String getContainerLabel() {
+        return null;
+    }
+
+    // ARKHAM-326 - Restart stopped container activities as container user
+    // We need the container id when restarting a container activity
+    public int getContainerId() {
+        return 0;
+    }
+
 }

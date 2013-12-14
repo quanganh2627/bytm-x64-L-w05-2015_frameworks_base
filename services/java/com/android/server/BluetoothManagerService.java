@@ -32,7 +32,9 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.media.AudioManager;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -44,6 +46,12 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
+import com.intel.cws.cwsservicemanagerclient.CsmClient;
+import com.intel.cws.cwsservicemanager.CsmCoexMgr;
+import com.intel.cws.cwsservicemanager.CsmException;
+import java.lang.Math;
+import java.util.BitSet;
+
 class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final String TAG = "BluetoothManagerService";
     private static final boolean DBG = true;
@@ -63,6 +71,8 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final int ERROR_RESTART_TIME_MS = 3000;
     //Maximum msec to delay MESSAGE_USER_SWITCHED
     private static final int USER_SWITCHED_TIME_MS = 200;
+
+    private static final String AUDIO_PARAMETER_KEY_BLUETOOTH_STATE = "bluetooth_enabled";
 
     private static final int MESSAGE_ENABLE = 1;
     private static final int MESSAGE_DISABLE = 2;
@@ -95,6 +105,8 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final int SERVICE_IBLUETOOTH = 1;
     private static final int SERVICE_IBLUETOOTHGATT = 2;
 
+    private boolean mAirplanePending = false;
+
     private final Context mContext;
 
     // Locks are not provided for mName and mAddress.
@@ -121,6 +133,17 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private int mState;
     private final BluetoothHandler mHandler;
     private int mErrorRecoveryRetryCounter;
+    private BluetoothAdapter mAdapter;
+
+    private AudioManager mAudioManager;
+
+    private CsmClientBt mCsmClient;
+
+    private class CsmClientBt extends CsmClient {
+        public CsmClientBt(Context context) throws CsmException {
+            super(context, CsmClientBt.CSM_ID_BT, 1);
+        }
+    }
 
     private void registerForAirplaneMode(IntentFilter filter) {
         final ContentResolver resolver = mContext.getContentResolver();
@@ -132,6 +155,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 airplaneModeRadios.contains(Settings.Global.RADIO_BLUETOOTH);
         if (mIsAirplaneSensitive) {
             filter.addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED);
+            filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
         }
     }
 
@@ -154,21 +178,13 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     storeNameAndAddress(newName, null);
                 }
             } else if (Intent.ACTION_AIRPLANE_MODE_CHANGED.equals(action)) {
-                synchronized(mReceiver) {
-                    if (isBluetoothPersistedStateOn()) {
-                        if (isAirplaneModeOn()) {
-                            persistBluetoothSetting(BLUETOOTH_ON_AIRPLANE);
-                        } else {
-                            persistBluetoothSetting(BLUETOOTH_ON_BLUETOOTH);
-                        }
-                    }
-                    if (isAirplaneModeOn()) {
-                        // disable without persisting the setting
-                        sendDisableMsg();
-                    } else if (mEnableExternal) {
-                        // enable without persisting the setting
-                        sendEnableMsg(mQuietEnableExternal);
-                    }
+                if (isBluetoothInStableState()) {
+                    // no need to handle an old pending airplane mode, handle the current
+                    mAirplanePending = false;
+                    handleAirplaneModeStateChange();
+                } else {
+                    // if in transition state, wait until BT is back to stable state
+                    mAirplanePending = true;
                 }
             } else if (Intent.ACTION_USER_SWITCHED.equals(action)) {
                 mHandler.sendMessage(mHandler.obtainMessage(MESSAGE_USER_SWITCHED,
@@ -187,9 +203,169 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     if (DBG) Log.d(TAG,"Retrieving Bluetooth Adapter name and address...");
                     getNameAndAddress();
                 }
+            } else if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
+                // if in stable state then handle the pending airplane mode
+                if (mAirplanePending && isBluetoothInStableState()) {
+                    mAirplanePending = false;
+                    handleAirplaneModeStateChange();
+                }
+            } else if (CsmCoexMgr.ACTION_COEX_SAFECHANNELS_INFO.equals(action)) {
+
+                if (DBG) Log.d(TAG, "COEX_SAFECHANNELS : Information received");
+
+                Bundle bundle = intent.getBundleExtra(CsmCoexMgr.COEX_SAFECHANNELS_EXTRA);
+                if (bundle != null) {
+                    int minFreq = bundle.getInt(CsmCoexMgr.COEX_SAFECHANNELS_BT_MIN_KEY);
+                    int maxFreq = bundle.getInt(CsmCoexMgr.COEX_SAFECHANNELS_BT_MAX_KEY);
+
+                    if (DBG) Log.d(TAG, "COEX_SAFECHANNELS : [" + minFreq + ", " + maxFreq + "]");
+
+                    handleCoexSafeChannels(minFreq, maxFreq);
+                }
+            } else if (CsmCoexMgr.ACTION_COEX_RT_CONTROL.equals(action)) {
+
+                if (DBG) Log.d(TAG, "COEX_RT : Control recevied");
+                int coexRtState = intent.getIntExtra(
+                        CsmCoexMgr.COEX_RT_EXTRA_STATE,
+                        CsmCoexMgr.COEX_RT_STATE_OFF);
+
+                if (DBG) Log.d(TAG, "COEX_RT : new state = " + coexRtState);
+
+                handleCoexRtControl(coexRtState);
             }
         }
     };
+
+    private void handleCoexSafeChannels(int minFreq, int maxFreq) {
+        final int BT_LO_FREQ = 2402;
+        final int BT_HI_FREQ = 2480;
+        final int AFH_CLASSIFICATION_SIZE = 79;
+        final int LE_CLASSIFICATION_SIZE = 37;
+
+        // Refine bounds to BT
+        if (minFreq > BT_HI_FREQ || maxFreq < BT_LO_FREQ) {
+            Log.e(TAG, "COEX_SAFECHANNELS : Invalid frequency. Reset to default safe channels");
+            minFreq = BT_LO_FREQ;
+            maxFreq = BT_HI_FREQ;
+        } else {
+            minFreq = Math.max(minFreq, BT_LO_FREQ);
+            maxFreq = Math.min(maxFreq, BT_HI_FREQ);
+        }
+
+        if (DBG) {
+            Log.d(TAG, "COEX_SAFECHANNELS : Building BR/EDR Channel Range for [" + minFreq + ", "
+                    + maxFreq + "]");
+        }
+
+        // BT AFH Host Channel Classification (79 1-bit field).
+        //    - [0-78] Bad: 0 or Unknown: 1
+        // Refer to BT Core Spec Vol. 2, Part E - HCI 7.3.46
+        BitSet BtChannels = new BitSet(AFH_CLASSIFICATION_SIZE);
+
+        // All channels are unknown
+        BtChannels.set(0, AFH_CLASSIFICATION_SIZE);
+
+        // Compute BT safe channels Range
+        // f=2402+k MHz, k=0,...,78
+        int BtLowerChannel = minFreq - BT_LO_FREQ;
+        int BtUpperChannel = maxFreq - BT_LO_FREQ;
+
+
+        if (BtLowerChannel > 0) {
+            BtChannels.clear(0, BtLowerChannel);
+        }
+
+        if (BtUpperChannel < AFH_CLASSIFICATION_SIZE - 1) {
+            BtChannels.clear(BtUpperChannel + 1, AFH_CLASSIFICATION_SIZE);
+        }
+
+        if (DBG) {
+            Log.d(TAG, "COEX_SAFECHANNELS : BR/EDR Channel Range : [" + BtLowerChannel + ", "
+                    + BtUpperChannel + "]");
+        }
+
+        // LE Host Channel Classification (37 1-bit field)
+        //    - [0-36] ad: 0 or Unknown: 1
+        // Refer to BT Core Spec Vol.2, Part E - HCI 7.8.19
+        BitSet LeChannels = new BitSet(LE_CLASSIFICATION_SIZE);
+        LeChannels.set(0, LE_CLASSIFICATION_SIZE);
+
+        // Compute LE safe channels :
+        // RF channels arrangement 2402 + k * 2 MHz, where k = 0, ..., 39.
+        int LeLowerChannel = ((minFreq - BT_LO_FREQ) + 1) / 2;
+        int LeUpperChannel = ((maxFreq - BT_LO_FREQ)  + 1) / 2;
+        if (LeLowerChannel > 0) {
+            LeChannels.clear(0, LeLowerChannel);
+        }
+        if (LeUpperChannel < LE_CLASSIFICATION_SIZE - 1) {
+            LeChannels.clear(LeUpperChannel + 1, LE_CLASSIFICATION_SIZE);
+        }
+        if (DBG) {
+            Log.d(TAG, "COEX_SAFECHANNELS : LE Channel Range : [" + LeLowerChannel + ", "
+                    + LeUpperChannel + "]");
+        }
+        if (mAdapter == null) {
+            mAdapter = BluetoothAdapter.getDefaultAdapter();
+        }
+        if (mAdapter != null) {
+            if (false == mAdapter.setChannelClassification(BtChannels, LeChannels)) {
+                Log.e(TAG, "COEX_SAFECHANNELS : setChannelClassification() failed");
+            }
+        }
+    }
+
+    private void handleCoexRtControl(int coexRtState) {
+        if (mAdapter == null) {
+            mAdapter = BluetoothAdapter.getDefaultAdapter();
+        }
+        if (mAdapter != null) {
+            int enable = (coexRtState == CsmCoexMgr.COEX_RT_STATE_ON) ? 1 : 0;
+
+            // To_MWS_Baud_Rate = From_MWS_Baud_Rate = 0x002DC6C0 (3000000) OR 0x001E8480 (2000000)
+            int toBaudRate = 0x002DC6C0;
+            int fromBaudRate = toBaudRate;
+
+            if (false == mAdapter.setMWSTransportLayer(
+                    0x02, // Transport_Layer : WCI-2
+                    toBaudRate,
+                    fromBaudRate)) {
+                Log.e(TAG, "COEX_RT : setMWSTransportLayer() failed");
+            }
+
+            if (false == mAdapter.setMWSChannelParameters(
+                    enable,
+                    0, // MWS_RX_Center_Frequency
+                    0, // MWS_TX_Center_Frequency
+                    0, // MWS_RX_Channel_Bandwidth
+                    0, // MWS_TX_Channel_Bandwidthint txChannelBandwidth,
+                    0) // MWS_Channel_Type: 0x00:TDD, 0x01: FDD
+                ) {
+                Log.e(TAG, "COEX_RT : setMWSTransportLayer() failed");
+            }
+        }
+    }
+
+    private void handleAirplaneModeStateChange() {
+        synchronized(mReceiver) {
+            if (isBluetoothPersistedStateOn()) {
+                // persist the state of BT to know
+                // in what state we should be after
+                // a change in airplane mode state
+                if (isAirplaneModeOn()) {
+                    persistBluetoothSetting(BLUETOOTH_ON_AIRPLANE);
+                } else {
+                    persistBluetoothSetting(BLUETOOTH_ON_BLUETOOTH);
+                }
+            }
+            // state is persisted, we can handle
+            // the airplane mode state change
+            if (isAirplaneModeOn()) {
+                sendDisableMsg();
+            } else if (mEnableExternal) {
+                sendEnableMsg(mQuietEnableExternal);
+            }
+        }
+    }
 
     BluetoothManagerService(Context context) {
         mHandler = new BluetoothHandler(IoThread.get().getLooper());
@@ -205,18 +381,35 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         mAddress = null;
         mName = null;
         mErrorRecoveryRetryCounter = 0;
+        mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         mContentResolver = context.getContentResolver();
         mCallbacks = new RemoteCallbackList<IBluetoothManagerCallback>();
         mStateChangeCallbacks = new RemoteCallbackList<IBluetoothStateChangeCallback>();
         IntentFilter filter = new IntentFilter(Intent.ACTION_BOOT_COMPLETED);
         filter.addAction(BluetoothAdapter.ACTION_LOCAL_NAME_CHANGED);
         filter.addAction(Intent.ACTION_USER_SWITCHED);
+        filter.addAction(CsmCoexMgr.ACTION_COEX_SAFECHANNELS_INFO);
+        filter.addAction(CsmCoexMgr.ACTION_COEX_RT_CONTROL);
         registerForAirplaneMode(filter);
         mContext.registerReceiver(mReceiver, filter);
         loadStoredNameAndAddress();
         if (isBluetoothPersistedStateOn()) {
             mEnableExternal = true;
         }
+
+        try {
+            mCsmClient = new CsmClientBt(mContext);
+        } catch (CsmException e) {
+            if (DBG) Log.d(TAG, "Unable to create CsmClientBt.", e);
+        }
+    }
+
+    private boolean isBluetoothInStableState() {
+        if (mAdapter == null) {
+            mAdapter = BluetoothAdapter.getDefaultAdapter();
+        }
+        return (mAdapter.getState() == BluetoothAdapter.STATE_ON ||
+                mAdapter.getState() == BluetoothAdapter.STATE_OFF);
     }
 
     /**
@@ -1068,6 +1261,9 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     Log.e(TAG,"Unable to call enable()",e);
                 }
             }
+
+            // Inform AudioRouteManager that bluetooth is enabled
+            mAudioManager.setParameters(AUDIO_PARAMETER_KEY_BLUETOOTH_STATE + "=true");
         }
     }
 
@@ -1087,6 +1283,9 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
             // service will be unbinded after Name and Address are saved
             if ((mBluetooth != null) && (!mConnection.isGetNameAddressOnly())) {
                 if (DBG) Log.d(TAG,"Sending off request.");
+
+                // Inform AudioRouteManager that bluetooth is disabled
+                mAudioManager.setParameters(AUDIO_PARAMETER_KEY_BLUETOOTH_STATE + "=false");
 
                 try {
                     if(!mBluetooth.disable()) {
@@ -1129,6 +1328,13 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 sendBluetoothStateCallback(isUp);
 
                 if (isUp) {
+                    if (mCsmClient != null) {
+                        try {
+                            mCsmClient.startAsync();
+                        } catch (CsmException e) {
+                            if (DBG) Log.d(TAG, "Unable to start CsmClientBt.", e);
+                        }
+                    }
                     // connect to GattService
                     if (mContext.getPackageManager().hasSystemFeature(
                                                      PackageManager.FEATURE_BLUETOOTH_LE)) {
@@ -1136,6 +1342,9 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                         doBind(i, mConnection, Context.BIND_AUTO_CREATE, UserHandle.CURRENT);
                     }
                 } else {
+                    if (mCsmClient != null) {
+                        mCsmClient.stop();
+                    }
                     //If Bluetooth is off, send service down event to proxy objects, and unbind
                     if (!isUp && canUnbindBluetoothService()) {
                         sendBluetoothServiceDownCallback();

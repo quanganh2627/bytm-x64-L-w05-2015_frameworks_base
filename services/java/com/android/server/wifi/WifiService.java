@@ -35,10 +35,12 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.BatchedScanResult;
 import android.net.wifi.BatchedScanSettings;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiConfiguration.ProxySettings;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiStateMachine;
 import android.net.wifi.WifiWatchdogStateMachine;
+import android.net.wifi.WifiNative;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.Messenger;
@@ -50,8 +52,10 @@ import android.os.RemoteException;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.WorkSource;
+import android.preference.CheckBoxPreference;
 import android.os.AsyncTask;
 import android.provider.Settings;
+import android.provider.Settings.Global;
 import android.util.Log;
 import android.util.Slog;
 
@@ -70,8 +74,11 @@ import java.util.List;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.intel.cws.cwsservicemanager.CsmException;
+
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
+import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
 import com.android.server.am.BatteryStatsService;
@@ -85,17 +92,23 @@ import static com.android.server.wifi.WifiController.CMD_SCREEN_ON;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_USER_PRESENT;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
+import static com.android.server.wifi.WifiController.CMD_DEVICE_IDLE;
+
+import com.intel.arkham.ContainerCommons;
+import com.intel.config.FeatureConfig;
+
 /**
  * WifiService handles remote WiFi operation requests by implementing
  * the IWifiManager interface.
  *
  * @hide
  */
-public final class WifiService extends IWifiManager.Stub {
+public class WifiService extends IWifiManager.Stub {
     private static final String TAG = "WifiService";
     private static final boolean DBG = false;
 
-    final WifiStateMachine mWifiStateMachine;
+    protected final WifiStateMachine mWifiStateMachine;
+    private final WifiNative mWifiNative;
 
     private final Context mContext;
 
@@ -124,6 +137,10 @@ public final class WifiService extends IWifiManager.Stub {
     private WifiTrafficPoller mTrafficPoller;
     /* Tracks the persisted states for wi-fi & airplane mode */
     final WifiSettingsStore mSettingsStore;
+
+    WifiCsmClient mWifiCsmClient;
+
+    private final WizardFinishedObserver mwizardFinishedObserver;
 
     final boolean mBatchedScanSupported;
 
@@ -175,8 +192,19 @@ public final class WifiService extends IWifiManager.Stub {
                     WifiConfiguration config = (WifiConfiguration) msg.obj;
                     int networkId = msg.arg1;
                     if (config != null && config.isValid()) {
-                        if (DBG) Slog.d(TAG, "Connect with config" + config);
-                        mWifiStateMachine.sendMessage(Message.obtain(msg));
+                        // This is restricted because there is no UI for the user to
+                        // monitor/control PAC.
+                        if (config.proxySettings != ProxySettings.PAC) {
+                            if (DBG) Slog.d(TAG, "Connect with config" + config);
+                            mWifiStateMachine.sendMessage(Message.obtain(msg));
+                        } else {
+                            Slog.e(TAG,  "ClientHandler.handleMessage cannot process msg with PAC");
+                            if (msg.what == WifiManager.CONNECT_NETWORK) {
+                                replyFailed(msg, WifiManager.CONNECT_NETWORK_FAILED);
+                            } else {
+                                replyFailed(msg, WifiManager.SAVE_NETWORK_FAILED);
+                            }
+                        }
                     } else if (config == null
                             && networkId != WifiConfiguration.INVALID_NETWORK_ID) {
                         if (DBG) Slog.d(TAG, "Connect with networkId" + networkId);
@@ -266,8 +294,17 @@ public final class WifiService extends IWifiManager.Stub {
 
         mInterfaceName =  SystemProperties.get("wifi.interface", "wlan0");
 
+        try {
+            mWifiCsmClient = new WifiCsmClient(mContext, this);
+        } catch (CsmException e) {
+            Log.e(TAG, "Unable to create WifiCsmClient.", e);
+        }
+
         mWifiStateMachine = new WifiStateMachine(mContext, mInterfaceName);
         mWifiStateMachine.enableRssiPolling(true);
+
+        mWifiNative = new WifiNative(mInterfaceName);
+
         mBatteryStats = BatteryStatsService.getService();
         mAppOps = (AppOpsManager)context.getSystemService(Context.APP_OPS_SERVICE);
 
@@ -301,9 +338,38 @@ public final class WifiService extends IWifiManager.Stub {
         // can result in race conditions when apps toggle wifi in the background
         // without active user involvement. Always receive broadcasts.
         registerForBroadcasts();
+        mwizardFinishedObserver = new WizardFinishedObserver();
+    }
+
+    private class WizardFinishedObserver extends ContentObserver {
+        WizardFinishedObserver() {
+            super(new Handler());
+            mContext.getContentResolver().registerContentObserver(Settings.Global.getUriFor(
+                    Settings.Global.DEVICE_PROVISIONED), false, this);
+        }
+
+        @Override
+        public void onChange(boolean selfChange) {
+            if (Settings.Global.getInt(mContext.getContentResolver(),
+                    Settings.Global.DEVICE_PROVISIONED, 0) != 0) {
+                Log.i("WizardFinishedObserver","Device Provisionned!!!");
+                Global.putInt(mContext.getContentResolver(),
+                        Global.WIFI_SCAN_ALWAYS_AVAILABLE,
+                        (0));
+            }
+        }
     }
 
     private WifiController mWifiController;
+
+
+    public String setSafeChannel(int safeChannelBitmap) {
+       return mWifiNative.setSafeChannel(safeChannelBitmap);
+    }
+
+    public String setRTCoexMode(int enable, int safeChannelBitmap) {
+       return mWifiNative.setRTCoexMode(enable,safeChannelBitmap);
+    }
 
     /**
      * Check if Wi-Fi needs to be enabled and start
@@ -357,15 +423,17 @@ public final class WifiService extends IWifiManager.Stub {
     }
 
     private class BatchedScanRequest extends DeathRecipient {
-        BatchedScanSettings settings;
-        int uid;
-        int pid;
+        final BatchedScanSettings settings;
+        final int uid;
+        final int pid;
+        final WorkSource workSource;
 
-        BatchedScanRequest(BatchedScanSettings settings, IBinder binder) {
+        BatchedScanRequest(BatchedScanSettings settings, IBinder binder, WorkSource ws) {
             super(0, null, binder, null);
             this.settings = settings;
             this.uid = getCallingUid();
             this.pid = getCallingPid();
+            workSource = ws;
         }
         public void binderDied() {
             stopBatchedScan(settings, uid, pid);
@@ -394,12 +462,19 @@ public final class WifiService extends IWifiManager.Stub {
     /**
      * see {@link android.net.wifi.WifiManager#requestBatchedScan()}
      */
-    public boolean requestBatchedScan(BatchedScanSettings requested, IBinder binder) {
+    public boolean requestBatchedScan(BatchedScanSettings requested, IBinder binder,
+            WorkSource workSource) {
         enforceChangePermission();
+        if (workSource != null) {
+            enforceWorkSourcePermission();
+            // WifiManager currently doesn't use names, so need to clear names out of the
+            // supplied WorkSource to allow future WorkSource combining.
+            workSource.clearNames();
+        }
         if (mBatchedScanSupported == false) return false;
         requested = new BatchedScanSettings(requested);
         if (requested.isInvalid()) return false;
-        BatchedScanRequest r = new BatchedScanRequest(requested, binder);
+        BatchedScanRequest r = new BatchedScanRequest(requested, binder, workSource);
         synchronized(mBatchedScanners) {
             mBatchedScanners.add(r);
             resolveBatchedScannersLocked();
@@ -456,18 +531,48 @@ public final class WifiService extends IWifiManager.Stub {
 
     private void resolveBatchedScannersLocked() {
         BatchedScanSettings setting = new BatchedScanSettings();
+        WorkSource responsibleWorkSource = null;
         int responsibleUid = 0;
+        double responsibleCsph = 0; // Channel Scans Per Hour
 
         if (mBatchedScanners.size() == 0) {
-            mWifiStateMachine.setBatchedScanSettings(null, 0);
+            mWifiStateMachine.setBatchedScanSettings(null, 0, 0, null);
             return;
         }
         for (BatchedScanRequest r : mBatchedScanners) {
             BatchedScanSettings s = r.settings;
+
+            // evaluate responsibility
+            int currentChannelCount;
+            int currentScanInterval;
+            double currentCsph;
+
+            if (s.channelSet == null || s.channelSet.isEmpty()) {
+                // all channels - 11 B and 9 A channels roughly.
+                currentChannelCount = 9 + 11;
+            } else {
+                currentChannelCount = s.channelSet.size();
+                // these are rough est - no real need to correct for reg-domain;
+                if (s.channelSet.contains("A")) currentChannelCount += (9 - 1);
+                if (s.channelSet.contains("B")) currentChannelCount += (11 - 1);
+
+            }
+            if (s.scanIntervalSec == BatchedScanSettings.UNSPECIFIED) {
+                currentScanInterval = BatchedScanSettings.DEFAULT_INTERVAL_SEC;
+            } else {
+                currentScanInterval = s.scanIntervalSec;
+            }
+            currentCsph = 60 * 60 * currentChannelCount / currentScanInterval;
+
+            if (currentCsph > responsibleCsph) {
+                responsibleUid = r.uid;
+                responsibleWorkSource = r.workSource;
+                responsibleCsph = currentCsph;
+            }
+
             if (s.maxScansPerBatch != BatchedScanSettings.UNSPECIFIED &&
                     s.maxScansPerBatch < setting.maxScansPerBatch) {
                 setting.maxScansPerBatch = s.maxScansPerBatch;
-                responsibleUid = r.uid;
             }
             if (s.maxApPerScan != BatchedScanSettings.UNSPECIFIED &&
                     (setting.maxApPerScan == BatchedScanSettings.UNSPECIFIED ||
@@ -477,7 +582,6 @@ public final class WifiService extends IWifiManager.Stub {
             if (s.scanIntervalSec != BatchedScanSettings.UNSPECIFIED &&
                     s.scanIntervalSec < setting.scanIntervalSec) {
                 setting.scanIntervalSec = s.scanIntervalSec;
-                responsibleUid = r.uid;
             }
             if (s.maxApForDistance != BatchedScanSettings.UNSPECIFIED &&
                     (setting.maxApForDistance == BatchedScanSettings.UNSPECIFIED ||
@@ -499,10 +603,11 @@ public final class WifiService extends IWifiManager.Stub {
         }
 
         setting.constrain();
-        mWifiStateMachine.setBatchedScanSettings(setting, responsibleUid);
+        mWifiStateMachine.setBatchedScanSettings(setting, responsibleUid, (int)responsibleCsph,
+                responsibleWorkSource);
     }
 
-    private void enforceAccessPermission() {
+    protected void enforceAccessPermission() {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.ACCESS_WIFI_STATE,
                                                 "WifiService");
     }
@@ -549,17 +654,15 @@ public final class WifiService extends IWifiManager.Stub {
         * Caller might not have WRITE_SECURE_SETTINGS,
         * only CHANGE_WIFI_STATE is enforced
         */
-
         long ident = Binder.clearCallingIdentity();
         try {
             if (! mSettingsStore.handleWifiToggled(enable)) {
                 // Nothing to do if wifi cannot be toggled
                 return true;
-            }
+             }
         } finally {
             Binder.restoreCallingIdentity(ident);
         }
-
         mWifiController.sendMessage(CMD_WIFI_TOGGLED);
         return true;
     }
@@ -685,6 +788,9 @@ public final class WifiService extends IWifiManager.Stub {
      */
     public int addOrUpdateNetwork(WifiConfiguration config) {
         enforceChangePermission();
+        if (config.proxySettings == ProxySettings.PAC) {
+            enforceConnectivityInternalPermission();
+        }
         if (config.isValid()) {
             if (mWifiStateMachineChannel != null) {
                 return mWifiStateMachine.syncAddOrUpdateNetwork(mWifiStateMachineChannel, config);
@@ -695,6 +801,23 @@ public final class WifiService extends IWifiManager.Stub {
         } else {
             Slog.e(TAG, "bad network configuration");
             return -1;
+        }
+    }
+
+    /**
+     * see {@link android.net.wifi.WifiManager#updateIccNetworks(boolean)}
+     * @param enable true/false to enable/disable networks configured
+     * with an enterprise security related to SIM/USIM card (EAP-SIM/AKA)
+     * @return {@code true} if the operation succeeded
+     * @hide
+     */
+    public boolean updateIccNetworks(boolean enable) {
+        enforceChangePermission();
+        if (mWifiStateMachineChannel != null) {
+            return mWifiStateMachine.syncUpdateIccNetworks(mWifiStateMachineChannel, enable);
+        } else {
+            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
+            return false;
         }
     }
 
@@ -777,10 +900,20 @@ public final class WifiService extends IWifiManager.Stub {
                 return new ArrayList<ScanResult>();
             }
             int currentUser = ActivityManager.getCurrentUser();
-            if (userId != currentUser) {
-                return new ArrayList<ScanResult>();
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                /* ARKHAM-621 Let WiFi networks be displayed in container Settings. */
+                if (userId != currentUser && !ContainerCommons.isContainerUser(mContext, userId)) {
+                    return new ArrayList<ScanResult>();
+                /* END ARKHAM-621 changes. */
+                } else {
+                    return mWifiStateMachine.syncGetScanResultsList();
+                }
             } else {
-                return mWifiStateMachine.syncGetScanResultsList();
+                if (userId != currentUser) {
+                    return new ArrayList<ScanResult>();
+                } else {
+                    return mWifiStateMachine.syncGetScanResultsList();
+                }
             }
         } finally {
             Binder.restoreCallingIdentity(ident);
@@ -856,10 +989,30 @@ public final class WifiService extends IWifiManager.Stub {
         return mWifiStateMachine.getFrequencyBand();
     }
 
+    /**
+     * Check if current Wifi configuration supports both 2.4 and 5 GHz frequency bands.
+     * @return {@code true} if dual band is supported, {@code false} if only one band is supported.
+     */
     public boolean isDualBandSupported() {
-        //TODO: Should move towards adding a driver API that checks at runtime
-        return mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_wifi_dual_band_support);
+        /*
+         * If user had the opportunity to select a band different than Auto,
+         * this confirms that dual band is supported.
+         */
+        if (getFrequencyBand() != WifiManager.WIFI_FREQUENCY_BAND_AUTO) {
+            return true;
+        }
+
+        /*
+         * If Band is set to Auto, we ask to lower layers what are the capabilities of the device.
+         * And if state machine doesn't reply a consistent response, then we use the old method.
+         */
+        List<Integer> bandsList = mWifiStateMachine.getSupportedBands();
+        if (bandsList == null || bandsList.isEmpty()) {
+            return mContext.getResources().getBoolean(
+                    com.android.internal.R.bool.config_wifi_dual_band_support);
+        } else {
+            return (bandsList.size() > 1);
+        }
     }
 
     /**
@@ -928,6 +1081,11 @@ public final class WifiService extends IWifiManager.Stub {
 
         mWifiStateMachine.setDriverStart(true);
         mWifiStateMachine.reconnectCommand();
+    }
+
+    public void haltWifi() {
+        enforceConnectivityInternalPermission();
+        mWifiStateMachine.halt();
     }
 
     public void captivePortalCheckComplete() {
@@ -1099,6 +1257,18 @@ public final class WifiService extends IWifiManager.Stub {
             } else if (action.equals(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED)) {
                 boolean emergencyMode = intent.getBooleanExtra("phoneinECMState", false);
                 mWifiController.sendMessage(CMD_EMERGENCY_MODE_CHANGED, emergencyMode ? 1 : 0, 0);
+            } else if (action.equals(WifiStateMachine.SHUT_DOWN_WIFI_ACTION)) {
+                mWifiController.sendMessage(CMD_DEVICE_IDLE);
+            } else if (action.equals(TelephonyIntents.ACTION_SIM_STATE_CHANGED)) {
+                String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
+                if (IccCardConstants.INTENT_VALUE_ICC_LOADED.equals(stateExtra)) {
+                    if (DBG) Slog.d(TAG, "SIM Card inserted");
+                    updateIccNetworks(true);
+                } else if (IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra)
+                        || IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra)) {
+                    if (DBG) Slog.d(TAG, "SIM Card removed or not ready");
+                    updateIccNetworks(false);
+                }
             }
         }
     };
@@ -1129,6 +1299,8 @@ public final class WifiService extends IWifiManager.Stub {
         intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         intentFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
+        intentFilter.addAction(WifiStateMachine.SHUT_DOWN_WIFI_ACTION);
+        intentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
         mContext.registerReceiver(mReceiver, intentFilter);
     }
 

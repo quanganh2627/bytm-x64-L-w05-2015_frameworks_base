@@ -76,6 +76,7 @@ import com.android.internal.R;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.IndentingPrintWriter;
 import com.android.server.FgThread;
+import com.intel.config.FeatureConfig;
 import com.google.android.collect.Lists;
 import com.google.android.collect.Sets;
 
@@ -155,7 +156,7 @@ public class AccountManagerService
 
     private static final String[] ACCOUNT_TYPE_COUNT_PROJECTION =
             new String[] { ACCOUNTS_TYPE, ACCOUNTS_TYPE_COUNT};
-    private static final Intent ACCOUNTS_CHANGED_INTENT;
+    protected static final Intent ACCOUNTS_CHANGED_INTENT;
 
     private static final String COUNT_OF_MATCHING_GRANTS = ""
             + "SELECT COUNT(*) FROM " + TABLE_GRANTS + ", " + TABLE_ACCOUNTS
@@ -190,10 +191,10 @@ public class AccountManagerService
         private final HashMap<String, Account[]> accountCache =
                 new LinkedHashMap<String, Account[]>();
         /** protected by the {@link #cacheLock} */
-        private HashMap<Account, HashMap<String, String>> userDataCache =
+        private final HashMap<Account, HashMap<String, String>> userDataCache =
                 new HashMap<Account, HashMap<String, String>>();
         /** protected by the {@link #cacheLock} */
-        private HashMap<Account, HashMap<String, String>> authTokenCache =
+        private final HashMap<Account, HashMap<String, String>> authTokenCache =
                 new HashMap<Account, HashMap<String, String>>();
 
         UserAccounts(Context context, int userId) {
@@ -204,7 +205,7 @@ public class AccountManagerService
         }
     }
 
-    private final SparseArray<UserAccounts> mUsers = new SparseArray<UserAccounts>();
+    protected final SparseArray<UserAccounts> mUsers = new SparseArray<UserAccounts>();
 
     private static AtomicReference<AccountManagerService> sThis =
             new AtomicReference<AccountManagerService>();
@@ -286,7 +287,7 @@ public class AccountManagerService
     public void systemReady() {
     }
 
-    private UserManager getUserManager() {
+    protected UserManager getUserManager() {
         if (mUserManager == null) {
             mUserManager = UserManager.get(mContext);
         }
@@ -433,7 +434,7 @@ public class AccountManagerService
         }
     }
 
-    private void onUserRemoved(Intent intent) {
+    protected void onUserRemoved(Intent intent) {
         int userId = intent.getIntExtra(Intent.EXTRA_USER_HANDLE, -1);
         if (userId < 1) return;
 
@@ -475,6 +476,7 @@ public class AccountManagerService
         validateAccountsInternal(getUserAccounts(userId), false /* invalidateAuthenticatorCache */);
     }
 
+    @Override
     public String getPassword(Account account) {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
             Log.v(TAG, "getPassword: " + account
@@ -514,6 +516,7 @@ public class AccountManagerService
         }
     }
 
+    @Override
     public String getUserData(Account account, String key) {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
             Log.v(TAG, "getUserData: " + account
@@ -533,6 +536,7 @@ public class AccountManagerService
         }
     }
 
+    @Override
     public AuthenticatorDescription[] getAuthenticatorTypes() {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
             Log.v(TAG, "getAuthenticatorTypes: "
@@ -763,6 +767,7 @@ public class AccountManagerService
         return db.insert(TABLE_EXTRAS, EXTRAS_KEY, values);
     }
 
+    @Override
     public void hasFeatures(IAccountManagerResponse response,
             Account account, String[] features) {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
@@ -840,6 +845,7 @@ public class AccountManagerService
         }
     }
 
+    @Override
     public void removeAccount(IAccountManagerResponse response, Account account) {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
             Log.v(TAG, "removeAccount: " + account
@@ -1049,6 +1055,7 @@ public class AccountManagerService
         }
     }
 
+    @Override
     public String peekAuthToken(Account account, String authTokenType) {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
             Log.v(TAG, "peekAuthToken: " + account
@@ -1068,6 +1075,7 @@ public class AccountManagerService
         }
     }
 
+    @Override
     public void setAuthToken(Account account, String authTokenType, String authToken) {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
             Log.v(TAG, "setAuthToken: " + account
@@ -1087,6 +1095,7 @@ public class AccountManagerService
         }
     }
 
+    @Override
     public void setPassword(Account account, String password) {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
             Log.v(TAG, "setAuthToken: " + account
@@ -1129,12 +1138,13 @@ public class AccountManagerService
         }
     }
 
-    private void sendAccountsChangedBroadcast(int userId) {
+    protected void sendAccountsChangedBroadcast(int userId) {
         Log.i(TAG, "the accounts changed, sending broadcast of "
                 + ACCOUNTS_CHANGED_INTENT.getAction());
         mContext.sendBroadcastAsUser(ACCOUNTS_CHANGED_INTENT, new UserHandle(userId));
     }
 
+    @Override
     public void clearPassword(Account account) {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
             Log.v(TAG, "clearPassword: " + account
@@ -1152,6 +1162,7 @@ public class AccountManagerService
         }
     }
 
+    @Override
     public void setUserData(Account account, String key, String value) {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
             Log.v(TAG, "setUserData: " + account
@@ -1225,6 +1236,7 @@ public class AccountManagerService
         }
     }
 
+    @Override
     public void getAuthTokenLabel(IAccountManagerResponse response, final String accountType,
                                   final String authTokenType)
             throws RemoteException {
@@ -1271,6 +1283,7 @@ public class AccountManagerService
         }
     }
 
+    @Override
     public void getAuthToken(IAccountManagerResponse response, final Account account,
             final String authTokenType, final boolean notifyOnAuthFailure,
             final boolean expectActivityLaunch, Bundle loginOptionsIn) {
@@ -1284,8 +1297,22 @@ public class AccountManagerService
                     + ", pid " + Binder.getCallingPid());
         }
         if (response == null) throw new IllegalArgumentException("response is null");
-        if (account == null) throw new IllegalArgumentException("account is null");
-        if (authTokenType == null) throw new IllegalArgumentException("authTokenType is null");
+        try {
+            if (account == null) {
+                Slog.w(TAG, "getAuthToken called with null account");
+                response.onError(AccountManager.ERROR_CODE_BAD_ARGUMENTS, "account is null");
+                return;
+            }
+            if (authTokenType == null) {
+                Slog.w(TAG, "getAuthToken called with null authTokenType");
+                response.onError(AccountManager.ERROR_CODE_BAD_ARGUMENTS, "authTokenType is null");
+                return;
+            }
+        } catch (RemoteException e) {
+            Slog.w(TAG, "Failed to report error back to the client." + e);
+            return;
+        }
+
         checkBinderPermission(Manifest.permission.USE_CREDENTIALS);
         final UserAccounts accounts = getUserAccountsForCaller();
         final RegisteredServicesCache.ServiceInfo<AuthenticatorDescription> authenticatorInfo;
@@ -1294,11 +1321,6 @@ public class AccountManagerService
         final boolean customTokens =
             authenticatorInfo != null && authenticatorInfo.type.customTokens;
 
-        // Check to see that the app is authorized to access the account, in case it's a
-        // restricted account.
-        if (!ArrayUtils.contains(getAccounts((String) null), account)) {
-            throw new IllegalArgumentException("no such account");
-        }
         // skip the check if customTokens
         final int callerUid = Binder.getCallingUid();
         final boolean permissionGranted = customTokens ||
@@ -1472,6 +1494,7 @@ public class AccountManagerService
         return id;
     }
 
+    @Override
     public void addAccount(final IAccountManagerResponse response, final String accountType,
             final String authTokenType, final String[] requiredFeatures,
             final boolean expectActivityLaunch, final Bundle optionsIn) {
@@ -1582,6 +1605,7 @@ public class AccountManagerService
         }
     }
 
+    @Override
     public void updateCredentials(IAccountManagerResponse response, final Account account,
             final String authTokenType, final boolean expectActivityLaunch,
             final Bundle loginOptions) {
@@ -1620,6 +1644,7 @@ public class AccountManagerService
         }
     }
 
+    @Override
     public void editProperties(IAccountManagerResponse response, final String accountType,
             final boolean expectActivityLaunch) {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
@@ -1657,7 +1682,7 @@ public class AccountManagerService
         private volatile Account[] mAccountsOfType = null;
         private volatile ArrayList<Account> mAccountsWithFeatures = null;
         private volatile int mCurrentAccount = 0;
-        private int mCallingUid;
+        private final int mCallingUid;
 
         public GetAccountsByTypeAndFeatureSession(UserAccounts accounts,
                 IAccountManagerResponse response, String type, String[] features, int callingUid) {
@@ -1941,6 +1966,7 @@ public class AccountManagerService
         return getAccountsAsUser(type, UserHandle.getCallingUserId(), packageName, packageUid);
     }
 
+    @Override
     public void getAccountsByFeatures(IAccountManagerResponse response,
             String type, String[] features) {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
@@ -2069,6 +2095,7 @@ public class AccountManagerService
             unbind();
         }
 
+        @Override
         public void binderDied() {
             mResponse = null;
             close();
@@ -2112,6 +2139,7 @@ public class AccountManagerService
             mMessageHandler.removeMessages(MESSAGE_TIMED_OUT, this);
         }
 
+        @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
             mAuthenticator = IAccountAuthenticator.Stub.asInterface(service);
             try {
@@ -2122,6 +2150,7 @@ public class AccountManagerService
             }
         }
 
+        @Override
         public void onServiceDisconnected(ComponentName name) {
             mAuthenticator = null;
             IAccountManagerResponse response = getResponseAndClose();
@@ -2217,7 +2246,14 @@ public class AccountManagerService
                             Log.v(TAG, getClass().getSimpleName()
                                     + " calling onResult() on response " + response);
                         }
-                        response.onResult(result);
+                        if ((result.getInt(AccountManager.KEY_ERROR_CODE, -1) > 0) &&
+                                (intent == null)) {
+                            // All AccountManager error codes are greater than 0
+                            response.onError(result.getInt(AccountManager.KEY_ERROR_CODE),
+                                    result.getString(AccountManager.KEY_ERROR_MESSAGE));
+                        } else {
+                            response.onResult(result);
+                        }
                     }
                 } catch (RemoteException e) {
                     // if the caller is dead then there is no one to care about remote exceptions
@@ -2228,10 +2264,12 @@ public class AccountManagerService
             }
         }
 
+        @Override
         public void onRequestContinued() {
             mNumRequestContinued++;
         }
 
+        @Override
         public void onError(int errorCode, String errorMessage) {
             mNumErrors++;
             IAccountManagerResponse response = getResponseAndClose();
@@ -2731,6 +2769,7 @@ public class AccountManagerService
         return true;
     }
 
+    @Override
     public void updateAppPermission(Account account, String authTokenType, int uid, boolean value)
             throws RemoteException {
         final int callingUid = getCallingUid();
@@ -3047,5 +3086,22 @@ public class AccountManagerService
             cursor.close();
         }
         return authTokensForAccount;
+    }
+
+    protected void closeAccountDatabase(int userId) {
+        if (!FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            return;
+        }
+
+        UserAccounts accounts;
+        synchronized (mUsers) {
+            accounts = mUsers.get(userId);
+        }
+        if (accounts == null) {
+            return;
+        }
+        synchronized (accounts.cacheLock) {
+            accounts.openHelper.close();
+        }
     }
 }

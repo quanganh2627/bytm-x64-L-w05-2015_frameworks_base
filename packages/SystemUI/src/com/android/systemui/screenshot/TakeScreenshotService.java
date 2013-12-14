@@ -17,12 +17,18 @@
 package com.android.systemui.screenshot;
 
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.widget.Toast;
+
+import com.android.systemui.R;
+import com.intel.arkham.ContainerCommons;
+import com.intel.config.FeatureConfig;
 
 public class TakeScreenshotService extends Service {
     private static final String TAG = "TakeScreenshotService";
@@ -38,17 +44,45 @@ public class TakeScreenshotService extends Service {
                     if (mScreenshot == null) {
                         mScreenshot = new GlobalScreenshot(TakeScreenshotService.this);
                     }
-                    mScreenshot.takeScreenshot(new Runnable() {
-                        @Override public void run() {
-                            Message reply = Message.obtain(null, 1);
-                            try {
-                                callback.send(reply);
-                            } catch (RemoteException e) {
-                            }
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        boolean res = false;
+                        // ARKHAM-191 Determine if the top running activity is a container activity
+                        try {
+                            res = ContainerCommons.isTopRunningActivityInContainer(0);
+                        } catch (RemoteException e) {
                         }
-                    }, msg.arg1 > 0, msg.arg2 > 0);
+                        if (!res) {
+                            mScreenshot.takeScreenshot(new Runnable() {
+                                @Override public void run() {
+                                    Message reply = Message.obtain(null, 1);
+                                    try {
+                                        callback.send(reply);
+                                    } catch (RemoteException e) {
+                                    }
+                                }
+                            }, msg.arg1 > 0, msg.arg2 > 0);
+                        }
+                        // ARKHAM-275 Display a toast text message which states that screenshot is
+                        // disabled for container applications
+                        else {
+                            Context c = getApplicationContext();
+                            String s = c.getResources().getString(R.string.screenshot_disabled);
+                            Toast.makeText(c, s, Toast.LENGTH_LONG).show();
+                        }
+                    } else {
+                        mScreenshot.takeScreenshot(new Runnable() {
+                                @Override public void run() {
+                                    Message reply = Message.obtain(null, 1);
+                                    try {
+                                        callback.send(reply);
+                                    } catch (RemoteException e) {
+                                    }
+                                }
+                            }, msg.arg1 > 0, msg.arg2 > 0);
+                    }
             }
         }
+
     };
 
     @Override

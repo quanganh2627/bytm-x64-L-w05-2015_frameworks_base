@@ -772,7 +772,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
         notifyClearAccessibilityNodeInfoCacheLocked();
     }
 
-    private void switchUser(int userId) {
+    protected void switchUser(int userId) {
         synchronized (mLock) {
             if (mCurrentUserId == userId && mInitialized) {
                 return;
@@ -2955,15 +2955,20 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
 
         private Service mUiAutomationService;
         private IAccessibilityServiceClient mUiAutomationServiceClient;
+        private final Object mLock = new Object();
 
         private IBinder mUiAutomationServiceOwner;
         private final DeathRecipient mUiAutomationSerivceOnwerDeathRecipient =
                 new DeathRecipient() {
             @Override
             public void binderDied() {
-                mUiAutomationServiceOwner.unlinkToDeath(
-                        mUiAutomationSerivceOnwerDeathRecipient, 0);
-                mUiAutomationServiceOwner = null;
+                synchronized (mLock) {
+                    if (mUiAutomationServiceOwner != null) {
+                        mUiAutomationServiceOwner.unlinkToDeath(
+                                mUiAutomationSerivceOnwerDeathRecipient, 0);
+                        mUiAutomationServiceOwner = null;
+                    }
+                }
                 if (mUiAutomationService != null) {
                     mUiAutomationService.binderDied();
                 }
@@ -3015,11 +3020,13 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
         public void destroyUiAutomationService() {
             mUiAutomationService = null;
             mUiAutomationServiceClient = null;
-            if (mUiAutomationServiceOwner != null) {
-                mUiAutomationServiceOwner.unlinkToDeath(
-                        mUiAutomationSerivceOnwerDeathRecipient, 0);
-                mUiAutomationServiceOwner = null;
-            }
+            synchronized (mLock) {
+               if (mUiAutomationServiceOwner != null) {
+                   mUiAutomationServiceOwner.unlinkToDeath(
+                           mUiAutomationSerivceOnwerDeathRecipient, 0);
+                   mUiAutomationServiceOwner = null;
+               }
+           }
         }
     }
 

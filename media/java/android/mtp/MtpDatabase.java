@@ -26,6 +26,11 @@ import android.database.sqlite.SQLiteDatabase;
 import android.media.MediaScanner;
 import android.net.Uri;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.Looper;
+import android.os.Message;
+import android.os.Process;
 import android.os.RemoteException;
 import android.provider.MediaStore;
 import android.provider.MediaStore.Audio;
@@ -46,6 +51,8 @@ import java.util.Locale;
 public class MtpDatabase {
 
     private static final String TAG = "MtpDatabase";
+    private static final String MTP_UI_ACTION = "com.intel.mtp.action";
+    private static final String MTP_STATUS = "status" ;
 
     private final Context mContext;
     private final String mPackageName;
@@ -116,6 +123,12 @@ public class MtpDatabase {
 
     private final MediaScanner mMediaScanner;
 
+    private static final int MSG_UPDATE_STATE = 0;
+    private static final int MTP_SERVER_IDLE = 0;
+    private static final int MTP_SERVER_BUSY = 1;
+    private MtpDatabaseHandler mHandler;
+    private static final int UPDATE_DELAY = 5500;
+
     static {
         System.loadLibrary("media_jni");
     }
@@ -171,15 +184,65 @@ public class MtpDatabase {
             }
         }
         initDeviceProperties(context);
+
+        //create a thread for our handler
+        HandlerThread thread = new HandlerThread("MtpDatabase",
+            Process.THREAD_PRIORITY_BACKGROUND);
+
+        thread.start();
+        mHandler = new MtpDatabaseHandler(thread.getLooper());
+
+        if (mHandler != null)
+            mHandler.updateMtpState(MTP_SERVER_IDLE);
+    }
+
+
+    private final class MtpDatabaseHandler extends Handler {
+
+        private boolean mMtpBusy;
+
+        public MtpDatabaseHandler(Looper looper) {
+            super(looper);
+        }
+
+        public void updateMtpState(int flag) {
+            removeMessages(MSG_UPDATE_STATE);
+            Message msg = Message.obtain(this,MSG_UPDATE_STATE);
+            msg.arg1 = flag ;
+            sendMessageDelayed(msg, (flag == MTP_SERVER_IDLE)? UPDATE_DELAY : 0);
+        }
+
+        @Override
+        public void handleMessage(Message msg){
+            switch(msg.what) {
+                case MSG_UPDATE_STATE:
+                    mMtpBusy = (msg.arg1 == MTP_SERVER_BUSY );
+                    Log.d(TAG, "send update message with " + mMtpBusy);
+                    sendObjectIntent(mMtpBusy);
+                    break;
+                default:
+                    Log.e(TAG, "handleMessage is " + msg.what);
+                    break;
+            }
+        }
+    }
+
+    private void sendObjectIntent(boolean flag){
+        Intent intent = new Intent(MTP_UI_ACTION);
+        intent.addFlags(Intent.FLAG_RECEIVER_REPLACE_PENDING);
+        intent.putExtra(MTP_STATUS, flag);
+        mContext.sendStickyBroadcast(intent);
+    }
+
+
+    public void release() {
+            mHandler.updateMtpState(MTP_SERVER_IDLE);
+            native_release();
     }
 
     @Override
-    protected void finalize() throws Throwable {
-        try {
+    protected void finalize() {
             native_finalize();
-        } finally {
-            super.finalize();
-        }
     }
 
     public void addStorage(MtpStorage storage) {
@@ -293,6 +356,7 @@ public class MtpDatabase {
         try {
             Uri uri = mMediaProvider.insert(mPackageName, mObjectsUri, values);
             if (uri != null) {
+                mHandler.updateMtpState(MTP_SERVER_BUSY);
                 return Integer.parseInt(uri.getPathSegments().get(2));
             } else {
                 return -1;
@@ -337,6 +401,7 @@ public class MtpDatabase {
         } else {
             deleteFile(handle);
         }
+        mHandler.updateMtpState(MTP_SERVER_IDLE);
     }
 
     private Cursor createObjectQuery(int storageID, int format, int parent) throws RemoteException {
@@ -895,7 +960,13 @@ public class MtpDatabase {
                             ID_WHERE, new String[] {  Integer.toString(handle) }, null, null);
             if (c != null && c.moveToNext()) {
                 String path = c.getString(1);
-                path.getChars(0, path.length(), outFilePath, 0);
+                int length = path.length();
+
+                if (length > 255) {
+                    Log.w(TAG, "Object file path is too long");
+                    return MtpConstants.RESPONSE_GENERAL_ERROR;
+                }
+                path.getChars(0, length, outFilePath, 0);
                 outFilePath[path.length()] = 0;
                 // File transfers from device to host will likely fail if the size is incorrect.
                 // So to be safe, use the actual file size here.
@@ -913,6 +984,17 @@ public class MtpDatabase {
                 c.close();
             }
         }
+    }
+
+    public long getObjectSize(int handle) {
+        int ret;
+        char[] outFilePath = new char[256];
+        long[] outFileLengthFormat = new long[2];
+
+        ret = getObjectFilePath(handle, outFilePath, outFileLengthFormat);
+        if (ret != MtpConstants.RESPONSE_OK)
+            return -1;
+        return outFileLengthFormat[0];
     }
 
     private int deleteFile(int handle) {
@@ -1035,9 +1117,22 @@ public class MtpDatabase {
         }
     }
 
+    private void transferStarted() {
+        if (mHandler != null) {
+            mHandler.updateMtpState(MTP_SERVER_BUSY);
+        }
+    }
+
+    private void transferEnded() {
+        if (mHandler != null) {
+            mHandler.updateMtpState(MTP_SERVER_IDLE);
+        }
+    }
+
     // used by the JNI code
     private int mNativeContext;
 
     private native final void native_setup();
     private native final void native_finalize();
+    private native final void native_release();
 }

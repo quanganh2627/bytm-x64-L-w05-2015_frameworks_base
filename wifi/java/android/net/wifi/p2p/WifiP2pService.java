@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+/*
+ * Portions contributed by: Intel Corporation
+ */
+
 package android.net.wifi.p2p;
 
 import android.app.AlertDialog;
@@ -85,6 +89,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+
 
 /**
  * WifiP2pService includes a state machine to perform Wi-Fi p2p operations. Applications
@@ -125,8 +131,8 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
     private static final int DISABLE_P2P_WAIT_TIME_MS = 5 * 1000;
     private static int mDisableP2pTimeoutIndex = 0;
 
-    /* Set a two minute discover timeout to avoid STA scans from being blocked */
-    private static final int DISCOVER_TIMEOUT_S = 120;
+    /* Set a thirty seconds discover timeout to avoid STA scans from being blocked */
+    private static final int DISCOVER_TIMEOUT_S = 30;
 
     /* Idle time after a peer is gone when the group is torn down */
     private static final int GROUP_IDLE_TIME_S = 10;
@@ -200,6 +206,10 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
      * (notably dhcp)
      */
     private boolean mDiscoveryBlocked;
+
+    // Supplicant doesn't like setting the same country code multiple times (it may drop
+    // current connected network), so we save the country code here to avoid redundency
+    private String mLastSetCountryCode;
 
     /*
      * remember if we were in a scan when it had to be stopped
@@ -595,6 +605,7 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                             mGroup != null ? new WifiP2pGroup(mGroup) : null);
                     break;
                 case WifiP2pManager.REQUEST_PERSISTENT_GROUP_INFO:
+                    updatePersistentNetworks(NO_RELOAD);
                     replyToMessage(message, WifiP2pManager.RESPONSE_PERSISTENT_GROUP_INFO,
                             new WifiP2pGroupList(mGroups, null));
                     break;
@@ -1070,7 +1081,13 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                     break;
                 case SET_COUNTRY_CODE:
                     String countryCode = (String) message.obj;
-                    mWifiNative.setCountryCode(countryCode);
+                    countryCode = countryCode.toUpperCase(Locale.ROOT);
+                    if (mLastSetCountryCode == null ||
+                            countryCode.equals(mLastSetCountryCode) == false) {
+                        if (mWifiNative.setCountryCode(countryCode)) {
+                            mLastSetCountryCode = countryCode;
+                        }
+                    }
                     break;
                 default:
                    return NOT_HANDLED;
@@ -1082,6 +1099,8 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
         public void exit() {
             sendP2pStateChangedBroadcast(false);
             mNetworkInfo.setIsAvailable(false);
+
+            mLastSetCountryCode = null;
         }
     }
 
@@ -1554,7 +1573,8 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                         break;
                     }
                     loge("Invitation result " + status);
-                    if (status == P2pStatus.UNKNOWN_P2P_GROUP) {
+                    if ((status == P2pStatus.UNKNOWN_P2P_GROUP) ||
+                       (status == P2pStatus.INFORMATION_IS_CURRENTLY_UNAVAILABLE)) {
                         // target device has already removed the credential.
                         // So, remove this credential accordingly.
                         int netId = mSavedPeerConfig.netId;
@@ -1760,6 +1780,13 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                         mWifiNative.p2pGroupRemove(mGroup.getInterface());
                     }
                     break;
+                case WifiP2pManager.CANCEL_CONNECT:
+                    // In case user cancels the connection although group has
+                    // already being created by supplicant.Remove the group in
+                    // this case.
+                    // It allows to improve User experience.
+                    if (DBG) logd("cancel connection ");
+                    replyToMessage(message, WifiP2pManager.CANCEL_CONNECT_SUCCEEDED);
                 case WifiP2pManager.REMOVE_GROUP:
                     if (DBG) logd(getName() + " remove group");
                     if (mWifiNative.p2pGroupRemove(mGroup.getInterface())) {
@@ -2237,6 +2264,8 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
             }
 
             if (mGroups.contains(netId)) {
+                if (updateClientList(netId))
+                    isSaveRequired = true;
                 continue;
             }
 
@@ -2253,6 +2282,12 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                 WifiP2pDevice device = new WifiP2pDevice();
                 device.deviceAddress = bssid;
                 group.setOwner(device);
+            }
+            String[] p2pClientList = getClientList(netId);
+            if (p2pClientList != null) {
+                for (String client : p2pClientList) {
+                    group.addClient(client);
+                }
             }
             mGroups.add(group);
             isSaveRequired = true;
@@ -2405,6 +2440,46 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
             return null;
         }
         return p2pClients.split(" ");
+    }
+
+     /**
+     * Update client list of group with the specified network id.
+     * @param netId network id.
+     * @return whether the client list has been updated or not
+     */
+    private boolean updateClientList(int netId) {
+        boolean updated = false;
+
+        Collection<WifiP2pGroup> groups = mGroups.getGroupList();
+        for (WifiP2pGroup group : groups) {
+            if (group.getNetworkId() == netId) {
+                Collection<WifiP2pDevice> savedClientList = group.getClientList();
+                Collection<WifiP2pDevice> currentClientList = new ArrayList<WifiP2pDevice>();
+
+                String[] p2pClientList = getClientList(netId);
+                if (p2pClientList != null) {
+                    for (String client : p2pClientList) {
+                        currentClientList.add(new WifiP2pDevice(client));
+                    }
+                }
+
+                for (WifiP2pDevice client : savedClientList) {
+                    if (!currentClientList.contains(client)) {
+                        group.removeClient(client);
+                        updated = true;
+                    }
+                }
+
+                for (WifiP2pDevice client : currentClientList) {
+                    if (!savedClientList.contains(client)) {
+                        group.addClient(client);
+                        updated = true;
+                    }
+                }
+                break;
+            }
+        }
+        return updated;
     }
 
     /**

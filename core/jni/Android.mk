@@ -11,10 +11,17 @@ else
 	LOCAL_CFLAGS += -DPACKED=""
 endif
 
+ifeq ($(INTEL_INGREDIENTS_VERSIONS), true)
+	LOCAL_CFLAGS += -DRETRIEVE_INGREDIENTS_VERSIONS
+endif
+
 ifeq ($(USE_OPENGL_RENDERER),true)
 	LOCAL_CFLAGS += -DUSE_OPENGL_RENDERER
 endif
 
+ifeq ($(strip $(INTEL_FEATURE_ASF)),true)
+    LOCAL_CPPFLAGS += -DPLATFORM_ASF_VERSION=$(PLATFORM_ASF_VERSION)
+endif
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES
 
 LOCAL_SRC_FILES:= \
@@ -60,7 +67,6 @@ LOCAL_SRC_FILES:= \
 	android_text_AndroidCharacter.cpp \
 	android_text_AndroidBidi.cpp \
 	android_os_Debug.cpp \
-	android_os_FileUtils.cpp \
 	android_os_MemoryFile.cpp \
 	android_os_MessageQueue.cpp \
 	android_os_Parcel.cpp \
@@ -150,6 +156,11 @@ LOCAL_SRC_FILES:= \
 	android_animation_PropertyValuesHolder.cpp \
 	com_android_internal_net_NetworkStatsFactory.cpp
 
+ifeq ($(strip $(INTEL_FEATURE_ARKHAM)),true)
+LOCAL_SRC_FILES += ../../../../vendor/intel/arkham/frameworks/enabled/base/core/jni/com_intel_arkham_ContainerCommons.cpp
+LOCAL_CFLAGS += -DINTEL_FEATURE_ARKHAM
+endif
+
 LOCAL_C_INCLUDES += \
 	$(JNI_H_INCLUDE) \
 	$(LOCAL_PATH)/android/graphics \
@@ -217,6 +228,15 @@ ifeq ($(USE_OPENGL_RENDERER),true)
 	LOCAL_SHARED_LIBRARIES += libhwui
 endif
 
+ifeq ($(strip $(INTEL_FEATURE_ASF)),true)
+ifneq ($(strip $(PLATFORM_ASF_VERSION)),1)
+ifneq ($(strip $(PLATFORM_ASF_VERSION)),0)
+    LOCAL_SHARED_LIBRARIES += libsecuritydeviceserviceclient
+    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/libsecuritydeviceserviceclient
+endif
+endif
+endif
+
 LOCAL_SHARED_LIBRARIES += \
 	libdl
 # we need to access the private Bionic header
@@ -227,6 +247,12 @@ LOCAL_LDLIBS += -lpthread -ldl
 
 ifeq ($(WITH_MALLOC_LEAK_CHECK),true)
 	LOCAL_CFLAGS += -DMALLOC_LEAK_CHECK
+endif
+
+ifeq ($(INTEL_HOUDINI), true)
+    LOCAL_CFLAGS += -DWITH_HOUDINI
+	LOCAL_SHARED_LIBRARIES += libdvm
+    LOCAL_STATIC_LIBRARIES += libhoudini_hook
 endif
 
 LOCAL_MODULE:= libandroid_runtime

@@ -2275,6 +2275,19 @@ public class Intent implements Parcelable, Cloneable {
             = "android.intent.action.ADVANCED_SETTINGS";
 
     /**
+     * Broadcast Action: Wireless display is turned ON or OFF.
+     *
+     * <p>The intent will have the following extra values:
+     * <ul>
+     *   <li><em>state</em> - 0 for OFF, 1 for ON. </li>
+     * </ul>
+     * @hide
+     */
+     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
+     public static final String ACTION_WIDI_TURNED =
+             "android.intent.action.WIDI_TURNED";
+
+    /**
      * Broadcast Action: An outgoing call is about to be placed.
      *
      * <p>The Intent will have the following extra value:</p>
@@ -3330,6 +3343,31 @@ public class Intent implements Parcelable, Cloneable {
      */
     public static final String EXTRA_SHUTDOWN_USERSPACE_ONLY
             = "android.intent.extra.SHUTDOWN_USERSPACE_ONLY";
+    /** Broadcast intent when set hdmi status disable/enable.
+     * @hide
+     *
+     */
+    public static final String HDMI_SET_STATUS= "android.intent.action.SET.HDMI_STATUS";
+
+    /**
+     * Used to force the screen orientation to landscape.
+     * The boolean extra field {@link #EXTRA_SET_LANDSCAPE} can be set to true
+     * to request the screen orientation forced to landscape unless the application
+     * has already specified it.
+     *
+     * {@hide}
+     */
+    public static final String ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE =
+            "android.intent.action.REQUEST_SCREEN_ORIENTATION_LANDSCAPE";
+
+    /**
+     * Set to true in {@link #ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE} to
+     * force device's screen orientation to landscape. Or set to false to let
+     * the device orientation changed according to the originall logic.
+     *
+     * {@hide}
+     */
+    public static final String EXTRA_SET_LANDSCAPE = "android.intent.extra.SET_LANDSCAPE";
 
     // ---------------------------------------------------------------------
     // ---------------------------------------------------------------------

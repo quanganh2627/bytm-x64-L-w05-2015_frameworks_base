@@ -53,13 +53,13 @@ public class ClipboardService extends IClipboard.Stub {
 
     private static final String TAG = "ClipboardService";
 
-    private final Context mContext;
+    protected final Context mContext;
     private final IActivityManager mAm;
     private final PackageManager mPm;
     private final AppOpsManager mAppOps;
     private final IBinder mPermissionOwner;
 
-    private class ListenerInfo {
+    protected class ListenerInfo {
         final int mUid;
         final String mPackageName;
         ListenerInfo(int uid, String packageName) {
@@ -68,7 +68,7 @@ public class ClipboardService extends IClipboard.Stub {
         }
     }
 
-    private class PerUserClipboard {
+    protected class PerUserClipboard {
         final int userId;
 
         final RemoteCallbackList<IOnPrimaryClipChangedListener> primaryClipListeners
@@ -134,7 +134,7 @@ public class ClipboardService extends IClipboard.Stub {
         return getClipboard(UserHandle.getCallingUserId());
     }
 
-    private PerUserClipboard getClipboard(int userId) {
+    protected PerUserClipboard getClipboard(int userId) {
         synchronized (mClipboards) {
             PerUserClipboard puc = mClipboards.get(userId);
             if (puc == null) {
@@ -274,7 +274,7 @@ public class ClipboardService extends IClipboard.Stub {
         }
     }
 
-    private final void checkDataOwnerLocked(ClipData data, int uid) {
+    protected final void checkDataOwnerLocked(ClipData data, int uid) {
         final int N = data.getItemCount();
         for (int i=0; i<N; i++) {
             checkItemOwnerLocked(data.getItemAt(i), uid);
@@ -330,7 +330,7 @@ public class ClipboardService extends IClipboard.Stub {
         }
     }
 
-    private final void revokeUriLocked(Uri uri) {
+    protected final void revokeUriLocked(Uri uri) {
         long ident = Binder.clearCallingIdentity();
         try {
             mAm.revokeUriPermissionFromOwner(mPermissionOwner, uri,
@@ -352,7 +352,7 @@ public class ClipboardService extends IClipboard.Stub {
         }
     }
 
-    private final void clearActiveOwnersLocked() {
+    protected final void clearActiveOwnersLocked() {
         PerUserClipboard clipboard = getClipboard();
         clipboard.activePermissionOwners.clear();
         if (clipboard.primaryClip == null) {

@@ -118,6 +118,9 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.app.IAppOpsService;
 import com.android.internal.os.IDropBoxManagerService;
 
+import com.intel.arkham.ExtendAccountManager;
+import com.intel.config.FeatureConfig;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -320,7 +323,11 @@ class ContextImpl extends Context {
                 public Object createService(ContextImpl ctx) {
                     IBinder b = ServiceManager.getService(ACCOUNT_SERVICE);
                     IAccountManager service = IAccountManager.Stub.asInterface(b);
-                    return new AccountManager(ctx, service);
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        return new ExtendAccountManager(ctx, service);
+                    } else {
+                        return new AccountManager(ctx, service);
+                    }
                 }});
 
         registerService(ACTIVITY_SERVICE, new ServiceFetcher() {

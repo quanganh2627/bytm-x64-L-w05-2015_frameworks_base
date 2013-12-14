@@ -31,14 +31,31 @@ int register_android_server_SerialService(JNIEnv* env);
 int register_android_server_UsbDeviceManager(JNIEnv* env);
 int register_android_server_UsbHostManager(JNIEnv* env);
 int register_android_server_VibratorService(JNIEnv* env);
+int register_android_server_CurrentMgmtService(JNIEnv* env);
 int register_android_server_SystemServer(JNIEnv* env);
 int register_android_server_location_GpsLocationProvider(JNIEnv* env);
 int register_android_server_location_FlpHardwareProvider(JNIEnv* env);
 int register_android_server_connectivity_Vpn(JNIEnv* env);
+int register_android_server_thermal_ThermalManager(JNIEnv* env);
 int register_android_server_AssetAtlasService(JNIEnv* env);
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+#ifndef USE_MDS_LEGACY
+namespace intel {
+int register_intel_multidisplay_DisplaySetting(JNIEnv *env);
+};
+#else
+int register_intel_multidisplay_DisplaySetting(JNIEnv *env);
+#endif
+#endif
 };
 
 using namespace android;
+
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+#ifndef USE_MDS_LEGACY
+using namespace android::intel;
+#endif
+#endif
 
 extern "C" jint JNI_OnLoad(JavaVM* vm, void* reserved)
 {
@@ -61,13 +78,17 @@ extern "C" jint JNI_OnLoad(JavaVM* vm, void* reserved)
     register_android_server_UsbDeviceManager(env);
     register_android_server_UsbHostManager(env);
     register_android_server_VibratorService(env);
+    register_android_server_CurrentMgmtService(env);
     register_android_server_SystemServer(env);
     register_android_server_location_GpsLocationProvider(env);
     register_android_server_location_FlpHardwareProvider(env);
     register_android_server_connectivity_Vpn(env);
     register_android_server_AssetAtlasService(env);
     register_android_server_ConsumerIrService(env);
-
+    register_android_server_thermal_ThermalManager(env);
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    register_intel_multidisplay_DisplaySetting(env);
+#endif
 
     return JNI_VERSION_1_4;
 }

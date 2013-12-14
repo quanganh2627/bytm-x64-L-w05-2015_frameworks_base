@@ -322,7 +322,7 @@ public final class BluetoothDevice implements Parcelable {
 
     /**
      * Broadcast Action: This intent is used to broadcast PAIRING REQUEST
-     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_PRIVILEGED} to
+     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_ADMIN} to
      * receive.
      */
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
@@ -465,7 +465,7 @@ public final class BluetoothDevice implements Parcelable {
 
     /**
      * The user will be prompted to enter a pin or
-     * a privileged app will enter a pin for user.
+     * an app will enter a pin for user.
      */
     public static final int PAIRING_VARIANT_PIN = 0;
 
@@ -477,7 +477,7 @@ public final class BluetoothDevice implements Parcelable {
 
     /**
      * The user will be prompted to confirm the passkey displayed on the screen or
-     * a privileged app will confirm the passkey for the user.
+     * an app will confirm the passkey for the user.
      */
     public static final int PAIRING_VARIANT_PASSKEY_CONFIRMATION = 2;
 
@@ -725,7 +725,7 @@ public final class BluetoothDevice implements Parcelable {
      * the bonding process completes, and its result.
      * <p>Android system services will handle the necessary user interactions
      * to confirm and complete the bonding process.
-     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_PRIVILEGED}.
+     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_ADMIN}.
      *
      * @return false on immediate error, true if bonding will begin
      */
@@ -921,10 +921,10 @@ public final class BluetoothDevice implements Parcelable {
      *         or null on error
      */
      public ParcelUuid[] getUuids() {
-         if (sService == null) {
+        if (sService == null) {
             Log.e(TAG, "BT not enabled. Cannot get remote device Uuids");
-             return null;
-         }
+            return null;
+        }
         try {
             return sService.getRemoteUuids(this);
         } catch (RemoteException e) {Log.e(TAG, "", e);}
@@ -947,10 +947,15 @@ public final class BluetoothDevice implements Parcelable {
       *               was started.
       */
      public boolean fetchUuidsWithSdp() {
+        if (sService == null) {
+            Log.e(TAG, "BT not enabled. Cannot perform service discovery on " +
+                       "the remote device in order to get the UUIDs supported.");
+            return false;
+        }
         try {
             return sService.fetchRemoteUuids(this);
         } catch (RemoteException e) {Log.e(TAG, "", e);}
-            return false;
+        return false;
     }
 
     /** @hide */
@@ -965,7 +970,7 @@ public final class BluetoothDevice implements Parcelable {
 
     /**
      * Set the pin during pairing when the pairing method is {@link #PAIRING_VARIANT_PIN}
-     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_PRIVILEGED}.
+     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_ADMIN}.
      *
      * @return true pin has been set
      *         false for error
@@ -993,7 +998,7 @@ public final class BluetoothDevice implements Parcelable {
 
     /**
      * Confirm passkey for {@link #PAIRING_VARIANT_PASSKEY_CONFIRMATION} pairing.
-     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_PRIVILEGED}.
+     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_ADMIN}.
      *
      * @return true confirmation has been sent out
      *         false for error

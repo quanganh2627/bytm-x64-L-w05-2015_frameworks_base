@@ -959,9 +959,11 @@ public class ProgressBar extends View {
         if (!mInDrawing) {
             if (verifyDrawable(dr)) {
                 final Rect dirty = dr.getBounds();
+                final int scrollX = mScrollX + mPaddingLeft;
+                final int scrollY = mScrollY + mPaddingTop;
 
-                invalidate(dirty.left + mScrollX, dirty.top + mScrollY,
-                        dirty.right + mScrollX, dirty.bottom + mScrollY);
+                invalidate(dirty.left + scrollX, dirty.top + scrollY,
+                        dirty.right + scrollX, dirty.bottom + scrollY);
             } else {
                 super.invalidateDrawable(dr);
             }
@@ -1181,7 +1183,7 @@ public class ProgressBar extends View {
             removeCallbacks(mRefreshProgressRunnable);
         }
         if (mRefreshProgressRunnable != null && mRefreshIsPosted) {
-            removeCallbacks(mRefreshProgressRunnable);
+            mRefreshIsPosted = false;
         }
         if (mAccessibilityEventSender != null) {
             removeCallbacks(mAccessibilityEventSender);

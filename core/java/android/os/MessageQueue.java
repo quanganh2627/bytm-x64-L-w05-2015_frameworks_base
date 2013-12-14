@@ -18,6 +18,7 @@ package android.os;
 
 import android.util.AndroidRuntimeException;
 import android.util.Log;
+import android.util.Printer;
 
 import java.util.ArrayList;
 
@@ -252,7 +253,9 @@ public final class MessageQueue {
         synchronized (this) {
             final int token = mNextBarrierToken++;
             final Message msg = Message.obtain();
+            msg.when = when;
             msg.arg1 = token;
+            msg.when = when;
 
             Message prev = null;
             Message p = mMessages;
@@ -295,6 +298,16 @@ public final class MessageQueue {
                 mMessages = p.next;
                 needWake = mMessages == null || mMessages.target != null;
             }
+            long vsyncLatency = SystemClock.uptimeMillis() - p.when;
+            // warn if the vsync barrier is removed 30 frames later.
+            if (vsyncLatency > 500) {
+                Looper myLooper = Looper.myLooper();
+                if (myLooper != null && myLooper.mLocalLog != null) {
+                    String msg = p.toString();
+                    myLooper.mLocalLog.log("WARNING! VSYNC callback delayed: " + msg);
+                    Log.d("MessageQueue", "VSYNC callback delayed: " + msg);
+                }
+            }
             p.recycle();
 
             // If the loop is quitting then it is already awake.
@@ -311,6 +324,11 @@ public final class MessageQueue {
         }
         if (msg.target == null) {
             throw new AndroidRuntimeException("Message must have a target.");
+        }
+
+        Looper myLooper = msg.target.mLooper;
+        if (myLooper != null && myLooper.mLocalLog != null) {
+            msg.fingerPrint = msg.toString();
         }
 
         synchronized (this) {
@@ -393,11 +411,15 @@ public final class MessageQueue {
 
     boolean isIdling() {
         synchronized (this) {
-            // If the loop is quitting then it must not be idling.
-            // We can assume mPtr != 0 when mQuitting is false.
-            return !mQuitting && nativeIsIdling(mPtr);
+            return isIdlingLocked();
         }
     }
+
+    private boolean isIdlingLocked() {
+        // If the loop is quitting then it must not be idling.
+        // We can assume mPtr != 0 when mQuitting is false.
+        return !mQuitting && nativeIsIdling(mPtr);
+     }
 
     void removeMessages(Handler h, int what, Object object) {
         if (h == null) {
@@ -535,6 +557,19 @@ public final class MessageQueue {
                     p.recycle();
                 } while (n != null);
             }
+        }
+    }
+
+    void dump(Printer pw, String prefix) {
+        synchronized (this) {
+            long now = SystemClock.uptimeMillis();
+            int n = 0;
+            for (Message msg = mMessages; msg != null; msg = msg.next) {
+                pw.println(prefix + "Message " + n + ": " + msg.toString(now));
+                n++;
+            }
+            pw.println(prefix + "(Total messages: " + n + ", idling=" + isIdlingLocked()
+                    + ", quitting=" + mQuitting + ")");
         }
     }
 }

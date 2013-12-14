@@ -93,6 +93,7 @@ import android.view.WindowManagerPolicy;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.widget.Toast;
 
 import com.android.internal.R;
 import com.android.internal.policy.PolicyManager;
@@ -100,6 +101,9 @@ import com.android.internal.policy.impl.keyguard.KeyguardServiceDelegate;
 import com.android.internal.statusbar.IStatusBarService;
 import com.android.internal.telephony.ITelephony;
 import com.android.internal.widget.PointerLocationView;
+
+import com.intel.arkham.ParentPhoneWindowManager;
+import com.intel.config.FeatureConfig;
 
 import java.io.File;
 import java.io.FileReader;
@@ -118,7 +122,7 @@ import static android.view.WindowManagerPolicy.WindowManagerFuncs.LID_CLOSED;
  * can be acquired with either the Lw and Li lock held, so has the restrictions
  * of both of those when held.
  */
-public class PhoneWindowManager implements WindowManagerPolicy {
+public class PhoneWindowManager extends ParentPhoneWindowManager implements WindowManagerPolicy {
     static final String TAG = "WindowManager";
     static final boolean DEBUG = false;
     static final boolean localLOGV = false;
@@ -167,6 +171,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             | View.SYSTEM_UI_FLAG_FULLSCREEN
             | View.STATUS_BAR_TRANSLUCENT
             | View.NAVIGATION_BAR_TRANSLUCENT;
+
+// length of vibration before shutting down is started on long power key press
+    private static final int SHUTDOWN_VIBRATE_MS = 500;
+
+    // private lock for thread sync
+    private Object lock = new Object();
 
     /**
      * Keyguard stuff
@@ -416,6 +426,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     int mLockScreenTimeout;
     boolean mLockScreenTimerActive;
 
+    // Measure timeout before action corresponding to power key press is triggered.
+    long mPowerKeyTimeout;
+
     // Behavior of ENDCALL Button.  (See Settings.System.END_BUTTON_BEHAVIOR.)
     int mEndcallBehavior;
 
@@ -661,23 +674,44 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
     }
 
-    private void interceptPowerKeyDown(boolean handled) {
+    private void interceptPowerKeyDown(boolean handled, boolean longLongPressCandidate) {
         mPowerKeyHandled = handled;
         if (!handled) {
-            mHandler.postDelayed(mPowerLongPress, ViewConfiguration.getGlobalActionKeyTimeout());
+            mPowerKeyTimeout = ViewConfiguration.getGlobalActionKeyTimeout();
+            Log.i(TAG, String.format("interceptPowerKeyDown: key down event: not handled: set timeout to %d ms", mPowerKeyTimeout));
+            // Ask mPowerLongPress to be run when specified amount of time elapses.
+            mHandler.postDelayed(mPowerLongPress, mPowerKeyTimeout);
+        } else {
+            // only for calls from POWER BUTTON handling can start longLongPress timer
+            if (longLongPressCandidate) {
+                mPowerKeyTimeout = ViewConfiguration.getGlobalActionKeyShutdownTimeout() + ViewConfiguration.getGlobalActionKeyTimeout();
+                Log.i(TAG, String.format("interceptPowerKeyDown: key down event: handled: set timeout to %d ms", mPowerKeyTimeout));
+                // Ask mPowerLongLongPress to be run when specified amount of time elapses.
+                mHandler.postDelayed(mPowerLongLongPress, mPowerKeyTimeout);
+            }
         }
     }
 
     private boolean interceptPowerKeyUp(boolean canceled) {
+        synchronized(lock) {
         if (!mPowerKeyHandled) {
+            // Cancel pending action scheduled in interceptPowerKeyDown
+            Log.i(TAG, "interceptPowerKeyUp: key up event: remove pending callbacks for long press");
             mHandler.removeCallbacks(mPowerLongPress);
+            lock.notify();
             return !canceled;
         }
+        // Cancel pending action scheduled in interceptPowerKeyDown
+        Log.i(TAG, "interceptPowerKeyUp: key up event: remove pending callbacks for very long press");
+        mHandler.removeCallbacks(mPowerLongLongPress);
+        lock.notify();
         return false;
+        }
     }
 
     private void cancelPendingPowerKeyAction() {
         if (!mPowerKeyHandled) {
+            // Cancel pending action scheduled in interceptPowerKeyDown
             mHandler.removeCallbacks(mPowerLongPress);
         }
         if (mPowerKeyTriggered) {
@@ -712,9 +746,14 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mHandler.removeCallbacks(mScreenshotRunnable);
     }
 
+    // Action associated to the timer triggered in interceptPowerKeyDown. Run once the timer expires.
     private final Runnable mPowerLongPress = new Runnable() {
         @Override
         public void run() {
+            synchronized(lock) {
+            // Allow to cancel mPowerLongLongPress callback in interceptPowerKeyUp function
+            mPowerKeyHandled = true;
+
             // The context isn't read
             if (mLongPressOnPowerBehavior < 0) {
                 mLongPressOnPowerBehavior = mContext.getResources().getInteger(
@@ -725,11 +764,26 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 resolvedBehavior = LONG_PRESS_POWER_SHUT_OFF_NO_CONFIRM;
             }
 
+            if (!"".equals(SystemProperties.get("vold.encrypt_progress"))) {
+                // When encryption is running, the user is not allowed to do a graceful shutdown,
+                // only a hardware forced shutdown is authorized.
+                // The close dialog is not displayed and the mPowerLongLongPress callback is
+                // not scheduled.
+                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms:"
+                        + " encryption in progress, no shutdown authorized", mPowerKeyTimeout));
+                Toast.makeText(mContext,
+                        com.android.internal.R.string.forbid_shutdown_when_encrypt,
+                        Toast.LENGTH_SHORT).show();
+                lock.notify();
+                return;
+            }
+
             switch (resolvedBehavior) {
             case LONG_PRESS_POWER_NOTHING:
+                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: nothing to do", mPowerKeyTimeout));
                 break;
             case LONG_PRESS_POWER_GLOBAL_ACTIONS:
-                mPowerKeyHandled = true;
+                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: display close dialog", mPowerKeyTimeout));
                 if (!performHapticFeedbackLw(null, HapticFeedbackConstants.LONG_PRESS, false)) {
                     performAuditoryFeedbackForAccessibilityIfNeed();
                 }
@@ -738,12 +792,28 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 break;
             case LONG_PRESS_POWER_SHUT_OFF:
             case LONG_PRESS_POWER_SHUT_OFF_NO_CONFIRM:
-                mPowerKeyHandled = true;
+                Log.i(TAG, String.format("LongPressOnPower: power key pressed more than %d ms: run shutdown", mPowerKeyTimeout));
                 performHapticFeedbackLw(null, HapticFeedbackConstants.LONG_PRESS, false);
                 sendCloseSystemWindows(SYSTEM_DIALOG_REASON_GLOBAL_ACTIONS);
                 mWindowManagerFuncs.shutdown(resolvedBehavior == LONG_PRESS_POWER_SHUT_OFF);
                 break;
             }
+            mHandler.postDelayed(mPowerLongLongPress,
+                    ViewConfiguration.getGlobalActionKeyShutdownTimeout());
+            lock.notify();
+            }
+        }
+    };
+
+    // Action associated to the timer triggered in interceptPowerKeyDown. Run once the timer expires.
+    private final Runnable mPowerLongLongPress = new Runnable() {
+        public void run() {
+            Log.i(TAG, String.format("LongLongPressOnPower: force shutdown requested : vibrate %d ms and run shutdown",
+                                       SHUTDOWN_VIBRATE_MS));
+            // vibrate to indicate shutdown is started
+            mVibrator.vibrate(SHUTDOWN_VIBRATE_MS);
+            SystemProperties.set("sys.property_forcedshutdown", "1");
+            mWindowManagerFuncs.shutdown(false);
         }
     };
 
@@ -3466,6 +3536,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 if (mStatusBarController.setBarShowingLw(true)) {
                     changes |= FINISH_LAYOUT_REDO_LAYOUT;
                 }
+                // Maintain fullscreen layout until incoming animation is complete.
+                topIsFullscreen = mTopIsFullscreen && mStatusBar.isAnimatingLw();
+                // Transient status bar on the lockscreen is not allowed
+                if (mForceStatusBarFromKeyguard && mStatusBarController.isTransientShowing()) {
+                    mStatusBarController.updateVisibilityLw(false /*transientAllowed*/,
+                            mLastSystemUiFlags, mLastSystemUiFlags);
+                }
             } else if (mTopFullscreenOpaqueWindowState != null) {
                 if (localLOGV) {
                     Slog.d(TAG, "frame: " + mTopFullscreenOpaqueWindowState.getFrameLw()
@@ -3499,7 +3576,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             }
         }
 
-        mTopIsFullscreen = topIsFullscreen;
+        if (mTopIsFullscreen != topIsFullscreen) {
+            if (!topIsFullscreen) {
+                // Force another layout when status bar becomes fully shown.
+                changes |= FINISH_LAYOUT_REDO_LAYOUT;
+            }
+            mTopIsFullscreen = topIsFullscreen;
+        }
 
         // Hide the key guard if a visible window explicitly specifies that it wants to be
         // displayed when the screen is locked.
@@ -3608,6 +3691,16 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             mPowerManager.userActivity(SystemClock.uptimeMillis(), false);
         }
     }
+
+    /** {@inheritDoc} */
+   public void notifySilentSwitchChanged(boolean open) {
+        AudioManager audioManager = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
+        if (open) {
+            audioManager.setRingerMode(AudioManager.RINGER_MODE_HW_SILENT);
+        } else {
+            audioManager.setRingerMode(AudioManager.RINGER_MODE_HW_NORMAL);
+        }
+   }
 
     void setHdmiPlugged(boolean plugged) {
         if (mHdmiPlugged != plugged) {
@@ -3931,7 +4024,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                             Log.w(TAG, "ITelephony threw RemoteException", ex);
                         }
                     }
-                    interceptPowerKeyDown(!isScreenOn || hungUp);
+                    interceptPowerKeyDown(!isScreenOn || hungUp, false);
                 } else {
                     if (interceptPowerKeyUp(canceled)) {
                         if ((mEndcallBehavior
@@ -3981,7 +4074,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         }
                     }
                     interceptPowerKeyDown(!isScreenOn || hungUp
-                            || mVolumeDownKeyTriggered || mVolumeUpKeyTriggered);
+                            || mVolumeDownKeyTriggered || mVolumeUpKeyTriggered, true);
                 } else {
                     mPowerKeyTriggered = false;
                     cancelPendingScreenshotChordAction();
@@ -4240,6 +4333,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     @Override
     public void screenTurnedOff(int why) {
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            super.screenTurnedOff(why);
+        }
+        Log.i(TAG, "Screen turned off...");
         EventLog.writeEvent(70000, 0);
         synchronized (mLock) {
             mScreenOnEarly = false;
@@ -4256,11 +4353,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     @Override
     public void screenTurningOn(final ScreenOnListener screenOnListener) {
+        Log.i(TAG, "Screen turning on...");
         EventLog.writeEvent(70000, 1);
         if (false) {
             RuntimeException here = new RuntimeException("here");
             here.fillInStackTrace();
-            Slog.i(TAG, "Screen turning on...", here);
+            Slog.i(TAG, "RuntimeException screen turning on...", here);
         }
 
         synchronized (mLock) {
@@ -4652,6 +4750,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     public void systemReady() {
         if (!mHeadless) {
             mKeyguardDelegate = new KeyguardServiceDelegate(mContext, null);
+            if ( FeatureConfig.INTEL_FEATURE_ARKHAM ) {
+                super.init(mContext);
+            }
             mKeyguardDelegate.onSystemReady();
         }
         synchronized (mLock) {
@@ -4668,6 +4769,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     /** {@inheritDoc} */
     public void systemBooted() {
+        if (mKeyguardDelegate != null) {
+            mKeyguardDelegate.onBootCompleted();
+        }
         synchronized (mLock) {
             mSystemBooted = true;
         }
@@ -4756,6 +4860,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 mHandler.postDelayed(mScreenLockTimeout, mLockScreenTimeout);
             }
         }
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            super.userActivity();
+        }
     }
 
     class ScreenLockTimeout implements Runnable {
@@ -4766,6 +4873,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             synchronized (this) {
                 if (localLOGV) Log.v(TAG, "mScreenLockTimeout activating keyguard");
                 if (mKeyguardDelegate != null) {
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        PhoneWindowManager.super.doScreenLockTimeout();
+                    }
                     mKeyguardDelegate.doKeyguardTimeout(options);
                 }
                 mLockScreenTimerActive = false;
@@ -5147,9 +5257,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 mNavigationBar != null &&
                 hideNavBarSysui && immersiveSticky;
 
-        boolean denyTransientStatus = mStatusBarController.isTransientShowing()
+        boolean denyTransientStatus = mStatusBarController.isTransientShowRequested()
                 && !transientStatusBarAllowed && hideStatusBarSysui;
-        boolean denyTransientNav = mNavigationBarController.isTransientShowing()
+        boolean denyTransientNav = mNavigationBarController.isTransientShowRequested()
                 && !transientNavBarAllowed;
         if (denyTransientStatus || denyTransientNav) {
             // clear the clearable flags instead
@@ -5183,7 +5293,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         final int flags = View.SYSTEM_UI_FLAG_IMMERSIVE | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
         return mNavigationBar != null
                 && (vis & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) != 0
-                && (vis & flags) != 0;
+                && (vis & flags) != 0
+                && canHideNavigationBar();
     }
 
     /**
@@ -5412,5 +5523,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         pw.print(prefix); pw.print("mUndockedHdmiRotation="); pw.println(mUndockedHdmiRotation);
         mStatusBarController.dump(pw, prefix);
         mNavigationBarController.dump(pw, prefix);
+    }
+    protected Handler getHandler() {
+        return mHandler;
+    }
+    protected KeyguardServiceDelegate getKeyguardServiceDelegate() {
+        return mKeyguardDelegate;
     }
 }

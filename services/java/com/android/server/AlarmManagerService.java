@@ -112,6 +112,7 @@ class AlarmManagerService extends IAlarmManager.Stub {
     private final ResultReceiver mResultReceiver = new ResultReceiver();
     private final PendingIntent mTimeTickSender;
     private final PendingIntent mDateChangeSender;
+    private boolean mPrintIntent = false;
 
     class WakeupEvent {
         public long when;
@@ -385,10 +386,19 @@ class AlarmManagerService extends IAlarmManager.Stub {
             for (int i = 0; i < N; i++) {
                 Alarm a = batch.get(i);
                 long whenElapsed = convertToElapsed(a.when, a.type);
-                long maxElapsed = (a.whenElapsed == a.maxWhen)
-                        ? whenElapsed
-                                : maxTriggerTime(nowElapsed, whenElapsed, a.repeatInterval);
-                setImplLocked(a.type, a.when, whenElapsed, maxElapsed,
+                final long maxElapsed;
+                if (a.whenElapsed == a.maxWhen) {
+                    // Exact
+                    maxElapsed = whenElapsed;
+                } else {
+                    // Not exact.  Preserve any explicit window, otherwise recalculate
+                    // the window based on the alarm's new futurity.  Note that this
+                    // reflects a policy of preferring timely to deferred delivery.
+                    maxElapsed = (a.windowLength > 0)
+                            ? (whenElapsed + a.windowLength)
+                            : maxTriggerTime(nowElapsed, whenElapsed, a.repeatInterval);
+                }
+                setImplLocked(a.type, a.when, whenElapsed, a.windowLength, maxElapsed,
                         a.repeatInterval, a.operation, batch.standalone, doValidate, a.workSource);
             }
         }
@@ -556,27 +566,26 @@ class AlarmManagerService extends IAlarmManager.Stub {
                         + " tElapsed=" + triggerElapsed + " maxElapsed=" + maxElapsed
                         + " interval=" + interval + " standalone=" + isStandalone);
             }
-            setImplLocked(type, triggerAtTime, triggerElapsed, maxElapsed,
+            setImplLocked(type, triggerAtTime, triggerElapsed, windowLength, maxElapsed,
                     interval, operation, isStandalone, true, workSource);
         }
     }
 
-    private void setImplLocked(int type, long when, long whenElapsed, long maxWhen, long interval,
-            PendingIntent operation, boolean isStandalone, boolean doValidate,
-            WorkSource workSource) {
-        Alarm a = new Alarm(type, when, whenElapsed, maxWhen, interval, operation, workSource);
+    private void setImplLocked(int type, long when, long whenElapsed, long windowLength,
+            long maxWhen, long interval, PendingIntent operation, boolean isStandalone,
+            boolean doValidate, WorkSource workSource) {
+        Alarm a = new Alarm(type, when, whenElapsed, windowLength, maxWhen, interval,
+                operation, workSource);
         removeLocked(operation);
 
-        boolean reschedule;
         int whichBatch = (isStandalone) ? -1 : attemptCoalesceLocked(whenElapsed, maxWhen);
         if (whichBatch < 0) {
             Batch batch = new Batch(a);
             batch.standalone = isStandalone;
-            reschedule = addBatchLocked(mAlarmBatches, batch);
+            addBatchLocked(mAlarmBatches, batch);
         } else {
             Batch batch = mAlarmBatches.get(whichBatch);
-            reschedule = batch.add(a);
-            if (reschedule) {
+            if (batch.add(a)) {
                 // The start time of this batch advanced, so batch ordering may
                 // have just been broken.  Move it to where it now belongs.
                 mAlarmBatches.remove(whichBatch);
@@ -592,13 +601,10 @@ class AlarmManagerService extends IAlarmManager.Stub {
                         + " interval=" + interval + " op=" + operation
                         + " standalone=" + isStandalone);
                 rebatchAllAlarmsLocked(false);
-                reschedule = true;
             }
         }
 
-        if (reschedule) {
-            rescheduleKernelAlarmsLocked();
-        }
+        rescheduleKernelAlarmsLocked();
     }
 
     private void logBatchesLocked() {
@@ -1046,7 +1052,7 @@ class AlarmManagerService extends IAlarmManager.Stub {
                     // Also schedule its next recurrence
                     final long delta = alarm.count * alarm.repeatInterval;
                     final long nextElapsed = alarm.whenElapsed + delta;
-                    setImplLocked(alarm.type, alarm.when + delta, nextElapsed,
+                    setImplLocked(alarm.type, alarm.when + delta, nextElapsed, alarm.windowLength,
                             maxTriggerTime(nowELAPSED, nextElapsed, alarm.repeatInterval),
                             alarm.repeatInterval, alarm.operation, batch.standalone, true,
                             alarm.workSource);
@@ -1077,17 +1083,19 @@ class AlarmManagerService extends IAlarmManager.Stub {
         public int type;
         public int count;
         public long when;
+        public long windowLength;
         public long whenElapsed;    // 'when' in the elapsed time base
         public long maxWhen;        // also in the elapsed time base
         public long repeatInterval;
         public PendingIntent operation;
         public WorkSource workSource;
         
-        public Alarm(int _type, long _when, long _whenElapsed, long _maxWhen,
+        public Alarm(int _type, long _when, long _whenElapsed, long _windowLength, long _maxWhen,
                 long _interval, PendingIntent _op, WorkSource _ws) {
             type = _type;
             when = _when;
             whenElapsed = _whenElapsed;
+            windowLength = _windowLength;
             maxWhen = _maxWhen;
             repeatInterval = _interval;
             operation = _op;
@@ -1112,6 +1120,7 @@ class AlarmManagerService extends IAlarmManager.Stub {
             pw.print(prefix); pw.print("type="); pw.print(type);
                     pw.print(" whenElapsed="); pw.print(whenElapsed);
                     pw.print(" when="); TimeUtils.formatDuration(when, now, pw);
+                    pw.print(" window="); pw.print(windowLength);
                     pw.print(" repeatInterval="); pw.print(repeatInterval);
                     pw.print(" count="); pw.println(count);
             pw.print(prefix); pw.print("operation="); pw.println(operation);
@@ -1198,6 +1207,11 @@ class AlarmManagerService extends IAlarmManager.Stub {
                         Alarm alarm = triggerList.get(i);
                         try {
                             if (localLOGV) Slog.v(TAG, "sending alarm " + alarm);
+                             if (alarm.type == AlarmManager.ELAPSED_REALTIME_WAKEUP
+                                    || alarm.type == AlarmManager.RTC_WAKEUP) {
+                                 mPrintIntent = true;
+
+                            }
                             alarm.operation.send(mContext, 0,
                                     mBackgroundIntent.putExtra(
                                             Intent.EXTRA_ALARM_COUNT, alarm.count),
@@ -1483,6 +1497,13 @@ class AlarmManagerService extends IAlarmManager.Stub {
                         mLog.w("Alarm wakelock still held but sent queue empty");
                         mWakeLock.setWorkSource(null);
                     }
+                }
+
+                if (mPrintIntent) {
+                    Slog.v(TAG, "triggered: " +
+                              intent.toShortString(false, true, false, false) +
+                              "\nPkg: " + pi.getTargetPackage() + "\n");
+                    mPrintIntent = false;
                 }
             }
         }

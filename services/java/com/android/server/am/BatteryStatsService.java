@@ -32,9 +32,11 @@ import android.os.UserHandle;
 import android.os.WorkSource;
 import android.telephony.SignalStrength;
 import android.telephony.TelephonyManager;
+import android.util.Log;
 import android.util.Slog;
 
 import com.android.internal.app.IBatteryStats;
+import com.android.internal.app.IBatteryStatsResetCallback;
 import com.android.internal.os.BatteryStatsImpl;
 import com.android.internal.os.PowerProfile;
 
@@ -48,7 +50,7 @@ import java.util.List;
  */
 public final class BatteryStatsService extends IBatteryStats.Stub {
     static IBatteryStats sService;
-    
+
     final BatteryStatsImpl mStats;
     Context mContext;
     private boolean mBluetoothPendingStats;
@@ -57,7 +59,7 @@ public final class BatteryStatsService extends IBatteryStats.Stub {
     BatteryStatsService(String filename) {
         mStats = new BatteryStatsImpl(filename);
     }
-    
+
     public void publish(Context context) {
         mContext = context;
         ServiceManager.addService(BatteryStats.SERVICE_NAME, asBinder());
@@ -66,14 +68,14 @@ public final class BatteryStatsService extends IBatteryStats.Stub {
                 com.android.internal.R.integer.config_radioScanningTimeout)
                 * 1000L);
     }
-    
+
     public void shutdown() {
         Slog.w("BatteryStats", "Writing battery stats before shutdown...");
         synchronized (mStats) {
             mStats.shutdownLocked();
         }
     }
-    
+
     public static IBatteryStats getService() {
         if (sService != null) {
             return sService;
@@ -82,7 +84,7 @@ public final class BatteryStatsService extends IBatteryStats.Stub {
         sService = asInterface(b);
         return sService;
     }
-    
+
     /**
      * @return the current statistics object, which may be modified
      * to reflect events that affect battery usage.  You must lock the
@@ -91,7 +93,31 @@ public final class BatteryStatsService extends IBatteryStats.Stub {
     public BatteryStatsImpl getActiveStatistics() {
         return mStats;
     }
-    
+
+    private static final String TAG = "BatteryStatsService";
+    public void resetStatistic(boolean wait) {
+        synchronized (mStats) {
+            Log.i(TAG, "resetStatistic in Thread " + Thread.currentThread().getId());
+            mStats.resetAllStatsLocked(wait);
+        }
+    }
+
+    public void registerCallback(IBatteryStatsResetCallback callback) {
+        Log.i(TAG, "registerCallback get called");
+
+        synchronized (mStats) {
+            mStats.registerCallback(callback);
+        }
+    }
+
+    public void unregisterCallback(IBatteryStatsResetCallback callback) {
+        Log.i(TAG, "unregisterCallback get called");
+
+        synchronized (mStats) {
+            mStats.unregisterCallback(callback);
+        }
+    }
+
     public byte[] getStatistics() {
         mContext.enforceCallingPermission(
                 android.Manifest.permission.BATTERY_STATS, null);
@@ -103,7 +129,13 @@ public final class BatteryStatsService extends IBatteryStats.Stub {
         out.recycle();
         return data;
     }
-    
+
+    public byte[] getStatisticsBeforeReset() {
+        mContext.enforceCallingPermission(
+                android.Manifest.permission.BATTERY_STATS, null);
+        return mStats.getduplicateData();
+    }
+
     public void noteStartWakelock(int uid, int pid, String name, int type) {
         enforceCallingPermission();
         synchronized (mStats) {
@@ -419,6 +451,20 @@ public final class BatteryStatsService extends IBatteryStats.Stub {
         }
     }
 
+    public void noteWifiBatchedScanStartedFromSource(WorkSource ws, int csph) {
+        enforceCallingPermission();
+        synchronized (mStats) {
+            mStats.noteWifiBatchedScanStartedFromSourceLocked(ws, csph);
+        }
+    }
+
+    public void noteWifiBatchedScanStoppedFromSource(WorkSource ws) {
+        enforceCallingPermission();
+        synchronized (mStats) {
+            mStats.noteWifiBatchedScanStoppedFromSourceLocked(ws);
+        }
+    }
+
     public void noteWifiMulticastEnabledFromSource(WorkSource ws) {
         enforceCallingPermission();
         synchronized (mStats) {
@@ -452,13 +498,13 @@ public final class BatteryStatsService extends IBatteryStats.Stub {
     public boolean isOnBattery() {
         return mStats.isOnBattery();
     }
-    
+
     public void setBatteryState(int status, int health, int plugType, int level,
             int temp, int volt) {
         enforceCallingPermission();
         mStats.setBatteryState(status, health, plugType, level, temp, volt);
     }
-    
+
     public long getAwakeTimeBattery() {
         mContext.enforceCallingOrSelfPermission(
                 android.Manifest.permission.BATTERY_STATS, null);
@@ -478,7 +524,7 @@ public final class BatteryStatsService extends IBatteryStats.Stub {
         mContext.enforcePermission(android.Manifest.permission.UPDATE_DEVICE_STATS,
                 Binder.getCallingPid(), Binder.getCallingUid(), null);
     }
-    
+
     private void dumpHelp(PrintWriter pw) {
         pw.println("Battery stats (batterystats) dump options:");
         pw.println("  [--checkin] [-c] [--unplugged] [--reset] [--write] [-h] [<package.name>]");
@@ -516,7 +562,7 @@ public final class BatteryStatsService extends IBatteryStats.Stub {
                     isUnpluggedOnly = true;
                 } else if ("--reset".equals(arg)) {
                     synchronized (mStats) {
-                        mStats.resetAllStatsLocked();
+                        mStats.resetAllStatsLocked(true);
                         pw.println("Battery stats reset.");
                         noOutput = true;
                     }

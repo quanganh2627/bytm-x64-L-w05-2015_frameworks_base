@@ -25,6 +25,7 @@ import com.android.internal.util.JournaledFile;
 import com.android.internal.util.XmlUtils;
 import com.android.internal.widget.LockPatternUtils;
 import com.android.org.conscrypt.TrustedCertificateStore;
+import com.intel.config.FeatureConfig;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -56,6 +57,7 @@ import android.content.pm.Signature;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.ResolveInfo;
 import android.content.pm.UserInfo;
+import android.net.ProxyProperties;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Binder;
@@ -118,7 +120,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
 
     private static final String TAG = "DevicePolicyManagerService";
 
-    private static final String DEVICE_POLICIES_XML = "device_policies.xml";
+    protected static final String DEVICE_POLICIES_XML = "device_policies.xml";
 
     private static final int REQUEST_EXPIRE_PASSWORD = 5571;
 
@@ -522,6 +524,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
                         || pm.getReceiverInfo(aa.info.getComponent(), 0, userHandle) == null) {
                     removed = true;
                     policy.mAdminList.remove(i);
+                    policy.mAdminMap.remove(aa.info.getComponent());
                 }
             } catch (RemoteException re) {
                 // Shouldn't happen
@@ -806,7 +809,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
         return new JournaledFile(new File(base), new File(base + ".tmp"));
     }
 
-    private void saveSettingsLocked(int userHandle) {
+    protected void saveSettingsLocked(int userHandle) {
         DevicePolicyData policy = getUserData(userHandle);
         JournaledFile journal = makeJournaledFile(userHandle);
         FileOutputStream stream = null;
@@ -887,7 +890,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
         }
     }
 
-    private void loadSettingsLocked(DevicePolicyData policy, int userHandle) {
+    protected void loadSettingsLocked(DevicePolicyData policy, int userHandle) {
         JournaledFile journal = makeJournaledFile(userHandle);
         FileInputStream stream = null;
         File file = journal.chooseForRead();
@@ -2066,7 +2069,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
         }
     }
 
-    private void lockNowUnchecked() {
+    protected void lockNowUnchecked() {
         long ident = Binder.clearCallingIdentity();
         try {
             // Power off the display
@@ -2195,7 +2198,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
         }
     }
 
-    private void wipeDeviceOrUserLocked(int flags, final int userHandle) {
+    protected void wipeDeviceOrUserLocked(int flags, final int userHandle) {
         if (userHandle == UserHandle.USER_OWNER) {
             wipeDataLocked(flags);
         } else {
@@ -2275,7 +2278,11 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
                     p.mActivePasswordSymbols = symbols;
                     p.mActivePasswordNonLetter = nonletter;
                     p.mFailedPasswordAttempts = 0;
-                    saveSettingsLocked(userHandle);
+
+                    // ARKHAM - 413, Fixing change password Notification, does not appear sometimes.
+                    if (!FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        saveSettingsLocked(userHandle);
+                    }
                     updatePasswordExpirationsLocked(userHandle);
                     setExpirationAlarmCheckLocked(mContext, p);
                     sendAdminCommandLocked(DeviceAdminReceiver.ACTION_PASSWORD_CHANGED,
@@ -2283,6 +2290,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
                 } finally {
                     Binder.restoreCallingIdentity(ident);
                 }
+                // ARKHAM - 413, Changes End.
             }
         }
     }
@@ -2463,6 +2471,12 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
         }
         exclusionList = exclusionList.trim();
         ContentResolver res = mContext.getContentResolver();
+
+        ProxyProperties proxyProperties = new ProxyProperties(data[0], proxyPort, exclusionList);
+        if (!proxyProperties.isValid()) {
+            Slog.e(TAG, "Invalid proxy properties, ignoring: " + proxyProperties.toString());
+            return;
+        }
         Settings.Global.putString(res, Settings.Global.GLOBAL_HTTP_PROXY_HOST, data[0]);
         Settings.Global.putInt(res, Settings.Global.GLOBAL_HTTP_PROXY_PORT, proxyPort);
         Settings.Global.putString(res, Settings.Global.GLOBAL_HTTP_PROXY_EXCLUSION_LIST,
@@ -2768,7 +2782,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
                 Settings.Global.DEVICE_PROVISIONED, 0) > 0;
     }
 
-    private void enforceCrossUserPermission(int userHandle) {
+    protected void enforceCrossUserPermission(int userHandle) {
         if (userHandle < 0) {
             throw new IllegalArgumentException("Invalid userId " + userHandle);
         }

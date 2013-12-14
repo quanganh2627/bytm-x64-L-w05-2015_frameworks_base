@@ -25,6 +25,7 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Region;
 import android.os.Debug;
+import android.os.UserHandle;
 import android.util.Slog;
 import android.view.Display;
 import android.view.DisplayInfo;
@@ -40,6 +41,8 @@ import android.view.animation.AnimationUtils;
 import android.view.animation.Transformation;
 
 import com.android.server.wm.WindowManagerService.H;
+import com.intel.arkham.ContainerCommons;
+import com.intel.config.FeatureConfig;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -360,6 +363,10 @@ class WindowStateAnimator {
                     + mWin.mToken + ": first real window done animating");
             mService.mFinishedStarting.add(mWin.mAppToken);
             mService.mH.sendEmptyMessage(H.FINISHED_STARTING);
+        } else if (mAttrType == LayoutParams.TYPE_STATUS_BAR && mWin.mPolicyVisibility) {
+            // Upon completion of a not-visible to visible status bar animation a relayout is
+            // required.
+            mWin.mDisplayContent.layoutNeeded = true;
         }
 
         finishExit();
@@ -641,6 +648,16 @@ class WindowStateAnimator {
             if ((attrs.flags&WindowManager.LayoutParams.FLAG_SECURE) != 0) {
                 flags |= SurfaceControl.SECURE;
             }
+
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                /**
+                 * ARKHAM-1095 - Making all container surfaces as secure.
+                 */
+                if (ContainerCommons.isContainerUser(mContext,
+                        UserHandle.getUserId(mWin.mOwnerUid))) {
+                    flags |= SurfaceControl.SECURE;
+                }
+            }
             if (DEBUG_VISIBILITY) Slog.v(
                 TAG, "Creating surface in session "
                 + mSession.mSurfaceSession + " window " + this
@@ -845,9 +862,9 @@ class WindowStateAnimator {
 
         // Wallpapers are animated based on the "real" window they
         // are currently targeting.
-        if (mIsWallpaper && mService.mLowerWallpaperTarget == null
-                && mService.mWallpaperTarget != null) {
-            final WindowStateAnimator wallpaperAnimator = mService.mWallpaperTarget.mWinAnimator;
+        final WindowState wallpaperTarget = mService.mWallpaperTarget;
+        if (mIsWallpaper && wallpaperTarget != null && mService.mAnimateWallpaperWithTarget) {
+            final WindowStateAnimator wallpaperAnimator = wallpaperTarget.mWinAnimator;
             if (wallpaperAnimator.mHasLocalTransformation &&
                     wallpaperAnimator.mAnimation != null &&
                     !wallpaperAnimator.mAnimation.getDetachWallpaper()) {
@@ -856,8 +873,9 @@ class WindowStateAnimator {
                     Slog.v(TAG, "WP target attached xform: " + attachedTransformation);
                 }
             }
-            final AppWindowAnimator wpAppAnimator = mAnimator.getWallpaperAppAnimator();
-            if (wpAppAnimator != null && wpAppAnimator.hasTransformation
+            final AppWindowAnimator wpAppAnimator = wallpaperTarget.mAppToken == null ?
+                    null : wallpaperTarget.mAppToken.mAppAnimator;
+                if (wpAppAnimator != null && wpAppAnimator.hasTransformation
                     && wpAppAnimator.animation != null
                     && !wpAppAnimator.animation.getDetachWallpaper()) {
                 appTransformation = wpAppAnimator.transformation;

@@ -359,8 +359,29 @@ public class AudioManager {
      */
     public static final int RINGER_MODE_NORMAL = 2;
 
+    /**
+     * @hide Ringer mode that will be silent and will not vibrate.
+     * This will be master ringer mode setting. Unless it is
+     * reset no other ringer mode values can be set.
+     *
+     * @see #setRingerMode(int)
+     * @see #getRingerMode()
+     */
+    public static final int RINGER_MODE_HW_SILENT = 3;
+
+    /**
+     * @hide Ringer mode that may be audible and may vibrate. It will be audible if
+     * the volume before changing out of this mode was audible. It will vibrate
+     * if the vibrate setting is on. This is also reset the HW ringer mode
+     * silent
+     *
+     * @see #setRingerMode(int)
+     * @see #getRingerMode()
+     */
+    public static final int RINGER_MODE_HW_NORMAL = 4;
+
     // maximum valid ringer mode value. Values must start from 0 and be contiguous.
-    private static final int RINGER_MODE_MAX = RINGER_MODE_NORMAL;
+    private static final int RINGER_MODE_MAX = RINGER_MODE_NORMAL + 2;
 
     /**
      * Vibrate type that corresponds to the ringer.
@@ -710,6 +731,24 @@ public class AudioManager {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Returns the hardware mute switch state.
+     *
+     * @return true if hardware mute switch is used to mute, false otherwise.
+     *
+     * @see #setRingerMode(int)
+     * @hide
+     */
+    public boolean isHwMuteSwitchON() {
+        IAudioService service = getService();
+        try {
+            return service.isHwMuteSwitchON();
+        } catch (RemoteException e) {
+            Log.e(TAG, "Dead object in isHwMuteSwitchON", e);
+            return false;
+        }
     }
 
     /**
@@ -2572,6 +2611,9 @@ public class AudioManager {
      *  docking station
      */
     public static final int DEVICE_OUT_DGTL_DOCK_HEADSET = AudioSystem.DEVICE_OUT_DGTL_DOCK_HEADSET;
+    /** {@hide} The audio output device code for a loopback driver for WIDI use case
+     */
+    public static final int DEVICE_OUT_WIDI = AudioSystem.DEVICE_OUT_WIDI;
     /** {@hide} The audio output device code for a USB audio accessory. The accessory is in USB host
      * mode and the Android device in USB device mode
      */

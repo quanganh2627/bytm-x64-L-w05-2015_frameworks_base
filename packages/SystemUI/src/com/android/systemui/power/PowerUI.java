@@ -32,11 +32,13 @@ import android.os.Handler;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.os.UserHandle;
+import android.os.Vibrator;
 import android.provider.Settings;
 import android.util.Slog;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.android.systemui.R;
 import com.android.systemui.SystemUI;
@@ -56,6 +58,7 @@ public class PowerUI extends SystemUI {
     int mBatteryStatus = BatteryManager.BATTERY_STATUS_UNKNOWN;
     int mPlugType = 0;
     int mInvalidCharger = 0;
+    boolean mShowChargerWarning = true;
 
     int mLowBatteryAlertCloseLevel;
     int[] mLowBatteryReminderLevels = new int[2];
@@ -65,6 +68,8 @@ public class PowerUI extends SystemUI {
     TextView mBatteryLevelTextView;
 
     private long mScreenOffTime = -1;
+
+    private PowerManager.WakeLock mWakeLock;
 
     public void start() {
 
@@ -129,6 +134,22 @@ public class PowerUI extends SystemUI {
 
                 final boolean plugged = mPlugType != 0;
                 final boolean oldPlugged = oldPlugType != 0;
+
+                if (mBatteryStatus != oldBatteryStatus) {
+                    mShowChargerWarning = true;
+                }
+
+                if (mBatteryLevel < oldBatteryLevel &&
+                        (mBatteryStatus == BatteryManager.BATTERY_STATUS_CHARGING
+                        || mBatteryStatus == BatteryManager.BATTERY_STATUS_FULL)
+                        && (oldBatteryStatus == BatteryManager.BATTERY_STATUS_CHARGING
+                        || oldBatteryStatus == BatteryManager.BATTERY_STATUS_FULL)
+                        && mShowChargerWarning) {
+                    Toast.makeText(mContext.getApplicationContext(),
+                        "Insufficient charger current!!!", Toast.LENGTH_LONG).show();
+                    mShowChargerWarning = false;
+                    Slog.i(TAG, "Showing Charger Warning...");
+                }
 
                 int oldBucket = findBatteryLevelBucket(oldBatteryLevel);
                 int bucket = findBatteryLevelBucket(mBatteryLevel);
@@ -228,6 +249,16 @@ public class PowerUI extends SystemUI {
                 });
             }
 
+            PowerManager pm = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
+            mWakeLock = pm.newWakeLock((PowerManager.FULL_WAKE_LOCK
+                            | PowerManager.ACQUIRE_CAUSES_WAKEUP), TAG);
+            /*
+             * allow sleep after 3 sec; this will solve the problem of
+             * low battery popup when screen is off. It will force the
+             * screen to turn-on for user can see low battery popup.
+             */
+            mWakeLock.acquire(3000);
+
             AlertDialog d = b.create();
             d.setOnDismissListener(new DialogInterface.OnDismissListener() {
                     @Override
@@ -239,6 +270,15 @@ public class PowerUI extends SystemUI {
             d.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
             d.getWindow().getAttributes().privateFlags |=
                     WindowManager.LayoutParams.PRIVATE_FLAG_SHOW_FOR_ALL_USERS;
+
+            Vibrator vibrator = (Vibrator) mContext.getSystemService(Context.VIBRATOR_SERVICE);
+            /*
+             * vibrate for 0.5 sec; this request(vibrate) comes from user
+             * experience that phone must vibrate when low battery popup
+             * happens and system is in silent mode.
+             */
+            vibrator.vibrate(500);
+
             d.show();
             mLowBatteryDialog = d;
         }

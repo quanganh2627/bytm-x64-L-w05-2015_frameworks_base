@@ -42,6 +42,8 @@ import android.widget.Button;
 import com.android.internal.R;
 import com.android.internal.telephony.ITelephony;
 import com.google.android.collect.Lists;
+import com.intel.arkham.ParentLockPatternUtils;
+import com.intel.config.FeatureConfig;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -51,7 +53,7 @@ import java.util.List;
 /**
  * Utilities for the lock pattern and its settings.
  */
-public class LockPatternUtils {
+public class LockPatternUtils extends ParentLockPatternUtils {
 
     private static final String TAG = "LockPatternUtils";
 
@@ -171,6 +173,7 @@ public class LockPatternUtils {
      * @param contentResolver Used to look up and save settings.
      */
     public LockPatternUtils(Context context) {
+        super(context);
         mContext = context;
         mContentResolver = context.getContentResolver();
 
@@ -181,7 +184,7 @@ public class LockPatternUtils {
             Manifest.permission.INTERACT_ACROSS_USERS_FULL) == PackageManager.PERMISSION_GRANTED;
     }
 
-    private ILockSettings getLockSettings() {
+    protected ILockSettings getLockSettings() {
         if (mLockSettingsService == null) {
             mLockSettingsService = ILockSettings.Stub.asInterface(
                 (IBinder) ServiceManager.getService("lock_settings"));
@@ -253,6 +256,14 @@ public class LockPatternUtils {
     }
 
     public int getCurrentUser() {
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            // ARKHAM - 596, return container if isContainerUserMode set to true.
+            if (isContainerUserMode) {
+                return sContainerUserId;
+            }
+            // ARKHAM - 596 Ends.
+        }
+
         if (sCurrentUserId != UserHandle.USER_NULL) {
             // Someone is regularly updating using setCurrentUser() use that value.
             return sCurrentUserId;
@@ -272,7 +283,7 @@ public class LockPatternUtils {
         }
     }
 
-    private int getCurrentOrCallingUserId() {
+    protected int getCurrentOrCallingUserId() {
         if (mMultiUserMode) {
             // TODO: This is a little inefficient. See if all users of this are able to
             // handle USER_CURRENT and pass that instead.
@@ -290,6 +301,11 @@ public class LockPatternUtils {
      */
     public boolean checkPattern(List<LockPatternView.Cell> pattern) {
         final int userId = getCurrentOrCallingUserId();
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            if (isContainerUser(userId)) {
+                return super.checkPattern(pattern, userId);
+            }
+        }
         try {
             return getLockSettings().checkPattern(patternToString(pattern), userId);
         } catch (RemoteException re) {
@@ -305,6 +321,11 @@ public class LockPatternUtils {
      */
     public boolean checkPassword(String password) {
         final int userId = getCurrentOrCallingUserId();
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            if (isContainerUser(userId)) {
+                return super.checkPassword(password, userId);
+            }
+        }
         try {
             return getLockSettings().checkPassword(password, userId);
         } catch (RemoteException re) {
@@ -344,6 +365,13 @@ public class LockPatternUtils {
      * @return Whether a saved pattern exists.
      */
     public boolean savedPatternExists() {
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            // ARKHAM-477: ecryptfs is not mounted yet;
+            // for containers we'll do this check in checkPattern
+            if (isContainerUser(getCurrentOrCallingUserId()) && !isContainerSystemDataMounted()) {
+                return true;
+            }
+        }
         try {
             return getLockSettings().havePattern(getCurrentOrCallingUserId());
         } catch (RemoteException re) {
@@ -356,6 +384,13 @@ public class LockPatternUtils {
      * @return Whether a saved pattern exists.
      */
     public boolean savedPasswordExists() {
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            // ARKHAM-477: ecryptfs is not mounted yet;
+            // for containers we'll do this check in checkPassword
+            if (isContainerUser(getCurrentOrCallingUserId()) && !isContainerSystemDataMounted()) {
+                return true;
+            }
+        }
         try {
             return getLockSettings().havePassword(getCurrentOrCallingUserId());
         } catch (RemoteException re) {
@@ -495,6 +530,14 @@ public class LockPatternUtils {
      * @param isFallback Specifies if this is a fallback to biometric weak
      */
     public void saveLockPattern(List<LockPatternView.Cell> pattern, boolean isFallback) {
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            // ARKHAM - 215 - START, change ecryptfs passwords using the new user password
+            if (!changeContainerLockPassword(getCurrentOrCallingUserId(), isFallback, pattern, 0,
+                    true)) {
+                return;
+            }
+        }
+        // ARKHAM - 215 END
         try {
             getLockSettings().setLockPattern(patternToString(pattern), getCurrentOrCallingUserId());
             DevicePolicyManager dpm = getDevicePolicyManager();
@@ -620,6 +663,13 @@ public class LockPatternUtils {
      * @param userHandle The userId of the user to change the password for
      */
     public void saveLockPassword(String password, int quality, boolean isFallback, int userHandle) {
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            // ARKHAM - 215 - START, change ecryptfs passwords using the new user password
+            if (!changeContainerLockPassword(userHandle, isFallback, password, quality, false)) {
+                return;
+            }
+            // ARKHAM - 215 END
+        }
         try {
             getLockSettings().setLockPassword(password, userHandle);
             DevicePolicyManager dpm = getDevicePolicyManager();
@@ -1188,8 +1238,17 @@ public class LockPatternUtils {
 
     private long getLong(String secureSettingKey, long defaultValue) {
         try {
-            return getLockSettings().getLong(secureSettingKey, defaultValue,
-                    getCurrentOrCallingUserId());
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                int userHandle = getCurrentOrCallingUserId();
+                // ARKHAM-477: for containers we read the password type from ContainerManagerService
+                if (isContainerUser(userHandle)) {
+                    return super.getLong(secureSettingKey, defaultValue, userHandle);
+                }
+                return getLockSettings().getLong(secureSettingKey, defaultValue, userHandle);
+            } else {
+                return getLockSettings().getLong(secureSettingKey, defaultValue,
+                        getCurrentOrCallingUserId());
+            }
         } catch (RemoteException re) {
             return defaultValue;
         }
@@ -1360,4 +1419,7 @@ public class LockPatternUtils {
         setBoolean(LOCKSCREEN_WIDGETS_ENABLED, enabled, userId);
     }
 
+    protected byte[] absPatternToHash(List<LockPatternView.Cell> pattern) {
+        return patternToHash(pattern);
+    }
 }

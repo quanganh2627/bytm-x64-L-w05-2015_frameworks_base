@@ -57,6 +57,9 @@ import android.view.WindowManagerPolicy;
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.widget.LockPatternUtils;
 
+import com.intel.arkham.ContainerPolicyCommons;
+import com.intel.config.FeatureConfig;
+
 
 /**
  * Mediates requests related to the keyguard.  This includes queries about the
@@ -200,7 +203,7 @@ public class KeyguardViewMediator {
 
     // cached value of whether we are showing (need to know this to quickly
     // answer whether the input should be restricted)
-    private boolean mShowing = false;
+    private boolean mShowing;
 
     // true if the keyguard is hidden by another window
     private boolean mHidden = false;
@@ -221,6 +224,8 @@ public class KeyguardViewMediator {
     // the properties of the keyguard
 
     private KeyguardUpdateMonitor mUpdateMonitor;
+
+    ContainerPolicyCommons mCpc;
 
     private boolean mScreenOn;
 
@@ -251,6 +256,11 @@ public class KeyguardViewMediator {
      * The volume applied to the lock/unlock sounds.
      */
     private final float mLockSoundVolume;
+
+    /**
+     * For managing external displays
+     */
+    private KeyguardDisplayManager mKeyguardDisplayManager;
 
     /**
      * Cache of avatar drawables, for use by KeyguardMultiUserAvatar.
@@ -304,6 +314,11 @@ public class KeyguardViewMediator {
          * Report that the keyguard is dismissable, pending the next keyguardDone call.
          */
         void keyguardDonePending();
+
+        /**
+         * Report when keyguard is actually gone
+         */
+        void keyguardGone();
     }
 
     KeyguardUpdateMonitorCallback mUpdateCallback = new KeyguardUpdateMonitorCallback() {
@@ -342,17 +357,38 @@ public class KeyguardViewMediator {
         @Override
         void onPhoneStateChanged(int phoneState) {
             synchronized (KeyguardViewMediator.this) {
-                if (TelephonyManager.CALL_STATE_IDLE == phoneState  // call ending
-                        && !mScreenOn                           // screen off
-                        && mExternallyEnabled) {                // not disabled by any app
+                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                    if (TelephonyManager.CALL_STATE_IDLE == phoneState  // call ending
+                            && !mScreenOn                           // screen off
+                            && !isExternallyDisabled()) {                // not disabled by any app
 
-                    // note: this is a way to gracefully reenable the keyguard when the call
-                    // ends and the screen is off without always reenabling the keyguard
-                    // each time the screen turns off while in call (and having an occasional ugly
-                    // flicker while turning back on the screen and disabling the keyguard again).
-                    if (DEBUG) Log.d(TAG, "screen is off and call ended, let's make sure the "
-                            + "keyguard is showing");
-                    doKeyguardLocked(null);
+                        // note: this is a way to gracefully reenable the keyguard when the call
+                        // ends and the screen is off without always reenabling the keyguard
+                        // each time the screen turns off while in call (and having an occasional
+                        // ugly flicker while turning back on the screen and disabling the
+                        // keyguard again).
+                        if (DEBUG) {
+                            Log.d(TAG, "screen is off and call ended, let's make sure the "
+                                    + "keyguard is showing");
+                        }
+                        doKeyguardLocked(null);
+                    }
+                } else {
+                    if (TelephonyManager.CALL_STATE_IDLE == phoneState // call ending
+                            && !mScreenOn // screen off
+                            && mExternallyEnabled) { // not disabled by any app
+
+                        // note: this is a way to gracefully reenable the keyguard when the call
+                        // ends and the screen is off without always reenabling the keyguard
+                        // each time the screen turns off while in call (and having an occasional
+                        // ugly flicker while turning back on the screen and disabling the
+                        // keyguard again).
+                        if (DEBUG) {
+                            Log.d(TAG, "screen is off and call ended, let's make sure the "
+                                    + "keyguard is showing");
+                        }
+                        doKeyguardLocked(null);
+                    }
                 }
             }
         };
@@ -386,11 +422,24 @@ public class KeyguardViewMediator {
                             } else {
                                 resetStateLocked(null);
                             }
+                        // reset lock screen in case of sim removal or not ready
+                        // after the device is provisioned
+                        } else {
+                            if (isShowing()) {
+                                if (mLockPatternUtils.isLockScreenDisabled()) {
+                                    if (DEBUG) Log.d(TAG, "Lock screen will be hidden because,"
+                                            + " the user has set the preference to None.");
+                                    hideLocked();
+                                } else {
+                                    resetStateLocked(null);
+                                }
+                            }
                         }
                     }
                     break;
                 case PIN_REQUIRED:
                 case PUK_REQUIRED:
+                case NETWORK_LOCKED_PUK:
                     synchronized (this) {
                         if (!isShowing()) {
                             if (DEBUG) Log.d(TAG, "INTENT_VALUE_ICC_LOCKED and keygaurd isn't "
@@ -457,6 +506,11 @@ public class KeyguardViewMediator {
         public void keyguardDonePending() {
             mKeyguardDonePending = true;
         }
+
+        @Override
+        public void keyguardGone() {
+            mKeyguardDisplayManager.hide();
+        }
     };
 
     private void userActivity() {
@@ -483,6 +537,8 @@ public class KeyguardViewMediator {
 
         mContext.registerReceiver(mBroadcastReceiver, new IntentFilter(DELAYED_KEYGUARD_ACTION));
 
+        mKeyguardDisplayManager = new KeyguardDisplayManager(context);
+
         mAlarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
 
         mUpdateMonitor = KeyguardUpdateMonitor.getInstance(context);
@@ -490,6 +546,10 @@ public class KeyguardViewMediator {
         mLockPatternUtils = lockPatternUtils != null
                 ? lockPatternUtils : new LockPatternUtils(mContext);
         mLockPatternUtils.setCurrentUser(UserHandle.USER_OWNER);
+
+        // Assume keyguard is showing (unless it's disabled) until we know for sure...
+        mShowing = (mUpdateMonitor.isDeviceProvisioned() || mLockPatternUtils.isSecure())
+                && !mLockPatternUtils.isLockScreenDisabled();
 
         WindowManager wm = (WindowManager)context.getSystemService(Context.WINDOW_SERVICE);
 
@@ -518,6 +578,9 @@ public class KeyguardViewMediator {
         int lockSoundDefaultAttenuation = context.getResources().getInteger(
                 com.android.internal.R.integer.config_lockSoundVolumeDb);
         mLockSoundVolume = (float)Math.pow(10, (float)lockSoundDefaultAttenuation/20);
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mCpc = new ContainerPolicyCommons(context, mLockPatternUtils);
+        }
     }
 
     /**
@@ -529,9 +592,6 @@ public class KeyguardViewMediator {
             if (DEBUG) Log.d(TAG, "onSystemReady");
             mSystemReady = true;
             mUpdateMonitor.registerCallback(mUpdateCallback);
-
-            // Send boot completed message if it hasn't already been sent.
-            mUpdateMonitor.dispatchBootCompleted();
 
             // Suppress biometric unlock right after boot until things have settled if it is the
             // selected security method, otherwise unsuppress it.  It must be unsuppressed if it is
@@ -555,6 +615,19 @@ public class KeyguardViewMediator {
         // Most services aren't available until the system reaches the ready state, so we
         // send it here when the device first boots.
         maybeSendUserPresentBroadcast();
+    }
+
+    /**
+     * ARKHAM-983
+     * replacing mExternallyEnabled with isExternallyDisabled to check if we can disable
+     * keyguard for container user
+     */
+    public boolean isExternallyDisabled() {
+        if (!mLockPatternUtils.isContainerUserMode()) {
+            return !mExternallyEnabled;
+        } else {
+            return !mExternallyEnabled && mCpc.allowKeyguardDisable();
+        }
     }
 
     /**
@@ -584,8 +657,14 @@ public class KeyguardViewMediator {
                     Slog.w(TAG, "Failed to call onKeyguardExitResult(false)", e);
                 }
                 mExitSecureCallback = null;
-                if (!mExternallyEnabled) {
-                    hideLocked();
+                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                    if (isExternallyDisabled()) {
+                        hideLocked();
+                    }
+                } else {
+                    if (!mExternallyEnabled) {
+                        hideLocked();
+                    }
                 }
             } else if (mShowing) {
                 notifyScreenOffLocked();
@@ -863,19 +942,36 @@ public class KeyguardViewMediator {
      */
     private void doKeyguardLocked(Bundle options) {
         // if another app is disabling us, don't show
-        if (!mExternallyEnabled) {
-            if (DEBUG) Log.d(TAG, "doKeyguard: not showing because externally disabled");
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            if (isExternallyDisabled()) {
+                if (DEBUG) Log.d(TAG, "doKeyguard: not showing because externally disabled");
 
-            // note: we *should* set mNeedToReshowWhenReenabled=true here, but that makes
-            // for an occasional ugly flicker in this situation:
-            // 1) receive a call with the screen on (no keyguard) or make a call
-            // 2) screen times out
-            // 3) user hits key to turn screen back on
-            // instead, we reenable the keyguard when we know the screen is off and the call
-            // ends (see the broadcast receiver below)
-            // TODO: clean this up when we have better support at the window manager level
-            // for apps that wish to be on top of the keyguard
-            return;
+                // note: we *should* set mNeedToReshowWhenReenabled=true here, but that makes
+                // for an occasional ugly flicker in this situation:
+                // 1) receive a call with the screen on (no keyguard) or make a call
+                // 2) screen times out
+                // 3) user hits key to turn screen back on
+                // instead, we reenable the keyguard when we know the screen is off and the call
+                // ends (see the broadcast receiver below)
+                // TODO: clean this up when we have better support at the window manager level
+                // for apps that wish to be on top of the keyguard
+                return;
+            }
+        } else {
+            if (!mExternallyEnabled) {
+                if (DEBUG) Log.d(TAG, "doKeyguard: not showing because externally disabled");
+
+                // note: we *should* set mNeedToReshowWhenReenabled=true here, but that makes
+                // for an occasional ugly flicker in this situation:
+                // 1) receive a call with the screen on (no keyguard) or make a call
+                // 2) screen times out
+                // 3) user hits key to turn screen back on
+                // instead, we reenable the keyguard when we know the screen is off and the call
+                // ends (see the broadcast receiver below)
+                // TODO: clean this up when we have better support at the window manager level
+                // for apps that wish to be on top of the keyguard
+                return;
+            }
         }
 
         // if the keyguard is already showing, don't bother
@@ -1101,6 +1197,10 @@ public class KeyguardViewMediator {
 
         if (authenticated) {
             mUpdateMonitor.clearFailedUnlockAttempts();
+        } else {
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                mCpc.launchHome();
+            }
         }
 
         if (mExitSecureCallback != null) {
@@ -1221,6 +1321,7 @@ public class KeyguardViewMediator {
 
             mShowKeyguardWakeLock.release();
         }
+        mKeyguardDisplayManager.show();
     }
 
     /**
@@ -1365,5 +1466,9 @@ public class KeyguardViewMediator {
     public void launchCamera() {
         Message msg = mHandler.obtainMessage(LAUNCH_CAMERA);
         mHandler.sendMessage(msg);
+    }
+
+    public void onBootCompleted() {
+        mUpdateMonitor.dispatchBootCompleted();
     }
 }

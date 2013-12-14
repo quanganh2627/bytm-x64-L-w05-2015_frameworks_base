@@ -63,6 +63,8 @@ static jmethodID method_getObjectReferences;
 static jmethodID method_setObjectReferences;
 static jmethodID method_sessionStarted;
 static jmethodID method_sessionEnded;
+static jmethodID method_transferStarted;
+static jmethodID method_transferEnded;
 
 static jfieldID field_context;
 
@@ -169,6 +171,10 @@ public:
     virtual void                    sessionStarted();
 
     virtual void                    sessionEnded();
+
+    virtual void                    transferStarted();
+
+    virtual void                    transferEnded();
 };
 
 // ----------------------------------------------------------------------------
@@ -1069,6 +1075,18 @@ void MyMtpDatabase::sessionEnded() {
     checkAndClearExceptionFromCallback(env, __FUNCTION__);
 }
 
+void MyMtpDatabase::transferStarted() {
+    JNIEnv* env = AndroidRuntime::getJNIEnv();
+    env->CallVoidMethod(mDatabase, method_transferStarted);
+    checkAndClearExceptionFromCallback(env, __FUNCTION__);
+}
+
+void MyMtpDatabase::transferEnded() {
+    JNIEnv* env = AndroidRuntime::getJNIEnv();
+    env->CallVoidMethod(mDatabase, method_transferEnded);
+    checkAndClearExceptionFromCallback(env, __FUNCTION__);
+}
+
 // ----------------------------------------------------------------------------
 
 static void
@@ -1083,10 +1101,19 @@ static void
 android_mtp_MtpDatabase_finalize(JNIEnv *env, jobject thiz)
 {
     MyMtpDatabase* database = (MyMtpDatabase *)env->GetIntField(thiz, field_context);
-    database->cleanup(env);
-    delete database;
-    env->SetIntField(thiz, field_context, 0);
-    checkAndClearExceptionFromCallback(env, __FUNCTION__);
+    if ( database != NULL )
+    {
+        database->cleanup(env);
+        delete database;
+        env->SetIntField(thiz, field_context, 0);
+        checkAndClearExceptionFromCallback(env, __FUNCTION__);
+    }
+}
+
+static void
+android_mtp_MtpDatabase_release(JNIEnv *env, jobject thiz)
+{
+    android_mtp_MtpDatabase_finalize(env, thiz);
 }
 
 static jstring
@@ -1102,6 +1129,7 @@ android_mtp_MtpPropertyGroup_format_date_time(JNIEnv *env, jobject thiz, jlong s
 static JNINativeMethod gMtpDatabaseMethods[] = {
     {"native_setup",            "()V",  (void *)android_mtp_MtpDatabase_setup},
     {"native_finalize",         "()V",  (void *)android_mtp_MtpDatabase_finalize},
+    {"native_release",          "()V",  (void *)android_mtp_MtpDatabase_release},
 };
 
 static JNINativeMethod gMtpPropertyGroupMethods[] = {
@@ -1214,6 +1242,16 @@ int register_android_mtp_MtpDatabase(JNIEnv *env)
     method_sessionEnded = env->GetMethodID(clazz, "sessionEnded", "()V");
     if (method_sessionEnded == NULL) {
         ALOGE("Can't find sessionEnded");
+        return -1;
+    }
+    method_transferStarted = env->GetMethodID(clazz, "transferStarted", "()V");
+    if (method_transferStarted == NULL) {
+        ALOGE("Can't find method_transferStarted");
+        return -1;
+    }
+    method_transferEnded = env->GetMethodID(clazz, "transferEnded", "()V");
+    if (method_transferEnded == NULL) {
+        ALOGE("Can't find method_transferEnded");
         return -1;
     }
 

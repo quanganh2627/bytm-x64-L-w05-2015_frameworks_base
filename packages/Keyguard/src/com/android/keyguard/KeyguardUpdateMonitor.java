@@ -355,11 +355,15 @@ public class KeyguardUpdateMonitor {
                 }
             } else if (IccCardConstants.INTENT_VALUE_LOCKED_NETWORK.equals(stateExtra)) {
                 state = IccCardConstants.State.NETWORK_LOCKED;
+            } else if (IccCardConstants.INTENT_VALUE_LOCKED_NETWORK_PUK.equals(stateExtra)) {
+                state = IccCardConstants.State.NETWORK_LOCKED_PUK;
             } else if (IccCardConstants.INTENT_VALUE_ICC_LOADED.equals(stateExtra)
                         || IccCardConstants.INTENT_VALUE_ICC_IMSI.equals(stateExtra)) {
                 // This is required because telephony doesn't return to "READY" after
                 // these state transitions. See bug 7197471.
                 state = IccCardConstants.State.READY;
+            } else if (IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra)) {
+                state = IccCardConstants.State.NOT_READY;
             } else {
                 state = IccCardConstants.State.UNKNOWN;
             }
@@ -635,15 +639,14 @@ public class KeyguardUpdateMonitor {
      * PhoneWindowManager in this case.
      */
     protected void dispatchBootCompleted() {
-        if (!mBootCompleted) {
-            mHandler.sendEmptyMessage(MSG_BOOT_COMPLETED);
-        }
+        mHandler.sendEmptyMessage(MSG_BOOT_COMPLETED);
     }
 
     /**
      * Handle {@link #MSG_BOOT_COMPLETED}
      */
     protected void handleBootCompleted() {
+        if (mBootCompleted) return;
         mBootCompleted = true;
         mAudioManager = new AudioManager(mContext);
         mAudioManager.registerRemoteControlDisplay(mRemoteControlDisplay);
@@ -816,7 +819,7 @@ public class KeyguardUpdateMonitor {
         for (int i = 0; i < mCallbacks.size(); i++) {
             KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
             if (cb != null) {
-                cb.onKeyguardVisibilityChanged(isShowing);
+                cb.onKeyguardVisibilityChangedRaw(isShowing);
             }
         }
     }
@@ -1053,7 +1056,8 @@ public class KeyguardUpdateMonitor {
     public static boolean isSimLocked(IccCardConstants.State state) {
         return state == IccCardConstants.State.PIN_REQUIRED
         || state == IccCardConstants.State.PUK_REQUIRED
-        || state == IccCardConstants.State.PERM_DISABLED;
+        || state == IccCardConstants.State.PERM_DISABLED
+        || state == IccCardConstants.State.NETWORK_LOCKED_PUK;
     }
 
     public boolean isSimPinSecure() {

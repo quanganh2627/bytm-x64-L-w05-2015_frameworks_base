@@ -78,6 +78,9 @@ import android.widget.Toast;
 import com.android.internal.R;
 
 import com.android.internal.notification.NotificationScorer;
+
+import com.intel.config.FeatureConfig;
+
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -166,7 +169,7 @@ public class NotificationManagerService extends INotificationManager.Stub
     private boolean mNotificationPulseEnabled;
 
     // used as a mutex for access to all active notifications & listeners
-    private final ArrayList<NotificationRecord> mNotificationList =
+    protected final ArrayList<NotificationRecord> mNotificationList =
             new ArrayList<NotificationRecord>();
 
     private ArrayList<ToastRecord> mToastQueue;
@@ -1632,7 +1635,7 @@ public class NotificationManagerService extends INotificationManager.Stub
     // uid/pid of another application)
 
     public void enqueueNotificationInternal(final String pkg, String basePkg, final int callingUid,
-            final int callingPid, final String tag, final int id, final Notification notification,
+            final int callingPid, String tag, final int id, final Notification notification,
             int[] idOut, int incomingUserId)
     {
         if (DBG) {
@@ -1641,8 +1644,22 @@ public class NotificationManagerService extends INotificationManager.Stub
         checkCallerIsSystemOrSameApp(pkg);
         final boolean isSystemNotification = isUidSystem(callingUid) || ("android".equals(pkg));
 
-        final int userId = ActivityManager.handleIncomingUser(callingPid,
+        int userId = ActivityManager.handleIncomingUser(callingPid,
                 callingUid, incomingUserId, true, false, "enqueueNotification", pkg);
+
+        // ARKHAM-160 START Notifications from container apps to be displayed in
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            // container owner
+            if (isContainerUser(userId)) {
+                // Change the tag to differentiate container user's notification
+                // from primary user
+                tag = buildNotificationTag(tag, userId);
+                // Add to container owner's notification list
+                userId = getContainerOwner(userId);
+            }
+        }
+        // ARKHAM-160 END
+
         final UserHandle user = new UserHandle(userId);
 
         // Limit the number of notifications that any given package except the android
@@ -1684,6 +1701,8 @@ public class NotificationManagerService extends INotificationManager.Stub
             }
         }
 
+        final int localUserId = userId;
+        final String localTag = tag;
         mHandler.post(new Runnable() {
             @Override
             public void run() {
@@ -1752,11 +1771,11 @@ public class NotificationManagerService extends INotificationManager.Stub
 
                 synchronized (mNotificationList) {
                     final StatusBarNotification n = new StatusBarNotification(
-                            pkg, id, tag, callingUid, callingPid, score, notification, user);
+                            pkg, id, localTag, callingUid, callingPid, score, notification, user);
                     NotificationRecord r = new NotificationRecord(n);
                     NotificationRecord old = null;
 
-                    int index = indexOfNotificationLocked(pkg, tag, id, userId);
+                    int index = indexOfNotificationLocked(pkg, localTag, id, localUserId);
                     if (index < 0) {
                         mNotificationList.add(r);
                     } else {
@@ -1808,7 +1827,7 @@ public class NotificationManagerService extends INotificationManager.Stub
                             }
                         }
                         // Send accessibility events only for the current user.
-                        if (currentUser == userId) {
+                        if (currentUser == localUserId) {
                             sendAccessibilityEvent(notification, pkg);
                         }
 
@@ -1837,7 +1856,7 @@ public class NotificationManagerService extends INotificationManager.Stub
                             && (!(old != null
                                 && (notification.flags & Notification.FLAG_ONLY_ALERT_ONCE) != 0 ))
                             && (r.getUserId() == UserHandle.USER_ALL ||
-                                (r.getUserId() == userId && r.getUserId() == currentUser))
+                                (r.getUserId() == localUserId && r.getUserId() == currentUser))
                             && canInterrupt
                             && mSystemReady) {
 
@@ -1985,7 +2004,7 @@ public class NotificationManagerService extends INotificationManager.Stub
         manager.sendAccessibilityEvent(event);
     }
 
-    private void cancelNotificationLocked(NotificationRecord r, boolean sendDelete) {
+    protected void cancelNotificationLocked(NotificationRecord r, boolean sendDelete) {
         // tell the app
         if (sendDelete) {
             if (r.getNotification().deleteIntent != null) {
@@ -2053,7 +2072,7 @@ public class NotificationManagerService extends INotificationManager.Stub
      * Cancels a notification ONLY if it has all of the {@code mustHaveFlags}
      * and none of the {@code mustNotHaveFlags}.
      */
-    private void cancelNotification(final String pkg, final String tag, final int id,
+    protected void cancelNotification(final String pkg, final String tag, final int id,
             final int mustHaveFlags, final int mustNotHaveFlags, final boolean sendDelete,
             final int userId) {
         // In enqueueNotificationInternal notifications are added by scheduling the
@@ -2225,7 +2244,7 @@ public class NotificationManagerService extends INotificationManager.Stub
     }
 
     // lock on mNotificationList
-    private void updateLightsLocked()
+    protected void updateLightsLocked()
     {
         // handle notification lights
         if (mLedNotification == null) {
@@ -2365,4 +2384,19 @@ public class NotificationManagerService extends INotificationManager.Stub
 
         }
     }
+
+    // ARKHAM-160 START Notifications from container apps to be displayed in
+    // container owner
+    protected boolean isContainerUser(int userId) {
+        return false;
+    }
+
+    protected int getContainerOwner(int userId) {
+        return UserHandle.USER_OWNER;
+    }
+
+    protected String buildNotificationTag(String tag, int userId) {
+        return tag;
+    }
+    // ARKHAM-160 END
 }

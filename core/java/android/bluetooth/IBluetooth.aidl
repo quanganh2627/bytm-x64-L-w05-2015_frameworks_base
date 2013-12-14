@@ -71,6 +71,18 @@ interface IBluetooth
     boolean setPasskey(in BluetoothDevice device, boolean accept, int len, in byte[]
     passkey);
     boolean setPairingConfirmation(in BluetoothDevice device, boolean accept);
+    boolean setChannelClassification(in byte[] BTChannelClassification, in byte[] LEChannelMap);
+    boolean setMWSChannelParameters(
+            in int enable,
+            in int rxCenterFreq,
+            in int txCenterFreq,
+            in int rxChannelBandwidth,
+            in int txChannelBandwidth,
+            in int channelType);
+    boolean setMWSTransportLayer(
+            in int transportLayer,
+            in int toBaudRate,
+            in int fromBaudRate);
 
     void sendConnectionStateChange(in BluetoothDevice device, int profile, int state, int prevState);
 

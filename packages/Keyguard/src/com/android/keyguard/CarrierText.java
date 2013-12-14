@@ -17,13 +17,19 @@
 package com.android.keyguard;
 
 import android.content.Context;
+import android.text.method.SingleLineTransformationMethod;
 import android.text.TextUtils;
 import android.util.AttributeSet;
+import android.view.View;
 import android.widget.TextView;
 
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.IccCardConstants.State;
 import com.android.internal.widget.LockPatternUtils;
+import com.intel.arkham.ContainerPolicyCommons;
+import com.intel.config.FeatureConfig;
+
+import java.util.Locale;
 
 public class CarrierText extends TextView {
     private static CharSequence mSeparator;
@@ -67,7 +73,8 @@ public class CarrierText extends TextView {
         SimPukLocked, // SIM card is PUK locked because SIM entered wrong too many times
         SimLocked, // SIM card is currently locked
         SimPermDisabled, // SIM card is permanently disabled due to PUK unlock failure
-        SimNotReady; // SIM is not ready yet. May never be on devices w/o a SIM.
+        SimNotReady, // SIM is not ready yet. May never be on devices w/o a SIM.
+        NetworkPukLocked; // Device is network PUK locked.
     }
 
     public CarrierText(Context context) {
@@ -77,10 +84,17 @@ public class CarrierText extends TextView {
     public CarrierText(Context context, AttributeSet attrs) {
         super(context, attrs);
         mLockPatternUtils = new LockPatternUtils(mContext);
+        boolean useAllCaps = mContext.getResources().getBoolean(R.bool.kg_use_all_caps);
+        setTransformationMethod(new CarrierTextTransformationMethod(mContext, useAllCaps));
     }
 
     protected void updateCarrierText(State simState, CharSequence plmn, CharSequence spn) {
-        setText(getCarrierTextForSimState(simState, plmn, spn));
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            setText(ContainerPolicyCommons.updateCarrierText(getContext(),
+                    mLockPatternUtils, getCarrierTextForSimState(simState, plmn, spn)));
+        } else {
+            setText(getCarrierTextForSimState(simState, plmn, spn));
+        }
     }
 
     @Override
@@ -162,6 +176,11 @@ public class CarrierText extends TextView {
                         getContext().getText(R.string.keyguard_sim_puk_locked_message),
                         plmn);
                 break;
+            case NetworkPukLocked:
+                carrierText = makeCarrierStringOnEmergencyCapable(
+                        getContext().getText(R.string.lockscreen_network_puk_locked_message),
+                        plmn);
+                break;
         }
 
         return carrierText;
@@ -209,6 +228,8 @@ public class CarrierText extends TextView {
                 return StatusMode.Normal;
             case PERM_DISABLED:
                 return StatusMode.SimPermDisabled;
+            case NETWORK_LOCKED_PUK:
+                return StatusMode.NetworkPukLocked;
             case UNKNOWN:
                 return StatusMode.SimMissing;
         }
@@ -250,6 +271,10 @@ public class CarrierText extends TextView {
                 carrierHelpTextId = R.string.keyguard_missing_sim_instructions;
                 break;
 
+            case NetworkPukLocked:
+                carrierHelpTextId = R.string.lockscreen_network_puk_locked_instructions;
+                break;
+
             case Normal:
             case SimLocked:
             case SimPukLocked:
@@ -257,5 +282,26 @@ public class CarrierText extends TextView {
         }
 
         return mContext.getText(carrierHelpTextId);
+    }
+
+    private class CarrierTextTransformationMethod extends SingleLineTransformationMethod {
+        private final Locale mLocale;
+        private final boolean mAllCaps;
+
+        public CarrierTextTransformationMethod(Context context, boolean allCaps) {
+            mLocale = context.getResources().getConfiguration().locale;
+            mAllCaps = allCaps;
+        }
+
+        @Override
+        public CharSequence getTransformation(CharSequence source, View view) {
+            source = super.getTransformation(source, view);
+
+            if (mAllCaps && source != null) {
+                source = source.toString().toUpperCase(mLocale);
+            }
+
+            return source;
+        }
     }
 }

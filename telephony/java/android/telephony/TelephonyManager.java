@@ -388,7 +388,7 @@ public class TelephonyManager {
      * @see #PHONE_TYPE_SIP
      */
     public int getPhoneType() {
-        if (!isVoiceCapable()) {
+        if (!isVoiceCapable() && !isSmsCapable()) {
             return PHONE_TYPE_NONE;
         }
         return getCurrentPhoneType();
@@ -527,6 +527,22 @@ public class TelephonyManager {
                 " product_type='" + productType +
                 "' lteOnCdmaProductType='" + sLteOnCdmaProductType + "'");
         return retVal;
+    }
+
+    /** @hide */
+    public static boolean getLteOnGsmModeStatic() {
+        boolean ret = SystemProperties.getBoolean(TelephonyProperties.PROPERTY_LTE_ON_GSM_DEVICE,
+                false);
+        Rlog.d(TAG, TelephonyProperties.PROPERTY_LTE_ON_GSM_DEVICE + " is " + ret);
+        return ret;
+    }
+
+    /** @hide */
+    public static boolean getImsOnApStatic() {
+        int mode = SystemProperties.getInt(TelephonyProperties.PROPERTY_IMS_MODE, 0);
+        Rlog.d(TAG, TelephonyProperties.PROPERTY_IMS_MODE + " is " + mode);
+        /* See TelephonyProperties.PROPERTY_IMS_MODE for supported values */
+        return (mode == 2);
     }
 
     //

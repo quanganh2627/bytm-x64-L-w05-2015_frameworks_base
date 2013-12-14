@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
+/*
+ * Portions contributed by: Intel Corporation
+ */
 package com.android.server.display;
 
 import com.android.internal.util.DumpUtils;
 
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -27,25 +31,30 @@ import android.database.ContentObserver;
 import android.hardware.display.WifiDisplay;
 import android.hardware.display.WifiDisplaySessionInfo;
 import android.hardware.display.WifiDisplayStatus;
-import android.media.AudioManager;
 import android.media.RemoteDisplay;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pDeviceList;
 import android.net.wifi.p2p.WifiP2pGroup;
+import android.net.wifi.p2p.WifiP2pGroupList;
 import android.net.wifi.p2p.WifiP2pManager;
 import android.net.wifi.p2p.WifiP2pWfdInfo;
 import android.net.wifi.p2p.WifiP2pManager.ActionListener;
 import android.net.wifi.p2p.WifiP2pManager.Channel;
 import android.net.wifi.p2p.WifiP2pManager.GroupInfoListener;
 import android.net.wifi.p2p.WifiP2pManager.PeerListListener;
+import android.net.wifi.p2p.WifiP2pManager.PersistentGroupInfoListener;
 import android.os.Handler;
 import android.provider.Settings;
 import android.util.Slog;
 import android.view.Surface;
+import android.os.SystemProperties;
 
 import java.io.PrintWriter;
 import java.net.Inet4Address;
@@ -53,7 +62,9 @@ import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Enumeration;
+import java.util.List;
 
 import libcore.util.Objects;
 
@@ -75,12 +86,19 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
     private static final int DEFAULT_CONTROL_PORT = 7236;
     private static final int MAX_THROUGHPUT = 50;
-    private static final int CONNECTION_TIMEOUT_SECONDS = 60;
-    private static final int RTSP_TIMEOUT_SECONDS = 15;
+    private static final int CONNECTION_TIMEOUT_SECONDS = 30;
+    private static final int RTSP_TIMEOUT_SECONDS = 30;
     private static final int RTSP_TIMEOUT_SECONDS_CERT_MODE = 120;
 
-    private static final int DISCOVER_PEERS_MAX_RETRIES = 10;
-    private static final int DISCOVER_PEERS_RETRY_DELAY_MILLIS = 500;
+    // We repeatedly issue calls to discover peers every so often for a few reasons.
+    // 1. The initial request may fail and need to retried.
+    // 2. Discovery will self-abort after any group is initiated, which may not necessarily
+    //    be what we want to have happen.
+    // 3. Discovery will self-timeout after 2 minutes, whereas we want discovery to
+    //    be occur for as long as a client is requesting it be.
+    // 4. We don't seem to get updated results for displays we've already found until
+    //    we ask to discover again, particularly for the isSessionAvailable() property.
+    private static final int DISCOVER_PEERS_INTERVAL_MILLIS = 10000;
 
     private static final int CONNECT_MAX_RETRIES = 3;
     private static final int CONNECT_RETRY_DELAY_MILLIS = 500;
@@ -89,9 +107,11 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private final Handler mHandler;
     private final Listener mListener;
 
+    private final WifiManager mWifiManager;
     private final WifiP2pManager mWifiP2pManager;
     private final Channel mWifiP2pChannel;
 
+    private boolean mConnectRetryScheduled = false;
     private boolean mWifiP2pEnabled;
     private boolean mWfdEnabled;
     private boolean mWfdEnabling;
@@ -103,11 +123,14 @@ final class WifiDisplayController implements DumpUtils.Dump {
     // True if Wifi display is enabled by the user.
     private boolean mWifiDisplayOnSetting;
 
+    // True if a scan was requested independent of whether one is actually in progress.
+    private boolean mScanRequested;
+
     // True if there is a call to discoverPeers in progress.
     private boolean mDiscoverPeersInProgress;
 
-    // Number of discover peers retries remaining.
-    private int mDiscoverPeersRetriesLeft;
+    // True if a call to discoverPeers is scheduled.
+    private boolean mDiscoverPeersScheduled;
 
     // The device to which we want to connect, or null if we want to be disconnected.
     private WifiP2pDevice mDesiredDevice;
@@ -124,6 +147,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
     // The device to which we are currently connected, which means we have an active P2P group.
     private WifiP2pDevice mConnectedDevice;
+
+    // The device to which we want to reconnect.
+    private WifiP2pDevice mReconnectDesiredDevice;
 
     // The group info obtained after connecting.
     private WifiP2pGroup mConnectedDeviceGroupInfo;
@@ -148,6 +174,12 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private int mAdvertisedDisplayHeight;
     private int mAdvertisedDisplayFlags;
 
+    /* For WFD certification TC 5.1.3.
+     * The variables will not be used outside of certification scope.
+     */
+    private String mSigmaWfdAutogo;
+    private NetworkInfo mSigmaNetworkInfo;
+
     // Certification
     private boolean mWifiDisplayCertMode;
     private int mWifiDisplayWpsConfig = WpsInfo.INVALID;
@@ -159,13 +191,16 @@ final class WifiDisplayController implements DumpUtils.Dump {
         mHandler = handler;
         mListener = listener;
 
+        mWifiManager = (WifiManager)context.getSystemService(Context.WIFI_SERVICE);
         mWifiP2pManager = (WifiP2pManager)context.getSystemService(Context.WIFI_P2P_SERVICE);
         mWifiP2pChannel = mWifiP2pManager.initialize(context, handler.getLooper(), null);
 
         IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_DISCOVERY_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION);
         context.registerReceiver(mWifiP2pReceiver, intentFilter, null, mHandler);
 
@@ -209,8 +244,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
         pw.println("mWfdEnabled=" + mWfdEnabled);
         pw.println("mWfdEnabling=" + mWfdEnabling);
         pw.println("mNetworkInfo=" + mNetworkInfo);
+        pw.println("mScanRequested=" + mScanRequested);
         pw.println("mDiscoverPeersInProgress=" + mDiscoverPeersInProgress);
-        pw.println("mDiscoverPeersRetriesLeft=" + mDiscoverPeersRetriesLeft);
         pw.println("mDesiredDevice=" + describeWifiP2pDevice(mDesiredDevice));
         pw.println("mConnectingDisplay=" + describeWifiP2pDevice(mConnectingDevice));
         pw.println("mDisconnectingDisplay=" + describeWifiP2pDevice(mDisconnectingDevice));
@@ -232,8 +267,18 @@ final class WifiDisplayController implements DumpUtils.Dump {
         }
     }
 
-    public void requestScan() {
-        discoverPeers();
+    public void requestStartScan() {
+        if (!mScanRequested) {
+            mScanRequested = true;
+            updateScanState();
+        }
+    }
+
+    public void requestStopScan() {
+        if (mScanRequested) {
+            mScanRequested = false;
+            updateScanState();
+        }
     }
 
     public void requestConnect(String address) {
@@ -260,6 +305,40 @@ final class WifiDisplayController implements DumpUtils.Dump {
         disconnect();
     }
 
+    public void requestForget(String address) {
+        if (DEBUG) {
+            Slog.d(TAG, "requestForget " + address);
+        }
+
+        final WifiP2pDevice p2pDevice = new WifiP2pDevice(address);
+
+        mWifiP2pManager.requestPersistentGroupInfo(mWifiP2pChannel, new PersistentGroupInfoListener() {
+            @Override
+            public void onPersistentGroupInfoAvailable(WifiP2pGroupList groups) {
+
+                int netId = -1;
+                Collection<WifiP2pGroup> list = groups.getGroupList();
+                for (WifiP2pGroup grp: list) {
+                    if (grp.contains(p2pDevice)) {
+                        netId = grp.getNetworkId();
+                        break;
+                    }
+                }
+
+                if (netId != -1) {
+                    if (DEBUG) {
+                        Slog.d(TAG, "Deleting persistent group " + netId);
+                    }
+                    mWifiP2pManager.deletePersistentGroup(mWifiP2pChannel, netId, null);
+                }
+            }
+        });
+    }
+
+    public void requestReconnect() {
+        reconnect();
+    }
+
     private void updateWfdEnableState() {
         if (mWifiDisplayOnSetting && mWifiP2pEnabled) {
             // WFD should be enabled.
@@ -279,9 +358,11 @@ final class WifiDisplayController implements DumpUtils.Dump {
                             Slog.d(TAG, "Successfully set WFD info.");
                         }
                         if (mWfdEnabling) {
+                            restartDiscoverPeers();
                             mWfdEnabling = false;
                             mWfdEnabled = true;
                             reportFeatureState();
+                            updateScanState();
                         }
                     }
 
@@ -318,6 +399,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
             mWfdEnabling = false;
             mWfdEnabled = false;
             reportFeatureState();
+            updateScanState();
             disconnect();
         }
     }
@@ -340,12 +422,29 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 WifiDisplayStatus.FEATURE_STATE_OFF;
     }
 
-    private void discoverPeers() {
-        if (!mDiscoverPeersInProgress) {
-            mDiscoverPeersInProgress = true;
-            mDiscoverPeersRetriesLeft = DISCOVER_PEERS_MAX_RETRIES;
-            handleScanStarted();
-            tryDiscoverPeers();
+    private void updateScanState() {
+        if (mScanRequested && mWfdEnabled && mDesiredDevice == null) {
+            if (!mDiscoverPeersInProgress) {
+                Slog.i(TAG, "Starting Wifi display scan.");
+                mDiscoverPeersInProgress = true;
+                handleScanStarted();
+                tryDiscoverPeers();
+            }
+        } else {
+            if (mDiscoverPeersInProgress) {
+                // Cancel automatic retry right away.
+                mHandler.removeCallbacks(mDiscoverPeers);
+
+                // Defer actually stopping discovery if we have a connection attempt in progress.
+                // The wifi display connection attempt often fails if we are not in discovery
+                // mode.  So we allow discovery to continue until we give up trying to connect.
+                if (mDesiredDevice == null || mDesiredDevice == mConnectedDevice) {
+                    Slog.i(TAG, "Stopping Wifi display scan.");
+                    mDiscoverPeersInProgress = false;
+                    stopPeerDiscovery();
+                    handleScanFinished();
+                }
+            }
         }
     }
 
@@ -357,8 +456,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
                     Slog.d(TAG, "Discover peers succeeded.  Requesting peers now.");
                 }
 
-                mDiscoverPeersInProgress = false;
-                requestPeers();
+                if (mDiscoverPeersInProgress) {
+                    requestPeers();
+                }
             }
 
             @Override
@@ -367,39 +467,43 @@ final class WifiDisplayController implements DumpUtils.Dump {
                     Slog.d(TAG, "Discover peers failed with reason " + reason + ".");
                 }
 
-                if (mDiscoverPeersInProgress) {
-                    if (reason == 0 && mDiscoverPeersRetriesLeft > 0 && mWfdEnabled) {
-                        mHandler.postDelayed(new Runnable() {
-                            @Override
-                            public void run() {
-                                if (mDiscoverPeersInProgress) {
-                                    if (mDiscoverPeersRetriesLeft > 0 && mWfdEnabled) {
-                                        mDiscoverPeersRetriesLeft -= 1;
-                                        if (DEBUG) {
-                                            Slog.d(TAG, "Retrying discovery.  Retries left: "
-                                                    + mDiscoverPeersRetriesLeft);
-                                        }
-                                        tryDiscoverPeers();
-                                    } else {
-                                        handleScanFinished();
-                                        mDiscoverPeersInProgress = false;
-                                    }
-                                }
-                            }
-                        }, DISCOVER_PEERS_RETRY_DELAY_MILLIS);
-                    } else {
-                        handleScanFinished();
-                        mDiscoverPeersInProgress = false;
-                    }
+                // Ignore the error.
+                // We will retry automatically in a little bit.
+            }
+        });
+
+        // Retry discover peers periodically until stopped.
+        mHandler.postDelayed(mDiscoverPeers, DISCOVER_PEERS_INTERVAL_MILLIS);
+    }
+
+    private void stopPeerDiscovery() {
+        mWifiP2pManager.stopPeerDiscovery(mWifiP2pChannel, new ActionListener() {
+            @Override
+            public void onSuccess() {
+                if (DEBUG) {
+                    Slog.d(TAG, "Stop peer discovery succeeded.");
+                }
+            }
+
+            @Override
+            public void onFailure(int reason) {
+                if (DEBUG) {
+                    Slog.d(TAG, "Stop peer discovery failed with reason " + reason + ".");
                 }
             }
         });
+    }
+
+    private void restartDiscoverPeers() {
+        mDiscoverPeersScheduled = true;
+        stopPeerDiscovery();
     }
 
     private void requestPeers() {
         mWifiP2pManager.requestPeers(mWifiP2pChannel, new PeerListListener() {
             @Override
             public void onPeersAvailable(WifiP2pDeviceList peers) {
+                boolean tryReconnect = false;
                 if (DEBUG) {
                     Slog.d(TAG, "Received list of peers.");
                 }
@@ -412,10 +516,15 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
                     if (isWifiDisplay(device)) {
                         mAvailableWifiDisplayPeers.add(device);
+                        if (mReconnectDesiredDevice != null &&
+                            device.deviceAddress.equals(mReconnectDesiredDevice.deviceAddress))
+                            tryReconnect = true;
                     }
                 }
 
-                handleScanFinished();
+                if (mDiscoverPeersInProgress) {
+                    handleScanResults();
+                }
             }
         });
     }
@@ -429,7 +538,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
         });
     }
 
-    private void handleScanFinished() {
+    private void handleScanResults() {
         final int count = mAvailableWifiDisplayPeers.size();
         final WifiDisplay[] displays = WifiDisplay.CREATOR.newArray(count);
         for (int i = 0; i < count; i++) {
@@ -441,7 +550,16 @@ final class WifiDisplayController implements DumpUtils.Dump {
         mHandler.post(new Runnable() {
             @Override
             public void run() {
-                mListener.onScanFinished(displays);
+                mListener.onScanResults(displays);
+            }
+        });
+    }
+
+    private void handleScanFinished() {
+        mHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                mListener.onScanFinished();
             }
         });
     }
@@ -484,7 +602,23 @@ final class WifiDisplayController implements DumpUtils.Dump {
             return;
         }
 
+        if (!mWfdEnabled) {
+            Slog.i(TAG, "Ignoring request to connect to Wifi display because the "
+                    +" feature is currently disabled: " + device.deviceName);
+            return;
+        }
+
         mDesiredDevice = device;
+        mReconnectDesiredDevice = null;
+        mSigmaWfdAutogo = SystemProperties.get("sigma.wfd.autogo", "");
+        if (!mSigmaWfdAutogo.equals("")) {
+            if (mSigmaNetworkInfo != null) {
+                handleConnectionChanged(mSigmaNetworkInfo);
+            }
+            // Do not call updateConnection() for now, will be done
+            // from handleConnectionChanged()
+            return;
+        }
         mConnectionRetriesLeft = CONNECT_MAX_RETRIES;
         updateConnection();
     }
@@ -494,10 +628,19 @@ final class WifiDisplayController implements DumpUtils.Dump {
         updateConnection();
     }
 
+    private void reconnect() {
+        if (DEBUG) {
+            Slog.d(TAG, "Reconnecting (disconnection) to " + mConnectedDevice);
+        }
+        mReconnectDesiredDevice = mConnectedDevice;
+        disconnect();
+    }
+
     private void retryConnection() {
         // Cheap hack.  Make a new instance of the device object so that we
         // can distinguish it from the previous connection attempt.
         // This will cause us to tear everything down before we try again.
+        mConnectRetryScheduled = true;
         mDesiredDevice = new WifiP2pDevice(mDesiredDevice);
         updateConnection();
     }
@@ -508,11 +651,16 @@ final class WifiDisplayController implements DumpUtils.Dump {
      * connection is established (or not).
      */
     private void updateConnection() {
+        // Step 0. Stop scans if necessary to prevent interference while connected.
+        // Resume scans later when no longer attempting to connect.
+        updateScanState();
+
         // Step 1. Before we try to connect to a new device, tell the system we
         // have disconnected from the old one.
         if (mRemoteDisplay != null && mConnectedDevice != mDesiredDevice) {
-            Slog.i(TAG, "Stopped listening for RTSP connection on " + mRemoteDisplayInterface
-                    + " from Wifi display: " + mConnectedDevice.deviceName);
+            if (mConnectedDevice != null)
+                Slog.i(TAG, "Stopped listening for RTSP connection on " + mRemoteDisplayInterface
+                        + " from Wifi display: " + mConnectedDevice.deviceName);
 
             mRemoteDisplay.dispose();
             mRemoteDisplay = null;
@@ -581,6 +729,10 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 @Override
                 public void onSuccess() {
                     Slog.i(TAG, "Canceled connection to Wifi display: " + oldDevice.deviceName);
+                    if (mConnectRetryScheduled) {
+                        mConnectRetryScheduled = false;
+                        mDesiredDevice = new WifiP2pDevice(mCancelingDevice);
+                    }
                     next();
                 }
 
@@ -629,9 +781,25 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 wps.setup = WpsInfo.DISPLAY;
             }
             config.wps = wps;
+            String wps_method = SystemProperties.get("wifi.p2p.wps_method", "");
+            if (!wps_method.equals("")) {
+                if (wps_method.equals("display")) {
+                    config.wps.setup = WpsInfo.DISPLAY;
+                }
+                if (wps_method.equals("keypad")) {
+                    config.wps.setup = WpsInfo.KEYPAD;
+                }
+                if (wps_method.equals("pbc")) {
+                    config.wps.setup = WpsInfo.PBC;
+                }
+            }
             config.deviceAddress = mConnectingDevice.deviceAddress;
             // Helps with STA & P2P concurrency
-            config.groupOwnerIntent = WifiP2pConfig.MIN_GROUP_OWNER_INTENT;
+            // Google set groupOwnerIntent to 0 ( WifiP2pConfig.MIN_GROUP_OWNER_INTENT).
+            // Intel modification is to set go_intent to 14 in order to become GO.
+            // It would allow to choose the operating channel with the help of an internal
+            // algorithm executed in wpa_supplicant
+            config.groupOwnerIntent = WifiP2pConfig.MAX_GROUP_OWNER_INTENT - 1;
 
             WifiDisplay display = createWifiDisplay(mConnectingDevice);
             advertiseDisplay(display, null, 0, 0, 0);
@@ -661,7 +829,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
             return; // wait for asynchronous callback
         }
 
-        // Step 6. Listen for incoming connections.
+        // Step 6. Listen for incoming RTSP connection.
         if (mConnectedDevice != null && mRemoteDisplay == null) {
             Inet4Address addr = getInterfaceAddress(mConnectedDeviceGroupInfo);
             if (addr == null) {
@@ -681,7 +849,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
             Slog.i(TAG, "Listening for RTSP connection on " + iface
                     + " from Wifi display: " + mConnectedDevice.deviceName);
 
-            mRemoteDisplay = RemoteDisplay.listen(iface, new RemoteDisplay.Listener() {
+            RemoteDisplay.Listener rdListener = new RemoteDisplay.Listener() {
                 @Override
                 public void onDisplayConnected(Surface surface,
                         int width, int height, int flags, int session) {
@@ -720,7 +888,19 @@ final class WifiDisplayController implements DumpUtils.Dump {
                         handleConnectionFailure(false);
                     }
                 }
-            }, mHandler);
+            };
+
+            try {
+                mRemoteDisplay = RemoteDisplay.listen(iface, rdListener, mHandler);
+            } catch (IllegalArgumentException e) {
+                Slog.e(TAG, "Unable to listen on iface = " + iface + ": " + e.toString());
+                handleConnectionFailure(false);
+                return;
+            } catch (IllegalStateException e) {
+                Slog.e(TAG, "Unable to listen on iface = " + iface + ": " + e.toString());
+                handleConnectionFailure(false);
+                return;
+            }
 
             // Use extended timeout value for certification, as some tests require user inputs
             int rtspTimeout = mWifiDisplayCertMode ?
@@ -760,6 +940,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
     private void handleConnectionChanged(NetworkInfo networkInfo) {
         mNetworkInfo = networkInfo;
+        if (networkInfo.getState() == NetworkInfo.State.CONNECTING)
+            return;
+
         if (mWfdEnabled && networkInfo.isConnected()) {
             if (mDesiredDevice != null || mWifiDisplayCertMode) {
                 mWifiP2pManager.requestGroupInfo(mWifiP2pChannel, new GroupInfoListener() {
@@ -781,6 +964,11 @@ final class WifiDisplayController implements DumpUtils.Dump {
                         if (mDesiredDevice != null && !info.contains(mDesiredDevice)) {
                             disconnect();
                             return;
+                        }
+
+                        mSigmaWfdAutogo = SystemProperties.get("sigma.wfd.autogo", "");
+                        if (!mSigmaWfdAutogo.equals("")) {
+                            mConnectingDevice = mDesiredDevice;
                         }
 
                         if (mWifiDisplayCertMode) {
@@ -817,7 +1005,11 @@ final class WifiDisplayController implements DumpUtils.Dump {
             }
         } else {
             mConnectedDeviceGroupInfo = null;
-            disconnect();
+
+            // Disconnect if we lost the network while connecting or connected to a display.
+            if (mConnectingDevice != null || mConnectedDevice != null) {
+                disconnect();
+            }
 
             // After disconnection for a group, for some reason we have a tendency
             // to get a peer change notification with an empty list of peers.
@@ -827,6 +1019,13 @@ final class WifiDisplayController implements DumpUtils.Dump {
             }
         }
     }
+
+    private final Runnable mDiscoverPeers = new Runnable() {
+        @Override
+        public void run() {
+            tryDiscoverPeers();
+        }
+    };
 
     private final Runnable mConnectionTimeout = new Runnable() {
         @Override
@@ -963,7 +1162,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private static boolean isWifiDisplay(WifiP2pDevice device) {
         return device.wfdInfo != null
                 && device.wfdInfo.isWfdEnabled()
-                && isPrimarySinkDeviceType(device.wfdInfo.getDeviceType());
+                && isPrimarySinkDeviceType(device.wfdInfo.getDeviceType())
+                && device.wfdInfo.isSessionAvailable();
     }
 
     private static boolean isPrimarySinkDeviceType(int deviceType) {
@@ -1009,6 +1209,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
             } else if (action.equals(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)) {
                 NetworkInfo networkInfo = (NetworkInfo)intent.getParcelableExtra(
                         WifiP2pManager.EXTRA_NETWORK_INFO);
+                mSigmaNetworkInfo = (NetworkInfo)intent.getParcelableExtra(
+                        WifiP2pManager.EXTRA_NETWORK_INFO); // Remember latest info received
                 if (DEBUG) {
                     Slog.d(TAG, "Received WIFI_P2P_CONNECTION_CHANGED_ACTION: networkInfo="
                             + networkInfo);
@@ -1022,7 +1224,50 @@ final class WifiDisplayController implements DumpUtils.Dump {
                     Slog.d(TAG, "Received WIFI_P2P_THIS_DEVICE_CHANGED_ACTION: mThisDevice= "
                             + mThisDevice);
                 }
-            }
+            } else if (action.equals(WifiP2pManager.WIFI_P2P_DISCOVERY_CHANGED_ACTION)) {
+                boolean stopped = (intent.getIntExtra(WifiP2pManager.EXTRA_DISCOVERY_STATE,
+                        WifiP2pManager.WIFI_P2P_DISCOVERY_STOPPED)) ==
+                        WifiP2pManager.WIFI_P2P_DISCOVERY_STOPPED;
+
+                if (DEBUG) {
+                    Slog.d(TAG, "Received WIFI_P2P_DISCOVERY_CHANGED_ACTION: state = "
+                           + (stopped ? "stopped" : "started"));
+                }
+
+                if (stopped && mReconnectDesiredDevice != null) {
+                    if (DEBUG) {
+                        Slog.d(TAG, "Cannot find device " + mReconnectDesiredDevice + ", abort reconnection" );
+                    }
+                    mReconnectDesiredDevice = null;
+                }
+            } else if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
+                NetworkInfo networkInfo = (NetworkInfo)intent.getParcelableExtra(
+                        WifiManager.EXTRA_NETWORK_INFO);
+                if (networkInfo != null && networkInfo.isConnected() && mRemoteDisplayConnected) {
+                    final List<ScanResult> results = mWifiManager.getScanResults();
+                    WifiInfo currentInfo = mWifiManager.getConnectionInfo();
+                    if (currentInfo != null && results != null && results.size() > 0) {
+                        for (ScanResult result : results) {
+                            if (result.BSSID != null && result.BSSID.length() > 0 &&
+                                result.BSSID.equals(currentInfo.getBSSID()) &&
+                                mConnectedDeviceGroupInfo != null) {
+                                if (result.frequency != mConnectedDeviceGroupInfo.getFrequency()) {
+                                    try {
+                                        Intent intentWifiDisplay = new Intent(Settings.ACTION_WIFI_DISPLAY_SETTINGS);
+                                        intentWifiDisplay.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                                                | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+                                                | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                                        intentWifiDisplay.putExtra(WifiP2pManager.EXTRA_RECONNECT_WIFI_DISPLAY, true);
+                                        mContext.startActivity(intentWifiDisplay);
+                                    } catch (ActivityNotFoundException e) {
+                                        Slog.e(TAG, "Cannot open Wifi Display Settings");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+             }
         }
     };
 
@@ -1033,7 +1278,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
         void onFeatureStateChanged(int featureState);
 
         void onScanStarted();
-        void onScanFinished(WifiDisplay[] availableDisplays);
+        void onScanResults(WifiDisplay[] availableDisplays);
+        void onScanFinished();
 
         void onDisplayConnecting(WifiDisplay display);
         void onDisplayConnectionFailed();

@@ -130,6 +130,7 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
     private boolean mRndisEnabled;       // track the RNDIS function enabled state
     private boolean mUsbTetherRequested; // true if USB tethering should be started
                                          // when RNDIS is enabled
+    private boolean mUntetherFinished;   // true if USB untethering is finished
 
     public Tethering(Context context, INetworkManagementService nmService,
             INetworkStatsService statsService, IConnectivityManager connService, Looper looper) {
@@ -138,6 +139,7 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
         mStatsService = statsService;
         mConnService = connService;
         mLooper = looper;
+        mUntetherFinished = true;
 
         mPublicSync = new Object();
 
@@ -312,6 +314,8 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
             }
             sm.sendMessage(TetherInterfaceSM.CMD_INTERFACE_DOWN);
             mIfaces.remove(iface);
+            if (isUsb((String)iface))
+                mRndisEnabled = false;
         }
     }
 
@@ -482,7 +486,7 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
         mTetheredNotification.setLatestEventInfo(mContext, title, message, pi);
 
         notificationManager.notifyAsUser(null, mTetheredNotification.icon,
-                mTetheredNotification, UserHandle.ALL);
+                mTetheredNotification, UserHandle.CURRENT);
     }
 
     private void clearTetheredNotification() {
@@ -505,8 +509,8 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
                     // start tethering if we have a request pending
                     if (usbConnected && mRndisEnabled && mUsbTetherRequested) {
                         tetherUsb(true);
+                        mUsbTetherRequested = false;
                     }
-                    mUsbTetherRequested = false;
                 }
             } else if (action.equals(ConnectivityManager.CONNECTIVITY_ACTION)) {
                 NetworkInfo networkInfo = (NetworkInfo)intent.getParcelableExtra(
@@ -602,11 +606,12 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
             if (enable) {
                 if (mRndisEnabled) {
                     tetherUsb(true);
-                } else {
+                } else if (mUntetherFinished) {
                     mUsbTetherRequested = true;
                     usbManager.setCurrentFunction(UsbManager.USB_FUNCTION_RNDIS, false);
                 }
             } else {
+                mUntetherFinished = false;
                 tetherUsb(false);
                 if (mRndisEnabled) {
                     usbManager.setCurrentFunction(null, false);
@@ -1086,6 +1091,7 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
                 setAvailable(false);
                 setLastError(ConnectivityManager.TETHER_ERROR_NO_ERROR);
                 setTethered(false);
+                mUntetherFinished = true;
                 sendTetherStateChangedBroadcast();
             }
             @Override

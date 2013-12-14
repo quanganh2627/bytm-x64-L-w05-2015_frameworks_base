@@ -19,6 +19,7 @@ package com.android.server.am;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.List;
 
 import android.app.ActivityManager;
 import android.app.AppGlobals;
@@ -27,8 +28,10 @@ import android.content.ComponentName;
 import android.content.IIntentReceiver;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.content.pm.UserInfo;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -40,6 +43,8 @@ import android.os.UserHandle;
 import android.util.EventLog;
 import android.util.Log;
 import android.util.Slog;
+
+import com.intel.asf.AsfAosp;
 
 /**
  * BROADCASTS
@@ -54,9 +59,9 @@ public final class BroadcastQueue {
     static final boolean DEBUG_BROADCAST_LIGHT = ActivityManagerService.DEBUG_BROADCAST_LIGHT;
     static final boolean DEBUG_MU = ActivityManagerService.DEBUG_MU;
 
-    static final int MAX_BROADCAST_HISTORY = ActivityManager.isLowRamDeviceStatic() ? 10 : 25;
+    static final int MAX_BROADCAST_HISTORY = ActivityManager.isLowRamDeviceStatic() ? 10 : 50;
     static final int MAX_BROADCAST_SUMMARY_HISTORY
-            = ActivityManager.isLowRamDeviceStatic() ? 25 : 100;
+            = ActivityManager.isLowRamDeviceStatic() ? 25 : 300;
 
     final ActivityManagerService mService;
 
@@ -220,7 +225,8 @@ public final class BroadcastQueue {
         r.curApp = app;
         app.curReceiver = r;
         app.forceProcessStateUpTo(ActivityManager.PROCESS_STATE_RECEIVER);
-        mService.updateLruProcessLocked(app, true, false);
+        mService.updateLruProcessLocked(app, false, null);
+        mService.updateOomAdjLocked();
 
         // Tell the application to launch this receiver.
         r.intent.setComponent(r.curComponent);
@@ -309,6 +315,56 @@ public final class BroadcastQueue {
         }
     }
 
+    /**
+     * Sends the list of receiver package names to ASF to generate
+     * BROADCAST_INTENT event
+     *
+     * @param r BroadcastRecord to get the list of receivers
+    */
+    private void sendBroadcastIntentEvent(BroadcastRecord r) {
+        if (AsfAosp.ENABLE && (AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2)) {
+            UserInfo userInfo = null;
+            try {
+                userInfo = mService.getCurrentUser();
+            } catch (SecurityException e) {
+                Log.w(TAG, "SecurityException while retrieving userInfo: " + e);
+            }
+            List<String> receiversPackageNameList = new ArrayList<String>();
+            for (Object receiver : r.receivers) {
+                if (receiver instanceof ResolveInfo) {
+                    receiversPackageNameList.add(((ResolveInfo)receiver).
+                            activityInfo.applicationInfo.packageName);
+                } else if (receiver instanceof BroadcastFilter){
+                    receiversPackageNameList.add(((BroadcastFilter)receiver).
+                            packageName);
+                }
+            }
+            List<String> asfClientActions = AsfAosp.sendBroadcastIntentEvent(r.callerPackage,
+                    receiversPackageNameList, r.intent, userInfo, r.callingPid);
+
+            if ((asfClientActions != null) &&
+                (!asfClientActions.isEmpty()) &&
+                (asfClientActions.size() == r.receivers.size())
+            ) {
+                int index = 0;
+                // Filter the Final list of receivers based on ASF client response
+                for (String asfClientAction : asfClientActions) {
+                    Log.d(
+                            TAG,
+                            asfClientAction + " Package " +
+                            receiversPackageNameList.get(index)
+                    );
+                    if (asfClientAction.equals("DENY")) {
+                        asfClientActions.remove(index);
+                        r.receivers.remove(index);
+                        index--;
+                    }
+                    index++;
+                }
+            }
+        }
+    }
+
     public void scheduleBroadcastsLocked() {
         if (DEBUG_BROADCAST) Slog.v(TAG, "Schedule broadcasts ["
                 + mQueueName + "]: current="
@@ -316,6 +372,13 @@ public final class BroadcastQueue {
 
         if (mBroadcastsScheduled) {
             return;
+        }
+        // ASF HOOK: intent broadcast event generation
+        for (BroadcastRecord parallelBroadcast : mParallelBroadcasts) {
+            sendBroadcastIntentEvent(parallelBroadcast);
+        }
+        for (BroadcastRecord orderedBroadcast : mOrderedBroadcasts) {
+            sendBroadcastIntentEvent(orderedBroadcast);
         }
         mHandler.sendMessage(mHandler.obtainMessage(BROADCAST_INTENT_MSG, this));
         mBroadcastsScheduled = true;
@@ -341,7 +404,7 @@ public final class BroadcastQueue {
         }
         r.receiver = null;
         r.intent.setComponent(null);
-        if (r.curApp != null) {
+        if (r.curApp != null && r.curApp.curReceiver == r) {
             r.curApp.curReceiver = null;
         }
         if (r.curFilter != null) {
@@ -812,6 +875,26 @@ public final class BroadcastQueue {
                 Slog.w(TAG, "Skipping deliver ordered [" + mQueueName + "] " + r
                         + " to " + r.curApp + ": process crashing");
                 skip = true;
+            }
+            if (!skip) {
+                boolean isAvailable = false;
+                try {
+                    isAvailable = AppGlobals.getPackageManager().isPackageAvailable(
+                            info.activityInfo.packageName,
+                            UserHandle.getUserId(info.activityInfo.applicationInfo.uid));
+                } catch (Exception e) {
+                    // all such failures mean we skip this receiver
+                    Slog.w(TAG, "Exception getting recipient info for "
+                            + info.activityInfo.packageName, e);
+                }
+                if (!isAvailable) {
+                    if (DEBUG_BROADCAST) {
+                        Slog.v(TAG, "Skipping delivery to " + info.activityInfo.packageName
+                                + " / " + info.activityInfo.applicationInfo.uid
+                                + " : package no longer available");
+                    }
+                    skip = true;
+                }
             }
 
             if (skip) {

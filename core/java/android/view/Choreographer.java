@@ -23,6 +23,9 @@ import android.os.Message;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.util.Log;
+import android.util.TimeUtils;
+
+import java.io.PrintWriter;
 
 /**
  * Coordinates the timing of animations, input and drawing.
@@ -254,6 +257,15 @@ public final class Choreographer {
     public static long subtractFrameDelay(long delayMillis) {
         final long frameDelay = sFrameDelay;
         return delayMillis <= frameDelay ? 0 : delayMillis - frameDelay;
+    }
+
+    void dump(String prefix, PrintWriter writer) {
+        String innerPrefix = prefix + "  ";
+        writer.print(prefix); writer.println("Choreographer:");
+        writer.print(innerPrefix); writer.print("mFrameScheduled=");
+                writer.println(mFrameScheduled);
+        writer.print(innerPrefix); writer.print("mLastFrameTime=");
+                writer.println(TimeUtils.formatUptime(mLastFrameTimeNanos / 1000000));
     }
 
     /**
@@ -670,6 +682,16 @@ public final class Choreographer {
                     doScheduleCallback(msg.arg1);
                     break;
             }
+        }
+
+        @Override
+        public String getMessageName(Message message) {
+            switch (message.what) {
+                case MSG_DO_FRAME: return "MSG_DO_FRAME";
+                case MSG_DO_SCHEDULE_VSYNC: return "MSG_DO_SCHEDULE_VSYNC";
+                case MSG_DO_SCHEDULE_CALLBACK: return "MSG_DO_SCHEDULE_CALLBACK";
+            }
+            return super.getMessageName(message);
         }
     }
 

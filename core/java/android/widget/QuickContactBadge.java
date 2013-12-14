@@ -17,6 +17,8 @@
 package android.widget;
 
 import com.android.internal.R;
+import com.intel.arkham.ParentQuickContactBadge;
+import com.intel.config.FeatureConfig;
 
 import android.content.AsyncQueryHandler;
 import android.content.ContentResolver;
@@ -52,6 +54,8 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
     private QueryHandler mQueryHandler;
     private Drawable mDefaultAvatar;
     private Bundle mExtras = null;
+
+    private ParentQuickContactBadge mPQCB;
 
     protected String[] mExcludeMimes = null;
 
@@ -92,13 +96,21 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
                 com.android.internal.R.styleable.Theme_quickContactBadgeOverlay);
         styledAttributes.recycle();
 
-        mQueryHandler = new QueryHandler(mContext.getContentResolver());
+        if (!isInEditMode()) {
+            mQueryHandler = new QueryHandler(mContext.getContentResolver());
+        }
         setOnClickListener(this);
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mPQCB = new ParentQuickContactBadge();
+        }
     }
 
     @Override
     protected void drawableStateChanged() {
         super.drawableStateChanged();
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mPQCB.drawableStateChanged(mOverlay, getDrawableState());
+        }
         if (mOverlay != null && mOverlay.isStateful()) {
             mOverlay.setState(getDrawableState());
             invalidate();
@@ -135,6 +147,9 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
             canvas.translate(mPaddingLeft, mPaddingTop);
             mOverlay.draw(canvas);
             canvas.restoreToCount(saveCount);
+        }
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mPQCB.onContainerDraw(canvas, getWidth(), getHeight(), mPaddingTop, mPaddingLeft);
         }
     }
 
@@ -199,7 +214,7 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
     public void assignContactFromEmail(String emailAddress, boolean lazyLookup, Bundle extras) {
         mContactEmail = emailAddress;
         mExtras = extras;
-        if (!lazyLookup) {
+        if (!lazyLookup && mQueryHandler != null) {
             mQueryHandler.startQuery(TOKEN_EMAIL_LOOKUP, null,
                     Uri.withAppendedPath(Email.CONTENT_LOOKUP_URI, Uri.encode(mContactEmail)),
                     EMAIL_LOOKUP_PROJECTION, null, null, null);
@@ -239,7 +254,7 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
     public void assignContactFromPhone(String phoneNumber, boolean lazyLookup, Bundle extras) {
         mContactPhone = phoneNumber;
         mExtras = extras;
-        if (!lazyLookup) {
+        if (!lazyLookup && mQueryHandler != null) {
             mQueryHandler.startQuery(TOKEN_PHONE_LOOKUP, null,
                     Uri.withAppendedPath(PhoneLookup.CONTENT_FILTER_URI, mContactPhone),
                     PHONE_LOOKUP_PROJECTION, null, null, null);
@@ -251,6 +266,9 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
 
     private void onContactUriChanged() {
         setEnabled(isAssigned());
+        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mPQCB.onContactUriChanged(mContactUri, mContext);
+        }
     }
 
     @Override
@@ -262,12 +280,12 @@ public class QuickContactBadge extends ImageView implements OnClickListener {
         if (mContactUri != null) {
             QuickContact.showQuickContact(getContext(), QuickContactBadge.this, mContactUri,
                     QuickContact.MODE_LARGE, mExcludeMimes);
-        } else if (mContactEmail != null) {
+        } else if (mContactEmail != null && mQueryHandler != null) {
             extras.putString(EXTRA_URI_CONTENT, mContactEmail);
             mQueryHandler.startQuery(TOKEN_EMAIL_LOOKUP_AND_TRIGGER, extras,
                     Uri.withAppendedPath(Email.CONTENT_LOOKUP_URI, Uri.encode(mContactEmail)),
                     EMAIL_LOOKUP_PROJECTION, null, null, null);
-        } else if (mContactPhone != null) {
+        } else if (mContactPhone != null && mQueryHandler != null) {
             extras.putString(EXTRA_URI_CONTENT, mContactPhone);
             mQueryHandler.startQuery(TOKEN_PHONE_LOOKUP_AND_TRIGGER, extras,
                     Uri.withAppendedPath(PhoneLookup.CONTENT_FILTER_URI, mContactPhone),

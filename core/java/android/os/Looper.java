@@ -16,6 +16,7 @@
 
 package android.os;
 
+import android.util.LocalLog;
 import android.util.Log;
 import android.util.Printer;
 import android.util.PrefixPrinter;
@@ -59,9 +60,13 @@ public final class Looper {
 
     final MessageQueue mQueue;
     final Thread mThread;
-    volatile boolean mRun;
 
     private Printer mLogging;
+    LocalLog mLocalLog;
+    private String mDispatching;
+    private long mDispatchStart;
+    private StringBuilder mStringBuilder;
+    private static final long LATENCY_THRESHOLD = 500; // 500ms
 
      /** Initialize the current thread as a looper.
       * This gives you a chance to create handlers that then reference
@@ -119,6 +124,8 @@ public final class Looper {
         // and keep track of what that identity token actually is.
         Binder.clearCallingIdentity();
         final long ident = Binder.clearCallingIdentity();
+        LocalLog localLog = me.mLocalLog;
+        if (localLog != null) me.mStringBuilder = new StringBuilder();
 
         for (;;) {
             Message msg = queue.next(); // might block
@@ -127,17 +134,38 @@ public final class Looper {
                 return;
             }
 
+            long dispatchStart = 0;
             // This must be in a local variable, in case a UI event sets the logger
             Printer logging = me.mLogging;
             if (logging != null) {
                 logging.println(">>>>> Dispatching to " + msg.target + " " +
                         msg.callback + ": " + msg.what);
             }
+            if (localLog != null) {
+                me.mDispatching = msg.toStringLw();
+                me.mDispatchStart = SystemClock.uptimeMillis();
+            }
 
             msg.target.dispatchMessage(msg);
 
             if (logging != null) {
                 logging.println("<<<<< Finished to " + msg.target + " " + msg.callback);
+            }
+            if (localLog != null) {
+                final long elapsed = SystemClock.uptimeMillis() - me.mDispatchStart;
+                final long wait = me.mDispatchStart - msg.when;
+                me.mStringBuilder.setLength(0);
+                if (elapsed >= LATENCY_THRESHOLD) {
+                    me.mStringBuilder.append("WARNING! ");
+                }
+                me.mStringBuilder.append("Wait: ")
+                                 .append(wait)
+                                 .append("ms, Run: ")
+                                 .append(elapsed)
+                                 .append("ms due Message")
+                                 .append(me.mDispatching);
+                localLog.log(me.mStringBuilder.toString());
+                me.mDispatching = null;
             }
 
             // Make sure that during the course of dispatching the
@@ -150,7 +178,6 @@ public final class Looper {
                         + msg.target.getClass().getName() + " "
                         + msg.callback + " what=" + msg.what);
             }
-
             msg.recycle();
         }
     }
@@ -175,6 +202,11 @@ public final class Looper {
     public void setMessageLogging(Printer printer) {
         mLogging = printer;
     }
+
+    /** @hide */
+    public void setMessageLogging(LocalLog cache) {
+        mLocalLog = cache;
+    }
     
     /**
      * Return the {@link MessageQueue} object associated with the current
@@ -187,7 +219,6 @@ public final class Looper {
 
     private Looper(boolean quitAllowed) {
         mQueue = new MessageQueue(quitAllowed);
-        mRun = true;
         mThread = Thread.currentThread();
     }
 
@@ -300,27 +331,12 @@ public final class Looper {
     }
 
     public void dump(Printer pw, String prefix) {
-        pw = PrefixPrinter.create(pw, prefix);
-        pw.println(this.toString());
-        pw.println("mRun=" + mRun);
-        pw.println("mThread=" + mThread);
-        pw.println("mQueue=" + ((mQueue != null) ? mQueue : "(null"));
-        if (mQueue != null) {
-            synchronized (mQueue) {
-                long now = SystemClock.uptimeMillis();
-                Message msg = mQueue.mMessages;
-                int n = 0;
-                while (msg != null) {
-                    pw.println("  Message " + n + ": " + msg.toString(now));
-                    n++;
-                    msg = msg.next;
-                }
-                pw.println("(Total messages: " + n + ")");
-            }
-        }
+        pw.println(prefix + toString());
+        mQueue.dump(pw, prefix + "  ");
     }
 
     public String toString() {
-        return "Looper{" + Integer.toHexString(System.identityHashCode(this)) + "}";
+        return "Looper (" + mThread.getName() + ", tid " + mThread.getId()
+                + ") {" + Integer.toHexString(System.identityHashCode(this)) + "}";
     }
 }

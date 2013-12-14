@@ -45,6 +45,8 @@ import android.util.Xml;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.FastXmlSerializer;
+import com.intel.arkham.ContainerCommons;
+import com.intel.config.FeatureConfig;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -1052,16 +1054,33 @@ public class SyncStorageEngine extends Handler {
             Iterator<AccountInfo> accIt = mAccounts.values().iterator();
             while (accIt.hasNext()) {
                 AccountInfo acc = accIt.next();
-                if (!ArrayUtils.contains(accounts, acc.accountAndUser.account)
-                        && acc.accountAndUser.userId == userId) {
-                    // This account no longer exists...
-                    if (DEBUG) {
-                        Log.v(TAG, "Account removed: " + acc.accountAndUser);
+                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                    if (!ArrayUtils.contains(accounts, acc.accountAndUser.account)
+                            && acc.accountAndUser.userId == userId
+                            // ARKHAM-1107 Don't remove accounts of unmounted containers
+                            && !ContainerCommons.isUnmountedContainerAccount(
+                                    acc.accountAndUser.account.name)) {
+                        // This account no longer exists...
+                        if (DEBUG) {
+                            Log.v(TAG, "Account removed: " + acc.accountAndUser);
+                        }
+                        for (AuthorityInfo auth : acc.authorities.values()) {
+                            removing.put(auth.ident, auth);
+                        }
+                        accIt.remove();
                     }
-                    for (AuthorityInfo auth : acc.authorities.values()) {
-                        removing.put(auth.ident, auth);
+                } else {
+                    if (!ArrayUtils.contains(accounts, acc.accountAndUser.account)
+                            && acc.accountAndUser.userId == userId) {
+                        // This account no longer exists...
+                        if (DEBUG) {
+                            Log.v(TAG, "Account removed: " + acc.accountAndUser);
+                        }
+                        for (AuthorityInfo auth : acc.authorities.values()) {
+                            removing.put(auth.ident, auth);
+                        }
+                        accIt.remove();
                     }
-                    accIt.remove();
                 }
             }
 
@@ -1295,18 +1314,38 @@ public class SyncStorageEngine extends Handler {
     }
 
     /**
-     * Return a list of the currently active syncs. Note that the returned items are the
-     * real, live active sync objects, so be careful what you do with it.
+     * Return a list of the currently active syncs. Note that the returned
+     * items are the real, live active sync objects, so be careful what you do
+     * with it.
      */
-    public List<SyncInfo> getCurrentSyncs(int userId) {
+    private List<SyncInfo> getCurrentSyncs(int userId) {
         synchronized (mAuthorities) {
-            ArrayList<SyncInfo> syncs = mCurrentSyncs.get(userId);
-            if (syncs == null) {
-                syncs = new ArrayList<SyncInfo>();
-                mCurrentSyncs.put(userId, syncs);
-            }
-            return syncs;
+            return getCurrentSyncsLocked(userId);
         }
+    }
+
+    /**
+     * @return a copy of the current syncs data structure. Will not return
+     * null.
+     */
+    public List<SyncInfo> getCurrentSyncsCopy(int userId) {
+        synchronized (mAuthorities) {
+            final List<SyncInfo> syncs = getCurrentSyncsLocked(userId);
+            final List<SyncInfo> syncsCopy = new ArrayList<SyncInfo>();
+            for (SyncInfo sync : syncs) {
+                syncsCopy.add(new SyncInfo(sync));
+            }
+            return syncsCopy;
+        }
+    }
+
+    private List<SyncInfo> getCurrentSyncsLocked(int userId) {
+        ArrayList<SyncInfo> syncs = mCurrentSyncs.get(userId);
+        if (syncs == null) {
+            syncs = new ArrayList<SyncInfo>();
+            mCurrentSyncs.put(userId, syncs);
+        }
+        return syncs;
     }
 
     /**

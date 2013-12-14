@@ -18,6 +18,7 @@ package android.os;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Formatter;
@@ -104,6 +105,11 @@ public abstract class BatteryStats implements Parcelable {
      * A constant indicating a foreground activity timer
      */
     public static final int FOREGROUND_ACTIVITY = 10;
+
+    /**
+     * A constant indicating a wifi batched scan is active
+     */
+    public static final int WIFI_BATCHED_SCAN = 11;
 
     /**
      * Include all of the data in the stats, including previously saved data.
@@ -270,6 +276,8 @@ public abstract class BatteryStats implements Parcelable {
         public abstract void noteFullWifiLockReleasedLocked();
         public abstract void noteWifiScanStartedLocked();
         public abstract void noteWifiScanStoppedLocked();
+        public abstract void noteWifiBatchedScanStartedLocked(int csph);
+        public abstract void noteWifiBatchedScanStoppedLocked();
         public abstract void noteWifiMulticastEnabledLocked();
         public abstract void noteWifiMulticastDisabledLocked();
         public abstract void noteAudioTurnedOnLocked();
@@ -281,12 +289,15 @@ public abstract class BatteryStats implements Parcelable {
         public abstract long getWifiRunningTime(long batteryRealtime, int which);
         public abstract long getFullWifiLockTime(long batteryRealtime, int which);
         public abstract long getWifiScanTime(long batteryRealtime, int which);
+        public abstract long getWifiBatchedScanTime(int csphBin, long batteryRealtime, int which);
         public abstract long getWifiMulticastTime(long batteryRealtime,
                                                   int which);
         public abstract long getAudioTurnedOnTime(long batteryRealtime, int which);
         public abstract long getVideoTurnedOnTime(long batteryRealtime, int which);
         public abstract Timer getForegroundActivityTimer();
         public abstract Timer getVibratorOnTimer();
+
+        public static final int NUM_WIFI_BATCHED_SCAN_BINS = 5;
 
         /**
          * Note that these must match the constants in android.os.PowerManager.
@@ -437,22 +448,23 @@ public abstract class BatteryStats implements Parcelable {
         public HistoryItem next;
         
         public long time;
-        
+        public long absoluteTime;
+
         public static final byte CMD_NULL = 0;
         public static final byte CMD_UPDATE = 1;
         public static final byte CMD_START = 2;
         public static final byte CMD_OVERFLOW = 3;
-        
+
         public byte cmd = CMD_NULL;
-        
+
         public byte batteryLevel;
         public byte batteryStatus;
         public byte batteryHealth;
         public byte batteryPlugType;
-        
+
         public char batteryTemperature;
         public char batteryVoltage;
-        
+
         // Constants from SCREEN_BRIGHTNESS_*
         public static final int STATE_BRIGHTNESS_MASK = 0x0000000f;
         public static final int STATE_BRIGHTNESS_SHIFT = 0;
@@ -465,7 +477,7 @@ public abstract class BatteryStats implements Parcelable {
         // Constants from DATA_CONNECTION_*
         public static final int STATE_DATA_CONNECTION_MASK = 0x0000f000;
         public static final int STATE_DATA_CONNECTION_SHIFT = 12;
-        
+
         // These states always appear directly in the first int token
         // of a delta change; they should be ones that change relatively
         // frequently.
@@ -486,7 +498,7 @@ public abstract class BatteryStats implements Parcelable {
         public static final int STATE_PHONE_IN_CALL_FLAG = 1<<18;
         public static final int STATE_WIFI_ON_FLAG = 1<<17;
         public static final int STATE_BLUETOOTH_ON_FLAG = 1<<16;
-        
+
         public static final int MOST_INTERESTING_STATES =
             STATE_BATTERY_PLUGGED_FLAG | STATE_SCREEN_ON_FLAG
             | STATE_GPS_ON_FLAG | STATE_PHONE_IN_CALL_FLAG;
@@ -494,13 +506,14 @@ public abstract class BatteryStats implements Parcelable {
         public int states;
 
         public HistoryItem() {
+            absoluteTime = Calendar.getInstance().getTimeInMillis();
         }
-        
+
         public HistoryItem(long time, Parcel src) {
             this.time = time;
             readFromParcel(src);
         }
-        
+
         public int describeContents() {
             return 0;
         }
@@ -517,6 +530,7 @@ public abstract class BatteryStats implements Parcelable {
                     | ((((int)batteryVoltage)<<16)&0xffff0000);
             dest.writeInt(bat);
             dest.writeInt(states);
+            dest.writeLong(absoluteTime);
         }
 
         private void readFromParcel(Parcel src) {
@@ -530,6 +544,7 @@ public abstract class BatteryStats implements Parcelable {
             batteryTemperature = (char)(bat&0xffff);
             batteryVoltage = (char)((bat>>16)&0xffff);
             states = src.readInt();
+            absoluteTime = src.readLong();
         }
 
         // Part of initial delta int that specifies the time delta.
@@ -608,6 +623,9 @@ public abstract class BatteryStats implements Parcelable {
                         + " batteryPlugType=" + batteryPlugType
                         + " states=0x" + Integer.toHexString(states));
             }
+
+            //Write in AbsoluteTime anyway
+            dest.writeLong(Calendar.getInstance().getTimeInMillis());
         }
         
         private int buildBatteryLevelInt() {
@@ -673,6 +691,8 @@ public abstract class BatteryStats implements Parcelable {
             } else {
                 states = (firstToken&DELTA_STATE_MASK) | (states&(~DELTA_STATE_MASK));
             }
+
+            absoluteTime = src.readLong();
         }
 
         public void clear() {
@@ -685,6 +705,7 @@ public abstract class BatteryStats implements Parcelable {
             batteryTemperature = 0;
             batteryVoltage = 0;
             states = 0;
+            absoluteTime = 0;
         }
         
         public void setTo(HistoryItem o) {
@@ -697,6 +718,7 @@ public abstract class BatteryStats implements Parcelable {
             batteryTemperature = o.batteryTemperature;
             batteryVoltage = o.batteryVoltage;
             states = o.states;
+            absoluteTime = o.absoluteTime;
         }
 
         public void setTo(long time, byte cmd, HistoryItem o) {
@@ -709,6 +731,7 @@ public abstract class BatteryStats implements Parcelable {
             batteryTemperature = o.batteryTemperature;
             batteryVoltage = o.batteryVoltage;
             states = o.states;
+            absoluteTime = o.absoluteTime;
         }
 
         public boolean same(HistoryItem o) {
@@ -718,7 +741,8 @@ public abstract class BatteryStats implements Parcelable {
                     && batteryPlugType == o.batteryPlugType
                     && batteryTemperature == o.batteryTemperature
                     && batteryVoltage == o.batteryVoltage
-                    && states == o.states;
+                    && states == o.states
+                    && absoluteTime == o.absoluteTime;
         }
     }
     
@@ -844,12 +868,13 @@ public abstract class BatteryStats implements Parcelable {
     public static final int DATA_CONNECTION_EVDO_B = 12;
     public static final int DATA_CONNECTION_LTE = 13;
     public static final int DATA_CONNECTION_EHRPD = 14;
-    public static final int DATA_CONNECTION_OTHER = 15;
+    public static final int DATA_CONNECTION_HSPAP = 15;
+    public static final int DATA_CONNECTION_OTHER = 16;
 
     static final String[] DATA_CONNECTION_NAMES = {
         "none", "gprs", "edge", "umts", "cdma", "evdo_0", "evdo_A",
         "1xrtt", "hsdpa", "hsupa", "hspa", "iden", "evdo_b", "lte",
-        "ehrpd", "other"
+        "ehrpd", "hspap", "other"
     };
     
     public static final int NUM_DATA_CONNECTION_TYPES = DATA_CONNECTION_OTHER+1;
@@ -2080,9 +2105,11 @@ public abstract class BatteryStats implements Parcelable {
                                         TimeUtils.formatDuration(ew.usedTime, pw);
                                         pw.print(" over ");
                                         TimeUtils.formatDuration(ew.overTime, pw);
-                                        pw.print(" (");
-                                        pw.print((ew.usedTime*100)/ew.overTime);
-                                        pw.println("%)");
+                                        if (ew.overTime != 0) {
+                                            pw.print(" (");
+                                            pw.print((ew.usedTime*100)/ew.overTime);
+                                            pw.println("%)");
+                                        }
                             }
                         }
                         uidActivity = true;

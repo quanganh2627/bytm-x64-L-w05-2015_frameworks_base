@@ -28,6 +28,7 @@ import android.net.wifi.WifiConfiguration.IpAssignment;
 import android.net.wifi.WifiConfiguration.KeyMgmt;
 import android.net.wifi.WifiConfiguration.ProxySettings;
 import android.net.wifi.WifiConfiguration.Status;
+import android.net.wifi.WifiEnterpriseConfig.Eap;
 import android.net.wifi.NetworkUpdateResult;
 import static android.net.wifi.WifiConfiguration.INVALID_NETWORK_ID;
 import android.os.Environment;
@@ -368,6 +369,65 @@ class WifiConfigStore {
     }
 
     /**
+     * update ICC networks (networks that use EAP-SIM/AKA methods).
+     * This method is used to handle SIM card removal/insertion.
+     *
+     * @param enable: true/false to enable/disable ICC related networks
+     */
+    void updateIccNetworks(boolean enable) {
+        boolean ret;
+
+        boolean networkUpdated = false;
+        for (WifiConfiguration config : mConfiguredNetworks.values()) {
+            if (config != null && config.enterpriseConfig != null
+                    && (config.enterpriseConfig.getEapMethod() == Eap.SIM
+                    || config.enterpriseConfig.getEapMethod() == Eap.AKA)) {
+                if (enable) { /* enable EAP-SIM and EAP-AKA networks */
+                    if(mWifiNative.enableNetwork(config.networkId, false)) {
+                        networkUpdated = true;
+                        config.status = Status.ENABLED;
+                    } else {
+                        loge("Enable ICC network failed on " + config.networkId);
+                    }
+                } else {
+                    /**
+                     * Disable EAP-SIM and EAP-AKA networks
+                     * For security purposes (SIM exchange), remove Identity and Anonymous
+                     * Identity from configuration.
+                     */
+                    if (mWifiNative.setNetworkVariable(config.networkId, "identity","NULL")) {
+                        config.enterpriseConfig.setIdentity("");
+                        if (DBG) log("Identity removed on ICC network " + config.networkId);
+                    } else {
+                        loge("Can't Remove identity on ICC network " + config.networkId);
+                    }
+
+                    if (mWifiNative.setNetworkVariable(config.networkId,
+                            "anonymous_identity","NULL")) {
+                        config.enterpriseConfig.setAnonymousIdentity("");
+                        if (DBG) log("Pseudonym removed on ICC network " + config.networkId);
+                    } else {
+                        loge("Can't clear anonymous_identity on ICC network " + config.networkId);
+                    }
+
+                    if (mWifiNative.disableNetwork(config.networkId)) {
+                        networkUpdated = true;
+                        config.status = Status.DISABLED;
+                    } else {
+                        loge("Disable ICC networks failed on " + config.networkId);
+                    }
+                }
+            }
+        }
+
+        /* At least one network should be updated */
+        if (networkUpdated) {
+            mWifiNative.saveConfig();
+            sendConfiguredNetworksChangedBroadcast();
+        }
+    }
+
+    /**
      * Remove a network. Note that there is no saveConfig operation.
      * This function is retained for compatibility with the public
      * API. The more powerful forgetNetwork() is used by the
@@ -388,10 +448,6 @@ class WifiConfigStore {
     private void removeConfigAndSendBroadcastIfNeeded(int netId) {
         WifiConfiguration config = mConfiguredNetworks.get(netId);
         if (config != null) {
-            // Remove any associated keys
-            if (config.enterpriseConfig != null) {
-                config.enterpriseConfig.removeKeys(mKeyStore);
-            }
             mConfiguredNetworks.remove(netId);
             mNetworkIds.remove(configKey(config));
 

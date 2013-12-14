@@ -23,6 +23,7 @@ import com.android.internal.app.ProcessStats;
 import com.android.internal.os.PkgUsageStats;
 import com.android.internal.os.TransferPipe;
 import com.android.internal.util.FastPrintWriter;
+import com.intel.config.FeatureConfig;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -475,7 +476,13 @@ public class ActivityManager {
          * The true identifier of this task, valid even if it is not running.
          */
         public int persistentId;
-        
+
+        /**
+         * The task userId
+         * @hide
+         */
+        public int userId;
+
         /**
          * The original Intent used to launch the task.  You can use this
          * Intent to re-launch the task (if it is no longer running) or bring
@@ -514,6 +521,9 @@ public class ActivityManager {
         public void writeToParcel(Parcel dest, int flags) {
             dest.writeInt(id);
             dest.writeInt(persistentId);
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                dest.writeInt(userId);
+            }
             if (baseIntent != null) {
                 dest.writeInt(1);
                 baseIntent.writeToParcel(dest, 0);
@@ -529,6 +539,9 @@ public class ActivityManager {
         public void readFromParcel(Parcel source) {
             id = source.readInt();
             persistentId = source.readInt();
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                userId = source.readInt();
+            }
             if (source.readInt() != 0) {
                 baseIntent = Intent.CREATOR.createFromParcel(source);
             } else {
@@ -2272,9 +2285,12 @@ public class ActivityManager {
     public static void dumpPackageStateStatic(FileDescriptor fd, String packageName) {
         FileOutputStream fout = new FileOutputStream(fd);
         PrintWriter pw = new FastPrintWriter(fout);
-        dumpService(pw, fd, Context.ACTIVITY_SERVICE, new String[] { "package", packageName });
+        dumpService(pw, fd, Context.ACTIVITY_SERVICE, new String[] {
+                "-a", "package", packageName });
         pw.println();
-        dumpService(pw, fd, ProcessStats.SERVICE_NAME, new String[] { packageName });
+        dumpService(pw, fd, "meminfo", new String[] { "--local", packageName });
+        pw.println();
+        dumpService(pw, fd, ProcessStats.SERVICE_NAME, new String[] { "-a", packageName });
         pw.println();
         dumpService(pw, fd, "usagestats", new String[] { "--packages", packageName });
         pw.println();
@@ -2296,7 +2312,7 @@ public class ActivityManager {
             pw.flush();
             tp = new TransferPipe();
             tp.setBufferPrefix("  ");
-            service.dump(tp.getWriteFd().getFileDescriptor(), args);
+            service.dumpAsync(tp.getWriteFd().getFileDescriptor(), args);
             tp.go(fd);
         } catch (Throwable e) {
             if (tp != null) {

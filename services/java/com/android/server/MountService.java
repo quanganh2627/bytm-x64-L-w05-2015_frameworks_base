@@ -42,6 +42,7 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
+import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemClock;
@@ -62,6 +63,7 @@ import android.util.Xml;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.IMediaContainerService;
+import com.android.internal.util.IndentingPrintWriter;
 import com.android.internal.util.Preconditions;
 import com.android.internal.util.XmlUtils;
 import com.android.server.NativeDaemonConnector.Command;
@@ -72,6 +74,7 @@ import com.android.server.pm.UserManagerService;
 import com.google.android.collect.Lists;
 import com.google.android.collect.Maps;
 
+import com.intel.asf.AsfAosp;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.File;
@@ -123,6 +126,11 @@ class MountService extends IMountService.Stub
     /** Maximum number of ASEC containers allowed to be mounted. */
     private static final int MAX_CONTAINERS = 250;
 
+    /* power manager wake lock to wake up screen */
+    private final PowerManager mPowerManager;
+    private final PowerManager.WakeLock mWakeLock;
+    private final Handler mWakeLockHandler;
+
     /*
      * Internal vold volume state constants
      */
@@ -173,6 +181,8 @@ class MountService extends IMountService.Stub
          * 600 series - Unsolicited broadcasts.
          */
         public static final int VolumeStateChange              = 605;
+        public static final int VolumeUuidChange               = 613;
+        public static final int VolumeUserLabelChange          = 614;
         public static final int VolumeDiskInserted             = 630;
         public static final int VolumeDiskRemoved              = 631;
         public static final int VolumeBadRemoval               = 632;
@@ -183,8 +193,8 @@ class MountService extends IMountService.Stub
         public static final int FstrimCompleted                = 700;
     }
 
-    private Context mContext;
-    private NativeDaemonConnector mConnector;
+    protected Context mContext;
+    protected NativeDaemonConnector mConnector;
 
     private final Object mVolumesLock = new Object();
 
@@ -501,7 +511,7 @@ class MountService extends IMountService.Stub
         waitForLatch(mAsecsScanned);
     }
 
-    private void waitForReady() {
+    protected void waitForReady() {
         waitForLatch(mConnectedSignal);
     }
 
@@ -592,6 +602,8 @@ class MountService extends IMountService.Stub
                         removeVolumeLocked(volume);
                     }
                 }
+            } else if (action.equals(Intent.ACTION_LOCALE_CHANGED)) {
+                readStorageListLocked();
             }
         }
     };
@@ -661,15 +673,15 @@ class MountService extends IMountService.Stub
         final String oldState;
         synchronized (mVolumesLock) {
             oldState = mVolumeStates.put(path, state);
-        }
+            volume.setState(state);
+            if (state.equals(oldState)) {
+                Slog.w(TAG, String.format("Duplicate state transition (%s -> %s) for %s",
+                        state, state, path));
+                return;
+            }
 
-        if (state.equals(oldState)) {
-            Slog.w(TAG, String.format("Duplicate state transition (%s -> %s) for %s",
-                    state, state, path));
-            return;
+            Slog.d(TAG, "volume state changed for " + path + " (" + oldState + " -> " + state + ")");
         }
-
-        Slog.d(TAG, "volume state changed for " + path + " (" + oldState + " -> " + state + ")");
 
         // Tell PackageManager about changes to primary volume state, but only
         // when not emulated.
@@ -801,6 +813,26 @@ class MountService extends IMountService.Stub
             notifyVolumeStateChange(
                     cooked[2], cooked[3], Integer.parseInt(cooked[7]),
                             Integer.parseInt(cooked[10]));
+        } else if (code == VoldResponseCode.VolumeUuidChange) {
+            // Format: nnn <label> <path> <uuid>
+            final String path = cooked[2];
+            final String uuid = (cooked.length > 3) ? cooked[3] : null;
+
+            final StorageVolume vol = mVolumesByPath.get(path);
+            if (vol != null) {
+                vol.setUuid(uuid);
+            }
+
+        } else if (code == VoldResponseCode.VolumeUserLabelChange) {
+            // Format: nnn <label> <path> <label>
+            final String path = cooked[2];
+            final String userLabel = (cooked.length > 3) ? cooked[3] : null;
+
+            final StorageVolume vol = mVolumesByPath.get(path);
+            if (vol != null) {
+                vol.setUserLabel(userLabel);
+            }
+
         } else if ((code == VoldResponseCode.VolumeDiskInserted) ||
                    (code == VoldResponseCode.VolumeDiskRemoved) ||
                    (code == VoldResponseCode.VolumeBadRemoval)) {
@@ -812,6 +844,10 @@ class MountService extends IMountService.Stub
             final String path = cooked[3];
             int major = -1;
             int minor = -1;
+
+            mWakeLockHandler.removeCallbacks(DiskScreenCtrl);
+            mWakeLock.acquire();
+            mWakeLockHandler.postDelayed(DiskScreenCtrl, 10000);
 
             try {
                 String devComp = cooked[6].substring(1, cooked[6].length() -1);
@@ -914,6 +950,14 @@ class MountService extends IMountService.Stub
                                     Environment.MEDIA_UNMOUNTABLE) && !getUmsEnabling()) {
                 if (DEBUG_EVENTS) Slog.i(TAG, "updating volume state for media bad removal nofs and unmountable");
                 updatePublicVolumeState(volume, Environment.MEDIA_UNMOUNTED);
+                if (AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+                    if (
+                            AsfAosp.sendMountUnmountEvents(AsfAosp.Type.UNMOUNT.ordinal(), label) ==
+                            false
+                    ) {
+                        return;
+                    }
+                }
                 action = Intent.ACTION_MEDIA_UNMOUNTED;
             }
         } else if (newState == VolumeState.Pending) {
@@ -924,6 +968,14 @@ class MountService extends IMountService.Stub
         } else if (newState == VolumeState.Mounted) {
             if (DEBUG_EVENTS) Slog.i(TAG, "updating volume state mounted");
             updatePublicVolumeState(volume, Environment.MEDIA_MOUNTED);
+            if (AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+                if (
+                        AsfAosp.sendMountUnmountEvents(AsfAosp.Type.MOUNT.ordinal(), label) ==
+                        false
+                ) {
+                    return;
+                }
+            }
             action = Intent.ACTION_MEDIA_MOUNTED;
         } else if (newState == VolumeState.Unmounting) {
             action = Intent.ACTION_MEDIA_EJECT;
@@ -932,6 +984,14 @@ class MountService extends IMountService.Stub
             if (DEBUG_EVENTS) Slog.i(TAG, "Updating volume state media mounted");
             /* Send the media unmounted event first */
             updatePublicVolumeState(volume, Environment.MEDIA_UNMOUNTED);
+            if (AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+                if (
+                        AsfAosp.sendMountUnmountEvents(AsfAosp.Type.UNMOUNT.ordinal(), label) ==
+                        false
+                ) {
+                    return;
+                }
+            }
             sendStorageIntent(Intent.ACTION_MEDIA_UNMOUNTED, volume, UserHandle.ALL);
 
             if (DEBUG_EVENTS) Slog.i(TAG, "Updating media shared");
@@ -966,7 +1026,12 @@ class MountService extends IMountService.Stub
              * Mount failed for some reason
              */
             String action = null;
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return StorageResultCode.OperationFailedInternalError;
+            }
             if (code == VoldResponseCode.OpFailedNoMedia) {
                 /*
                  * Attempt to mount but no media inserted
@@ -977,6 +1042,25 @@ class MountService extends IMountService.Stub
                 /*
                  * Media is blank or does not contain a supported filesystem
                  */
+                String oldState;
+                int loop = 50;
+                do {
+                    synchronized(mVolumeStates) {
+                        oldState = mVolumeStates.get(path);
+                        if (oldState == null)
+                            break;
+                    }
+                    /*
+                     * wait for 200ms first to give a chance for MountService
+                     * to handle other events from vold service first
+                     */
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException error) {
+                        Slog.i(TAG, "Exception during sleep");
+                    }
+                    loop--;
+                } while (!oldState.equals(Environment.MEDIA_UNMOUNTED) || loop == 0);
                 updatePublicVolumeState(volume, Environment.MEDIA_NOFS);
                 action = Intent.ACTION_MEDIA_NOFS;
                 rc = StorageResultCode.OperationFailedMediaBlank;
@@ -1045,7 +1129,12 @@ class MountService extends IMountService.Stub
         } catch (NativeDaemonConnectorException e) {
             // Don't worry about mismatch in PackageManager since the
             // call back will handle the status changes any way.
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return StorageResultCode.OperationFailedInternalError;
+            }
             if (code == VoldResponseCode.OpFailedVolNotMounted) {
                 return StorageResultCode.OperationFailedStorageNotMounted;
             } else if (code == VoldResponseCode.OpFailedStorageBusy) {
@@ -1061,7 +1150,12 @@ class MountService extends IMountService.Stub
             mConnector.execute("volume", "format", path);
             return StorageResultCode.OperationSucceeded;
         } catch (NativeDaemonConnectorException e) {
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return StorageResultCode.OperationFailedInternalError;
+            }
             if (code == VoldResponseCode.OpFailedNoMedia) {
                 return StorageResultCode.OperationFailedNoMedia;
             } else if (code == VoldResponseCode.OpFailedMediaCorrupt) {
@@ -1080,7 +1174,6 @@ class MountService extends IMountService.Stub
             Slog.e(TAG, "Failed to read response to volume shared " + path + " " + method);
             return false;
         }
-
         if (event.getCode() == VoldResponseCode.ShareEnabledResult) {
             return event.getMessage().endsWith("enabled");
         } else {
@@ -1150,7 +1243,7 @@ class MountService extends IMountService.Stub
                 UserHandle.ALL);
     }
 
-    private void validatePermission(String perm) {
+    protected void validatePermission(String perm) {
         if (mContext.checkCallingOrSelfPermission(perm) != PackageManager.PERMISSION_GRANTED) {
             throw new SecurityException(String.format("Requires %s permission", perm));
         }
@@ -1230,6 +1323,7 @@ class MountService extends IMountService.Stub
 
                             // Until we hear otherwise, treat as unmounted
                             mVolumeStates.put(volume.getPath(), Environment.MEDIA_UNMOUNTED);
+                            volume.setState(Environment.MEDIA_UNMOUNTED);
                         }
                     }
 
@@ -1273,6 +1367,7 @@ class MountService extends IMountService.Stub
         } else {
             // Place stub status for early callers to find
             mVolumeStates.put(volume.getPath(), Environment.MEDIA_MOUNTED);
+            volume.setState(Environment.MEDIA_MOUNTED);
         }
     }
 
@@ -1327,6 +1422,7 @@ class MountService extends IMountService.Stub
         final IntentFilter userFilter = new IntentFilter();
         userFilter.addAction(Intent.ACTION_USER_ADDED);
         userFilter.addAction(Intent.ACTION_USER_REMOVED);
+        userFilter.addAction(Intent.ACTION_LOCALE_CHANGED);
         mContext.registerReceiver(mUserReceiver, userFilter, null, mHandler);
 
         // Watch for USB changes on primary volume
@@ -1344,6 +1440,15 @@ class MountService extends IMountService.Stub
 
         // Add OBB Action Handler to MountService thread.
         mObbActionHandler = new ObbActionHandler(IoThread.get().getLooper());
+
+        /*
+         * get the msg from vold and handle it with wakelock
+         */
+        mPowerManager = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
+        mWakeLock = mPowerManager.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
+                    PowerManager.ACQUIRE_CAUSES_WAKEUP, "sd_screen_lock");
+        mWakeLock.setReferenceCounted(false);
+        mWakeLockHandler = new Handler();
 
         /*
          * Create the connection to vold with a maximum queue of twice the
@@ -1717,7 +1822,12 @@ class MountService extends IMountService.Stub
             }
             mConnector.execute(cmd);
         } catch (NativeDaemonConnectorException e) {
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return StorageResultCode.OperationFailedInternalError;
+            }
             if (code == VoldResponseCode.OpFailedStorageBusy) {
                 rc = StorageResultCode.OperationFailedStorageBusy;
             } else {
@@ -1751,7 +1861,12 @@ class MountService extends IMountService.Stub
         try {
             mConnector.execute("asec", "mount", id, new SensitiveArg(key), ownerUid);
         } catch (NativeDaemonConnectorException e) {
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return StorageResultCode.OperationFailedInternalError;
+            }
             if (code != VoldResponseCode.OpFailedStorageBusy) {
                 rc = StorageResultCode.OperationFailedInternalError;
             }
@@ -1792,7 +1907,12 @@ class MountService extends IMountService.Stub
             }
             mConnector.execute(cmd);
         } catch (NativeDaemonConnectorException e) {
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return StorageResultCode.OperationFailedInternalError;
+            }
             if (code == VoldResponseCode.OpFailedStorageBusy) {
                 rc = StorageResultCode.OperationFailedStorageBusy;
             } else {
@@ -1854,7 +1974,12 @@ class MountService extends IMountService.Stub
             event.checkCode(VoldResponseCode.AsecPathResult);
             return event.getMessage();
         } catch (NativeDaemonConnectorException e) {
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return null;
+            }
             if (code == VoldResponseCode.OpFailedStorageNotFound) {
                 Slog.i(TAG, String.format("Container '%s' not found", id));
                 return null;
@@ -1875,7 +2000,12 @@ class MountService extends IMountService.Stub
             event.checkCode(VoldResponseCode.AsecPathResult);
             return event.getMessage();
         } catch (NativeDaemonConnectorException e) {
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return null;
+            }
             if (code == VoldResponseCode.OpFailedStorageNotFound) {
                 Slog.i(TAG, String.format("Container '%s' not found", id));
                 return null;
@@ -1929,7 +2059,12 @@ class MountService extends IMountService.Stub
             event.checkCode(VoldResponseCode.AsecPathResult);
             return event.getMessage();
         } catch (NativeDaemonConnectorException e) {
-            int code = e.getCode();
+            int code = 0;
+            try {
+                code = e.getCode();
+            } catch(NullPointerException ex) {
+                return null;
+            }
             if (code == VoldResponseCode.OpFailedStorageNotFound) {
                 return null;
             } else {
@@ -2574,8 +2709,12 @@ class MountService extends IMountService.Stub
                 mConnector.execute("obb", "mount", mObbState.voldPath, new SensitiveArg(hashedKey),
                         mObbState.ownerGid);
             } catch (NativeDaemonConnectorException e) {
-                int code = e.getCode();
-                if (code != VoldResponseCode.OpFailedStorageBusy) {
+                try {
+                    int code = e.getCode();
+                    if (code != VoldResponseCode.OpFailedStorageBusy) {
+                        rc = StorageResultCode.OperationFailedInternalError;
+                    }
+                } catch(NullPointerException ex) {
                     rc = StorageResultCode.OperationFailedInternalError;
                 }
             }
@@ -2651,13 +2790,17 @@ class MountService extends IMountService.Stub
                 }
                 mConnector.execute(cmd);
             } catch (NativeDaemonConnectorException e) {
-                int code = e.getCode();
-                if (code == VoldResponseCode.OpFailedStorageBusy) {
-                    rc = StorageResultCode.OperationFailedStorageBusy;
-                } else if (code == VoldResponseCode.OpFailedStorageNotFound) {
-                    // If it's not mounted then we've already won.
-                    rc = StorageResultCode.OperationSucceeded;
-                } else {
+                try {
+                    int code = e.getCode();
+                    if (code == VoldResponseCode.OpFailedStorageBusy) {
+                        rc = StorageResultCode.OperationFailedStorageBusy;
+                    } else if (code == VoldResponseCode.OpFailedStorageNotFound) {
+                        // If it's not mounted then we've already won.
+                        rc = StorageResultCode.OperationSucceeded;
+                    } else {
+                        rc = StorageResultCode.OperationFailedInternalError;
+                    }
+                } catch(NullPointerException ex) {
                     rc = StorageResultCode.OperationFailedInternalError;
                 }
             }
@@ -2743,54 +2886,59 @@ class MountService extends IMountService.Stub
     }
 
     @Override
-    protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        if (mContext.checkCallingOrSelfPermission(android.Manifest.permission.DUMP) != PackageManager.PERMISSION_GRANTED) {
-            pw.println("Permission Denial: can't dump ActivityManager from from pid="
-                    + Binder.getCallingPid() + ", uid=" + Binder.getCallingUid()
-                    + " without permission " + android.Manifest.permission.DUMP);
-            return;
-        }
+    protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
+        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.DUMP, TAG);
+
+        final IndentingPrintWriter pw = new IndentingPrintWriter(writer, "  ", 160);
 
         synchronized (mObbMounts) {
-            pw.println("  mObbMounts:");
-
-            final Iterator<Entry<IBinder, List<ObbState>>> binders = mObbMounts.entrySet().iterator();
+            pw.println("mObbMounts:");
+            pw.increaseIndent();
+            final Iterator<Entry<IBinder, List<ObbState>>> binders = mObbMounts.entrySet()
+                    .iterator();
             while (binders.hasNext()) {
                 Entry<IBinder, List<ObbState>> e = binders.next();
-                pw.print("    Key="); pw.println(e.getKey().toString());
+                pw.println(e.getKey() + ":");
+                pw.increaseIndent();
                 final List<ObbState> obbStates = e.getValue();
                 for (final ObbState obbState : obbStates) {
-                    pw.print("      "); pw.println(obbState.toString());
+                    pw.println(obbState);
                 }
+                pw.decreaseIndent();
             }
+            pw.decreaseIndent();
 
-            pw.println("");
-            pw.println("  mObbPathToStateMap:");
+            pw.println();
+            pw.println("mObbPathToStateMap:");
+            pw.increaseIndent();
             final Iterator<Entry<String, ObbState>> maps = mObbPathToStateMap.entrySet().iterator();
             while (maps.hasNext()) {
                 final Entry<String, ObbState> e = maps.next();
-                pw.print("    "); pw.print(e.getKey());
-                pw.print(" -> "); pw.println(e.getValue().toString());
+                pw.print(e.getKey());
+                pw.print(" -> ");
+                pw.println(e.getValue());
             }
+            pw.decreaseIndent();
         }
 
-        pw.println("");
-
         synchronized (mVolumesLock) {
-            pw.println("  mVolumes:");
-
-            final int N = mVolumes.size();
-            for (int i = 0; i < N; i++) {
-                final StorageVolume v = mVolumes.get(i);
-                pw.print("    ");
-                pw.println(v.toString());
-                pw.println("      state=" + mVolumeStates.get(v.getPath()));
+            pw.println();
+            pw.println("mVolumes:");
+            pw.increaseIndent();
+            for (StorageVolume volume : mVolumes) {
+                pw.println(volume);
+                pw.increaseIndent();
+                pw.println("Current state: " + mVolumeStates.get(volume.getPath()));
+                pw.decreaseIndent();
             }
+            pw.decreaseIndent();
         }
 
         pw.println();
-        pw.println("  mConnection:");
+        pw.println("mConnection:");
+        pw.increaseIndent();
         mConnector.dump(fd, pw, args);
+        pw.decreaseIndent();
     }
 
     /** {@inheritDoc} */
@@ -2799,4 +2947,11 @@ class MountService extends IMountService.Stub
             mConnector.monitor();
         }
     }
+
+    private Runnable DiskScreenCtrl = new Runnable() {
+        public void run() {
+            if (mWakeLock.isHeld())
+                mWakeLock.release();
+        }
+    };
 }

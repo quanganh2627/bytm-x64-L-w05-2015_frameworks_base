@@ -52,10 +52,10 @@ class SupplicantStateTracker extends StateMachine {
     private boolean mAuthFailureInSupplicantBroadcast = false;
 
     /* Maximum retries on a authentication failure notification */
-    private static final int MAX_RETRIES_ON_AUTHENTICATION_FAILURE = 2;
+    private static final int MAX_RETRIES_ON_AUTHENTICATION_FAILURE = 3;
 
     /* Maximum retries on assoc rejection events */
-    private static final int MAX_RETRIES_ON_ASSOCIATION_REJECT = 4;
+    private static final int MAX_RETRIES_ON_ASSOCIATION_REJECT = 16;
 
     /* Tracks if networks have been disabled during a connection */
     private boolean mNetworksDisabledDuringConnect = false;

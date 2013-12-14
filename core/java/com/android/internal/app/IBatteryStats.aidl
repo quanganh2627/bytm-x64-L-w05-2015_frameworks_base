@@ -16,6 +16,7 @@
 
 package com.android.internal.app;
 
+import com.android.internal.app.IBatteryStatsResetCallback;
 import com.android.internal.os.BatteryStatsImpl;
 
 import android.os.WorkSource;
@@ -68,6 +69,8 @@ interface IBatteryStats {
     void noteFullWifiLockReleasedFromSource(in WorkSource ws);
     void noteWifiScanStartedFromSource(in WorkSource ws);
     void noteWifiScanStoppedFromSource(in WorkSource ws);
+    void noteWifiBatchedScanStartedFromSource(in WorkSource ws, int csph);
+    void noteWifiBatchedScanStoppedFromSource(in WorkSource ws);
     void noteWifiMulticastEnabledFromSource(in WorkSource ws);
     void noteWifiMulticastDisabledFromSource(in WorkSource ws);
     void noteNetworkInterfaceType(String iface, int type);
@@ -75,4 +78,8 @@ interface IBatteryStats {
     void setBatteryState(int status, int health, int plugType, int level, int temp, int volt);
     long getAwakeTimeBattery();
     long getAwakeTimePlugged();
+    void resetStatistic(boolean wait);
+    byte[] getStatisticsBeforeReset();
+    void registerCallback(IBatteryStatsResetCallback callback);
+    void unregisterCallback(IBatteryStatsResetCallback callback);
 }

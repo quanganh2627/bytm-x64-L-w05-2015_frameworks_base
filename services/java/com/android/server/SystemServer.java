@@ -47,14 +47,17 @@ import android.view.WindowManager;
 import com.android.internal.R;
 import com.android.internal.os.BinderInternal;
 import com.android.internal.os.SamplingProfilerIntegration;
+import com.android.server.accessibility.ExtendAccessibilityManagerService;
 import com.android.server.accessibility.AccessibilityManagerService;
 import com.android.server.accounts.AccountManagerService;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.am.BatteryStatsService;
+import com.android.server.cms.CurrentMgmtService;
 import com.android.server.content.ContentService;
 import com.android.server.display.DisplayManagerService;
 import com.android.server.dreams.DreamManagerService;
 import com.android.server.input.InputManagerService;
+import com.android.server.media.MediaRouterService;
 import com.android.server.net.NetworkPolicyManagerService;
 import com.android.server.net.NetworkStatsService;
 import com.android.server.os.SchedulingPolicyService;
@@ -65,14 +68,23 @@ import com.android.server.power.PowerManagerService;
 import com.android.server.power.ShutdownThread;
 import com.android.server.print.PrintManagerService;
 import com.android.server.search.SearchManagerService;
+import com.android.server.thermal.ThermalService;
 import com.android.server.usb.UsbService;
+import com.android.server.wifi.ExtendWifiService;
 import com.android.server.wifi.WifiService;
+import com.android.server.wifi.CsmWifiOffloadSystemService;
 import com.android.server.wm.WindowManagerService;
+import android.view.InputChannel;
+
+import com.intel.arkham.ExtendAccountManagerService;
+import com.intel.config.FeatureConfig;
+import com.intel.multidisplay.DisplayObserver;
 
 import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
 
 import java.io.File;
+import java.lang.reflect.Method;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -130,6 +142,7 @@ class ServerThread {
         PowerManagerService power = null;
         DisplayManagerService display = null;
         BatteryService battery = null;
+        CurrentMgmtService current = null;
         VibratorService vibrator = null;
         AlarmManagerService alarm = null;
         MountService mountService = null;
@@ -151,6 +164,7 @@ class ServerThread {
         UiModeManagerService uiMode = null;
         RecognitionManagerService recognition = null;
         NetworkTimeUpdateService networkTimeUpdater = null;
+        ThermalService thermalservice = null;
         CommonTimeManagementService commonTimeMgmtService = null;
         InputManagerService inputManager = null;
         TelephonyRegistry telephonyRegistry = null;
@@ -260,7 +274,11 @@ class ServerThread {
             try {
                 // TODO: seems like this should be disable-able, but req'd by ContentService
                 Slog.i(TAG, "Account Manager");
-                accountManager = new AccountManagerService(context);
+                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                    accountManager = new ExtendAccountManagerService(context);
+                } else {
+                    accountManager = new AccountManagerService(context);
+                }
                 ServiceManager.addService(Context.ACCOUNT_SERVICE, accountManager);
             } catch (Throwable e) {
                 Slog.e(TAG, "Failure starting Account Manager", e);
@@ -276,9 +294,22 @@ class ServerThread {
             Slog.i(TAG, "Lights Service");
             lights = new LightsService(context);
 
+            //THERMAL
+            if ("1".equals(SystemProperties.get("persist.service.thermal", "0"))) {
+               Slog.i(TAG, "Thermal Service enabled");
+               thermalservice = new ThermalService(context);
+               ServiceManager.addService("thermalservice", thermalservice);
+            } else {
+               Log.i(TAG, "Thermal Service disabled");
+            }
+
             Slog.i(TAG, "Battery Service");
             battery = new BatteryService(context, lights);
             ServiceManager.addService("battery", battery);
+
+            Slog.i(TAG, "Current Mgmt Service");
+            current = new CurrentMgmtService(context);
+            ServiceManager.addService("current", current);
 
             Slog.i(TAG, "Vibrator Service");
             vibrator = new VibratorService(context);
@@ -356,6 +387,7 @@ class ServerThread {
         DreamManagerService dreamy = null;
         AssetAtlasService atlas = null;
         PrintManagerService printManager = null;
+        MediaRouterService mediaRouter = null;
 
         // Bring up services needed for UI.
         if (factoryTest != SystemServer.FACTORY_TEST_LOW_LEVEL) {
@@ -363,7 +395,11 @@ class ServerThread {
             if (true) {
                 try {
                     Slog.i(TAG, "Input Method Service");
-                    imm = new InputMethodManagerService(context, wm);
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        imm = new ExtendInputMethodManagerService(context, wm);
+                    } else {
+                        imm = new InputMethodManagerService(context, wm);
+                    }
                     ServiceManager.addService(Context.INPUT_METHOD_SERVICE, imm);
                 } catch (Throwable e) {
                     reportWtf("starting Input Manager Service", e);
@@ -371,8 +407,13 @@ class ServerThread {
 
                 try {
                     Slog.i(TAG, "Accessibility Manager");
-                    ServiceManager.addService(Context.ACCESSIBILITY_SERVICE,
-                            new AccessibilityManagerService(context));
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        ServiceManager.addService(Context.ACCESSIBILITY_SERVICE,
+                                new ExtendAccessibilityManagerService(context));
+                    } else {
+                        ServiceManager.addService(Context.ACCESSIBILITY_SERVICE,
+                                new AccessibilityManagerService(context));
+                    }
                 } catch (Throwable e) {
                     reportWtf("starting Accessibility Manager", e);
                 }
@@ -408,7 +449,11 @@ class ServerThread {
                      * (for media / usb notifications) so we must start MountService first.
                      */
                     Slog.i(TAG, "Mount Service");
-                    mountService = new MountService(context);
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        mountService = new ExtendMountService(context);
+                    } else {
+                        mountService = new MountService(context);
+                    }
                     ServiceManager.addService("mount", mountService);
                 } catch (Throwable e) {
                     reportWtf("starting Mount Service", e);
@@ -426,7 +471,11 @@ class ServerThread {
 
                 try {
                     Slog.i(TAG, "Device Policy");
-                    devicePolicy = new DevicePolicyManagerService(context);
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        devicePolicy = new ExtendDevicePolicyManagerService(context);
+                    } else {
+                        devicePolicy = new DevicePolicyManagerService(context);
+                    }
                     ServiceManager.addService(Context.DEVICE_POLICY_SERVICE, devicePolicy);
                 } catch (Throwable e) {
                     reportWtf("starting DevicePolicyService", e);
@@ -446,8 +495,13 @@ class ServerThread {
             if (!disableNonCoreServices) {
                 try {
                     Slog.i(TAG, "Clipboard Service");
-                    ServiceManager.addService(Context.CLIPBOARD_SERVICE,
-                            new ClipboardService(context));
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        ServiceManager.addService(Context.CLIPBOARD_SERVICE,
+                                new ExtendClipboardService(context));
+                    } else {
+                        ServiceManager.addService(Context.CLIPBOARD_SERVICE,
+                                new ClipboardService(context));
+                    }
                 } catch (Throwable e) {
                     reportWtf("starting Clipboard Service", e);
                 }
@@ -493,6 +547,14 @@ class ServerThread {
                 }
 
                try {
+                   Slog.i(TAG, "CSM Wifi Offload Service");
+                   CsmWifiOffloadSystemService csmWifiOffload = new CsmWifiOffloadSystemService(context);
+                   ServiceManager.addService("CsmWifiOffloadService", csmWifiOffload);
+               } catch (Throwable e) {
+                   reportWtf("starting CSM Wifi Offload system service", e);
+               }
+
+               try {
                     Slog.i(TAG, "Wi-Fi P2pService");
                     wifiP2p = new WifiP2pService(context);
                     ServiceManager.addService(Context.WIFI_P2P_SERVICE, wifiP2p);
@@ -502,7 +564,11 @@ class ServerThread {
 
                try {
                     Slog.i(TAG, "Wi-Fi Service");
-                    wifi = new WifiService(context);
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        wifi = new ExtendWifiService(context);
+                    } else {
+                        wifi = new WifiService(context);
+                    }
                     ServiceManager.addService(Context.WIFI_SERVICE, wifi);
                 } catch (Throwable e) {
                     reportWtf("starting Wi-Fi Service", e);
@@ -567,7 +633,11 @@ class ServerThread {
 
             try {
                 Slog.i(TAG, "Notification Manager");
-                notification = new NotificationManagerService(context, statusBar, lights);
+                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                    notification = new ExtendNotificationManagerService(context, statusBar, lights);
+                } else {
+                    notification = new NotificationManagerService(context, statusBar, lights);
+                }
                 ServiceManager.addService(Context.NOTIFICATION_SERVICE, notification);
                 networkPolicy.bindNotificationManager(notification);
             } catch (Throwable e) {
@@ -640,14 +710,22 @@ class ServerThread {
                 }
             }
 
-            if (!disableNonCoreServices) {
-                try {
-                    Slog.i(TAG, "Dock Observer");
-                    // Listen for dock station changes
-                    dock = new DockObserver(context);
-                } catch (Throwable e) {
-                    reportWtf("starting DockObserver", e);
-                }
+            try {
+                Slog.i(TAG, "Intel Display Observer");
+                // Listen for display changes
+                InputChannel input =
+                    inputManager.monitorInput("MultiDisplayView");
+                DisplayObserver dso = new DisplayObserver(context, input);
+            } catch (Throwable e) {
+                reportWtf("starting Intel DisplayObserver", e);
+            }
+
+            try {
+                Slog.i(TAG, "Dock Observer");
+                // Listen for dock station changes
+                dock = new DockObserver(context);
+            } catch (Throwable e) {
+                reportWtf("starting DockObserver", e);
             }
 
             if (!disableMedia) {
@@ -659,6 +737,13 @@ class ServerThread {
                 } catch (Throwable e) {
                     reportWtf("starting WiredAccessoryManager", e);
                 }
+            }
+            try {
+                Slog.i(TAG, "HardwareMuteSwitch");
+                // Listen for hardware mute switch changes
+                new HardwareMuteSwitch(context, inputManager);
+            } catch (Throwable e) {
+                reportWtf("starting HardwareMuteSwitch", e);
             }
 
             if (!disableNonCoreServices) {
@@ -804,6 +889,35 @@ class ServerThread {
             } catch (Throwable e) {
                 reportWtf("starting Print Service", e);
             }
+
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM
+                    && !ENCRYPTED_STATE.equals(SystemProperties.get("vold.decrypt"))
+                    && !ENCRYPTING_STATE.equals(SystemProperties.get("vold.decrypt"))) {
+                Class[] ptype = new Class[]{Context.class};
+                Object[] obj = new Object[]{context};
+
+                String name = "com.intel.arkham.ContainerPolicyManagerService";
+                Object containerPolicy = registerService(name, ptype , obj);
+
+                ptype = new Class[]{Context.class, java.lang.Object.class,
+                    PackageManagerService.class, WindowManagerService.class};
+                obj = new Object[]{context, containerPolicy,
+                    (PackageManagerService) pm, wm};
+                name = "com.intel.arkham.ContainerManagerService";
+                Object containerManager = registerService(name, ptype , obj);
+
+                Slog.i(TAG, "Container Services");
+            }
+
+            if (!disableNonCoreServices) {
+                try {
+                    Slog.i(TAG, "Media Router Service");
+                    mediaRouter = new MediaRouterService(context);
+                    ServiceManager.addService(Context.MEDIA_ROUTER_SERVICE, mediaRouter);
+                } catch (Throwable e) {
+                    reportWtf("starting MediaRouterService", e);
+                }
+            }
         }
 
         // Before things start rolling, be sure we have decided whether
@@ -916,6 +1030,7 @@ class ServerThread {
         final InputManagerService inputManagerF = inputManager;
         final TelephonyRegistry telephonyRegistryF = telephonyRegistry;
         final PrintManagerService printManagerF = printManager;
+        final MediaRouterService mediaRouterF = mediaRouter;
 
         // We now tell the activity manager it is okay to run third party
         // code.  It will call back into us once it has gotten to the state
@@ -1063,6 +1178,12 @@ class ServerThread {
                 } catch (Throwable e) {
                     reportWtf("Notifying PrintManagerService running", e);
                 }
+
+                try {
+                    if (mediaRouterF != null) mediaRouterF.systemRunning();
+                } catch (Throwable e) {
+                    reportWtf("Notifying MediaRouterService running", e);
+                }
             }
         });
 
@@ -1082,6 +1203,25 @@ class ServerThread {
         //Slog.d(TAG, "Starting service: " + intent);
         context.startServiceAsUser(intent, UserHandle.OWNER);
     }
+
+    private Object registerService(String serviceClassName, java.lang.Class[] ptype,
+            java.lang.Object[] objArray) {
+        Object object = null;
+        Slog.d(TAG, "registerService service: " + serviceClassName);
+        try {
+            Class c = Class.forName(serviceClassName);
+            Method m = c.getMethod("main", ptype);
+            object = m.invoke(c, objArray);
+        } catch (IllegalAccessException iae) {
+            Slog.e(TAG, "Got expected PackageAccess complaint", iae);
+        } catch (InstantiationError ie) {
+            Slog.e(TAG, "Got expected InstantationError", ie);
+        } catch (Exception ex) {
+            Slog.e(TAG, "Got unexpected MaybeAbstract failure", ex);
+        }
+        return object;
+    }
+
 }
 
 public class SystemServer {
@@ -1104,6 +1244,19 @@ public class SystemServer {
     private static native void nativeInit();
 
     public static void main(String[] args) {
+
+        /*
+         * In case the runtime switched since last boot (such as when
+         * the old runtime was removed in an OTA), set the system
+         * property so that it is in sync. We can't do this in
+         * libnativehelper's JniInvocation::Init code where we already
+         * had to fallback to a different runtime because it is
+         * running as root and we need to be the system user to set
+         * the property. http://b/11463182
+         */
+        SystemProperties.set("persist.sys.dalvik.vm.lib",
+                             VMRuntime.getRuntime().vmLibrary());
+
         if (System.currentTimeMillis() < EARLIEST_SUPPORTED_TIME) {
             // If a device's clock is before 1970 (before 0), a lot of
             // APIs crash dealing with negative numbers, notably

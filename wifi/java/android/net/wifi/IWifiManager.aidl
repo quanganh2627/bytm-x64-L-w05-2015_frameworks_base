@@ -101,6 +101,8 @@ interface IWifiManager
 
     void stopWifi();
 
+    void haltWifi();
+
     void addToBlacklist(String bssid);
 
     void clearBlacklist();
@@ -117,7 +119,7 @@ interface IWifiManager
 
     void enableTdlsWithMacAddress(String remoteMacAddress, boolean enable);
 
-    boolean requestBatchedScan(in BatchedScanSettings requested, IBinder binder);
+    boolean requestBatchedScan(in BatchedScanSettings requested, IBinder binder, in WorkSource ws);
 
     void stopBatchedScan(in BatchedScanSettings requested);
 
@@ -126,5 +128,9 @@ interface IWifiManager
     boolean isBatchedScanSupported();
 
     void pollBatchedScan();
+
+    String setRTCoexMode(int enable, int safeChannelBitmap);
+
+    String setSafeChannel(int safeChannelBitmap);
 }
 

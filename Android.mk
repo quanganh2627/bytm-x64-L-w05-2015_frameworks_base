@@ -13,6 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+# This file was modified by Dolby Laboratories, Inc. The portions of the
+# code that are surrounded by "DOLBY..." are copyrighted and
+# licensed separately, as follows:
+#
+#  (C) 2011-2013 Dolby Laboratories, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#
 LOCAL_PATH := $(call my-dir)
 
 # We have a special case here where we build the library's resources
@@ -52,6 +71,7 @@ LOCAL_SRC_FILES += \
 ## across process boundaries.
 ##
 ## READ ME: ########################################################
+## ARKHAM-242 add container policy service and container manager
 LOCAL_SRC_FILES += \
 	core/java/android/accessibilityservice/IAccessibilityServiceConnection.aidl \
 	core/java/android/accessibilityservice/IAccessibilityServiceClient.aidl \
@@ -165,6 +185,7 @@ LOCAL_SRC_FILES += \
 	core/java/android/print/ILayoutResultCallback.aidl \
 	core/java/android/print/IPrinterDiscoveryObserver.aidl \
 	core/java/android/print/IPrintDocumentAdapter.aidl \
+	core/java/android/print/IPrintDocumentAdapterObserver.aidl \
 	core/java/android/print/IPrintJobStateChangeListener.aidl \
 	core/java/android/print/IPrintManager.aidl \
 	core/java/android/print/IPrintSpooler.aidl \
@@ -201,6 +222,7 @@ LOCAL_SRC_FILES += \
 	core/java/com/android/internal/app/IAppOpsCallback.aidl \
 	core/java/com/android/internal/app/IAppOpsService.aidl \
 	core/java/com/android/internal/app/IBatteryStats.aidl \
+	core/java/com/android/internal/app/IBatteryStatsResetCallback.aidl \
 	core/java/com/android/internal/app/IProcessStats.aidl \
 	core/java/com/android/internal/app/IUsageStats.aidl \
 	core/java/com/android/internal/app/IMediaContainerService.aidl \
@@ -250,10 +272,14 @@ LOCAL_SRC_FILES += \
 	media/java/android/media/IAudioService.aidl \
 	media/java/android/media/IAudioFocusDispatcher.aidl \
 	media/java/android/media/IAudioRoutesObserver.aidl \
+	media/java/android/media/IMediaRouterClient.aidl \
+	media/java/android/media/IMediaRouterService.aidl \
 	media/java/android/media/IMediaScannerListener.aidl \
 	media/java/android/media/IMediaScannerService.aidl \
 	media/java/android/media/IRemoteControlClient.aidl \
 	media/java/android/media/IRemoteControlDisplay.aidl \
+	media/java/android/media/IRemoteDisplayCallback.aidl \
+	media/java/android/media/IRemoteDisplayProvider.aidl \
 	media/java/android/media/IRemoteVolumeObserver.aidl \
 	media/java/android/media/IRingtonePlayer.aidl \
 	telephony/java/com/android/internal/telephony/IPhoneStateListener.aidl \
@@ -262,12 +288,26 @@ LOCAL_SRC_FILES += \
 	telephony/java/com/android/internal/telephony/ISms.aidl \
 	telephony/java/com/android/internal/telephony/ITelephonyRegistry.aidl \
 	telephony/java/com/android/internal/telephony/IWapPushManager.aidl \
+	telephony/java/com/intel/internal/telephony/OemTelephony/IOemTelephony.aidl \
 	wifi/java/android/net/wifi/IWifiManager.aidl \
 	wifi/java/android/net/wifi/p2p/IWifiP2pManager.aidl \
 	packages/services/PacProcessor/com/android/net/IProxyService.aidl \
 	packages/services/Proxy/com/android/net/IProxyCallback.aidl \
 	packages/services/Proxy/com/android/net/IProxyPortListener.aidl \
 
+LOCAL_ARKHAM_PATH := vendor/intel/arkham
+ifeq ($(strip $(INTEL_FEATURE_ARKHAM)),true)
+LOCAL_SRC_FILES += \
+	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java,) \
+	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/keystore/java,) \
+	../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java/com/intel/arkham/IContainerManager.aidl \
+	../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java/com/intel/arkham/IContainerPolicyManager.aidl
+LOCAL_AIDL_INCLUDES += $(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java
+else
+LOCAL_SRC_FILES += \
+	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/core/java,)\
+	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/keystore/java,)
+endif
 # FRAMEWORKS_BASE_JAVA_SRC_DIRS comes from build/core/pathmap.mk
 LOCAL_AIDL_INCLUDES += $(FRAMEWORKS_BASE_JAVA_SRC_DIRS)
 
@@ -278,6 +318,8 @@ LOCAL_INTERMEDIATE_SOURCES := \
 
 LOCAL_NO_STANDARD_LIBRARIES := true
 LOCAL_JAVA_LIBRARIES := bouncycastle conscrypt core core-junit ext okhttp
+
+LOCAL_JAVA_LIBRARIES += com.intel.config
 
 LOCAL_MODULE := framework-base
 
@@ -438,6 +480,10 @@ non_base_dirs := \
 	../opt/net/voip/src/java/android/net/rtp \
 	../opt/net/voip/src/java/android/net/sip
 
+ifdef DOLBY_DAP
+non_base_dirs += \
+	../../vendor/intel/PRIVATE/dolby_ds1/java
+endif #DOLBY_DAP
 # These are relative to frameworks/base
 dirs_to_check_apis := \
   $(fwbase_dirs_to_document) \
@@ -498,6 +544,10 @@ framework_docs_LOCAL_JAVA_LIBRARIES := \
 	$(framework_docs_LOCAL_API_CHECK_JAVA_LIBRARIES) \
 	$(FRAMEWORKS_SUPPORT_JAVA_LIBRARIES)
 
+ifdef DOLBY_DAP
+framework_docs_LOCAL_JAVA_LIBRARIES += \
+			dolby_ds
+endif #DOLBY_DAP
 framework_docs_LOCAL_MODULE_CLASS := JAVA_LIBRARIES
 framework_docs_LOCAL_DROIDDOC_HTML_DIR := docs/html
 # The since flag (-since N.xml API_LEVEL) is used to add API Level information
@@ -537,31 +587,89 @@ framework_docs_LOCAL_ADDITIONAL_JAVA_DIR:= \
 framework_docs_LOCAL_ADDITIONAL_DEPENDENCIES := \
     frameworks/base/docs/knowntags.txt
 
-sample_dir := development/samples
+sample_dir := development/samples/browseable
 new_sample_dir := developers/samples/android
 
 # Whitelist of valid groups, used for default TOC grouping. Each sample must
 # belong to one (and only one) group. Assign samples to groups by setting
 # a sample.group var to one of these groups in the sample's _index.jd.
-sample_groups := -samplegroup Input \
-                 -samplegroup Sensors \
-                 -samplegroup Connectivity
+sample_groups := -samplegroup Background \
+                 -samplegroup Connectivity \
+                 -samplegroup Content \
+                 -samplegroup Input \
+                 -samplegroup Media \
+                 -samplegroup Security \
+                 -samplegroup Testing \
+                 -samplegroup UI \
+                 -samplegroup Views
 
 # the list here should match the list of samples included in the sdk samples package
 # (see development/build/sdk.atree)
 # remove htmlified samples for now -- samples are still available through the SDK
 web_docs_sample_code_flags := \
 		-hdf android.hasSamples 1 \
-		-samplecode $(new_sample_dir)/input/gestures/BasicGestureDetect/BasicGestureDetect \
- 		            samples/BasicGestureDetect/ "Basic Gestures" \
-		-samplecode $(sample_dir)/AccelerometerPlay \
- 		            samples/AccelerometerPlay "Accelerometer Play" \
-		-samplecode $(sample_dir)/ActionBarCompat \
- 		            samples/ActionBarCompat "Action Bar Compatibility" \
- 		-samplecode $(sample_dir)/BluetoothHDP \
- 		            samples/BluetoothHDP "Bluetooth HDP Demo" \
- 		-samplecode $(sample_dir)/BluetoothLeGatt \
- 		            samples/BluetoothLeGatt "Bluetooth HDP Demo"
+		-samplecode $(sample_dir)/BasicAccessibility \
+ 		            samples/BasicAccessibility "" \
+		-samplecode $(sample_dir)/HorizontalPaging \
+ 		            samples/HorizontalPaging "" \
+		-samplecode $(sample_dir)/ShareActionProvider \
+ 		            samples/ShareActionProvider "" \
+		-samplecode $(sample_dir)/Styled \
+ 		            samples/Styled "" \
+		-samplecode $(sample_dir)/BasicAndroidKeyStore \
+ 		            samples/BasicAndroidKeyStore "" \
+		-samplecode $(sample_dir)/Basic \
+ 		            samples/Basic "" \
+		-samplecode $(sample_dir)/ImmersiveMode \
+ 		            samples/ImmersiveMode "" \
+		-samplecode $(sample_dir)/repeatingAlarm \
+ 		            samples/repeatingAlarm "" \
+		-samplecode $(sample_dir)/TextLinkify \
+ 		            samples/TextLinkify "" \
+		-samplecode $(sample_dir)/BasicMediaRouter \
+ 		            samples/BasicMediaRouter "" \
+		-samplecode $(sample_dir)/BasicMultitouch \
+ 		            samples/BasicMultitouch "" \
+		-samplecode $(sample_dir)/TextSwitcher \
+ 		            samples/TextSwitcher "" \
+		-samplecode $(sample_dir)/ActivityInstrumentation \
+ 		            samples/ActivityInstrumentation "" \
+		-samplecode $(sample_dir)/BorderlessButtons \
+ 		            samples/BorderlessButtons "" \
+		-samplecode $(sample_dir)/BasicNotifications \
+ 		            samples/BasicNotifications "" \
+		-samplecode $(sample_dir)/AdvancedImmersiveMode \
+ 		            samples/AdvancedImmersiveMode "" \
+		-samplecode $(sample_dir)/BluetoothLeGatt \
+ 		            samples/BluetoothLeGatt "" \
+		-samplecode $(sample_dir)/NetworkConnect \
+ 		            samples/NetworkConnect "" \
+		-samplecode $(sample_dir)/BasicNetworking \
+ 		            samples/BasicNetworking "" \
+		-samplecode $(sample_dir)/BasicMediaDecoder \
+ 		            samples/BasicMediaDecoder "" \
+		-samplecode $(sample_dir)/BasicImmersiveMode \
+ 		            samples/BasicImmersiveMode "" \
+		-samplecode $(sample_dir)/CustomChoiceList \
+ 		            samples/CustomChoiceList "" \
+		-samplecode $(sample_dir)/BasicContactables \
+ 		            samples/BasicContactables "" \
+		-samplecode $(sample_dir)/BasicGestureDetect \
+ 		            samples/BasicGestureDetect "" \
+		-samplecode $(sample_dir)/DoneBar \
+ 		            samples/DoneBar "" \
+		-samplecode $(sample_dir)/ListPopupMenu \
+ 		            samples/ListPopupMenu "" \
+		-samplecode $(sample_dir)/AppRestrictions \
+ 		            samples/AppRestrictions "" \
+		-samplecode $(sample_dir)/CustomNotifications \
+ 		            samples/CustomNotifications "" \
+		-samplecode $(sample_dir)/BasicSyncAdapter \
+ 		            samples/BasicSyncAdapter "" \
+		-samplecode $(sample_dir)/StorageClient \
+ 		            samples/StorageClient "" 
+#		-samplecode $(sample_dir)/StorageProvider \
+# 		            samples/StorageProvider "" 
 #       -samplecode $(sample_dir)/AndroidBeamDemo \
 # 		            samples/AndroidBeamDemo "Android Beam Demo" \
 # 		-samplecode $(sample_dir)/ApiDemos \
@@ -729,6 +837,9 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:=$(framework_docs_LOCAL_SRC_FILES)
 LOCAL_INTERMEDIATE_SOURCES:=$(framework_docs_LOCAL_INTERMEDIATE_SOURCES)
 LOCAL_JAVA_LIBRARIES:=$(framework_docs_LOCAL_JAVA_LIBRARIES)
+ifdef DOLBY_DAP
+LOCAL_JAVA_LIBRARIES += dolby_ds
+endif #DOLBY_DAP
 LOCAL_MODULE_CLASS:=$(framework_docs_LOCAL_MODULE_CLASS)
 LOCAL_DROIDDOC_SOURCE_PATH:=$(framework_docs_LOCAL_DROIDDOC_SOURCE_PATH)
 LOCAL_DROIDDOC_HTML_DIR:=$(framework_docs_LOCAL_DROIDDOC_HTML_DIR)
@@ -780,9 +891,9 @@ LOCAL_MODULE := online-sdk
 LOCAL_DROIDDOC_OPTIONS:= \
 		$(framework_docs_LOCAL_DROIDDOC_OPTIONS) \
 		-toroot / \
-		-hdf android.whichdoc online
-#		$(sample_groups) \
-#		$(web_docs_sample_code_flags)
+		-hdf android.whichdoc online \
+		$(sample_groups) \
+		$(web_docs_sample_code_flags)
 
 LOCAL_DROIDDOC_CUSTOM_TEMPLATE_DIR:=build/tools/droiddoc/templates-sdk
 
