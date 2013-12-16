@@ -262,6 +262,7 @@ public class DropBoxManager {
 
    /**
      * Check if the dropbox is full.
+     * @hide
      */
     public boolean isFull() {
         boolean isDropBoxFull = false;
