@@ -84,6 +84,7 @@ import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
 
 import java.io.File;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -909,6 +910,16 @@ class ServerThread {
                 Slog.i(TAG, "Container Services");
             }
 
+           if (FeatureConfig.INTEL_FEATURE_AWARESERVICE) {
+                Class[] ptype = new Class[] { Context.class };
+                Object[] obj = new Object[] { context };
+
+                String name = "com.intel.aware.awareservice.AwareService";
+                registerService(name, ptype , obj);
+
+                Slog.i(TAG, "AwareServices");
+            }
+
             if (!disableNonCoreServices) {
                 try {
                     Slog.i(TAG, "Media Router Service");
@@ -1221,7 +1232,6 @@ class ServerThread {
         }
         return object;
     }
-
 }
 
 public class SystemServer {
