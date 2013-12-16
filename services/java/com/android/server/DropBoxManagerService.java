@@ -176,6 +176,7 @@ public final class DropBoxManagerService extends IDropBoxManagerService.Stub {
         mContext.unregisterReceiver(mReceiver);
     }
 
+    /** {@hide} */
     public boolean isFull() {
         return mIsFull;
     }
