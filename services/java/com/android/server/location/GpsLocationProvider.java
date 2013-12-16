@@ -357,7 +357,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
     private GeofenceHardwareImpl mGeofenceHardwareImpl;
 
-    private final static int CSM_START_TIMEOUT = 60000;
     private CsmClientGps mCsmClient;
 
     private String mUiccHslp = null;
@@ -1200,13 +1199,9 @@ public class GpsLocationProvider implements LocationProviderInterface {
                         return;
                     }
                 }
-                mCsmClient.startSync(CSM_START_TIMEOUT);
+                mCsmClient.startAsync();
             } catch (CsmException e) {
-                if (e.getCsmCause() != CsmException.CAUSE_NO_MODEM) {
-                    mStarted = false;
-                    Log.e(TAG, "CsmClient.startClient failed in startNavigating() ", e);
-                    return;
-                }
+                Log.e(TAG, "CsmClient.startClient failed in startNavigating() ", e);
             }
 
             if (singleShot && hasCapability(GPS_CAPABILITY_MSA)) {
@@ -2013,7 +2008,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
         @Override
         public void csmClientModemUnavailable() {
             super.csmClientModemUnavailable();
-            stopNavigating();
         }
 
         @Override
