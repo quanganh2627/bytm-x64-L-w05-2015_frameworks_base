@@ -9886,8 +9886,18 @@ public class PackageManagerService extends IPackageManager.Stub {
 
         // ASF HOOK: package deletion event
         if (AsfAosp.ENABLE) {
+            PackageParser.Package pkg;
+            synchronized (mPackages) {
+                PackageSetting packageSetting = mSettings.mPackages.get(packageName);
+                if (packageSetting != null) {
+                    pkg = packageSetting.pkg;
+                } else {
+                    pkg = null;
+                }
+            }
             if (!AsfAosp.sendPackageDeleteEvent(
                     packageName,
+                    pkg,
                     getPackageInfo(
                             packageName,
                             AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
