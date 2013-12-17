@@ -452,16 +452,6 @@ public class LockPatternUtils extends ParentLockPatternUtils {
         int quality =
                 (int) getLong(PASSWORD_TYPE_KEY, DevicePolicyManager.PASSWORD_QUALITY_SOMETHING);
 
-        // INTEL_LPAL start
-        if (quality == DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK) {
-            Log.d(INTEL_LPAL_TAG, "quality is PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK");
-            if (isBiometricVoiceWeakInstalled()) {
-                activePasswordQuality = DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK;
-            }
-            return activePasswordQuality;
-        }
-        // INTEL_LPAL end
-
         switch (quality) {
             case DevicePolicyManager.PASSWORD_QUALITY_SOMETHING:
                 if (isLockPatternEnabled()) {
@@ -493,6 +483,15 @@ public class LockPatternUtils extends ParentLockPatternUtils {
                     activePasswordQuality = DevicePolicyManager.PASSWORD_QUALITY_COMPLEX;
                 }
                 break;
+            // INTEL_LPAL start
+            case DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK:
+                Log.d(INTEL_LPAL_TAG, "quality is PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK");
+                if (isBiometricVoiceWeakInstalled()) {
+                    activePasswordQuality =
+                        DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK;
+                }
+                break;
+            // INTEL_LPAL end
         }
 
         return activePasswordQuality;
