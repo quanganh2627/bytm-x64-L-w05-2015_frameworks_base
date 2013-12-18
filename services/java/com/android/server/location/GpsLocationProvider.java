@@ -65,6 +65,7 @@ import android.provider.Telephony.Sms.Intents;
 import android.telephony.CellLocation;
 import android.telephony.PhoneStateListener;
 import android.telephony.CellInfo;
+import android.telephony.ServiceState;
 import android.telephony.SmsMessage;
 import android.telephony.TelephonyManager;
 import android.telephony.gsm.GsmCellLocation;
@@ -358,6 +359,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
     private GeofenceHardwareImpl mGeofenceHardwareImpl;
 
     private CsmClientGps mCsmClient;
+    private Boolean mModemInService = false;
 
     private String mUiccHslp = null;
 
@@ -427,6 +429,12 @@ public class GpsLocationProvider implements LocationProviderInterface {
         @Override
         public void onCellLocationChanged(CellLocation location) {
             updateCellLocation(location);
+        }
+
+        @Override
+        public void onServiceStateChanged(ServiceState serviceState) {
+            mModemInService = serviceState.getDataRegState() == ServiceState.STATE_IN_SERVICE;
+            if (DEBUG) Log.d(TAG, "Modem in service ? " + mModemInService.toString());
         }
     };
 
@@ -507,7 +515,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
         mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(
                 Context.APP_OPS_SERVICE));
         mTelephonyManager = (TelephonyManager)context.getSystemService(Context.TELEPHONY_SERVICE);
-        mTelephonyManager.listen(mPhoneStateListener, PhoneStateListener.LISTEN_CELL_LOCATION);
+        mTelephonyManager.listen(mPhoneStateListener,
+                PhoneStateListener.LISTEN_CELL_LOCATION | PhoneStateListener.LISTEN_SERVICE_STATE);
 
         // Battery statistics service to be notified when GPS turns on or off
         mBatteryStats = IBatteryStats.Stub.asInterface(ServiceManager.getService(
@@ -597,7 +606,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
                         try {
                             if ((flags & AGPS_REQUEST_REFLOC_CELLID) == AGPS_REQUEST_REFLOC_CELLID) {
-                                if (phoneType == TelephonyManager.PHONE_TYPE_GSM) {
+                                if ((phoneType == TelephonyManager.PHONE_TYPE_GSM)
+                                        && mModemInService) {
                                     mRefLocationRequested = true;
                                     CellLocation.requestLocationUpdate();
                                     synchronized(mCellLocationLock) {
@@ -609,7 +619,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
                                         }
                                     }
                                 } else {
-                                    Log.e(TAG, "Cell location info is not supported for this phone type.");
+                                    Log.i(TAG, "Cell location cannot be requested.");
                                 }
                             }
 
