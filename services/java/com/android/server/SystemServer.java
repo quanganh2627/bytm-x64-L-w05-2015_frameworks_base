@@ -74,8 +74,6 @@ import com.android.server.wifi.ExtendWifiService;
 import com.android.server.wifi.WifiService;
 import com.android.server.wifi.CsmWifiOffloadSystemService;
 import com.android.server.wm.WindowManagerService;
-import android.view.InputChannel;
-
 import com.intel.arkham.ExtendAccountManagerService;
 import com.intel.config.FeatureConfig;
 import com.intel.multidisplay.DisplayObserver;
@@ -728,19 +726,19 @@ class ServerThread {
             try {
                 Slog.i(TAG, "Intel Display Observer");
                 // Listen for display changes
-                InputChannel input =
-                    inputManager.monitorInput("MultiDisplayView");
-                DisplayObserver dso = new DisplayObserver(context, input);
+                DisplayObserver dso = new DisplayObserver(context);
             } catch (Throwable e) {
                 reportWtf("starting Intel DisplayObserver", e);
             }
 
-            try {
-                Slog.i(TAG, "Dock Observer");
-                // Listen for dock station changes
-                dock = new DockObserver(context);
-            } catch (Throwable e) {
-                reportWtf("starting DockObserver", e);
+            if (!disableNonCoreServices) {
+                try {
+                    Slog.i(TAG, "Dock Observer");
+                    // Listen for dock station changes
+                    dock = new DockObserver(context);
+                } catch (Throwable e) {
+                    reportWtf("starting DockObserver", e);
+                }
             }
 
             if (!disableMedia) {
