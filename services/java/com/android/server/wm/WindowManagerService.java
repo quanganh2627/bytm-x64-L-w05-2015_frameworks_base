@@ -607,7 +607,6 @@ public class WindowManagerService extends IWindowManager.Stub
         // Only set while traversing the default display based on its content.
         // Affects the behavior of mirroring on secondary displays.
         boolean mObscureApplicationContentOnSecondaryDisplays = false;
-        private boolean mDisplayHasBgPresentation;
     }
     final LayoutFields mInnerFields = new LayoutFields();
 
@@ -8882,10 +8881,6 @@ public class WindowManagerService extends IWindowManager.Stub
                     // Allow full screen keyguard presentation dialogs to be seen.
                     mInnerFields.mDisplayHasContent = true;
                 }
-                if (!w.isDefaultDisplay() && type == TYPE_SYSTEM_ALERT) {
-                    // We found a background presentation.
-                    mInnerFields.mDisplayHasBgPresentation = true;
-                }
             }
         }
     }
@@ -9002,9 +8997,6 @@ public class WindowManagerService extends IWindowManager.Stub
 
                 // Reset for each display.
                 mInnerFields.mDisplayHasContent = false;
-
-                // Reset for each display. Will be set to true if bg presentation is found.
-                mInnerFields.mDisplayHasBgPresentation = false;
 
                 int repeats = 0;
                 do {
