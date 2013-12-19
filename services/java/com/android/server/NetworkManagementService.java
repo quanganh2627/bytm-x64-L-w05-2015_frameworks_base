@@ -1774,6 +1774,76 @@ public class NetworkManagementService extends INetworkManagementService.Stub
         return event.getMessage().endsWith("started");
     }
 
+    @Override
+    public int addIpSecSA(String src, String dst, String ealgo, String ekey, String aalgo,
+            String akey, int spid, String secProtocol, String mode, long time) {
+        NativeDaemonEvent event;
+
+        try {
+            event = mConnector.execute("ipsec", "addsa", src, dst, ealgo, ekey, aalgo, akey,
+                    Integer.valueOf(spid).toString(), secProtocol, mode,
+                    Long.valueOf(time).toString());
+            if (event.isClassOk()) {
+                return Integer.parseInt(event.getMessage());
+            } else {
+                Slog.e(TAG, "Error adding ipsec security association : " + event.getMessage());
+                return 0;
+            }
+        } catch (NativeDaemonConnectorException e) {
+            Log.e(TAG, "addIpSecSA failed : " + e.toString());
+            return 0;
+        }
+    }
+
+    @Override
+    public int addIpSecSP(String src, int srcPort, String dst, int dstPort, String protocol,
+            String mode, String direction, String secProtocol, long time) {
+        NativeDaemonEvent event;
+        try {
+            event = mConnector.execute("ipsec", "addsp", src, Integer.valueOf(srcPort).toString(),
+                    dst, Integer.valueOf(dstPort).toString(), protocol, mode, direction,
+                    secProtocol, Long.valueOf(time).toString());
+            if (event.isClassOk()) {
+                return Integer.parseInt(event.getMessage());
+            } else {
+                Slog.e(TAG, "Error adding ipsec security policy : " + event.getMessage());
+                return 0;
+            }
+        } catch (NativeDaemonConnectorException e) {
+            Log.e(TAG, "addIpSecSP failed : " + e.toString());
+            return 0;
+        }
+    }
+
+    @Override
+    public void deleteIpSecSP(int id) {
+        NativeDaemonEvent event;
+
+        try {
+            event = mConnector.execute("ipsec", "delsp", Integer.valueOf(id).toString());
+            if (!event.isClassOk()) {
+                Slog.e(TAG, "Error deleting ipsec security policy : " + event.getMessage());
+            }
+        } catch (NativeDaemonConnectorException e) {
+            Log.e(TAG, "deleteIpSecSP failed : " + e.toString());
+        }
+    }
+
+    @Override
+    public void deleteIpSecSA(String src, String dst, int spi, String secProtocol, String mode) {
+        NativeDaemonEvent event;
+
+        try {
+            event = mConnector.execute("ipsec", "delsa", src, dst, Integer.valueOf(spi).toString(),
+                    secProtocol, mode);
+            if (!event.isClassOk()) {
+                Slog.e(TAG, "Error deleting ipsec security association : " + event.getMessage());
+            }
+        } catch (NativeDaemonConnectorException e) {
+            Log.e(TAG, "deleteIpSecSA failed : " + e.toString());
+        }
+    }
+
     /** {@inheritDoc} */
     @Override
     public void monitor() {
