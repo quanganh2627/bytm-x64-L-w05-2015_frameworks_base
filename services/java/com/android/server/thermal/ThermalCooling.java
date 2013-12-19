@@ -226,11 +226,11 @@ public class ThermalCooling {
                 return;
             if (name.equalsIgnoreCase(CDEVINFO) && mDevice != null) {
                 if (loadCoolingDevice(mDevice)) {
-                    ThermalManager.sListOfCoolers.put(mDevice.getDeviceId(), mDevice);
+                    ThermalManager.sCDevMap.put(mDevice.getDeviceId(), mDevice);
                 }
                 mDevice = null;
             } else if (name.equalsIgnoreCase(ZONETHROTINFO) && mZone != null) {
-                ThermalManager.sListOfZones.put(mZone.getZoneID(), mZone);
+                ThermalManager.sZoneCoolerBindMap.put(mZone.getZoneID(), mZone);
                 mZone = null;
             } else if ((name.equalsIgnoreCase(THROTTLEMASK) || name
                     .equalsIgnoreCase(DETHROTTLEMASK)) && mZone != null) {
@@ -293,8 +293,8 @@ public class ThermalCooling {
                 updateCallStatus(callStatus);
                 // if emergency call has ended, check if any zone is in critical state
                 // if true, initiate shutdown
-                if (callStatus == false) {
-                    checkShutdownCondition();
+                if (callStatus == false && ThermalManager.checkShutdownCondition()) {
+                    doShutdown();
                 }
             }
         }
@@ -308,15 +308,6 @@ public class ThermalCooling {
         return sOnGoingEmergencyCall;
     }
 
-    private void checkShutdownCondition() {
-        synchronized (sCriticalZonesCountLock) {
-            if (mCriticalZonesCount > 0) {
-                Log.i(TAG, "checkShutdownCondition(): criticalZonesCount : " +
-                        mCriticalZonesCount + " shuting down...");
-                doShutdown();
-            }
-        }
-    }
 
     private void incrementCrticalZoneCount() {
         synchronized(sCriticalZonesCountLock) {
@@ -340,15 +331,20 @@ public class ThermalCooling {
                     ThermalZone.getStateAsString(thermState) +
                     " for " + ThermalZone.getEventTypeAsString(thermEvent) + " event" +
                     " at Temperature " + zoneTemp);
-            if ((thermState == ThermalManager.THERMAL_STATE_CRITICAL) &&
+            if (thermState < ThermalManager.THERMAL_STATE_CRITICAL) {
+                ThermalManager.updateZoneCriticalPendingMap(thermZone,
+                        ThermalManager.CRITICAL_FALSE);
+            } else if ((thermState == ThermalManager.THERMAL_STATE_CRITICAL) &&
                     (initiateShutdown(thermZone))) {
                 if (!isEmergencyCallOnGoing()) {
                     doShutdown();
                 } else {
                     // increment the count of zones in critical state pending on shutdown
-                    incrementCrticalZoneCount();
+                    ThermalManager.updateZoneCriticalPendingMap(thermZone,
+                            ThermalManager.CRITICAL_TRUE);
                 }
             }
+
             /* if THERMALOFF is the zone state, it is guaranteed that the zone has transitioned
             from a higher state, due to a low event, to THERMALOFF.Hence take de-throttling action
             corresponding to NORMAL */
@@ -452,7 +448,7 @@ public class ThermalCooling {
 
     /* Initiate Thermal shutdown due to the zone referred by 'zoneID' */
     private static boolean initiateShutdown(int zoneID) {
-        ThermalManager.ZoneCoolerBindingInfo zone = ThermalManager.sListOfZones.get(zoneID);
+        ThermalManager.ZoneCoolerBindingInfo zone = ThermalManager.sZoneCoolerBindMap.get(zoneID);
         if (zone == null)
             return false;
         return zone.getCriticalActionShutdown() == 1;
@@ -466,7 +462,7 @@ public class ThermalCooling {
         int currThrottleMask, currDethrottleMask;
 
         ThermalManager.ZoneCoolerBindingInfo zoneCoolerBindInfo =
-                ThermalManager.sListOfZones.get(zoneId);
+                ThermalManager.sZoneCoolerBindMap.get(zoneId);
         if (zoneCoolerBindInfo == null)
             return;
 
@@ -481,7 +477,7 @@ public class ThermalCooling {
                 currThrottleMask = throttleMaskList.get(thermalState);
                 deviceId = CdeviceInfo.getCoolingDeviceId();
 
-                tDevice = ThermalManager.sListOfCoolers.get(deviceId);
+                tDevice = ThermalManager.sCDevMap.get(deviceId);
                 if (tDevice == null)
                     continue;
 
@@ -509,7 +505,7 @@ public class ThermalCooling {
                 currDethrottleMask = dethrottleMaskList.get(thermalState);
                 deviceId = CdeviceInfo.getCoolingDeviceId();
 
-                tDevice = ThermalManager.sListOfCoolers.get(deviceId);
+                tDevice = ThermalManager.sCDevMap.get(deviceId);
                 if (tDevice == null)
                     continue;
 
@@ -592,7 +588,7 @@ public class ThermalCooling {
     /* Method to throttle cooling device */
     private static void throttleDevice(int coolingDevId, int throttleLevel) {
         /* Retrieve the cooling device based on ID */
-        ThermalCoolingDevice dev = ThermalManager.sListOfCoolers.get(coolingDevId);
+        ThermalCoolingDevice dev = ThermalManager.sCDevMap.get(coolingDevId);
         if (dev != null) {
             if (dev.getClassPath() != null && dev.getClassPath().equalsIgnoreCase("auto")) {
                 defaultThrottleMethod(dev, throttleLevel);

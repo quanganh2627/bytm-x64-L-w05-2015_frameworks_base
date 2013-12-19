@@ -24,10 +24,11 @@ import java.io.IOException;
 import java.io.File;
 import java.lang.NumberFormatException;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-
+import java.util.NoSuchElementException;
 /**
  * The ThermalManager class contains data structures that are common to both
  * Thermal Sensor/Zone and Cooling device parts.
@@ -53,11 +54,11 @@ public class ThermalManager {
     public static ArrayList<ThermalZone> sThermalZonesList;
 
     /* Hashtable of (ZoneID and ZoneCoolerBindingInfo object) */
-    public static Hashtable<Integer, ZoneCoolerBindingInfo> sListOfZones =
+    public static Hashtable<Integer, ZoneCoolerBindingInfo> sZoneCoolerBindMap =
             new Hashtable<Integer, ZoneCoolerBindingInfo>();
 
     /* Hashtable of (Cooling Device ID and ThermalCoolingDevice object) */
-    public static Hashtable<Integer, ThermalCoolingDevice> sListOfCoolers =
+    public static Hashtable<Integer, ThermalCoolingDevice> sCDevMap =
             new Hashtable<Integer, ThermalCoolingDevice>();
 
     /* Hashtable of (Sensor/Zone name and Sensor/Zone objects) */
@@ -66,6 +67,22 @@ public class ThermalManager {
 
     public static Hashtable<String, ThermalZone> sSensorZoneMap =
             new Hashtable<String, ThermalZone>();
+
+    public static final int CRITICAL_TRUE = 1;
+    public static final int CRITICAL_FALSE = 0;
+    /* sZoneCriticalPendingMap stores info whether a zone is in critical state and platform
+     * shutdown has not yet occured due to some scenario like ongoing emergency call
+     **/
+    public static Hashtable<Integer, Integer> sZoneCriticalPendingMap = null;
+    /* this lock is to access sZoneCriticalPendingMap synchronously */
+    private static final Object sCriticalPendingLock = new Object();
+    /* this count keeps track of number of zones in pending critical state.When
+     * sZoneCriticalPendingMap is updated, the count is either incremented or
+     * decremented depending on whether criical pending flag for a zone is true/
+     * false. By keeping a count we can avoid scanning through the entire map to
+     * see if there is a pending critical shutdown
+     **/
+    private static int sCriticalZonesCount = 0;
 
     /* this array list tracks the sensors for which event observer has been added */
     public static ArrayList<Integer> sSensorsRegisteredToObserver =
@@ -526,11 +543,57 @@ public class ThermalManager {
         return false;
     }
 
-   public static void unregisterZoneReceivers() {
-       if (sThermalZonesList == null) return;
-       for (ThermalZone z : sThermalZonesList) {
-           if (z == null) continue;
-           z.unregisterReceiver();
-       }
-   }
+    public static void unregisterZoneReceivers() {
+        if (sThermalZonesList == null) return;
+        for (ThermalZone z : sThermalZonesList) {
+            if (z == null) continue;
+            z.unregisterReceiver();
+        }
+    }
+
+    public static void initializeZoneCriticalPendingMap() {
+        if (sThermalZonesList == null) return;
+        sZoneCriticalPendingMap = new Hashtable<Integer, Integer>();
+        if (sZoneCriticalPendingMap == null) return;
+        Enumeration en;
+        try {
+            // look up for zone list is performed from sZoneCoolerBindMap instead of
+            // sThermalZonesList since some non thermal zones may not have entry in
+            // sThermalZonesList. This is because such zones only have entry in throttle
+            // config file and not in sensor config files.
+            en = sZoneCoolerBindMap.keys();
+            while (en.hasMoreElements()) {
+                int zone = (Integer) en.nextElement();
+                sZoneCriticalPendingMap.put(zone, CRITICAL_FALSE);
+            }
+        } catch (NoSuchElementException e) {
+            Log.i(TAG, "NoSuchElementException in InitializeZoneCriticalPendingMap()");
+        }
+    }
+
+    /*
+     * updateZoneCriticalPendingMap updates sZoneCriticalPendingMap synchronously.
+     * sCriticalZonesCount is incremented iff old value in the map for the zone is
+     * FALSE (ensures count is incremented only once for a zone) and decremented
+     * iff oldval is TRUE (ensures no negative value for count)
+     **/
+    public static boolean updateZoneCriticalPendingMap(int zoneid, int flag) {
+        synchronized (sCriticalPendingLock) {
+            if (sZoneCriticalPendingMap == null) return false;
+                int oldVal = sZoneCriticalPendingMap.get(zoneid);
+                sZoneCriticalPendingMap.put(zoneid, flag);
+                if (oldVal == CRITICAL_FALSE && flag == CRITICAL_TRUE) {
+                   sCriticalZonesCount++;
+                } else if (oldVal == CRITICAL_TRUE && flag == CRITICAL_FALSE) {
+                   sCriticalZonesCount--;
+                }
+                return true;
+        }
+    }
+
+    public static boolean checkShutdownCondition() {
+        synchronized (sCriticalPendingLock) {
+           return sCriticalZonesCount > 0;
+        }
+    }
 }
