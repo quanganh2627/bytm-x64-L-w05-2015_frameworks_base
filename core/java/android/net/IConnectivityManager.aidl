@@ -152,4 +152,15 @@ interface IConnectivityManager
     void setProvisioningNotificationVisible(boolean visible, int networkType, in String extraInfo, in String url);
 
     void setAirplaneMode(boolean enable);
+
+    int addIpSecSAEntry(String IpAddressSrc, String IpAddressDst, String protocol, String mode,
+            int spi, String aalgo, String authKey, String ealgo, String encryptKey, long time);
+
+    int addIpSecSPEntry(String IpAddressSrc, int portSrc, String IpAddressDst, int portDst,
+            String protocol, String direction, String secProtocol, String mode, long time);
+
+    void deleteIpSecSAEntry(String IpAddressSrc, String IpAddressDst, int spi, String secProtocol,
+            String mode);
+
+    void deleteIpSecSPEntry(int id);
 }
