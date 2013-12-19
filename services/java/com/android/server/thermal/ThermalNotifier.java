@@ -185,6 +185,7 @@ public class ThermalNotifier {
         Intent criticalIntent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
         criticalIntent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
         criticalIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Log.i(TAG, "Thermal Service initiating shutdown");
         mContext.startActivity(criticalIntent);
     }
 
