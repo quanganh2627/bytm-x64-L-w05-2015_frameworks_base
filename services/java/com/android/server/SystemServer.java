@@ -548,14 +548,6 @@ class ServerThread {
                 }
 
                try {
-                   Slog.i(TAG, "CSM Wifi Offload Service");
-                   CsmWifiOffloadSystemService csmWifiOffload = new CsmWifiOffloadSystemService(context);
-                   ServiceManager.addService("CsmWifiOffloadService", csmWifiOffload);
-               } catch (Throwable e) {
-                   reportWtf("starting CSM Wifi Offload system service", e);
-               }
-
-               try {
                     Slog.i(TAG, "Wi-Fi P2pService");
                     wifiP2p = new WifiP2pService(context);
                     ServiceManager.addService(Context.WIFI_P2P_SERVICE, wifiP2p);
@@ -585,6 +577,15 @@ class ServerThread {
                     }
                 } catch (Throwable e) {
                     reportWtf("starting Cws Service Manager", e);
+                }
+
+                try {
+                    Slog.i(TAG, "CSM Wifi Offload Service");
+                    CsmWifiOffloadSystemService csmWifiOffload =
+                            new CsmWifiOffloadSystemService(context);
+                    ServiceManager.addService("CsmWifiOffloadService", csmWifiOffload);
+                } catch (Throwable e) {
+                    reportWtf("starting CSM Wifi Offload system service", e);
                 }
 
                 try {
@@ -866,7 +867,7 @@ class ServerThread {
                 }
             }
 
-            if (!disableNonCoreServices && 
+            if (!disableNonCoreServices &&
                 context.getResources().getBoolean(R.bool.config_dreamsSupported)) {
                 try {
                     Slog.i(TAG, "Dreams Service");
