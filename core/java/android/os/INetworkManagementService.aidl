@@ -441,4 +441,34 @@ interface INetworkManagementService
      * Determine whether the clatd (464xlat) service has been started
      */
     boolean isClatdStarted();
+
+    /**
+     ** IPSEC RELATED
+     **/
+
+    /**
+     * Add Security association in security database.
+     *
+     */
+    int addIpSecSA(String src, String dst, String ealgo, String ekey, String aalgo, String akey,
+            int spid, String secProtocol, String mode, long time);
+
+    /**
+     * Add Security policy in security database.
+     *
+     */
+    int addIpSecSP(String src, int srcPort, String dst, int dspPort, String protocol, String mode,
+            String direction, String secProtocol, long time);
+
+    /**
+     * Delete Security association in security database.
+     *
+     */
+    void deleteIpSecSA(String src, String dst, int spi, String type, String mode);
+
+    /**
+     * Delete Security policy in security database.
+     *
+     */
+    void deleteIpSecSP(int spid);
 }
