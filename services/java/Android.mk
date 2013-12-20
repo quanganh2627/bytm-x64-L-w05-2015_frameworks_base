@@ -11,7 +11,7 @@ LOCAL_SRC_FILES := \
 	    com/android/server/wifi/ICsmWifiOffloadSystemService.aidl
 
 ifeq ($(strip $(INTEL_FEATURE_ARKHAM)),true)
-LOCAL_SRC_FILES += $(call all-java-files-under,../../../../vendor/intel/arkham/frameworks/enabled/base/services/)
+LOCAL_SRC_FILES += $(call all-java-files-under,../../../../vendor/intel/PRIVATE/arkham/aosp/frameworks/enabled/base/services/)
 else
 LOCAL_SRC_FILES += $(call all-java-files-under,../../../../vendor/intel/arkham/frameworks/disabled/base/services/)
 endif
