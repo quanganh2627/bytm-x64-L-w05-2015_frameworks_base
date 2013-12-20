@@ -277,8 +277,13 @@ public class WifiStateTracker extends BaseNetworkStateTracker {
         public void onReceive(Context context, Intent intent) {
 
             if (intent.getAction().equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
-                mNetworkInfo = (NetworkInfo) intent.getParcelableExtra(
+                NetworkInfo networkinfo = (NetworkInfo) intent.getParcelableExtra(
                         WifiManager.EXTRA_NETWORK_INFO);
+
+                if (networkinfo == null) {
+                    return;
+                }
+                mNetworkInfo = networkinfo;
 
                 mLinkProperties = intent.getParcelableExtra(
                         WifiManager.EXTRA_LINK_PROPERTIES);
@@ -320,8 +325,14 @@ public class WifiStateTracker extends BaseNetworkStateTracker {
         public void onReceive(Context context, Intent intent) {
 
             if (intent.getAction().equals(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)) {
-                mNetworkInfo = (NetworkInfo) intent.getParcelableExtra(
+                NetworkInfo networkinfo = (NetworkInfo) intent.getParcelableExtra(
                         WifiP2pManager.EXTRA_NETWORK_INFO);
+
+                if (networkinfo == null) {
+                    return;
+                }
+                mNetworkInfo = networkinfo;
+
                 if (mLinkProperties == null) {
                     mLinkProperties = new LinkProperties();
                 }
