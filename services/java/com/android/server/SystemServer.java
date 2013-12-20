@@ -726,7 +726,7 @@ class ServerThread {
             try {
                 Slog.i(TAG, "Intel Display Observer");
                 // Listen for display changes
-                DisplayObserver dso = new DisplayObserver(context);
+                DisplayObserver dso = new DisplayObserver(context, wm);
             } catch (Throwable e) {
                 reportWtf("starting Intel DisplayObserver", e);
             }
