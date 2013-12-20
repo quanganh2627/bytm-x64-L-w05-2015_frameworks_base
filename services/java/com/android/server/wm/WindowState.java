@@ -26,6 +26,8 @@ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_NO_MOVE_ANIMA
 import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD;
 import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG;
 import static android.view.WindowManager.LayoutParams.TYPE_KEYGUARD;
+import static android.view.WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG;
+import static android.view.WindowManager.LayoutParams.TYPE_INTEL_SYSTEM_ALERT;
 import static android.view.WindowManager.LayoutParams.TYPE_WALLPAPER;
 
 import android.app.AppOpsManager;
@@ -356,10 +358,26 @@ final class WindowState implements WindowManagerPolicy.WindowState {
 
         if ((mAttrs.type >= FIRST_SUB_WINDOW &&
                 mAttrs.type <= LAST_SUB_WINDOW)) {
+            int layerNumber;
+            if (attachedWindow.mAttrs.type == TYPE_INTEL_SYSTEM_ALERT && !displayContent.isDefaultDisplay) {
+                // Special case for background presentation.
+                // There is now a Presentation created as TYPE_KEYGUARD_DIALOG by
+                // the lock screen to ensure privacy while entering your PIN.
+                // This window type normally stacks on top of the TYPE_INTEL_SYSTEM_ALERT
+                // window we create we create for the background presentation.
+                // To override that behavior, we put our background presentation on
+                // a higher layer number than that. Normal system alerts appear on
+                // the primary display and won't be affected.
+                layerNumber = mPolicy.windowTypeToLayerLw(TYPE_KEYGUARD_DIALOG)+1;
+            }
+            else {
+                // Normal case.
+                layerNumber = mPolicy.windowTypeToLayerLw(attachedWindow.mAttrs.type);
+            }
             // The multiplier here is to reserve space for multiple
             // windows in the same type layer.
-            mBaseLayer = mPolicy.windowTypeToLayerLw(
-                    attachedWindow.mAttrs.type) * WindowManagerService.TYPE_LAYER_MULTIPLIER
+            mBaseLayer = layerNumber
+                    * WindowManagerService.TYPE_LAYER_MULTIPLIER
                     + WindowManagerService.TYPE_LAYER_OFFSET;
             mSubLayer = mPolicy.subWindowTypeToLayerLw(a.type);
             mAttachedWindow = attachedWindow;
@@ -397,9 +415,25 @@ final class WindowState implements WindowManagerPolicy.WindowState {
             mIsWallpaper = attachedWindow.mAttrs.type == TYPE_WALLPAPER;
             mIsFloatingLayer = mIsImWindow || mIsWallpaper;
         } else {
+            int layerNumber;
+            if (a.type == TYPE_INTEL_SYSTEM_ALERT && !displayContent.isDefaultDisplay) {
+                // Special case for background presentation.
+                // There is now a Presentation created as TYPE_KEYGUARD_DIALOG by
+                // the lock screen to ensure privacy while entering your PIN.
+                // This window type normally stacks on top of the TYPE_INTEL_SYSTEM_ALERT
+                // window we create we create for the background presentation.
+                // To override that behavior, we put our background presentation on
+                // a higher layer number than that. Normal system alerts appear on
+                // the primary display and won't be affected.
+                layerNumber = mPolicy.windowTypeToLayerLw(TYPE_KEYGUARD_DIALOG)+1;
+            }
+            else {
+                // Normal case.
+                layerNumber = mPolicy.windowTypeToLayerLw(a.type);
+            }
             // The multiplier here is to reserve space for multiple
             // windows in the same type layer.
-            mBaseLayer = mPolicy.windowTypeToLayerLw(a.type)
+            mBaseLayer = layerNumber
                     * WindowManagerService.TYPE_LAYER_MULTIPLIER
                     + WindowManagerService.TYPE_LAYER_OFFSET;
             mSubLayer = 0;

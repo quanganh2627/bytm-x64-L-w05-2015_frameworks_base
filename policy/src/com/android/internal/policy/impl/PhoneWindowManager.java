@@ -1272,6 +1272,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             case TYPE_PHONE:
             case TYPE_PRIORITY_PHONE:
             case TYPE_SYSTEM_ALERT:
+            case TYPE_INTEL_SYSTEM_ALERT:
             case TYPE_SYSTEM_ERROR:
             case TYPE_SYSTEM_OVERLAY:
                 permission = android.Manifest.permission.SYSTEM_ALERT_WINDOW;
@@ -1424,6 +1425,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             // used for Dreams (screensavers with TYPE_DREAM windows)
             return 8;
         case TYPE_SYSTEM_ALERT:
+        case TYPE_INTEL_SYSTEM_ALERT:
             // like the ANR / app crashed dialogs
             return 9;
         case TYPE_INPUT_METHOD:

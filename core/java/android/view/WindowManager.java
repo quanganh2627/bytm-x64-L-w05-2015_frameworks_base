@@ -543,6 +543,12 @@ public interface WindowManager extends ViewManager {
         public static final int TYPE_PRIVATE_PRESENTATION = FIRST_SYSTEM_WINDOW+30;
 
         /**
+         * Window type: Intel private presentation window.
+         * @hide
+         */
+        public static final int TYPE_INTEL_SYSTEM_ALERT = FIRST_SYSTEM_WINDOW+31;
+
+        /**
          * End of types of system windows.
          */
         public static final int LAST_SYSTEM_WINDOW      = 2999;
