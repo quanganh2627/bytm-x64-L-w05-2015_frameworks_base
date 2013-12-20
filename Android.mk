@@ -295,8 +295,8 @@ LOCAL_SRC_FILES += \
 	packages/services/Proxy/com/android/net/IProxyCallback.aidl \
 	packages/services/Proxy/com/android/net/IProxyPortListener.aidl \
 
-LOCAL_ARKHAM_PATH := vendor/intel/arkham
 ifeq ($(strip $(INTEL_FEATURE_ARKHAM)),true)
+LOCAL_ARKHAM_PATH := vendor/intel/PRIVATE/arkham/aosp
 LOCAL_SRC_FILES += \
 	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java,) \
 	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/keystore/java,) \
@@ -304,6 +304,7 @@ LOCAL_SRC_FILES += \
 	../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java/com/intel/arkham/IContainerPolicyManager.aidl
 LOCAL_AIDL_INCLUDES += $(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java
 else
+LOCAL_ARKHAM_PATH := vendor/intel/arkham
 LOCAL_SRC_FILES += \
 	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/core/java,)\
 	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/keystore/java,) \

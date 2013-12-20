@@ -157,7 +157,7 @@ LOCAL_SRC_FILES:= \
 	com_android_internal_net_NetworkStatsFactory.cpp
 
 ifeq ($(strip $(INTEL_FEATURE_ARKHAM)),true)
-LOCAL_SRC_FILES += ../../../../vendor/intel/arkham/frameworks/enabled/base/core/jni/com_intel_arkham_ContainerCommons.cpp
+LOCAL_SRC_FILES += ../../../../vendor/intel/PRIVATE/arkham/aosp/frameworks/enabled/base/core/jni/com_intel_arkham_ContainerCommons.cpp
 LOCAL_CFLAGS += -DINTEL_FEATURE_ARKHAM
 endif
 
