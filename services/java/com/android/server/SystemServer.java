@@ -74,16 +74,16 @@ import com.android.server.wifi.ExtendWifiService;
 import com.android.server.wifi.WifiService;
 import com.android.server.wifi.CsmWifiOffloadSystemService;
 import com.android.server.wm.WindowManagerService;
-import android.view.InputChannel;
-
 import com.intel.arkham.ExtendAccountManagerService;
 import com.intel.config.FeatureConfig;
 import com.intel.multidisplay.DisplayObserver;
+import com.intel.cws.cwsservicemanager.CwsServiceMgr;
 
 import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
 
 import java.io.File;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -169,6 +169,7 @@ class ServerThread {
         InputManagerService inputManager = null;
         TelephonyRegistry telephonyRegistry = null;
         ConsumerIrService consumerIr = null;
+        CwsServiceMgr cwsService = null;
 
         // Create a handler thread just for the window manager to enjoy.
         HandlerThread wmHandlerThread = new HandlerThread("WindowManager");
@@ -575,6 +576,18 @@ class ServerThread {
                 }
 
                 try {
+                    Slog.i(TAG, "Cws Service Manager");
+                    cwsService = CwsServiceMgr.getInstance(context);
+                    if (null != cwsService) {
+                        ServiceManager.addService(Context.CSM_SERVICE, cwsService);
+                    } else {
+                        Slog.e(TAG, "cwsService is null");
+                    }
+                } catch (Throwable e) {
+                    reportWtf("starting Cws Service Manager", e);
+                }
+
+                try {
                     Slog.i(TAG, "Connectivity Service");
                     connectivity = new ConnectivityService(
                             context, networkManagement, networkStats, networkPolicy);
@@ -713,19 +726,19 @@ class ServerThread {
             try {
                 Slog.i(TAG, "Intel Display Observer");
                 // Listen for display changes
-                InputChannel input =
-                    inputManager.monitorInput("MultiDisplayView");
-                DisplayObserver dso = new DisplayObserver(context, input);
+                DisplayObserver dso = new DisplayObserver(context);
             } catch (Throwable e) {
                 reportWtf("starting Intel DisplayObserver", e);
             }
 
-            try {
-                Slog.i(TAG, "Dock Observer");
-                // Listen for dock station changes
-                dock = new DockObserver(context);
-            } catch (Throwable e) {
-                reportWtf("starting DockObserver", e);
+            if (!disableNonCoreServices) {
+                try {
+                    Slog.i(TAG, "Dock Observer");
+                    // Listen for dock station changes
+                    dock = new DockObserver(context);
+                } catch (Throwable e) {
+                    reportWtf("starting DockObserver", e);
+                }
             }
 
             if (!disableMedia) {
@@ -907,6 +920,16 @@ class ServerThread {
                 Object containerManager = registerService(name, ptype , obj);
 
                 Slog.i(TAG, "Container Services");
+            }
+
+           if (FeatureConfig.INTEL_FEATURE_AWARESERVICE) {
+                Class[] ptype = new Class[] { Context.class };
+                Object[] obj = new Object[] { context };
+
+                String name = "com.intel.aware.awareservice.AwareService";
+                registerService(name, ptype , obj);
+
+                Slog.i(TAG, "AwareServices");
             }
 
             if (!disableNonCoreServices) {
@@ -1221,7 +1244,6 @@ class ServerThread {
         }
         return object;
     }
-
 }
 
 public class SystemServer {

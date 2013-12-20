@@ -306,7 +306,9 @@ LOCAL_AIDL_INCLUDES += $(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java
 else
 LOCAL_SRC_FILES += \
 	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/core/java,)\
-	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/keystore/java,)
+	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/keystore/java,) \
+	../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/core/java/com/intel/arkham/IContainerManager.aidl
+LOCAL_AIDL_INCLUDES += $(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/core/java
 endif
 # FRAMEWORKS_BASE_JAVA_SRC_DIRS comes from build/core/pathmap.mk
 LOCAL_AIDL_INCLUDES += $(FRAMEWORKS_BASE_JAVA_SRC_DIRS)

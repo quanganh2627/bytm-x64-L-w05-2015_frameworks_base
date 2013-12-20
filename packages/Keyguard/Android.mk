@@ -26,6 +26,15 @@ endif
 
 LOCAL_JAVA_LIBRARIES := services com.intel.config
 
+
+ifeq ($(strip $(INTEL_FEATURE_LPAL)),true)
+LOCAL_SRC_FILES += $(call all-java-files-under, ../../../../vendor/intel/PRIVATE/lpal/frameworks/enabled/base/packages/Keyguard/src)
+LOCAL_STATIC_JAVA_LIBRARIES := vtsvmanager
+else
+LOCAL_SRC_FILES += $(call all-java-files-under, lpal/)
+endif
+
+
 LOCAL_PACKAGE_NAME := Keyguard
 
 LOCAL_CERTIFICATE := platform

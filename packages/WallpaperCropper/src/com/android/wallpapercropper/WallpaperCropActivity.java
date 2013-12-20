@@ -334,7 +334,7 @@ public class WallpaperCropActivity extends Activity {
 
         Point displaySize = new Point();
         d.getSize(displaySize);
-        boolean isPortrait = displaySize.x < displaySize.y;
+        final boolean isPortrait = displaySize.x < displaySize.y;
 
         Point defaultWallpaperSize = getDefaultWallpaperSize(getResources(),
                 getWindowManager());
@@ -382,7 +382,11 @@ public class WallpaperCropActivity extends Activity {
 
         Runnable onEndCrop = new Runnable() {
             public void run() {
-                updateWallpaperDimensions(outWidth, outHeight);
+                if (isPortrait) {
+                    updateWallpaperDimensions(outWidth, outHeight);
+                } else {
+                    updateWallpaperDimensions(0, 0);
+                }
                 if (finishActivityWhenDone) {
                     setResult(Activity.RESULT_OK);
                     finish();

@@ -1422,7 +1422,6 @@ public class Instrumentation {
                         token, target != null ? target.mEmbeddedID : null,
                         requestCode, 0, null, null, options);
             checkStartActivityResult(result, intent);
-        } catch (SecurityException e) {
         } catch (RemoteException e) {
         }
         return null;
@@ -1480,7 +1479,6 @@ public class Instrumentation {
                 .startActivities(whoThread, who.getBasePackageName(), intents, resolvedTypes,
                         token, options, userId);
             checkStartActivityResult(result, intents[0]);
-        } catch (SecurityException e) {
         } catch (RemoteException e) {
         }
     }
@@ -1541,7 +1539,6 @@ public class Instrumentation {
                         token, target != null ? target.mWho : null,
                         requestCode, 0, null, null, options);
             checkStartActivityResult(result, intent);
-        } catch (SecurityException e) {
         } catch (RemoteException e) {
         }
         return null;
@@ -1602,7 +1599,6 @@ public class Instrumentation {
                         token, target != null ? target.mEmbeddedID : null,
                         requestCode, 0, null, null, options, user.getIdentifier());
             checkStartActivityResult(result, intent);
-        } catch (SecurityException e) {
         } catch (RemoteException e) {
         }
         return null;

@@ -67,9 +67,11 @@ import android.os.Bundle;
 import android.os.Debug;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.IUserManager;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.Trace;
 import android.os.UserHandle;
@@ -77,7 +79,11 @@ import android.util.EventLog;
 import android.util.Slog;
 import android.view.Display;
 
+import com.android.server.pm.UserManagerService;
+import com.intel.arkham.ContainerConstants;
+import com.intel.arkham.IContainerManager;
 import com.intel.asf.AsfAosp;
+import com.intel.config.FeatureConfig;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -347,6 +353,15 @@ class ActivityStack {
     }
 
     boolean okToShow(ActivityRecord r) {
+        if ( FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            UserInfo userInfo = getUserInfoLocked(r.userId);
+            if (userInfo != null && userInfo.isContainer()
+                    && mCurrentUser == userInfo.containerOwner) {
+                notifyUserForegroundObservers(r.userId);
+                return true;
+            }
+            notifyUserForegroundObservers(mCurrentUser);
+        }
         return r.userId == mCurrentUser
                 || (r.info.flags & ActivityInfo.FLAG_SHOW_ON_LOCK_SCREEN) != 0;
     }
@@ -568,6 +583,10 @@ class ActivityStack {
      * Move the activities around in the stack to bring a user to the foreground.
      */
     final void switchUserLocked(int userId) {
+        if ( FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            mCurrentForegroundUser = userId;
+        }
+
         if (mCurrentUser == userId) {
             return;
         }
@@ -1291,6 +1310,10 @@ class ActivityStack {
             return false;
         }
 
+        if ( FeatureConfig.INTEL_FEATURE_ARKHAM) {
+            checkContainerActivity(next);
+        }
+
         final TaskRecord nextTask = next.task;
         final TaskRecord prevTask = prev != null ? prev.task : null;
         if (prevTask != null && prevTask.mOnTopOfHome && prev.finishing && prev.frontOfTask) {
@@ -1685,15 +1708,36 @@ class ActivityStack {
         mTaskHistory.remove(task);
         // Now put task at top.
         int stackNdx = mTaskHistory.size();
-        if (task.userId != mCurrentUser) {
-            // Put non-current user tasks below current user tasks.
-            while (--stackNdx >= 0) {
-                if (mTaskHistory.get(stackNdx).userId != mCurrentUser) {
-                    break;
-                }
+
+        if ( FeatureConfig.INTEL_FEATURE_ARKHAM ) {
+            UserInfo userInfo = getUserInfoLocked(task.userId);  //FIXME: locked?
+            boolean bypass = false;
+            if (userInfo != null && userInfo.isContainer()
+                    && mCurrentUser == userInfo.containerOwner) {
+                bypass = true;
             }
-            ++stackNdx;
+
+            if (task.userId != mCurrentUser && bypass == false) {
+                // Put non-current user tasks below current user tasks.
+                while (--stackNdx >= 0) {
+                    if (mTaskHistory.get(stackNdx).userId != mCurrentUser) {
+                        break;
+                    }
+                }
+                ++stackNdx;
+            }
+        } else {
+            if (task.userId != mCurrentUser) {
+                // Put non-current user tasks below current user tasks.
+                while (--stackNdx >= 0) {
+                    if (mTaskHistory.get(stackNdx).userId != mCurrentUser) {
+                        break;
+                    }
+                }
+                ++stackNdx;
+            }
         }
+
         mTaskHistory.add(stackNdx, task);
     }
 
@@ -3673,4 +3717,77 @@ class ActivityStack {
         return "ActivityStack{" + Integer.toHexString(System.identityHashCode(this))
                 + " stackId=" + mStackId + ", " + mTaskHistory.size() + " tasks}";
     }
+
+    //
+    // Begin of ARKHAM feature
+    //
+
+    // ARKHAM-629 - Deactivate container based on container activity
+    // Pattern to check for ContainerLauncher package name
+    private int mCurrentForegroundUser;
+
+    UserInfo getUserInfoLocked(int userId) {
+        // ARKAHM-138 New helper function to get a reference to the UserManager service
+        final long origId = Binder.clearCallingIdentity();
+        try {
+            IBinder b = ServiceManager.getService(Context.USER_SERVICE);
+            UserManagerService um = (UserManagerService) IUserManager.Stub.asInterface(b);
+            if (um == null) {
+                Slog.e(TAG, "Failed to retrieve a UserManagerService instance.");
+                return null;
+            } else {
+                return um.getUserInfo(userId);
+            }
+        } finally {
+            Binder.restoreCallingIdentity(origId);
+        }
+    }
+
+    /**
+     * ARKHAM 198, Notify listeners about foreground user switch.
+     */
+    private void notifyUserForegroundObservers(int userId) {
+        if (mCurrentForegroundUser != userId) {
+            mCurrentForegroundUser = userId;
+            ((ExtendActivityManagerService) mService).notifyUserForegroundObservers(userId);
+        }
+    }
+
+    public boolean isTopRunningActivityinContainter(int cid) {
+        ActivityRecord r = topRunningActivityLocked(null);
+        if (r == null) {
+            return false;
+        }
+        UserInfo ui = getUserInfoLocked(r.userId);
+
+        if (ui != null) {
+            if (((cid == 0 || cid == r.userId) && ui.isContainer())) {
+                return true;
+            } else if (cid > 0 && cid != r.userId && r.realActivity != null
+                    && r.info.applicationInfo != null && r.info.applicationInfo.metaData != null) {
+                Bundle metaData = r.info.applicationInfo.metaData;
+                int temp = metaData.getInt("containerId", -1);
+                return temp != -1 && cid == temp;
+            }
+        }
+
+        return false;
+    }
+
+    void checkContainerActivity(ActivityRecord next) {
+        IBinder b = ServiceManager.getService(ContainerConstants.CONTAINER_MANAGER_SERVICE);
+        IContainerManager containerService =
+            IContainerManager.Stub.asInterface(b);
+        UserInfo userInfo = getUserInfoLocked(next.userId);
+        try {
+            if (userInfo != null && containerService != null
+                    && userInfo.isContainer()
+                    && !containerService.isContainerActive(next.userId)) {
+                containerService.lockContainer(next.userId);
+            }
+        } catch (RemoteException ex) {
+            Slog.e(TAG, "checkActivityOfContainer: Failed talking with CMS: ", ex);
+        }
+    }
+    // End of ARKHAM feature
 }

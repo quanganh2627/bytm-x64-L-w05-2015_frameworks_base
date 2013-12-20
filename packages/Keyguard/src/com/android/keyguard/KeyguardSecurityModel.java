@@ -15,12 +15,15 @@
  */
 package com.android.keyguard;
 
+import android.util.Log;
 import android.app.admin.DevicePolicyManager;
 import android.content.Context;
 import android.telephony.TelephonyManager;
 
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.widget.LockPatternUtils;
+
+import com.intel.config.FeatureConfig;
 
 public class KeyguardSecurityModel {
     /**
@@ -36,11 +39,17 @@ public class KeyguardSecurityModel {
         Biometric, // Unlock with a biometric key (e.g. finger print or face unlock)
         Account, // Unlock by entering an account's login and password.
         SimPin, // Unlock by entering a sim pin.
-        SimPuk // Unlock by entering a sim puk
+        SimPuk, // Unlock by entering a sim puk
+        BiometricVoice // INTEL_LPAL: Unlock by speak a phrase
     }
 
     private Context mContext;
     private LockPatternUtils mLockPatternUtils;
+
+    /**
+     * INTEL_LPAL: low power always listening
+     */
+    private static final String INTEL_LPAL_TAG = "INTEL_LPAL_KeyguardSecurityModel";
 
     KeyguardSecurityModel(Context context) {
         mContext = context;
@@ -126,6 +135,19 @@ public class KeyguardSecurityModel {
                         || mode == SecurityMode.Pattern)) {
             return SecurityMode.Biometric;
         }
+
+        // INTEL_LPAL: if current lock pattern is Biometric Voice,
+        // return the SecurityMode.BiometricVoice
+        if (FeatureConfig.INTEL_FEATURE_LPAL
+                && isBiometricVoiceUnlockEnabled()
+                && !isBiometricVoiceUnlockSuppressed()
+                && (mode == SecurityMode.Password
+                        || mode == SecurityMode.PIN
+                        || mode == SecurityMode.Pattern)) {
+            Log.d(INTEL_LPAL_TAG, "Alternate choice is BiometricVoice");
+            return SecurityMode.BiometricVoice;
+        }
+        // INTEL_LPAL end
         return mode; // no alternate, return what was given
     }
 
@@ -143,5 +165,41 @@ public class KeyguardSecurityModel {
                 return SecurityMode.Account;
         }
         return mode; // no backup, return current security mode
+    }
+
+    /**
+     * INTEL_LPAL: Voice unlock methods can have a backup which gives the user
+     * another way to get into the device.
+     *
+     * @return backup method or current security mode
+     * @hide
+     */
+    SecurityMode getBackupSecurityModeForVoiceUnlock() {
+        Log.d(INTEL_LPAL_TAG, "getBackupSecurityModeForVoiceUnlock");
+        return getSecurityMode();
+    }
+
+    /**
+     * INTEL_LPAL: Returns true if biometric unlock is installed and selected.
+     * If this returns false, there is no need to even construct the biometric unlock.
+     * @hide
+     */
+    boolean isBiometricVoiceUnlockEnabled() {
+        return mLockPatternUtils.usingBiometricVoiceWeak()
+                && mLockPatternUtils.isBiometricVoiceWeakInstalled();
+    }
+
+    /**
+     * INTEL_LPAL: Returns true if a condition is currently suppressing the biometric voice unlock.
+     *  If this returns true there is no need to even construct the biometric unlock.
+     */
+    private boolean isBiometricVoiceUnlockSuppressed() {
+        KeyguardUpdateMonitorForLPAL lpalMonitor
+                = KeyguardUpdateMonitorForLPAL.getInstance(mContext);
+        KeyguardUpdateMonitor monitor = KeyguardUpdateMonitor.getInstance(mContext);
+
+        return !monitor.isAlternateUnlockEnabled()
+                || monitor.getPhoneState() != TelephonyManager.CALL_STATE_IDLE
+                || !lpalMonitor.isVoiceUnlockEnabled();
     }
 }
