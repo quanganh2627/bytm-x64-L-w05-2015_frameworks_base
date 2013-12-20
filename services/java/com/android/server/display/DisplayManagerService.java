@@ -1032,19 +1032,22 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
      *
      * @param displayId The logical display id to update.
      * @param hasContent True if the logical display has content.
+     * @param hasBgPresentation True if the logical display has a background presentation.
      * @param inTraversal True if called from WindowManagerService during a window traversal prior
      * to call to performTraversalInTransactionFromWindowManager.
      */
-    public void setDisplayHasContent(int displayId, boolean hasContent, boolean inTraversal) {
+    public void setDisplayHasContent(int displayId, boolean hasContent, boolean hasBgPresentation, boolean inTraversal) {
         synchronized (mSyncRoot) {
             LogicalDisplay display = mLogicalDisplays.get(displayId);
-            if (display != null && display.hasContentLocked() != hasContent) {
+            if (display != null && (display.hasContentLocked() != hasContent
+                          || display.hasBgPresentationLocked() != hasBgPresentation)) {
                 if (DEBUG) {
                     Slog.d(TAG, "Display " + displayId + " hasContent flag changed: "
                             + "hasContent=" + hasContent + ", inTraversal=" + inTraversal);
                 }
 
                 display.setHasContentLocked(hasContent);
+                display.setHasBgPresentationLocked(hasBgPresentation);
                 scheduleTraversalLocked(inTraversal);
             }
         }
@@ -1082,6 +1085,10 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
         }
         boolean isBlanked = (mAllDisplayBlankStateFromPowerManager == DISPLAY_BLANK_STATE_BLANKED)
                 && (info.flags & DisplayDeviceInfo.FLAG_NEVER_BLANK) == 0;
+        if (isBlanked && display.hasBgPresentationLocked()) {
+            // Display has a background presentation, so override isBlanked.
+            isBlanked = false;
+        }
         display.configureDisplayInTransactionLocked(device, isBlanked);
 
         // Update the viewports if needed.
