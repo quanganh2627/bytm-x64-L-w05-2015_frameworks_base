@@ -603,6 +603,7 @@ public class WindowManagerService extends IWindowManager.Stub
         // Set to true when the display contains content to show the user.
         // When false, the display manager may choose to mirror or blank the display.
         boolean mDisplayHasContent = false;
+        boolean mDisplayHasBgPresentation = false;
 
         // Only set while traversing the default display based on its content.
         // Affects the behavior of mirroring on secondary displays.
@@ -8881,6 +8882,11 @@ public class WindowManagerService extends IWindowManager.Stub
                     // Allow full screen keyguard presentation dialogs to be seen.
                     mInnerFields.mDisplayHasContent = true;
                 }
+                if (!w.mDisplayContent.isDefaultDisplay && type == TYPE_SYSTEM_ALERT) {
+                    // We found a background presentation.
+                    mInnerFields.mDisplayHasContent = true;
+                    mInnerFields.mDisplayHasBgPresentation = true;
+                }
             }
         }
     }
@@ -8997,6 +9003,7 @@ public class WindowManagerService extends IWindowManager.Stub
 
                 // Reset for each display.
                 mInnerFields.mDisplayHasContent = false;
+                mInnerFields.mDisplayHasBgPresentation = false;
 
                 int repeats = 0;
                 do {
@@ -9207,6 +9214,7 @@ public class WindowManagerService extends IWindowManager.Stub
 
                 mDisplayManagerService.setDisplayHasContent(displayId,
                         mInnerFields.mDisplayHasContent,
+                        mInnerFields.mDisplayHasBgPresentation,
                         true /* inTraversal, must call performTraversalInTrans... below */);
 
                 getDisplayContentLocked(displayId).stopDimmingIfNeeded();
