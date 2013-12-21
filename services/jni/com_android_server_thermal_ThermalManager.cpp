@@ -225,7 +225,7 @@ static jint writeSysfs(JNIEnv* env, jobject obj, jstring jPath, jint jVal)
 static jstring readSysfs(JNIEnv* env, jobject obj, jstring jPath)
 {
     const char *path = NULL;
-    const int SIZE = 128;
+    const int SIZE = 512;
     char buf[SIZE];
 
     path = jPath ? env->GetStringUTFChars(jPath, NULL) : NULL;
