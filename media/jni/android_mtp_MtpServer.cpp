@@ -175,7 +175,6 @@ android_mtp_MtpServer_change_storageinfo(JNIEnv *env, jobject thiz, jint storage
         MtpStorage* storage = server->getStorage(storageId);
         if (storage) {
             server->changeStorageInfo(storage);
-            delete storage;
         }
     } else
         ALOGE("server is null in change_storageinfo");
