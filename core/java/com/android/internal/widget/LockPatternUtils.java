@@ -1577,7 +1577,13 @@ public class LockPatternUtils extends ParentLockPatternUtils {
             saveLockPattern(pattern, isFallback);
         } else {
             try {
-                getLockSettings().setLockPattern(
+                ILockSettings lockSettings = getLockSettings();
+                if (lockSettings == null) {
+                    Log.e(INTEL_LPAL_TAG, "can't get lock setting service");
+                    return;
+                }
+
+                lockSettings.setLockPattern(
                         patternToString(pattern),
                         getCurrentOrCallingUserId());
                 DevicePolicyManager dpm = getDevicePolicyManager();
@@ -1634,9 +1640,14 @@ public class LockPatternUtils extends ParentLockPatternUtils {
         if (policy != DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK) {
             saveLockPassword(password, quality, isFallback, userHandle);
         } else {
-
             try {
-                getLockSettings().setLockPassword(password, userHandle);
+                ILockSettings lockSettings = getLockSettings();
+                if (lockSettings == null) {
+                    Log.e(INTEL_LPAL_TAG, "can't get lock setting service");
+                    return;
+                }
+
+                lockSettings.setLockPassword(password, userHandle);
                 DevicePolicyManager dpm = getDevicePolicyManager();
                 if (password != null) {
                     if (userHandle == UserHandle.USER_OWNER) {
