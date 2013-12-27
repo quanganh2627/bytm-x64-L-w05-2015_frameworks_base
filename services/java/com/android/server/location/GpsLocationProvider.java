@@ -65,6 +65,7 @@ import android.provider.Telephony.Sms.Intents;
 import android.telephony.CellLocation;
 import android.telephony.PhoneStateListener;
 import android.telephony.CellInfo;
+import android.telephony.ServiceState;
 import android.telephony.SmsMessage;
 import android.telephony.TelephonyManager;
 import android.telephony.gsm.GsmCellLocation;
@@ -81,6 +82,7 @@ import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.RILConstants;
 
+import com.intel.config.FeatureConfig;
 import com.intel.asf.AsfAosp;
 import com.intel.cws.cwsservicemanager.CsmException;
 import com.intel.cws.cwsservicemanagerclient.CsmClient;
@@ -357,8 +359,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
     private GeofenceHardwareImpl mGeofenceHardwareImpl;
 
-    private final static int CSM_START_TIMEOUT = 60000;
     private CsmClientGps mCsmClient;
+    private Boolean mModemInService = false;
 
     private String mUiccHslp = null;
 
@@ -428,6 +430,12 @@ public class GpsLocationProvider implements LocationProviderInterface {
         @Override
         public void onCellLocationChanged(CellLocation location) {
             updateCellLocation(location);
+        }
+
+        @Override
+        public void onServiceStateChanged(ServiceState serviceState) {
+            mModemInService = serviceState.getDataRegState() == ServiceState.STATE_IN_SERVICE;
+            if (DEBUG) Log.d(TAG, "Modem in service ? " + mModemInService.toString());
         }
     };
 
@@ -508,7 +516,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
         mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(
                 Context.APP_OPS_SERVICE));
         mTelephonyManager = (TelephonyManager)context.getSystemService(Context.TELEPHONY_SERVICE);
-        mTelephonyManager.listen(mPhoneStateListener, PhoneStateListener.LISTEN_CELL_LOCATION);
+        mTelephonyManager.listen(mPhoneStateListener,
+                PhoneStateListener.LISTEN_CELL_LOCATION | PhoneStateListener.LISTEN_SERVICE_STATE);
 
         // Battery statistics service to be notified when GPS turns on or off
         mBatteryStats = IBatteryStats.Stub.asInterface(ServiceManager.getService(
@@ -598,7 +607,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
                         try {
                             if ((flags & AGPS_REQUEST_REFLOC_CELLID) == AGPS_REQUEST_REFLOC_CELLID) {
-                                if (phoneType == TelephonyManager.PHONE_TYPE_GSM) {
+                                if ((phoneType == TelephonyManager.PHONE_TYPE_GSM)
+                                        && mModemInService) {
                                     mRefLocationRequested = true;
                                     CellLocation.requestLocationUpdate();
                                     synchronized(mCellLocationLock) {
@@ -610,7 +620,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
                                         }
                                     }
                                 } else {
-                                    Log.e(TAG, "Cell location info is not supported for this phone type.");
+                                    Log.i(TAG, "Cell location cannot be requested.");
                                 }
                             }
 
@@ -1189,7 +1199,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
             mPositionMode = GPS_POSITION_MODE_STANDALONE;
 
             try {
-                if (AsfAosp.ENABLE && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+                if (FeatureConfig.INTEL_FEATURE_ASF
+                        && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
                     // Place call to function that acts as a hook point for gps events
                     boolean asfResult = GpsLocationProvider.notifyGpsCallback();
                     // If response is false, deny access to requested application and return NULL.
@@ -1200,13 +1211,9 @@ public class GpsLocationProvider implements LocationProviderInterface {
                         return;
                     }
                 }
-                mCsmClient.startSync(CSM_START_TIMEOUT);
+                mCsmClient.startAsync();
             } catch (CsmException e) {
-                if (e.getCsmCause() != CsmException.CAUSE_NO_MODEM) {
-                    mStarted = false;
-                    Log.e(TAG, "CsmClient.startClient failed in startNavigating() ", e);
-                    return;
-                }
+                Log.e(TAG, "CsmClient.startClient failed in startNavigating() ", e);
             }
 
             if (singleShot && hasCapability(GPS_CAPABILITY_MSA)) {
@@ -2013,7 +2020,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
         @Override
         public void csmClientModemUnavailable() {
             super.csmClientModemUnavailable();
-            stopNavigating();
         }
 
         @Override

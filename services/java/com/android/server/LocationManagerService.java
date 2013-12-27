@@ -75,6 +75,8 @@ import com.android.server.location.LocationProviderInterface;
 import com.android.server.location.LocationProviderProxy;
 import com.android.server.location.MockProvider;
 import com.android.server.location.PassiveProvider;
+
+import com.intel.config.FeatureConfig;
 import com.intel.asf.AsfAosp;
 
 import java.io.FileDescriptor;
@@ -1262,7 +1264,8 @@ public class LocationManagerService extends ILocationManager.Stub {
             }
         }
 
-        if (AsfAosp.ENABLE && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+        if (FeatureConfig.INTEL_FEATURE_ASF
+               && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
             GpsLocationProvider.setDeviceInfo(sPid, sUid);
         }
         if (D) Log.d(TAG, "provider request: " + provider + " " + providerRequest);
@@ -1473,7 +1476,8 @@ public class LocationManagerService extends ILocationManager.Stub {
         // Figure out the provider. Either its explicitly request (legacy use cases), or
         // use the fused provider
 
-        if (AsfAosp.ENABLE && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+        if (FeatureConfig.INTEL_FEATURE_ASF
+                && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
             // Set private variables PID and UID with the corresponding values of
             // the calling application
             sPid = pid;

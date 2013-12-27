@@ -184,9 +184,9 @@ public class ThermalManager {
         public class CoolingDeviceInfo {
             private int CDeviceID;
 
-            private ArrayList<Integer> DeviceThrottleMask = new ArrayList<Integer>();
+            private ArrayList<Integer> DeviceThrottleMask = null;
 
-            private ArrayList<Integer> DeviceDethrottleMask = new ArrayList<Integer>();
+            private ArrayList<Integer> DeviceDethrottleMask = null;
 
             public CoolingDeviceInfo() {}
 

@@ -800,29 +800,31 @@ public class UsbDeviceManager {
                     mUsbNotificationId = 0;
                 }
                 if (id != 0) {
-                    CharSequence message = r.getText(
-                            com.android.internal.R.string.usb_notification_message);
-                    CharSequence title = r.getText(id);
+                    if (id != com.android.internal.R.string.usb_mtp_notification_title
+                            && id != com.android.internal.R.string.usb_ptp_notification_title) {
+                        CharSequence message = r.getText(
+                                com.android.internal.R.string.usb_notification_message);
+                        CharSequence title = r.getText(id);
 
-                    Notification notification = new Notification();
-                    notification.icon = com.android.internal.R.drawable.stat_sys_data_usb;
-                    notification.when = 0;
-                    notification.flags = Notification.FLAG_ONGOING_EVENT;
-                    notification.tickerText = title;
-                    notification.defaults = 0; // please be quiet
-                    notification.sound = null;
-                    notification.vibrate = null;
-                    notification.priority = Notification.PRIORITY_MIN;
+                        Notification notification = new Notification();
+                        notification.icon = com.android.internal.R.drawable.stat_sys_data_usb;
+                        notification.when = 0;
+                        notification.flags = Notification.FLAG_ONGOING_EVENT;
+                        notification.tickerText = title;
+                        notification.defaults = 0; // please be quiet
+                        notification.sound = null;
+                        notification.vibrate = null;
+                        notification.priority = Notification.PRIORITY_MIN;
 
-                    Intent intent = Intent.makeRestartActivityTask(
-                            new ComponentName("com.android.settings",
-                                    "com.android.settings.UsbSettings"));
-                    PendingIntent pi = PendingIntent.getActivityAsUser(mContext, 0,
-                            intent, 0, null, UserHandle.CURRENT);
-                    notification.setLatestEventInfo(mContext, title, message, pi);
-                    mNotificationManager.notifyAsUser(null, id, notification,
-                            UserHandle.ALL);
-
+                        Intent intent = Intent.makeRestartActivityTask(
+                                new ComponentName("com.android.settings",
+                                        "com.android.settings.UsbSettings"));
+                        PendingIntent pi = PendingIntent.getActivityAsUser(mContext, 0,
+                                intent, 0, null, UserHandle.CURRENT);
+                        notification.setLatestEventInfo(mContext, title, message, pi);
+                        mNotificationManager.notifyAsUser(null, id, notification,
+                                UserHandle.ALL);
+                    }
                     // clear notification if title needs changing
                     if (mUsbNotificationId != 0) {
                         mNotificationManager.cancelAsUser(null, mUsbNotificationId,

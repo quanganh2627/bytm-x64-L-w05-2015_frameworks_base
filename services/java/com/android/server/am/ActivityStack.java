@@ -1755,7 +1755,8 @@ class ActivityStack {
         TaskRecord task = null;
 
         // ASF HOOK: Start Activity event
-        if (AsfAosp.ENABLE && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+        if (FeatureConfig.INTEL_FEATURE_ASF
+                && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
             UserInfo userInfo = null;
             try {
                 userInfo = mService.getCurrentUser();

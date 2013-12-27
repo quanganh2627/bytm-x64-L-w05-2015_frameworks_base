@@ -368,6 +368,11 @@ public class ThermalCooling {
             return false;
         }
 
+        if (device.getClassPath().equalsIgnoreCase("none")) {
+            Log.i(TAG, "ClassPath - <none>");
+            return true;
+        }
+
         if (device.getClassPath().equalsIgnoreCase("auto")) {
             Log.i(TAG, "ClassPath- <auto>");
             return true;
@@ -471,8 +476,9 @@ public class ThermalCooling {
         if (ThermalManager.THERMAL_HIGH_EVENT == eventType) {
             for (ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo CdeviceInfo :
                 zoneCoolerBindInfo.getCoolingDeviceInfoList()) {
-
-                currThrottleMask = CdeviceInfo.getThrottleMaskList().get(thermalState);
+                ArrayList<Integer> throttleMaskList = CdeviceInfo.getThrottleMaskList();
+                if (throttleMaskList == null) continue;
+                currThrottleMask = throttleMaskList.get(thermalState);
                 deviceId = CdeviceInfo.getCoolingDeviceId();
 
                 tDevice = ThermalManager.sListOfCoolers.get(deviceId);
@@ -498,8 +504,9 @@ public class ThermalCooling {
         if (ThermalManager.THERMAL_LOW_EVENT == eventType) {
             for (ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo CdeviceInfo :
                 zoneCoolerBindInfo.getCoolingDeviceInfoList()) {
-
-                currDethrottleMask = CdeviceInfo.getDeThrottleMaskList().get(thermalState);
+                ArrayList<Integer> dethrottleMaskList = CdeviceInfo.getDeThrottleMaskList();
+                if (dethrottleMaskList == null) continue;
+                currDethrottleMask = dethrottleMaskList.get(thermalState);
                 deviceId = CdeviceInfo.getCoolingDeviceId();
 
                 tDevice = ThermalManager.sListOfCoolers.get(deviceId);

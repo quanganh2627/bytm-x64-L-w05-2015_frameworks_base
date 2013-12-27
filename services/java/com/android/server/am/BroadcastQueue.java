@@ -44,6 +44,7 @@ import android.util.EventLog;
 import android.util.Log;
 import android.util.Slog;
 
+import com.intel.config.FeatureConfig;
 import com.intel.asf.AsfAosp;
 
 /**
@@ -322,7 +323,8 @@ public final class BroadcastQueue {
      * @param r BroadcastRecord to get the list of receivers
     */
     private void sendBroadcastIntentEvent(BroadcastRecord r) {
-        if (AsfAosp.ENABLE && (AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2)) {
+        if (FeatureConfig.INTEL_FEATURE_ASF
+                && (AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2)) {
             UserInfo userInfo = null;
             try {
                 userInfo = mService.getCurrentUser();

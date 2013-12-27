@@ -74,8 +74,6 @@ import com.android.server.wifi.ExtendWifiService;
 import com.android.server.wifi.WifiService;
 import com.android.server.wifi.CsmWifiOffloadSystemService;
 import com.android.server.wm.WindowManagerService;
-import android.view.InputChannel;
-
 import com.intel.arkham.ExtendAccountManagerService;
 import com.intel.config.FeatureConfig;
 import com.intel.multidisplay.DisplayObserver;
@@ -550,14 +548,6 @@ class ServerThread {
                 }
 
                try {
-                   Slog.i(TAG, "CSM Wifi Offload Service");
-                   CsmWifiOffloadSystemService csmWifiOffload = new CsmWifiOffloadSystemService(context);
-                   ServiceManager.addService("CsmWifiOffloadService", csmWifiOffload);
-               } catch (Throwable e) {
-                   reportWtf("starting CSM Wifi Offload system service", e);
-               }
-
-               try {
                     Slog.i(TAG, "Wi-Fi P2pService");
                     wifiP2p = new WifiP2pService(context);
                     ServiceManager.addService(Context.WIFI_P2P_SERVICE, wifiP2p);
@@ -587,6 +577,15 @@ class ServerThread {
                     }
                 } catch (Throwable e) {
                     reportWtf("starting Cws Service Manager", e);
+                }
+
+                try {
+                    Slog.i(TAG, "CSM Wifi Offload Service");
+                    CsmWifiOffloadSystemService csmWifiOffload =
+                            new CsmWifiOffloadSystemService(context);
+                    ServiceManager.addService("CsmWifiOffloadService", csmWifiOffload);
+                } catch (Throwable e) {
+                    reportWtf("starting CSM Wifi Offload system service", e);
                 }
 
                 try {
@@ -728,19 +727,19 @@ class ServerThread {
             try {
                 Slog.i(TAG, "Intel Display Observer");
                 // Listen for display changes
-                InputChannel input =
-                    inputManager.monitorInput("MultiDisplayView");
-                DisplayObserver dso = new DisplayObserver(context, input);
+                DisplayObserver dso = new DisplayObserver(context, wm);
             } catch (Throwable e) {
                 reportWtf("starting Intel DisplayObserver", e);
             }
 
-            try {
-                Slog.i(TAG, "Dock Observer");
-                // Listen for dock station changes
-                dock = new DockObserver(context);
-            } catch (Throwable e) {
-                reportWtf("starting DockObserver", e);
+            if (!disableNonCoreServices) {
+                try {
+                    Slog.i(TAG, "Dock Observer");
+                    // Listen for dock station changes
+                    dock = new DockObserver(context);
+                } catch (Throwable e) {
+                    reportWtf("starting DockObserver", e);
+                }
             }
 
             if (!disableMedia) {
@@ -868,7 +867,7 @@ class ServerThread {
                 }
             }
 
-            if (!disableNonCoreServices && 
+            if (!disableNonCoreServices &&
                 context.getResources().getBoolean(R.bool.config_dreamsSupported)) {
                 try {
                     Slog.i(TAG, "Dreams Service");
