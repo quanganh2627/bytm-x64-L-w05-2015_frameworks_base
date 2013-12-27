@@ -7011,6 +7011,20 @@ public class WindowManagerService extends IWindowManager.Stub
 
     public void displayReady() {
         displayReady(Display.DEFAULT_DISPLAY);
+        /*
+        **WindowManagerService Start after DisplayManagerService
+        **WMS will regitserDisplayListener to DMS.
+        **If HDMI Plug-in when bootup,DMS will send DISPLAY_DEVICE_EVENT_ADDED
+        **message to Listener when start.
+        **At this time,WMS has not start,So message miss.
+        **So as to resolve this BUG,we recheck HDMI display device state.
+        */
+        IBinder displayToken = SurfaceControl.getBuiltInDisplay(
+                SurfaceControl.BUILT_IN_DISPLAY_ID_HDMI);
+        if (displayToken != null) {
+            Slog.w(TAG,"HDMI Display Is Build In");
+            displayReady(SurfaceControl.BUILT_IN_DISPLAY_ID_HDMI);
+        }
 
         synchronized(mWindowMap) {
             final DisplayContent displayContent = getDefaultDisplayContentLocked();
