@@ -580,7 +580,8 @@ public class ThermalManager {
     public static boolean updateZoneCriticalPendingMap(int zoneid, int flag) {
         synchronized (sCriticalPendingLock) {
             if (sZoneCriticalPendingMap == null) return false;
-                int oldVal = sZoneCriticalPendingMap.get(zoneid);
+                Integer oldVal = sZoneCriticalPendingMap.get(zoneid);
+                if (oldVal == null) return false;
                 sZoneCriticalPendingMap.put(zoneid, flag);
                 if (oldVal == CRITICAL_FALSE && flag == CRITICAL_TRUE) {
                    sCriticalZonesCount++;
