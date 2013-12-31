@@ -33,7 +33,7 @@ public class NativeLibraryHelper {
 
     private static final boolean DEBUG_NATIVE = false;
     private static final boolean ENABLE_HOUDINI = Build.CPU_ABI.equals("x86") &&
-            (Build.CPU_ABI2.length() != 0);
+            (!Build.CPU_ABI2.equals(Build.UNKNOWN));
 
     private static native long nativeSumNativeBinaries(String file, String cpuAbi, String cpuAbi2);
 

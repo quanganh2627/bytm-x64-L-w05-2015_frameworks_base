@@ -191,7 +191,7 @@ public class PackageManagerService extends IPackageManager.Stub {
     private static final boolean DEBUG_APP_DIR_OBSERVER = false;
     private static final boolean DEBUG_VERIFY = false;
     private static final boolean ENABLE_HOUDINI = Build.CPU_ABI.equals("x86") &&
-            (Build.CPU_ABI2.length()!=0);
+            (!Build.CPU_ABI2.equals(Build.UNKNOWN));
 
     private static final int RADIO_UID = Process.PHONE_UID;
     private static final int LOG_UID = Process.LOG_UID;

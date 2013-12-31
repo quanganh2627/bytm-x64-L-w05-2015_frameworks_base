@@ -85,7 +85,7 @@ public class DefaultContainerService extends IntentService {
     private static final String TAG = "DefContainer";
     private static final boolean localLOGV = false;
     private static final boolean ENABLE_HOUDINI = Build.CPU_ABI.equals("x86") &&
-            (Build.CPU_ABI2.length()!=0);
+            (!Build.CPU_ABI2.equals(Build.UNKNOWN));
 
     private static final String LIB_DIR_NAME = "lib";
 
