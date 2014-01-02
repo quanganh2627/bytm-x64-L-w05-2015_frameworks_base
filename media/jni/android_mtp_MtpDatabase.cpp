@@ -813,8 +813,8 @@ MtpResponseCode MyMtpDatabase::getObjectInfo(MtpObjectHandle handle,
                 info.mImagePixWidth = ImageInfo.Width;
                 info.mImagePixHeight = ImageInfo.Height;
             }
+            DiscardData();
         }
-        DiscardData();
     }
 
     checkAndClearExceptionFromCallback(env, __FUNCTION__);
