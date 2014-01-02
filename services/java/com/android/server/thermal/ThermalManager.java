@@ -37,6 +37,8 @@ import java.util.NoSuchElementException;
  */
 public class ThermalManager {
     private static final String TAG = "ThermalManager";
+    private static String sVersion;
+    private static final String ITUX_VERSION_PROPERTY = "ro.thermal.ituxversion";
     public static final String SENSOR_FILE_PATH = "/system/etc/thermal_sensor_config.xml";
 
     public static final String THROTTLE_FILE_PATH = "/system/etc/thermal_throttle_config.xml";
@@ -320,6 +322,18 @@ public class ThermalManager {
         // empty constructor
     }
 
+    public static String getVersion() {
+        return sVersion;
+    }
+
+    public static void loadiTUXVersion() {
+        sVersion = SystemProperties.get(ITUX_VERSION_PROPERTY, "none");
+        if (sVersion.equalsIgnoreCase("none")) {
+            Log.i(TAG, "iTUX Version not found!");
+        } else {
+            Log.i(TAG, "iTUX Version:" + sVersion);
+        }
+    }
 
     // native methods to access kernel sysfs layer
     public static String readSysfs(String path) {
