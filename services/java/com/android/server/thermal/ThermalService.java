@@ -380,6 +380,7 @@ public class ThermalService extends Binder {
         @Override
         public void onReceive(Context context, Intent intent)
         {
+            ThermalManager.loadiTUXVersion();
             if (!ThermalManager.configFilesExist()) {
                 Log.i(TAG, "Thermal config files dont exist, exiting Thermal service...");
                 return;
