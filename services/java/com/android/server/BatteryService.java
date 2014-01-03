@@ -210,7 +210,9 @@ public final class BatteryService extends Binder {
                 }
                 Runtime.getRuntime().exec("/system/bin/fg_conf -r");
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                Slog.e(TAG, "FG config data not saved due to I/O exception");
+            } catch (SecurityException e) {
+                Slog.e(TAG, "FG config data not saved due to security exception");
             }
         }
     }
@@ -244,7 +246,9 @@ public final class BatteryService extends Binder {
                 mLastSavedLevel = mBatteryProps.batteryLevel;
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            Slog.e(TAG, "FG config data is not saved due to I/O error");
+        } catch (SecurityException e) {
+            Slog.e(TAG, "FG config data is not saved due to security exception");
         }
     }
 
