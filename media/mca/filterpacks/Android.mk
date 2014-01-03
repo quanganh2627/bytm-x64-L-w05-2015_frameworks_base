@@ -32,22 +32,25 @@ include external/stlport/libstlport.mk
 
 include $(BUILD_STATIC_LIBRARY)
 
+#####################
+# use arm version libfilterpack_imageproc to do work-around support of GMS arm libraries
+# change back to x86 version libfilterpack_imageproc as long as Google port GMS arm libraries into x86
 ##
 # filterpack_imageproc
 ##
-include $(CLEAR_VARS)
+#include $(CLEAR_VARS)
 
-LOCAL_MODULE_TAGS := optional
+#LOCAL_MODULE_TAGS := optional
 
-LOCAL_MODULE := libfilterpack_imageproc
+#LOCAL_MODULE := libfilterpack_imageproc
 
-LOCAL_SRC_FILES += native/imageproc/brightness.c \
+#LOCAL_SRC_FILES += native/imageproc/brightness.c \
                    native/imageproc/contrast.c \
                    native/imageproc/invert.c \
                    native/imageproc/to_rgba.c
 
-LOCAL_SHARED_LIBRARIES := liblog libutils libfilterfw
+#LOCAL_SHARED_LIBRARIES := liblog libutils libfilterfw
 
-LOCAL_PRELINK_MODULE := false
+#LOCAL_PRELINK_MODULE := false
 
-include $(BUILD_SHARED_LIBRARY)
+#include $(BUILD_SHARED_LIBRARY)
