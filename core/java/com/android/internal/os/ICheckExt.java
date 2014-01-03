@@ -1,4 +1,4 @@
-package com.android.server.pm;
+package com.android.internal.os;
 /*
  * Copyright (C) 2006 The Android Open Source Project
  *
