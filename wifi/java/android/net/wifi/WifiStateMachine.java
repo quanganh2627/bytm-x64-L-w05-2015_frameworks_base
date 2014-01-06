@@ -1277,6 +1277,14 @@ public class WifiStateMachine extends StateMachine {
     }
 
     /**
+     * @hide
+     * @return the last Ap config
+     */
+    public WifiConfiguration getLastWifiApConfig() {
+        return mLastWifiApConfig;
+    }
+
+    /**
      * TODO: doc
      */
     public int syncGetWifiState() {

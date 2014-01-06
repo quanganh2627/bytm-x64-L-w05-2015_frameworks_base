@@ -76,6 +76,16 @@ public class WifiApConfiguration implements Parcelable {
                 mHwMode == HW_MODE_BG && mIs80211n);
     }
 
+    /** @hide */
+    public void setChannel(int chan) {
+        mChannel.setChannel(chan);
+    }
+
+    /** @hide */
+    public int getChannel() {
+        return mChannel.getChannel();
+    }
+
     /** Implement the Parcelable interface {@hide} */
     public static final Creator<WifiApConfiguration> CREATOR
         = new Creator<WifiApConfiguration>() {
