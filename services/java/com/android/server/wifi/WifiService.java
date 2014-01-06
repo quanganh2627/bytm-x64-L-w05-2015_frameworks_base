@@ -59,7 +59,7 @@ import android.os.AsyncTask;
 import android.provider.Settings;
 import android.util.Log;
 import android.util.Slog;
-
+import android.os.Bundle;
 import java.io.FileNotFoundException;
 import java.io.BufferedReader;
 import java.io.FileDescriptor;
@@ -76,7 +76,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.intel.cws.cwsservicemanager.CsmException;
-
+import com.intel.cws.cwsservicemanager.CsmCoexMgr;
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.telephony.IccCardConstants;
@@ -94,6 +94,7 @@ import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_USER_PRESENT;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
 import static com.android.server.wifi.WifiController.CMD_DEVICE_IDLE;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLED;
 
 import com.intel.arkham.ContainerCommons;
 import com.intel.config.FeatureConfig;
@@ -333,6 +334,56 @@ public class WifiService extends IWifiManager.Stub {
                 },
                 new IntentFilter(Intent.ACTION_AIRPLANE_MODE_CHANGED));
 
+        // handle coexistence intents
+        mContext.registerReceiver(
+                new BroadcastReceiver() {
+                    @Override
+                    public void onReceive(Context context, Intent intent) {
+                        Bundle coexBundle = intent.
+                                getBundleExtra(CsmCoexMgr.COEX_SAFECHANNELS_EXTRA);
+                        if (coexBundle != null) {
+                            int safeChannels = coexBundle.
+                                    getInt(CsmCoexMgr.COEX_SAFECHANNELS_WIFI_KEY);
+                            Slog.i(TAG, "got safechannels " + safeChannels);
+
+                            // only if soft ap is already started
+                            if (mWifiStateMachine.syncGetWifiApState() == WIFI_AP_STATE_ENABLED) {
+                                WifiConfiguration lastWifiApConfig = mWifiStateMachine.
+                                        getLastWifiApConfig();
+                                if (lastWifiApConfig != null &&
+                                        safeChannels != -1 && safeChannels != 0) {
+                                    int channel = lastWifiApConfig.getWifiApConfigurationAdv().
+                                            getChannel();
+                                    int newChannel = channel;
+
+                                    if (( safeChannels & (1 << channel - 1)) != 0) {
+                                        // current channel is not good, we need to find
+                                        // another one from 6 to 1
+                                        for (newChannel = 6; newChannel > 1; newChannel--) {
+                                            if (( safeChannels & (1 << (newChannel - 1))) == 0) {
+                                                // got one.
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    if (channel != newChannel) {
+                                        Slog.i(TAG, "restarting softap old channel: " + channel
+                                                + " new channel:" + newChannel);
+                                        mWifiStateMachine.setHostApRunning(null, false);
+                                        lastWifiApConfig.getWifiApConfigurationAdv().
+                                        setChannel(newChannel);
+                                        mWifiStateMachine.setHostApRunning(lastWifiApConfig, true);
+                                    } else {
+                                        Slog.i(TAG, "NOT restarting softap old channel: " + channel
+                                                + " new channel:" + newChannel);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                new IntentFilter(CsmCoexMgr.ACTION_COEX_SAFECHANNELS_INFO_WF));
         // Adding optimizations of only receiving broadcasts when wifi is enabled
         // can result in race conditions when apps toggle wifi in the background
         // without active user involvement. Always receive broadcasts.

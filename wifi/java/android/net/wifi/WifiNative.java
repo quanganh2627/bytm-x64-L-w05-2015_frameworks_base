@@ -1051,7 +1051,7 @@ public class WifiNative {
 
     public String setSafeChannel(int safeChannelBitmap) {
         if (DBG) Log.d(mTAG, "setSafeChannel: " + safeChannelBitmap);
-        return doStringCommand("SET_SAFE_CHANNELS " + safeChannelBitmap);
+        return doStringCommand("SETSAFECHANNELS " + safeChannelBitmap);
     }
 
     /*
