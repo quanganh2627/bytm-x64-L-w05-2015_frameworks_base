@@ -214,11 +214,12 @@ public class ModemZone extends ThermalZone {
             temp = readModemSensorTemp(t);
             finalMaxTemp = Math.max(finalMaxTemp,temp);
             if (temp != ThermalManager.INVALID_TEMP) {
-                t.setCurrTemp(temp * 10);
+                temp = temp * 10; // convert to millidegree celcius
+                t.setCurrTemp(temp);
                 oldState = t.getSensorThermalState();
-                sensorState = t.getCurrState(temp * 10);
+                sensorState = ThermalManager.calculateThermalState(temp, t.getTempThresholds());
                 if ((sensorState < oldState) &&
-                        (!isDebounceConditionSatisfied(t, temp * 10, debounceInterval, oldState)))
+                        (!isDebounceConditionSatisfied(t, temp, debounceInterval, oldState)))
                     // update sensor state only if debounce condition statisfied
                     // else retain old state
                     continue;
@@ -590,7 +591,8 @@ public class ModemZone extends ThermalZone {
             // if the sensor moves to a different state, this gets updated synchronously
             // in zone state variables
 
-            currSensorstate = t.getCurrState(temperature);
+            currSensorstate = ThermalManager.calculateThermalState(
+                    temperature, t.getTempThresholds());
             t.setSensorThermalState(currSensorstate);
             t.setCurrTemp(temperature);
 
