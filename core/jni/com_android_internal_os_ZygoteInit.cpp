@@ -22,6 +22,7 @@
 #include <utils/misc.h>
 #include <errno.h>
 #include <sys/select.h>
+#include <dlfcn.h>
 
 #include "jni.h"
 #include <JNIHelp.h>
@@ -255,6 +256,15 @@ static jobject com_android_internal_os_ZygoteInit_createFileDescriptor (
     return jniCreateFileDescriptor(env, fd);
 }
 
+#ifdef WITH_HOUDINI
+void *houdini_handler = NULL;
+static void com_android_internal_os_ZygoteInit_preloadHoudini ()
+{
+    if (houdini_handler == NULL)
+        houdini_handler = dlopen("/system/lib/libhoudini.so", RTLD_LAZY);
+}
+#endif
+
 /*
  * JNI registration.
  */
@@ -279,8 +289,13 @@ static JNINativeMethod gMethods[] = {
     { "selectReadable", "([Ljava/io/FileDescriptor;)I",
         (void *) com_android_internal_os_ZygoteInit_selectReadable },
     { "createFileDescriptor", "(I)Ljava/io/FileDescriptor;",
-        (void *) com_android_internal_os_ZygoteInit_createFileDescriptor }
+        (void *) com_android_internal_os_ZygoteInit_createFileDescriptor },
+#ifdef WITH_HOUDINI
+    { "preloadHoudini", "()V",
+        (void *) com_android_internal_os_ZygoteInit_preloadHoudini }
+#endif
 };
+
 int register_com_android_internal_os_ZygoteInit(JNIEnv* env)
 {
     return AndroidRuntime::registerNativeMethods(env,
