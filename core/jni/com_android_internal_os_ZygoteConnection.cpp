@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <dlfcn.h>
 #include "cutils/properties.h"
 
 namespace android {
@@ -58,6 +59,16 @@ static jboolean com_android_internal_os_ZygoteConnection_isABI2App (JNIEnv *env,
     return false;
 }
 
+#ifdef WITH_HOUDINI
+extern void *houdini_handler;
+
+static void com_android_internal_os_ZygoteConnection_unloadHoudini ()
+{
+    if (houdini_handler)
+        dlclose(houdini_handler);
+}
+#endif
+
 /*
  * JNI registration.
  */
@@ -67,6 +78,10 @@ static JNINativeMethod gMethods[] = {
         (void *) com_android_internal_os_ZygoteConnection_settingHoudiniABI },
     { "isABI2App", "(I)Z",
         (void *) com_android_internal_os_ZygoteConnection_isABI2App },
+#ifdef WITH_HOUDINI
+    { "unloadHoudini", "()V",
+        (void *) com_android_internal_os_ZygoteConnection_unloadHoudini },
+#endif
 };
 
 int register_com_android_internal_os_ZygoteConnection(JNIEnv* env)
