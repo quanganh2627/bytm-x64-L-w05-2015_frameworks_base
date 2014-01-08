@@ -471,6 +471,7 @@ public final class StrictMode {
              * <p>In the Honeycomb or later SDKs, this is on by default.
              */
             public Builder penaltyDeathOnNetwork() {
+                Log.d(TAG, "**BZ183200** penaltyDeathOnNetwork");
                 return enable(PENALTY_DEATH_ON_NETWORK);
             }
 
@@ -767,6 +768,9 @@ public final class StrictMode {
     }
 
     private static void setThreadPolicyMask(final int policyMask) {
+        if ((policyMask & PENALTY_DEATH_ON_NETWORK) != 0) {
+            Log.d(TAG, "**BZ183200** setThreadPolicyMask PENALTY_DEATH_ON_NETWORK");
+        }
         // In addition to the Java-level thread-local in Dalvik's
         // BlockGuard, we also need to keep a native thread-local in
         // Binder in order to propagate the value across Binder calls,
@@ -857,6 +861,13 @@ public final class StrictMode {
      */
     public static int getThreadPolicyMask() {
         return BlockGuard.getThreadPolicy().getPolicyMask();
+    }
+
+    /**
+    * @hide
+    */
+    public static int getThreadNativePolicyMask() {
+        return Binder.getThreadStrictModePolicy();
     }
 
     /**
@@ -991,6 +1002,7 @@ public final class StrictMode {
      * @hide
      */
     public static void enableDeathOnNetwork() {
+        Log.d(TAG, "**BZ183200** enableDeathOnNetwork");
         int oldPolicy = getThreadPolicyMask();
         int newPolicy = oldPolicy | DETECT_NETWORK | PENALTY_DEATH_ON_NETWORK;
         setThreadPolicyMask(newPolicy);
@@ -1142,6 +1154,7 @@ public final class StrictMode {
                 return;
             }
             if ((mPolicyMask & PENALTY_DEATH_ON_NETWORK) != 0) {
+                Log.d(TAG, "**BZ183200** onNetwork throw NetworkOnMainThreadException " + mPolicyMask+ " native PolicyMask " +  Binder.getThreadStrictModePolicy());
                 throw new NetworkOnMainThreadException();
             }
             if (tooManyViolationsThisLoop()) {
