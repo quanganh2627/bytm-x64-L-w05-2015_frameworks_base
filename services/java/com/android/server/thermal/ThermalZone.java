@@ -19,7 +19,7 @@ package com.android.server.thermal;
 import android.util.Log;
 
 import java.util.ArrayList;
-
+import java.util.Arrays;
 
 /**
  * The ThermalZone class contains attributes of a Thermal zone. A Thermal zone
@@ -36,15 +36,12 @@ public class ThermalZone {
     protected String mZoneName;          /* Name of the Thermal zone */
     /* List of sensors under this thermal zone */
     protected ArrayList <ThermalSensor> mThermalSensors = null;
-    /* List of sensors under this thermal zone */
     protected int mZoneTemp;             /* Temperature of the Thermal Zone */
-    /* Debounce value to avoid thrashing of throttling actions */
-    private int mDebounceInterval;       /* Debounce value to avoid thrashing of throttling actions */
-    /* Delay between successive polls in Milliseconds */
-    private int mPollDelayList[];        /* Delay between sucessive polls in milli seconds */
-    private boolean mSupportsUEvent;     /* Determines if Sensor supports Uvevents */
-    /* AND or OR logic to be used to determine the state of the thermal zone */
-    private boolean mSensorLogic;        /* AND or OR logic to be used to determine thermal state of zone */
+
+    private int mDebounceInterval;    /* Debounce value to avoid thrashing of throttling actions */
+    private Integer mPollDelay[];     /* Delay between sucessive polls in milli seconds */
+    private boolean mSupportsUEvent;  /* Determines if Sensor supports Uevents */
+    private String mSensorLogic;      /* Logic to be used to determine thermal state of zone */
     private boolean mIsZoneActive = false;
 
     public void printAttrs() {
@@ -52,13 +49,12 @@ public class ThermalZone {
         Log.i(TAG, "mDBInterval: " + Integer.toString(mDebounceInterval));
         Log.i(TAG, "mZoneName:" + mZoneName);
         Log.i(TAG, "mSupportsUEvent:" + Boolean.toString(mSupportsUEvent));
-        Log.i(TAG, "mSensorLogic:" + Boolean.toString(mSensorLogic));
+        Log.i(TAG, "mSensorLogic:" + mSensorLogic);
+        Log.i(TAG, "mPollDelay[]:" + Arrays.toString(mPollDelay));
 
-        for (int val : mPollDelayList)
-            Log.i(TAG, Integer.toString(val));
-
-        for (ThermalSensor ts : mThermalSensors)
+        for (ThermalSensor ts : mThermalSensors) {
             ts.printAttrs();
+        }
     }
 
     public ThermalZone() {
@@ -69,8 +65,7 @@ public class ThermalZone {
     public static String getStateAsString(int index) {
         if (index < -1 || index > 3)
             return "Invalid";
-        index++;
-        return ThermalManager.STATE_NAMES[index];
+        return ThermalManager.STATE_NAMES[index + 1];
     }
 
     public static String getEventTypeAsString(int type) {
@@ -85,16 +80,28 @@ public class ThermalZone {
         return mThermalSensors;
     }
 
-    public int getCurrThermalState() {
+    public int getZoneState() {
         return mCurrThermalState;
     }
 
-    public void setCurrThermalState(int state) {
+    public void setZoneState(int state) {
         mCurrThermalState = state;
     }
 
-    public int getCurrEventType() {
+    public int getEventType() {
         return mCurrEventType;
+    }
+
+    public void setEventType(int type) {
+        mCurrEventType = type;
+    }
+
+    public void setZoneTemp(int temp) {
+        mZoneTemp = temp;
+    }
+
+    public int getZoneTemp() {
+        return mZoneTemp;
     }
 
     public void setZoneId(int id) {
@@ -121,11 +128,11 @@ public class ThermalZone {
         return mSupportsUEvent;
     }
 
-    public void setSensorLogic(int flag) {
-        mSensorLogic = (flag == 1);
+    public void setSensorLogic(String type) {
+        mSensorLogic = type;
     }
 
-    public boolean getSensorLogic() {
+    public String getSensorLogic() {
         return mSensorLogic;
     }
 
@@ -138,27 +145,16 @@ public class ThermalZone {
     }
 
     public void setPollDelay(ArrayList<Integer> delayList) {
-        if (delayList == null) {
-            Log.i(TAG, "setPollDelay input is null");
-            mPollDelayList = null;
-            return;
-        }
-        mPollDelayList = new int[delayList.size()];
-        if (mPollDelayList == null) {
-            Log.i(TAG, "failed to create poll delaylist");
-            return;
-        }
-        try {
-            for (int i = 0; i < delayList.size(); i++) {
-                mPollDelayList[i] = delayList.get(i);
+        if (delayList != null) {
+            mPollDelay = new Integer[delayList.size()];
+            if (mPollDelay != null) {
+                mPollDelay = delayList.toArray(mPollDelay);
             }
-        } catch (IndexOutOfBoundsException e) {
-            Log.i(TAG, "IndexOutOfBoundsException caught in setPollDelay()\n");
         }
     }
 
-    public int[] getPollDelayList() {
-        return mPollDelayList;
+    public Integer[] getPollDelay() {
+        return mPollDelay;
     }
 
     /**
@@ -172,145 +168,10 @@ public class ThermalZone {
 
         // If poll delay is requested for an invalid state, return the delay
         // corresponding to normal state
-        if (index < 0 || index >= mPollDelayList.length)
+        if (index < 0 || index >= mPollDelay.length)
             index = ThermalManager.THERMAL_STATE_NORMAL + 1;
 
-        return mPollDelayList[index];
-    }
-
-    public class monitorThermalZone implements Runnable {
-        Thread t;
-
-        monitorThermalZone() {
-            String threadName = "ThermalZone" + getZoneId();
-            t = new Thread(this, threadName);
-            t.start();
-        }
-
-        public void run() {
-            try {
-                while (true) {
-                    if (isZoneStateChanged()) {
-                        ThermalEvent event = new ThermalEvent(mZoneID, mCurrEventType,
-                                mCurrThermalState, mZoneTemp, mZoneName);
-                        try {
-                            ThermalManager.sEventQueue.put(event);
-                        } catch (InterruptedException ex) {
-                            Log.i(TAG, "caught InterruptedException in posting to event queue");
-                        }
-                    }
-                    Thread.sleep(getPollDelay(mCurrThermalState));
-                }
-            } catch (InterruptedException iex) {
-                Log.i(TAG, "caught InterruptedException in run()");
-            }
-        }
-    }
-
-    public void update() {
-        Log.i(TAG, " state of thermal zone " + mZoneID + " changed to " + mCurrThermalState
-                + " at temperature " + mZoneTemp);
-        ThermalEvent event = new ThermalEvent(mZoneID, mCurrEventType, mCurrThermalState,
-                mZoneTemp, mZoneName);
-        try {
-            ThermalManager.sEventQueue.put(event);
-        } catch (InterruptedException ex) {
-            Log.i(TAG, "caught InterruptedException in update()");
-        }
-    }
-
-    public void startMonitoring() {
-        new monitorThermalZone();
-    }
-
-    /**
-     * Function that calculates the state of the Thermal Zone after reading
-     * temperatures of all sensors in the zone. This function is used when a
-     * zone operates in polling mode.
-     */
-    public boolean isZoneStateChanged() {
-        int newMaxSensorState = -2;
-        int tempSensorState = -2;
-        int currMaxTemp = ThermalManager.INVALID_TEMP;
-        int oldZoneState = mCurrThermalState;
-
-        // Scan through all sensors and update sensor states, and record the max
-        // sensor state and max sensor temperature. updateSensorAttributes()
-        // updates a sensor's state. Debounce Interval is passed as input, so
-        // that for LOWEVENT (Hot to Cold transition), if decrease in sensor
-        // temperature is less than (threshold - debounce interval), sensor
-        // state change is ignored and original state is maintained.
-        for (ThermalSensor ts : mThermalSensors) {
-            if (ts.getSensorActiveStatus()) {
-                ts.updateSensorAttributes(mDebounceInterval);
-                tempSensorState = ts.getSensorThermalState();
-                if (tempSensorState > newMaxSensorState) {
-                    newMaxSensorState = tempSensorState;
-                    currMaxTemp = ts.getCurrTemp();
-                }
-            }
-        }
-
-        if (currMaxTemp == ThermalManager.INVALID_TEMP)
-            return false;
-
-        if (newMaxSensorState == oldZoneState)
-            return false;
-
-        mCurrThermalState = newMaxSensorState;
-        mCurrEventType = mCurrThermalState > oldZoneState ? ThermalManager.THERMAL_HIGH_EVENT
-                : ThermalManager.THERMAL_LOW_EVENT;
-        mZoneTemp = currMaxTemp;
-
-        return true;
-    }
-
-    /**
-     * Function that calculates the state of the Thermal Zone after reading
-     * temperatures of all sensors in the zone. This is an overloaded function
-     * used when a zone supports UEvent notifications from kernel. Because when
-     * a sensor sends an UEvent, it also sends its current temperature as a
-     * parameter of the UEvent.
-     */
-    public boolean isZoneStateChanged(ThermalSensor s, int temp) {
-        int newMaxSensorState = -2;
-        int tempSensorState = -2;
-        int currMaxTemp = ThermalManager.INVALID_TEMP;
-        int oldZoneState = mCurrThermalState;
-
-        // Update sensor state, and record the max sensor state and
-        // max sensor temp. This overloaded fucntion updateSensorAttributes()
-        // doesnot do a sysfs read, but only updates temperature.
-        s.updateSensorAttributes(mDebounceInterval,temp);
-
-        for (ThermalSensor ts : mThermalSensors) {
-            tempSensorState = ts.getSensorThermalState();
-            if (tempSensorState > newMaxSensorState) {
-                newMaxSensorState = tempSensorState;
-                currMaxTemp = ts.getCurrTemp();
-            }
-        }
-
-        // if final max temp is invalid, it means all sensors returned invalid
-        // temp
-        if (currMaxTemp == ThermalManager.INVALID_TEMP)
-            return false;
-
-        // zone state is always max of sensor states. newMaxSensorState is
-        // supposed to be new zone state. But if zone is already in that state,
-        // no intent needs to be sent, hence return false
-        if (newMaxSensorState == oldZoneState)
-            return false;
-
-        // else update the current zone state, zone temperature
-        mCurrThermalState = newMaxSensorState;
-        // set the Event type
-        mCurrEventType = mCurrThermalState > oldZoneState ? ThermalManager.THERMAL_HIGH_EVENT
-                : ThermalManager.THERMAL_LOW_EVENT;
-        // set zone temperature equal to the max sensor temperature
-        mZoneTemp = currMaxTemp;
-
-        return true;
+        return mPollDelay[index];
     }
 
     public boolean getZoneActiveStatus() {
@@ -318,7 +179,6 @@ public class ThermalZone {
     }
 
     public void computeZoneActiveStatus() {
-
         if (mThermalSensors == null) {
             mIsZoneActive = false;
             return;
@@ -330,6 +190,17 @@ public class ThermalZone {
                 break;
             }
         }
+    }
+
+    public boolean isZoneStateChanged() {
+        return false;
+    }
+
+    public boolean isZoneStateChanged(ThermalSensor ts, int temp) {
+        return false;
+    }
+
+    public void startMonitoring() {
     }
 
     public void unregisterReceiver() {

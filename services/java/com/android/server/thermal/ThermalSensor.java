@@ -23,6 +23,7 @@ import android.util.Log;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * The ThermalSensor class describes the attributes of a Thermal Sensor. This
@@ -45,21 +46,14 @@ public class ThermalSensor {
     private int mSensorState;       /* Thermal state of the sensor */
     private int mCurrTemp;          /* Holds the latest temperature of the sensor */
     private int mSensorSysfsIndx; /* Index of this sensor in the sysfs */
-    private int upperLimit = 90;    /* intermediate lower thershold */
-    private int lowerLimit = 0;     /* intermediate upper threshold */
-    /** MovingAverage: Index pointing to the head of past values of sensor */
-    private int mRecordedValuesListHead = -1;
-    private int mTempThresholds[];  /* array contain the temperature thresholds */
-    private int mMovingAvgWindowList[]; /* Time window for predicting temperature */
-    private int mRecordedValuesList[]; /* MovingAverage: Past values of sensor */
-    /** MovingAverage: Number of past instances of sensor values */
-    private int mNumberOfInstancesList[];
-    private boolean mIsSensorActive = false;
-    private boolean mIsMovingAverage = false;
+    private boolean mIsSensorActive = false; /* Whether this sensor is active */
+    private Integer mTempThresholds[];  /* Array containing temperature thresholds */
 
-    public boolean getSensorActiveStatus() {
-        return mIsSensorActive;
-    }
+    /* MovingAverage related declarations */
+    private int mRecordedValuesHead = -1; /* Index pointing to the head of past values of sensor */
+    private int mRecordedValues[];        /* Recorded values of sensor */
+    private int mNumberOfInstances[];     /* Number of recorded instances to be considered */
+    private boolean mIsMovingAverage = false; /* By default false */
 
     public void printAttrs() {
         Log.i(TAG, "mSensorID: " + Integer.toString(mSensorID));
@@ -70,15 +64,8 @@ public class ThermalSensor {
         Log.i(TAG, "mLowTempPath: " + mLowTempPath);
         Log.i(TAG, "mUEventDevPath: " + mUEventDevPath);
         Log.i(TAG, "mErrorCorrection: " + mErrorCorrectionTemp);
-        Log.i(TAG, "mTempThresholds");
-        for (int val : mTempThresholds)
-            Log.i(TAG, Integer.toString(val));
-        if (mMovingAvgWindowList != null)
-            for (int val : mMovingAvgWindowList)
-                Log.i(TAG, Integer.toString(val));
-        if (mNumberOfInstancesList != null)
-            for (int val : mNumberOfInstancesList)
-                Log.i(TAG, Integer.toString(val));
+        Log.i(TAG, "mTempThresholds[]: " + Arrays.toString(mTempThresholds));
+        Log.i(TAG, "mNumberOfInstances[]: " + Arrays.toString(mNumberOfInstances));
     }
 
     private void setSensorSysfsPath() {
@@ -95,6 +82,10 @@ public class ThermalSensor {
         mSensorSysfsIndx = indx;
     }
 
+    public boolean getSensorActiveStatus() {
+        return mIsSensorActive;
+    }
+
     public String getSensorSysfsPath() {
         return mSensorPath;
     }
@@ -103,7 +94,7 @@ public class ThermalSensor {
         mSensorState = ThermalManager.THERMAL_STATE_OFF;
         mCurrTemp = ThermalManager.INVALID_TEMP;
         /**
-         * by default set uevent path to invalid. if uevent flag is set for a
+         * By default set uevent path to invalid. if uevent flag is set for a
          * sensor, but no uevent path tag is added in sensor, then
          * mUEventDevPath will be invalid. ueventobserver in ThermalManager will
          * ignore the sensor
@@ -135,12 +126,12 @@ public class ThermalSensor {
      * String is "auto" it loops through the standard sysfs path, to obtain the
      * 'mSensorPath'. The standard sysfs path is /sys/class/
      * thermal/thermal_zoneX and the look up is based on 'mSensorName'.
+     * If sensor path is "none", sensor temp is not read via any sysfs
      */
     public void setSensorPath(String path) {
         if (path.equalsIgnoreCase("auto")) {
             setSensorSysfsPath();
         } else {
-            // if sensor path is "none", sensor temp is not read via any sysfs
             mSensorPath = path;
         }
     }
@@ -174,22 +165,11 @@ public class ThermalSensor {
     }
 
     public void setThermalThresholds(ArrayList<Integer> thresholdList) {
-        if (thresholdList == null ) {
-            Log.i(TAG, "setThermalThresholds input is null");
-            mTempThresholds = null;
-            return;
-        }
-        mTempThresholds = new int[thresholdList.size()];
-        if (mTempThresholds == null) {
-            Log.i(TAG, "failed to create threshold list");
-            return;
-        }
-        try {
-            for (int i = 0; i < thresholdList.size(); i++ ) {
-                mTempThresholds[i] = thresholdList.get(i);
+        if (thresholdList != null ) {
+            mTempThresholds = new Integer[thresholdList.size()];
+            if (mTempThresholds != null) {
+                mTempThresholds = thresholdList.toArray(mTempThresholds);
             }
-        } catch (IndexOutOfBoundsException e) {
-            Log.i(TAG, "IndexOutOfBoundsException caught in setThermalThresholds()\n");
         }
     }
 
@@ -199,51 +179,52 @@ public class ThermalSensor {
         return mTempThresholds[index];
     }
 
-    public void setMovingAvgWindow(ArrayList<Integer> windowList, int[] delayList) {
-        int maxValue = 0;
-        if (windowList == null || delayList == null) {
+    public Integer[] getTempThresholds() {
+        return mTempThresholds;
+    }
+
+    public void setMovingAvgWindow(ArrayList<Integer> windowList, Integer[] delay) {
+        int maxValue = Integer.MIN_VALUE; // -2^31
+
+        if (windowList == null || delay == null) {
             Log.i(TAG, "setMovingAvgWindow input is null");
-            mMovingAvgWindowList = null;
             return;
         }
-        mMovingAvgWindowList = new int[windowList.size()];
-        mNumberOfInstancesList = new int[windowList.size()];
-        if (mMovingAvgWindowList == null || mNumberOfInstancesList == null) {
+        mNumberOfInstances = new int[windowList.size()];
+        if (mNumberOfInstances == null) {
             Log.i(TAG, "failed to create poll windowlist");
             return;
         }
         mIsMovingAverage = true;
         try {
             for (int i = 0; i < windowList.size(); i++) {
-                mMovingAvgWindowList[i] = windowList.get(i);
-                if (delayList[i] == 0) {
+                if (delay[i] == 0) {
                     mIsMovingAverage = false;
                     Log.i(TAG, "Polling delay is zero, WMA disabled\n");
                     return;
                 }
-                mNumberOfInstancesList[i] = mMovingAvgWindowList[i] / delayList[i];
-                if (mNumberOfInstancesList[i] <= 0) {
+                mNumberOfInstances[i] = windowList.get(i) / delay[i];
+                if (mNumberOfInstances[i] <= 0) {
                     mIsMovingAverage = false;
                     Log.i(TAG, "Polling delay greater than moving average window, WMA disabled\n");
                     return;
                 }
-                if (mNumberOfInstancesList[i] > maxValue)
-                    maxValue = mNumberOfInstancesList[i];
+                maxValue = Math.max(mNumberOfInstances[i], maxValue);
             }
-            mRecordedValuesList = new int[maxValue];
+            mRecordedValues = new int[maxValue];
         } catch (IndexOutOfBoundsException e) {
             Log.i(TAG, "IndexOutOfBoundsException caught in setMovingAvgWindow()\n");
         }
     }
 
     public void setInputTempPath(String name) {
+        // sensor path is none, it means sensor temperature reporting is
+        // not sysfs based. So turn sensor active by default.
+        // If the sensor path does not exist, deactivate the sensor.
         if (mSensorPath != null && mSensorPath.equalsIgnoreCase("none")) {
-            // sensor path is none, it means sensor temperature reporting is
-            // not sysfs based. So turn sensor active by default
             mIsSensorActive = true;
         } else {
             mInputTempPath = mSensorPath + name;
-            /* if sensor path does not exist, deactivate sensor */
             if (!isSensorSysfsValid(mInputTempPath)) {
                 mIsSensorActive = false;
                 Log.i(TAG, "Sensor:" + mSensorName + " path:" + mInputTempPath
@@ -284,21 +265,20 @@ public class ThermalSensor {
 
     public int movingAverageTemp(int currTemp) {
         int index, calIndex;
-        int sensorState = 0;
         int predictedTemp = 0;
-        if (mSensorState > 0) sensorState = mSensorState;
-        mRecordedValuesListHead = (mRecordedValuesListHead + 1) % mRecordedValuesList.length;
-        mRecordedValuesList[mRecordedValuesListHead] = currTemp;
-        /* Sensor State starts with -1, InstancesList starts with 0 */
-        for (index = 0; index < mNumberOfInstancesList[sensorState + 1]; index++) {
-            calIndex = mRecordedValuesListHead - index;
+
+        mRecordedValuesHead = (mRecordedValuesHead + 1) % mRecordedValues.length;
+        mRecordedValues[mRecordedValuesHead] = currTemp;
+
+        // Sensor State starts with -1, InstancesList starts with 0
+        for (index = 0; index < mNumberOfInstances[mSensorState + 1]; index++) {
+            calIndex = mRecordedValuesHead - index;
             if (calIndex < 0) {
-                calIndex = mRecordedValuesList.length + calIndex;
+                calIndex = mRecordedValues.length + calIndex;
             }
-            predictedTemp += mRecordedValuesList[calIndex];
+            predictedTemp += mRecordedValues[calIndex];
         }
-        predictedTemp = predictedTemp / index;
-        return predictedTemp;
+        return predictedTemp / index;
     }
 
     /**
@@ -324,50 +304,12 @@ public class ThermalSensor {
         }
     }
 
-    /* Method to determine the current thermal state of sensor */
-    // TBD: needs to be removed. calculateSensorState() needs to be used instead.
-    public int getCurrState() {
-        int currTemp = getCurrTemp();
-        /* Return OFF state if temperature less than starting of thresholds */
-        if (currTemp < mTempThresholds[0]) return ThermalManager.THERMAL_STATE_OFF;
-        if (currTemp >= mTempThresholds[mTempThresholds.length - 2])
-            return ThermalManager.THERMAL_STATE_CRITICAL;
-
-        for (int i = 0; i < (mTempThresholds.length - 1); i++) {
-            if (currTemp >= mTempThresholds[i] && currTemp < mTempThresholds[i+1])
-                return i;
-        }
-
-        /* should never come here */
-        return ThermalManager.THERMAL_STATE_OFF;
-    }
-
     public int getSensorThermalState() {
         return mSensorState;
     }
 
     public void setSensorThermalState(int state) {
         mSensorState = state;
-    }
-
-    // method overloaded
-    // TBD:this overloaded method needs to be removed,
-    // and calculateSensorState needs to be used.
-    // Change needs to be made to modemzone class.
-    public int getCurrState(int currTemp) {
-        // Return OFF state if temperature less than starting of thresholds
-        if (currTemp < mTempThresholds[0]) return ThermalManager.THERMAL_STATE_OFF;
-
-        if (currTemp >= mTempThresholds[mTempThresholds.length - 2])
-            return ThermalManager.THERMAL_STATE_CRITICAL;
-
-        for (int i = 0; i < (mTempThresholds.length - 1); i++) {
-            if (currTemp >= mTempThresholds[i] && currTemp < mTempThresholds[i+1])
-                return i;
-        }
-
-        // should never come here
-        return ThermalManager.THERMAL_STATE_OFF;
     }
 
     public int getLowerThresholdTemp(int index) {
@@ -397,106 +339,41 @@ public class ThermalSensor {
         }
     }
 
-    public int calculateSensorState(int currTemp) {
-        // Return OFF state if temperature less than starting of thresholds
-        if (currTemp < mTempThresholds[0])
-            return ThermalManager.THERMAL_STATE_OFF;
-
-        if (currTemp >= mTempThresholds[mTempThresholds.length - 2])
-            return ThermalManager.THERMAL_STATE_CRITICAL;
-
-        for (int i = 0; i < (mTempThresholds.length - 1); i++) {
-            if (currTemp >= mTempThresholds[i] && currTemp < mTempThresholds[i + 1])
-                return i;
-        }
-
-        // should never come here
-        return ThermalManager.THERMAL_STATE_OFF;
-    }
-
-    /**
-     * This fucntion updates the sensor attributes. However for a low event, if
-     * the decrease in sensor temp is less than the debounce interval, donot
-     * change sensor state. Hence the sensor state changes only for a high event
-     * or a low event which staisfies debounce condition
-     */
     public void updateSensorAttributes(int debounceInterval) {
         /* read sysfs and update the sensor temp variable mCurrTemp */
         updateSensorTemp();
-        int oldSensorState = getSensorThermalState();
-        int newSensorState = calculateSensorState(mCurrTemp);
-
-        // If the sensor's state has not changed, just update temperature and return
-        if (newSensorState == oldSensorState)
-            return;
-
-        /*
-         * if new sensor state in THERMAL_STATE_OFF, donot consider debounce.
-         * Update the sensor stae, temp and return
-         */
-        if (newSensorState == ThermalManager.THERMAL_STATE_OFF) {
-            setSensorThermalState(newSensorState);
-            return;
-        }
-
-        /*
-         * get the lower temp threshold for the old state. this is used for
-         * debounce test
-         */
-        int threshold = getLowerThresholdTemp(oldSensorState);
-        /*
-         * second condition of if is tested only if (newState < oldState) is
-         * true
-         */
-        if (newSensorState < oldSensorState && (mCurrTemp > (threshold - debounceInterval))) {
-            Log.i(TAG, " THERMAL_LOW_EVENT for sensor:" + getSensorName()
-                    + " rejected due to debounce interval");
-            return;
-        }
-
-        /* debounce check passed, now update the sensor state */
-        setSensorThermalState(newSensorState);
+        updateSensorAttributes(debounceInterval, mCurrTemp);
     }
 
-    /* overloaded function */
+    /**
+     * This function updates the sensor attributes. However for a low event, if
+     * the decrease in sensor temp is less than the debounce interval, donot
+     * change sensor state. Hence the sensor state changes only for a high event
+     * or a low event which satisfies debounce condition.
+     */
     public void updateSensorAttributes(int debounceInterval, int temp) {
-        /* donot read sysfs. just update the sensor temp variable mCurrTemp */
+        // Do not read sysfs. just update the sensor temp variable mCurrTemp
         setCurrTemp(temp);
         int oldSensorState = getSensorThermalState();
-        int newSensorState = calculateSensorState(mCurrTemp);
+        int newSensorState = ThermalManager.calculateThermalState(mCurrTemp, mTempThresholds);
 
-        /*
-         * if state for the sensor has not changed, just update the temperature
-         * and return
-         */
-        if (newSensorState == oldSensorState)
-            return;
+        if (newSensorState == oldSensorState) return;
 
-        /*
-         * if new sensor state in THERMAL_STATE_OFF, do not consider debounce.
-         * Update the sensor state, temperature etc and return
-         */
+        // If new sensor state in THERMAL_STATE_OFF, do not consider debounce.
+        // Update the sensor state, temperature etc and return
         if (newSensorState == ThermalManager.THERMAL_STATE_OFF) {
             setSensorThermalState(newSensorState);
             return;
         }
 
-        /*
-         * Get the lower temperature threshold for the old state. This is used
-         * for debounce test.
-         */
         int threshold = getLowerThresholdTemp(oldSensorState);
-        /*
-         * second condition of if is tested only if (newState < oldState) is
-         * true
-         */
-        if (newSensorState < oldSensorState && (mCurrTemp > (threshold - debounceInterval))) {
+        if (newSensorState < oldSensorState && mCurrTemp > (threshold - debounceInterval)) {
             Log.i(TAG, " THERMAL_LOW_EVENT for sensor:" + getSensorName()
                     + " rejected due to debounce interval");
             return;
         }
 
-        /* debounce check passed, now update the sensor state */
+        // Debounce check passed, now update the sensor state
         setSensorThermalState(newSensorState);
     }
 }
