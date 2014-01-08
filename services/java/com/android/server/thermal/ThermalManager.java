@@ -404,6 +404,24 @@ public class ThermalManager {
         return sThermalZonesList;
     }
 
+    public static int calculateThermalState(int temp, Integer mThresholds[]) {
+        // Return OFF state if temperature less than starting of thresholds
+        if (temp < mThresholds[0])
+            return ThermalManager.THERMAL_STATE_OFF;
+
+        if (temp >= mThresholds[mThresholds.length - 2])
+            return ThermalManager.THERMAL_STATE_CRITICAL;
+
+        for (int i = 0; i < mThresholds.length - 1; i++) {
+            if (temp >= mThresholds[i] && temp < mThresholds[i + 1]) {
+                return i;
+            }
+        }
+
+        // should never come here
+        return ThermalManager.THERMAL_STATE_OFF;
+    }
+
     // this method builds a map of active sensors
     public static void buildSensorMap() {
         ArrayList<ThermalSensor> tempSensorList;
@@ -450,7 +468,6 @@ public class ThermalManager {
 
                 Log.i(TAG, "UEvent received for sensor:" + sensorName + " temp:" + sensorTemp);
 
-                // call isZoneStateChanged() for zones registered to this sensor
                 if (sensorName != null) {
                     ThermalSensor s = sSensorMap.get(sensorName);
                     if (s == null) return;
@@ -461,11 +478,10 @@ public class ThermalManager {
                     if (eventType == THERMAL_HIGH_EVENT)
                        sensorTemp += errorVal;
 
-                    // call iszonestatechanged for the zone to which this sensor
-                    // is mapped,
+                    // call isZoneStateChanged for zones mapped to this sensor
                     zone = sSensorZoneMap.get(sensorName);
                     if (zone != null && zone.isZoneStateChanged(s, sensorTemp)) {
-                        zone.update();
+                        ThermalManager.addThermalEvent(zone);
                         // reprogram threshold
                         programSensorThresholds(s);
                     }
@@ -507,6 +523,19 @@ public class ThermalManager {
                 // program high and low trip points for sensor
                 programSensorThresholds(s);
             }
+        }
+    }
+
+    public static void addThermalEvent(ThermalZone zone) {
+        ThermalEvent event = new ThermalEvent(zone.getZoneId(),
+                zone.getEventType(),
+                zone.getZoneState(),
+                zone.getZoneTemp(),
+                zone.getZoneName());
+        try {
+            sEventQueue.put(event);
+        } catch (InterruptedException ex) {
+            Log.i(TAG, "caught InterruptedException in posting to event queue");
         }
     }
 
