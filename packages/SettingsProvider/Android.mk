@@ -13,7 +13,7 @@ LOCAL_CERTIFICATE := platform
 LOCAL_PRIVILEGED_MODULE := true
 
 ifeq ($(strip $(INTEL_FEATURE_ARKHAM)),true)
-ARKHAM_DIR := vendor/intel/PRIVATE/arkham/aosp/frameworks/enabled/base/packages/SettingsProvider
+ARKHAM_DIR := vendor/intel/arkham/frameworks/enabled/base/packages/SettingsProvider
 LOCAL_MODULE := $(LOCAL_PACKAGE_NAME)
 LOCAL_MODULE_CLASS := APPS
 intermediates := $(call local-intermediates-dir)
