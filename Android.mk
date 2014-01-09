@@ -297,12 +297,18 @@ LOCAL_SRC_FILES += \
 
 ifeq ($(strip $(INTEL_FEATURE_ARKHAM)),true)
 LOCAL_ARKHAM_PATH := vendor/intel/PRIVATE/arkham/aosp
+ifneq ($(LOCAL_ARKHAM_PATH)/frameworks/enabled/base, $(wildcard $(LOCAL_ARKHAM_PATH)/frameworks/enabled/base))
+$(info Building with arkham-base prebuilt lib)
+LOCAL_STATIC_JAVA_LIBRARIES += arkham-base
+else
+$(info Building with arkham-base source code)
 LOCAL_SRC_FILES += \
 	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java,) \
 	$(call find-other-java-files,../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/keystore/java,) \
 	../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java/com/intel/arkham/IContainerManager.aidl \
 	../../$(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java/com/intel/arkham/IContainerPolicyManager.aidl
 LOCAL_AIDL_INCLUDES += $(LOCAL_ARKHAM_PATH)/frameworks/enabled/base/core/java
+endif
 else
 LOCAL_ARKHAM_PATH := vendor/intel/arkham
 LOCAL_SRC_FILES += \
