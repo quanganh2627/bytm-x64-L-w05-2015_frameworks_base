@@ -29,6 +29,7 @@ import android.content.IntentFilter;
 import android.os.BatteryManager;
 import android.os.Debug;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
 import android.os.ServiceManager;
@@ -123,6 +124,9 @@ public class Watchdog extends Thread {
      * Used for scheduling monitor callbacks and checking memory usage.
      */
     final class HeartbeatHandler extends Handler {
+        HeartbeatHandler(Looper looper) {
+            super(looper);
+        }
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
@@ -198,7 +202,9 @@ public class Watchdog extends Thread {
 
     private Watchdog() {
         super("watchdog");
-        mHandler = new HeartbeatHandler();
+        // Explicitly bind the HeartbeatHandler to run on the ServerThread, so
+        // that it can't get accidentally bound to another thread.
+        mHandler = new HeartbeatHandler(Looper.getMainLooper());
     }
 
     public void init(Context context, BatteryService battery,
