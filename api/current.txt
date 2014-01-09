@@ -15963,7 +15963,6 @@ package android.os {
     method public void addFile(java.lang.String, java.io.File, int) throws java.io.IOException;
     method public void addText(java.lang.String, java.lang.String);
     method public android.os.DropBoxManager.Entry getNextEntry(java.lang.String, long);
-    method public boolean isFull();
     method public boolean isTagEnabled(java.lang.String);
     field public static final java.lang.String ACTION_DROPBOX_ENTRY_ADDED = "android.intent.action.DROPBOX_ENTRY_ADDED";
     field public static final java.lang.String EXTRA_TAG = "tag";
