@@ -39,16 +39,29 @@ interface IOemTelephony {
     String getATR();
 
     /**
+     * Returns the Oem version.
+     * @return On Success Contains the version information.
+     *         On Failure, returns -1.
+     *
+     * {@hide}
+     */
+    int getOemVersion();
+
+    /**
      * Retrieves the temperature of the selected modem sensor.
      * @param sensorId: Sensor id
      *          {@link com.intel.internal.telephony.OemTelephony.
      *                  OemTelephonyConstants#MODEM_SENSOR_ID_RF},
      *          {@link com.intel.internal.telephony.OemTelephony.
      *                  OemTelephonyConstants#MODEM_SENSOR_ID_BASEBAND_CHIP},
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_ID_PCB}
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_ID_PMU}
      *          or {@link com.intel.internal.telephony.OemTelephony.
-     *                   OemTelephonyConstants#MODEM_SENSOR_ID_PCB}
+     *                  OemTelephonyConstants#MODEM_SENSOR_ID_PA}
      *
-     * @return On Success, String containg the temperatures separated by space
+     * @return On Success, String contains the temperatures separated by space
      *         "Filtered temperature Raw Temperature". Both temperature
      *          are formated as a 4 digits number: "2300" = 23.00 celcius
      *          degrees  (two digits after dot).
@@ -56,6 +69,27 @@ interface IOemTelephony {
      * {@hide}
      */
     String getThermalSensorValue(int sensorId);
+
+    /**
+     * Retrieves the temperature of the selected modem sensor.
+     * @param sensorId: Sensor id
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_RF},
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_BASEBAND_CHIP},
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_PCB}
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_PMU}
+     *          or {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_PA}
+     *
+     * @return On Success, String contains the temperature in MilliDegC.
+     *         On Failure, returns an empty string.
+     *
+     * {@hide}
+     */
+    String getThermalSensorValueV2(String sensorId);
 
     /**
      * Gets a dump of the GPRS cell environment.
@@ -87,8 +121,12 @@ interface IOemTelephony {
      *                  OemTelephonyConstants#MODEM_SENSOR_ID_RF},
      *          {@link com.intel.internal.telephony.OemTelephony.
      *                  OemTelephonyConstants#MODEM_SENSOR_ID_BASEBAND_CHIP},
-     *          or {@link com.intel.internal.telephony.OemTelephony.
+     *          {@link com.intel.internal.telephony.OemTelephony.
      *                  OemTelephonyConstants#MODEM_SENSOR_ID_PCB}
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_ID_PMU}
+     *          or {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_ID_PA}
      *
      * @param minThresholdValue: temperature are formated as a 4 digits number:
      *                  "2300" = 23.00 celcius degrees  (two digits after dot)
@@ -96,9 +134,34 @@ interface IOemTelephony {
      *                  "2300" = 23.00 celcius degrees  (two digits after dot)
      * {@hide}
      */
-    oneway void ActivateThermalSensorNotification(boolean activate, int sensorId,
+    oneway void activateThermalSensorNotification(boolean activate, int sensorId,
                             int minThresholdValue, int maxThresholdValue);
 
+    /**
+     * Activates the modem sensor alarm notification when the selected
+     * sensor temperature is below the tripPointNumber-hysteresis or above the
+     * tripPointNumber.
+     *
+     * @param sensorId: Sensor id
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_RF},
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_BASEBAND_CHIP},
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_PCB}
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_PMU}
+     *          or {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_PA}
+     *
+     * @param alarmId: Alarm id, allowed values 0-3.
+     * @param tripPointNumber: temperature is in MilliDegC.
+     * @param hysteresis: temperature is in MilliDegC and should be positive.
+     *
+     * {@hide}
+     */
+    oneway void activateThermalSensorNotificationV2(String sensorId, int alarmId,
+                            int tripPointNumber, int hysteresis);
     /**
      * Retrieves the SMS Transport Mode.
      * @return On Success, int representing the SMS Transport Mode,

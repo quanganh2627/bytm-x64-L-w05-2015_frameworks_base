@@ -33,6 +33,14 @@ public interface OemTelephonyConstants {
     public static final int MODEM_SENSOR_ID_RF              = 0;
     public static final int MODEM_SENSOR_ID_BASEBAND_CHIP   = 1;
     public static final int MODEM_SENSOR_ID_PCB             = 3;
+    public static final int MODEM_SENSOR_ID_PMU             = 4;
+    public static final int MODEM_SENSOR_ID_PA              = 5;
+
+    public static final String MODEM_SENSOR_RF = "TRF";
+    public static final String MODEM_SENSOR_BB = "TBBIC";
+    public static final String MODEM_SENSOR_PCB = "TPCB";
+    public static final String MODEM_SENSOR_PMU = "TPMU";
+    public static final String MODEM_SENSOR_PA = "TPA";
 
     public static final String MODEM_SENSOR_ID_KEY = "sensorId";
     public static final String MODEM_SENSOR_TEMPERATURE_KEY = "temperature";
@@ -62,8 +70,12 @@ public interface OemTelephonyConstants {
      *                  OemTelephonyConstants#MODEM_SENSOR_ID_RF},
      *          {@link com.intel.internal.telephony.OemTelephony.
      *                  OemTelephonyConstants#MODEM_SENSOR_ID_BASEBAND_CHIP},
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_ID_PCB}
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_ID_PMU}
      *          or {@link com.intel.internal.telephony.OemTelephony.
-     *                  OemTelephonyConstants#MODEM_SENSOR_ID_PCB}</li>
+     *                  OemTelephonyConstants#MODEM_SENSOR_ID_PA}</li>
      *   <li><em>temperature</em> - Integer containing the temperature formatted as a
      *              4 digits number: 2300 = 23.00 celcius degrees (two digits after dot).</li>
      * </ul>
@@ -76,6 +88,33 @@ public interface OemTelephonyConstants {
      */
     public static final String ACTION_MODEM_SENSOR_THRESHOLD_REACHED =
                                     "intel.intent.action.MODEM_SENSOR_THRESHOLD_REACHED";
+
+    /**
+     * Broadcast Action: Modem sensor has reached the set threshold temperature.
+     * The intent will have the following extra values:</p>
+     * <ul>
+     *   <li><em>sensor Id</em> -  - An int with one of the following values:
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_RF},
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_BB},
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_PCB}
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_PMU}
+     *          or {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#MODEM_SENSOR_PA}</li>
+     *   <li><em>temperature</em> - Integer containing the temperature in MilliDegC.</li>
+     * </ul>
+     *
+     * <p class="note">
+     * Requires the READ_PHONE_STATE permission.
+     *
+     * <p class="note">This is a protected intent that can only be sent
+     * by the system.
+     */
+    public static final String ACTION_MODEM_SENSOR_THRESHOLD_REACHED_V2 =
+                                    "intel.intent.action.MODEM_SENSOR_THRESHOLD_REACHED_V2";
 
     public static final String IMS_STATUS_KEY = "IMSState";
     public static final String ACTION_IMS_REGISTRATION_STATE_CHANGED =
@@ -154,6 +193,13 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_STRING_GET_DVP_STATE = 0x000000B9;
     /* OEM hook specific to DSDS to set the DVP Config */
     public static final int RIL_OEM_HOOK_STRING_SET_DVP_ENABLED = 0x000000BA;
+    /* OEM hook to get the version of thermal sensor APIs to be used */
+    public static final int RIL_OEM_HOOK_STRING_GET_OEM_VERSION = 0x000000BB;
+    /* OEM hook to get the value of sensor id using V2 API*/
+    public static final int RIL_OEM_HOOK_STRING_THERMAL_GET_SENSOR_V2 = 0x000000BC;
+    /* OEM hook to set the tripPointNumber and hysteresis using the V2 API */
+    public static final int RIL_OEM_HOOK_STRING_ACTIVATE_THERMAL_SENSOR_NOTIFICATION_V2
+            = 0x000000BD;
     /* OEM hook to get the thermal alarm indication */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_THERMAL_ALARM_IND = 0x000000D0;
     /* OEM hook specific to DSDS for catching out of service URC */
@@ -192,4 +238,6 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_RAW_UNSOL_SRVCC_HO_STATUS = 0x000000E1;
     /* OEM hook specific to indicate bearer activation */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_BEARER_ACT = 0x000000E2;
+    /* OEM hook to get the thermal alarm indication with V2 apis */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_THERMAL_ALARM_IND_V2 = 0x000000E3;
 }
