@@ -3519,10 +3519,6 @@ public class PhoneWindowManager extends ParentPhoneWindowManager implements Wind
                 ? mTopFullscreenOpaqueWindowState.getAttrs()
                 : null;
 
-        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
-            super.updateWindowLayoutParams(lp);
-        }
-
         // If we are not currently showing a dream then remember the current
         // lockscreen state.  We will use this to determine whether the dream
         // started while the lockscreen was showing and remember this state

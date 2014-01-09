@@ -429,8 +429,7 @@ public class ThermalService extends Binder {
 
             /* builds a map of active sensors */
             ThermalManager.buildSensorMap();
-            /* initialize zone critical pending map */
-            ThermalManager.initializeZoneCriticalPendingMap();
+
             /* read persistent system properties for shutdown notification */
             ThermalManager.readShutdownNotiferProperties();
 

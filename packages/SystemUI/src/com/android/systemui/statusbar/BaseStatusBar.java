@@ -71,7 +71,6 @@ import com.android.systemui.SearchPanelView;
 import com.android.systemui.SystemUI;
 import com.android.systemui.statusbar.phone.KeyguardTouchDelegate;
 import com.android.systemui.statusbar.policy.NotificationRowLayout;
-import com.intel.config.FeatureConfig;
 
 import java.util.ArrayList;
 import java.util.Locale;
@@ -620,16 +619,6 @@ public abstract class BaseStatusBar extends SystemUI implements
         int maxHeight =
                 mContext.getResources().getDimensionPixelSize(R.dimen.notification_max_height);
         StatusBarNotification sbn = entry.notification;
-
-        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
-            /* ARKHAM-982 Set container userid for container notifications. */
-            int cid = sbn.getCidFromTag();
-            if (cid > 0) {
-                sbn.getNotification().setUser(new UserHandle(cid));
-            }
-            /* End ARKHAM-982 */
-        }
-
         RemoteViews contentView = sbn.getNotification().contentView;
         RemoteViews bigContentView = sbn.getNotification().bigContentView;
         if (contentView == null) {
@@ -831,17 +820,8 @@ public abstract class BaseStatusBar extends SystemUI implements
                 notification.getNotification());
         iconView.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
 
-        UserHandle userhandle;
-        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
-            /* ARKHAM-982 Set container userid for container notifications. */
-            int cid = notification.getCidFromTag();
-            userhandle = (cid > 0 ? new UserHandle(cid) : notification.getUser());
-            /* ARKHAM-982 */
-        } else {
-            userhandle = notification.getUser();
-        }
         final StatusBarIcon ic = new StatusBarIcon(notification.getPackageName(),
-                    userhandle,
+                notification.getUser(),
                     notification.getNotification().icon,
                     notification.getNotification().iconLevel,
                     notification.getNotification().number,
@@ -983,19 +963,9 @@ public abstract class BaseStatusBar extends SystemUI implements
                 }
 
                 // Update the icon.
-                UserHandle userHandle;
-                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
-                    /* ARKHAM-982 Set container userid for container notifications. */
-                    int cid = notification.getCidFromTag();
-                    userHandle = (cid > 0 ? new UserHandle(cid) : notification.getUser());
-                    /* End ARKHAM-982 */
-                } else {
-                    userHandle = notification.getUser();
-                }
                 final StatusBarIcon ic = new StatusBarIcon(notification.getPackageName(),
-                        userHandle,
-                        notification.getNotification().icon,
-                        notification.getNotification().iconLevel,
+                        notification.getUser(),
+                        notification.getNotification().icon, notification.getNotification().iconLevel,
                         notification.getNotification().number,
                         notification.getNotification().tickerText);
                 if (!oldEntry.icon.set(ic)) {

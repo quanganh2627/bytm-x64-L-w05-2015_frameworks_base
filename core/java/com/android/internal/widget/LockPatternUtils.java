@@ -26,7 +26,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Binder;
 import android.os.IBinder;
-import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemClock;
@@ -272,14 +271,8 @@ public class LockPatternUtils extends ParentLockPatternUtils {
     public int getCurrentUser() {
         if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
             // ARKHAM - 596, return container if isContainerUserMode set to true.
-            int callingUid = Binder.getCallingUid();
-            if (isContainerUserMode() && UserHandle.getAppId(callingUid) != Process.SYSTEM_UID ) {
+            if (isContainerUserMode()) {
                 return getsContainerUserId();
-            } else {
-                final int userId = UserHandle.getCallingUserId();
-                if (isContainerUser(userId)) {
-                    return UserHandle.getCallingUserId();
-                }
             }
             // ARKHAM - 596 Ends.
         }
@@ -289,7 +282,17 @@ public class LockPatternUtils extends ParentLockPatternUtils {
             return sCurrentUserId;
         }
         try {
-            return ActivityManagerNative.getDefault().getCurrentUser().id;
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+
+                final int userId = UserHandle.getCallingUserId();
+                if (isContainerUser(userId)) {
+                    return UserHandle.getCallingUserId();
+                } else {
+                    return ActivityManagerNative.getDefault().getCurrentUser().id;
+                }
+            } else {
+                return ActivityManagerNative.getDefault().getCurrentUser().id;
+            }
         } catch (RemoteException re) {
             return UserHandle.USER_OWNER;
         }

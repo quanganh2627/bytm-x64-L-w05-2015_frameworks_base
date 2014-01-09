@@ -35,8 +35,6 @@ import com.android.internal.app.IMediaContainerService;
 import com.android.internal.app.ResolverActivity;
 import com.android.internal.content.NativeLibraryHelper;
 import com.android.internal.content.PackageHelper;
-import com.android.internal.os.CheckExt;
-import com.android.internal.os.ICheckExt;
 import com.android.internal.util.FastPrintWriter;
 import com.android.internal.util.FastXmlSerializer;
 import com.android.internal.util.XmlUtils;
@@ -6731,15 +6729,8 @@ public class PackageManagerService extends IPackageManager.Stub {
                                 if (isContainerLauncher(fullPath)) {
                                     PackageSetting pkgSetting = mSettings.mPackages
                                             .get(addedPackage);
-                                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
-                                        if (pkgSetting != null) {
-                                            pkgSetting.setEnabled(COMPONENT_ENABLED_STATE_DISABLED,
-                                                    Integer.parseInt(getContainerId(fullPath)), null);
-                                        }
-                                    } else {
-                                        pkgSetting.setEnabled(COMPONENT_ENABLED_STATE_DISABLED,
-                                                Integer.parseInt(getContainerId(fullPath)), null);
-                                    }
+                                    pkgSetting.setEnabled(COMPONENT_ENABLED_STATE_DISABLED,
+                                            Integer.parseInt(getContainerId(fullPath)), null);
                                 }
                             }
                         }
@@ -9568,7 +9559,7 @@ public class PackageManagerService extends IPackageManager.Stub {
      *  persisting settings for later use
      *  sending a broadcast if necessary
      */
-    protected int deletePackageX(String packageName, int userId, int flags) {
+    private int deletePackageX(String packageName, int userId, int flags) {
         final PackageRemovedInfo info = new PackageRemovedInfo();
         final boolean res;
 

@@ -135,7 +135,7 @@ public class ModemZone extends ThermalZone {
                 mZoneCoolerBindInfo.getCoolingDeviceInfoList() != null) {
             for (ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo cDeviceInfo :
                     mZoneCoolerBindInfo.getCoolingDeviceInfoList()) {
-                device = ThermalManager.sCDevMap.get(cDeviceInfo.getCoolingDeviceId());
+                device = ThermalManager.sListOfCoolers.get(cDeviceInfo.getCoolingDeviceId());
                 if (device != null && device.getDeviceName() != null &&
                         device.getDeviceName().equalsIgnoreCase("ModemAirplane")) {
                     ArrayList<Integer> list = cDeviceInfo.getThrottleMaskList();
@@ -175,7 +175,7 @@ public class ModemZone extends ThermalZone {
     void updateCriticalShutdownFlag() {
         // one time update
         if (mIsCriticalShutdownflagUpdated ==  false) {
-            mZoneCoolerBindInfo = ThermalManager.sZoneCoolerBindMap.get(getZoneId());
+            mZoneCoolerBindInfo = ThermalManager.sListOfZones.get(getZoneId());
             if (mZoneCoolerBindInfo != null) {
                 mIsCriticalShutdownEnable = mZoneCoolerBindInfo.getCriticalActionShutdown() == 1;
             }

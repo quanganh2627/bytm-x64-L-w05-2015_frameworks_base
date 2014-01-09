@@ -46,9 +46,6 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
-
-import com.intel.arkham.ContainerCommons;
-import com.intel.config.FeatureConfig;
 import com.intel.cws.cwsservicemanagerclient.CsmClient;
 import com.intel.cws.cwsservicemanager.CsmCoexMgr;
 import com.intel.cws.cwsservicemanager.CsmException;
@@ -1312,11 +1309,6 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
             foregroundUser = ActivityManager.getCurrentUser();
             valid = (callingUser == foregroundUser) ||
                     callingAppId == Process.NFC_UID;
-
-            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
-                valid |= ContainerCommons.isContainerOwner(callingUser, foregroundUser);
-            }
-
             if (DBG) {
                 Log.d(TAG, "checkIfCallerIsForegroundUser: valid=" + valid
                     + " callingUser=" + callingUser

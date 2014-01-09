@@ -253,7 +253,6 @@ ifeq ($(INTEL_HOUDINI), true)
     LOCAL_CFLAGS += -DWITH_HOUDINI
 	LOCAL_SHARED_LIBRARIES += libdvm
     LOCAL_STATIC_LIBRARIES += libhoudini_hook
-    LOCAL_SRC_FILES += com_android_internal_os_ZygoteConnection.cpp
 endif
 
 LOCAL_MODULE:= libandroid_runtime

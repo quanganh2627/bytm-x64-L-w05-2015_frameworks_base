@@ -18,7 +18,6 @@ package com.android.internal.os;
 
 import android.net.Credentials;
 import android.net.LocalSocket;
-import android.os.Build;
 import android.os.Process;
 import android.os.SELinux;
 import android.os.SystemProperties;
@@ -47,8 +46,6 @@ import libcore.io.Libcore;
  */
 class ZygoteConnection {
     private static final String TAG = "Zygote";
-    private static final boolean ENABLE_HOUDINI =
-            Build.CPU_ABI.equals("x86") && (Build.CPU_ABI2.length()!=0);
 
     /** a prototype instance for a future List.toArray() */
     private static final int[][] intArray2d = new int[0][0];
@@ -77,9 +74,6 @@ class ZygoteConnection {
     private final BufferedReader mSocketReader;
     private final Credentials peer;
     private final String peerSecurityContext;
-
-    private native boolean isABI2App(int uid);
-    private native void settingHoudiniABI();
 
     /**
      * Constructs instance from connected socket.
@@ -245,16 +239,6 @@ class ZygoteConnection {
                 // in child
                 IoUtils.closeQuietly(serverPipeFd);
                 serverPipeFd = null;
-                if (ENABLE_HOUDINI && isABI2App(parsedArgs.uid)) {
-                    ICheckExt check = new CheckExt();
-                    if (!check.doCheck(parsedArgs.niceName, new String("arch"))) {
-                        System.setProperty("os.arch", "armv7");
-                        Log.d(TAG, "Setting os.arch for Houdini App");
-                        settingHoudiniABI();
-                    } else {
-                        Log.d(TAG, "In HoudiniABI black list: " + parsedArgs.niceName);
-                    }
-                }
                 handleChildProc(parsedArgs, descriptors, childPipeFd, newStderr);
 
                 // should never get here, the child is expected to either

@@ -1049,7 +1049,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
      * Pushes down policy information to the system for any policies related to general device
      * capabilities that need to be enforced by lower level services (e.g. Camera services).
      */
-    protected void syncDeviceCapabilitiesLocked(DevicePolicyData policy) {
+    void syncDeviceCapabilitiesLocked(DevicePolicyData policy) {
         // Ensure the status of the camera is synced down to the system. Interested native services
         // should monitor this value and act accordingly.
         boolean systemState = SystemProperties.getBoolean(SYSTEM_PROP_DISABLE_CAMERA, false);
@@ -1077,7 +1077,7 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
         }
     }
 
-    protected void handlePasswordExpirationNotification(DevicePolicyData policy) {
+    private void handlePasswordExpirationNotification(DevicePolicyData policy) {
         synchronized (this) {
             final long now = System.currentTimeMillis();
             final int N = policy.mAdminList.size();

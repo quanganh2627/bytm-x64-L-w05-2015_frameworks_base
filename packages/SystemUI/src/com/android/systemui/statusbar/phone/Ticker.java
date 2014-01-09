@@ -20,7 +20,6 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
-import android.os.UserHandle;
 import android.service.notification.StatusBarNotification;
 import android.text.Layout.Alignment;
 import android.text.StaticLayout;
@@ -34,7 +33,6 @@ import android.widget.TextView;
 import com.android.internal.statusbar.StatusBarIcon;
 import com.android.systemui.R;
 import com.android.systemui.statusbar.StatusBarIconView;
-import com.intel.config.FeatureConfig;
 
 import java.util.ArrayList;
 
@@ -198,17 +196,8 @@ public abstract class Ticker {
             }
         }
 
-        UserHandle userHandle;
-        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
-            /* ARKHAM-982 Set container userid for container notifications. */
-            int cid = n.getCidFromTag();
-            userHandle = (cid > 0 ? new UserHandle(cid) : n.getUser());
-        } else {
-            userHandle = n.getUser();
-        }
         final Drawable icon = StatusBarIconView.getIcon(mContext,
-                new StatusBarIcon(n.getPackageName(), userHandle,
-                        n.getNotification().icon, n.getNotification().iconLevel, 0,
+                new StatusBarIcon(n.getPackageName(), n.getUser(), n.getNotification().icon, n.getNotification().iconLevel, 0,
                         n.getNotification().tickerText));
         final CharSequence text = n.getNotification().tickerText;
         final Segment newSegment = new Segment(n, icon, text);
