@@ -19,7 +19,7 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(call all-java-files-under, src) $(call all-subdir-Iaidl-files)
 
 ifeq ($(strip $(INTEL_FEATURE_ARKHAM)),true)
-LOCAL_SRC_FILES += $(call all-java-files-under, ../../../../vendor/intel/PRIVATE/arkham/aosp/frameworks/enabled/base/packages/Keyguard/src)
+LOCAL_SRC_FILES += $(call all-java-files-under, ../../../../vendor/intel/arkham/frameworks/enabled/base/packages/Keyguard/src)
 else
 LOCAL_SRC_FILES += $(call all-java-files-under, ../../../../vendor/intel/arkham/frameworks/disabled/base/packages/Keyguard/src)
 endif

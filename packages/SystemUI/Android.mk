@@ -8,7 +8,7 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src) \
 
 ifeq ($(strip $(INTEL_FEATURE_ARKHAM)),true)
 LOCAL_SRC_FILES += \
-        $(call find-other-java-files, ../../../../vendor/intel/PRIVATE/arkham/aosp/frameworks/enabled/base/packages/SystemUI/src/,)
+        $(call find-other-java-files, ../../../../vendor/intel/arkham/frameworks/enabled/base/packages/SystemUI/src/,)
 else
 LOCAL_SRC_FILES += \
         $(call find-other-java-files, ../../../../vendor/intel/arkham/frameworks/disabled/base/packages/SystemUI/src/,)
