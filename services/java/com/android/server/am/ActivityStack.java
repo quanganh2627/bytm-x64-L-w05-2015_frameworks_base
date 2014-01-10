@@ -353,14 +353,13 @@ class ActivityStack {
     }
 
     boolean okToShow(ActivityRecord r) {
+        // FIXME: remove the ime context switch codes here
         if ( FeatureConfig.INTEL_FEATURE_ARKHAM) {
             UserInfo userInfo = getUserInfoLocked(r.userId);
             if (userInfo != null && userInfo.isContainer()
                     && mCurrentUser == userInfo.containerOwner) {
-                notifyUserForegroundObservers(r.userId);
                 return true;
             }
-            notifyUserForegroundObservers(mCurrentUser);
         }
         return r.userId == mCurrentUser
                 || (r.info.flags & ActivityInfo.FLAG_SHOW_ON_LOCK_SCREEN) != 0;
@@ -1710,7 +1709,7 @@ class ActivityStack {
         int stackNdx = mTaskHistory.size();
 
         if ( FeatureConfig.INTEL_FEATURE_ARKHAM ) {
-            UserInfo userInfo = getUserInfoLocked(task.userId);  //FIXME: locked?
+            UserInfo userInfo = getUserInfoLocked(task.userId);  // FIXME: locked?
             boolean bypass = false;
             if (userInfo != null && userInfo.isContainer()
                     && mCurrentUser == userInfo.containerOwner) {
@@ -2606,6 +2605,7 @@ class ActivityStack {
         // activity into the stopped state and then finish it.
         if (localLOGV) Slog.v(TAG, "Enqueueing pending finish: " + r);
         mStackSupervisor.mFinishingActivities.add(r);
+        r.resumeKeyDispatchingLocked();
         mStackSupervisor.getFocusedStack().resumeTopActivityLocked(null);
         return r;
     }
@@ -3748,10 +3748,8 @@ class ActivityStack {
      * ARKHAM 198, Notify listeners about foreground user switch.
      */
     private void notifyUserForegroundObservers(int userId) {
-        if (mCurrentForegroundUser != userId) {
-            mCurrentForegroundUser = userId;
-            ((ExtendActivityManagerService) mService).notifyUserForegroundObservers(userId);
-        }
+        // FIXME: notify always to get correct ime switch triggering
+        ((ExtendActivityManagerService) mService).notifyUserForegroundObservers(userId);
     }
 
     public boolean isTopRunningActivityinContainter(int cid) {
@@ -3780,6 +3778,15 @@ class ActivityStack {
         IContainerManager containerService =
             IContainerManager.Stub.asInterface(b);
         UserInfo userInfo = getUserInfoLocked(next.userId);
+
+        // FIXME: first switch the ime context here
+        // FIXME: there should be codes to prevents ilegal switch to container
+        // from other users ...
+        notifyUserForegroundObservers(next.userId);
+        // FIXME: second to lock container if necessary
+        // FIXME: assume that the keyguard service has super perimssion to across
+        // user, since, there will be contention between previous step
+
         try {
             if (userInfo != null && containerService != null
                     && userInfo.isContainer()
