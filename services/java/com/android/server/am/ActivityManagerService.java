@@ -13779,8 +13779,13 @@ public class ActivityManagerService extends ActivityManagerNative
             receivers = collectReceiverComponents(intent, resolvedType, users);
         }
         if (intent.getComponent() == null) {
-            registeredReceivers = mReceiverResolver.queryIntent(intent,
-                    resolvedType, false, userId);
+            if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                registeredReceivers = getRegisteredReceivers(intent, resolvedType,
+                        userId, callingAppId);
+            } else {
+                registeredReceivers = mReceiverResolver.queryIntent(intent,
+                        resolvedType, false, userId);
+            }
         }
 
         final boolean replacePending =
@@ -16884,5 +16889,11 @@ public class ActivityManagerService extends ActivityManagerNative
 
     protected int[] getUsersForSpecificBroadcast(int userId, boolean ordered) {
         return new int[] {userId};
+    }
+
+    protected List<BroadcastFilter> getRegisteredReceivers(Intent intent,
+            String resolvedType, int userId, int callingAppId) {
+        return mReceiverResolver.queryIntent(intent, resolvedType, false,
+                userId);
     }
 }

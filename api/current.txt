@@ -17417,6 +17417,8 @@ package android.os {
     field public static final java.lang.String FINGERPRINT;
     field public static final java.lang.String HARDWARE;
     field public static final java.lang.String HOST;
+    field public static final java.lang.String HOUDINI_ABI = "armeabi-v7a";
+    field public static final java.lang.String HOUDINI_ABI2 = "armeabi";
     field public static final java.lang.String ID;
     field public static final java.lang.String MANUFACTURER;
     field public static final java.lang.String MODEL;
