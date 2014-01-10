@@ -63,7 +63,7 @@ public final class ShutdownThread extends Thread {
     // maximum time we wait for the shutdown broadcast before going on.
     private static final int MAX_BROADCAST_TIME = 10*1000;
     private static final int MAX_SHUTDOWN_WAIT_TIME = 20*1000;
-    private static final int MAX_RADIO_WAIT_TIME = 32*1000;
+    private static final int MAX_RADIO_WAIT_TIME = 12*1000;
 
     // length of vibration before shutting down
     private static final int SHUTDOWN_VIBRATE_MS = 500;
@@ -100,6 +100,8 @@ public final class ShutdownThread extends Thread {
     private Handler mHandler;
 
     private static AlertDialog sConfirmDialog;
+
+    private static boolean sIsVoiceCapable = true;
     
     private ShutdownThread() {
     }
@@ -127,6 +129,9 @@ public final class ShutdownThread extends Thread {
                 return;
             }
         }
+
+        sIsVoiceCapable = context.getResources().getBoolean(
+                        com.android.internal.R.bool.config_voice_capable);
 
         final int longPressBehavior = context.getResources().getInteger(
                         com.android.internal.R.integer.config_longPressOnPowerBehavior);
@@ -463,6 +468,10 @@ public final class ShutdownThread extends Thread {
 
                 try {
                     radioOff = phone == null;
+
+                    /* config_voice_capable is false, mark radio as off */
+                    if (!sIsVoiceCapable)
+                        radioOff = true;
                     if (!radioOff) {
                         Log.w(TAG, "Turning off radio...");
                         phone.setRadio(false);
