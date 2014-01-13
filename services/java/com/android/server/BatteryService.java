@@ -447,6 +447,7 @@ public final class BatteryService extends Binder {
                 processValuesLocked();
             }
         }
+        updateConfigDataIfAvailable();
     }
 
     private void processValuesLocked() {
@@ -492,7 +493,6 @@ public final class BatteryService extends Binder {
             // Should never happen.
         }
 
-        updateConfigDataIfAvailable();
         shutdownIfNoPowerLocked();
 
         if (mBatteryProps.batteryStatus != mLastBatteryStatus ||
