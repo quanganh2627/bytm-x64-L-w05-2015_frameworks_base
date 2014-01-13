@@ -317,12 +317,7 @@ public class WindowManagerService extends IWindowManager.Stub
                     return;
 
                 mForceLandScape = forceToLandscape;
-                if (updateOrientationFromAppTokensLocked(false)) {
-                    Configuration config = null;
-                    config = computeNewConfiguration();
-                    if (config != null)
-                        setNewConfiguration(config);
-                }
+                updateRotation(false, false);
                 Slog.d(TAG, forceToLandscape ? "Force to landscape." : "Screen can rotate.");
             }
         }
@@ -3715,9 +3710,6 @@ public class WindowManagerService extends IWindowManager.Stub
             if (req == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
                 req = getOrientationFromAppTokensLocked();
             }
-            if (mForceLandScape && req == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
-                req = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
-            }
 
             if (req != mForcedAppOrientation) {
                 mForcedAppOrientation = req;
@@ -5939,6 +5931,11 @@ public class WindowManagerService extends IWindowManager.Stub
             // No point choosing a rotation if the display is not enabled.
             if (DEBUG_ORIENTATION) Slog.v(TAG, "Deferring rotation, display is not enabled.");
             return false;
+        }
+
+        if (mForceLandScape && mForcedAppOrientation ==
+                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
+                mForcedAppOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
         }
 
         // TODO: Implement forced rotation changes.
