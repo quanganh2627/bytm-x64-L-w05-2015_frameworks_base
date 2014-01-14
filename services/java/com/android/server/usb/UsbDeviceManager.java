@@ -32,11 +32,14 @@ import android.hardware.usb.UsbAccessory;
 import android.hardware.usb.UsbManager;
 import android.os.FileUtils;
 import android.os.Handler;
+import android.os.IBinder;
+import android.os.IDebuggingManager;
 import android.os.Looper;
 import android.os.Message;
 import android.os.ParcelFileDescriptor;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
+import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.UEventObserver;
@@ -129,7 +132,7 @@ public class UsbDeviceManager {
     private boolean mAudioSourceEnabled;
     private Map<String, List<Pair<String, String>>> mOemModeMap;
     private String[] mAccessoryStrings;
-    private UsbDebuggingManager mDebuggingManager;
+    private IDebuggingManager mDebuggingManager;
 
     private class AdbSettingsObserver extends ContentObserver {
         public AdbSettingsObserver() {
@@ -210,8 +213,12 @@ public class UsbDeviceManager {
 
         boolean secureAdbEnabled = SystemProperties.getBoolean("ro.adb.secure", false);
         boolean dataEncrypted = "1".equals(SystemProperties.get("vold.decrypt"));
+        Slog.d(TAG, "secureAdbEnabled=" + secureAdbEnabled + ", dataEncrypted=" + dataEncrypted);
         if (secureAdbEnabled && !dataEncrypted) {
-            mDebuggingManager = new UsbDebuggingManager(context);
+            IBinder b = ServiceManager.getService(Context.DEBUGGING_SERVICE);
+            if (b != null) {
+                mDebuggingManager = IDebuggingManager.Stub.asInterface(b);
+            }
         }
     }
 
@@ -557,7 +564,11 @@ public class UsbDeviceManager {
                 updateAdbNotification();
             }
             if (mDebuggingManager != null) {
-                mDebuggingManager.setAdbEnabled(mAdbEnabled);
+                try {
+                    mDebuggingManager.setAdbEnabled(mAdbEnabled);
+                } catch (android.os.RemoteException ex) {
+                    Slog.e(TAG, "Failed to communicate with DebuggingService: " + ex);
+                }
             }
         }
 
@@ -746,7 +757,11 @@ public class UsbDeviceManager {
                         getCurrentSettings().accessoryAttached(mCurrentAccessory);
                     }
                     if (mDebuggingManager != null) {
-                        mDebuggingManager.setAdbEnabled(mAdbEnabled);
+                        try {
+                            mDebuggingManager.setAdbEnabled(mAdbEnabled);
+                        } catch (android.os.RemoteException ex) {
+                            Slog.e(TAG, "Failed to communicate with DebuggingService: " + ex);
+                        }
                     }
                     break;
                 case MSG_USER_SWITCHED: {
@@ -1025,26 +1040,6 @@ public class UsbDeviceManager {
         return usbFunctions;
     }
 
-    public void allowUsbDebugging(boolean alwaysAllow, String publicKey) {
-        if (mDebuggingManager != null) {
-            mDebuggingManager.allowUsbDebugging(alwaysAllow, publicKey);
-        }
-    }
-
-    public void denyUsbDebugging() {
-        if (mDebuggingManager != null) {
-            mDebuggingManager.denyUsbDebugging();
-        }
-    }
-
-    public void clearUsbDebuggingKeys() {
-        if (mDebuggingManager != null) {
-            mDebuggingManager.clearUsbDebuggingKeys();
-        } else {
-            throw new RuntimeException("Cannot clear Usb Debugging keys, "
-                        + "UsbDebuggingManager not enabled");
-        }
-    }
 
     private Runnable usbConLCDTask = new Runnable() {
         public void run() {
@@ -1056,9 +1051,6 @@ public class UsbDeviceManager {
     public void dump(FileDescriptor fd, PrintWriter pw) {
         if (mHandler != null) {
             mHandler.dump(fd, pw);
-        }
-        if (mDebuggingManager != null) {
-            mDebuggingManager.dump(fd, pw);
         }
     }
 
