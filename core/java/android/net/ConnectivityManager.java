@@ -361,11 +361,17 @@ public class ConnectivityManager {
      */
     public static final int TYPE_MOBILE_IA = 14;
 
-    /** {@hide} */
-    public static final int MAX_RADIO_TYPE   = TYPE_MOBILE_IA;
+    /**
+     * It may coexist with default data connections.
+     * {@hide}
+     */
+    public static final int TYPE_MOBILE_XCAP  = 15;
 
     /** {@hide} */
-    public static final int MAX_NETWORK_TYPE = TYPE_MOBILE_IA;
+    public static final int MAX_RADIO_TYPE   = TYPE_MOBILE_XCAP;
+
+    /** {@hide} */
+    public static final int MAX_NETWORK_TYPE = TYPE_MOBILE_XCAP;
 
     /**
      * If you want to set the default network preference,you can directly
@@ -444,6 +450,8 @@ public class ConnectivityManager {
                 return "WIFI_P2P";
             case TYPE_MOBILE_IA:
                 return "MOBILE_IA";
+            case TYPE_MOBILE_XCAP:
+                return "MOBILE_XCAP";
             default:
                 return Integer.toString(type);
         }
@@ -467,6 +475,7 @@ public class ConnectivityManager {
             case TYPE_MOBILE_IMS:
             case TYPE_MOBILE_CBS:
             case TYPE_MOBILE_IA:
+            case TYPE_MOBILE_XCAP:
                 return true;
             default:
                 return false;

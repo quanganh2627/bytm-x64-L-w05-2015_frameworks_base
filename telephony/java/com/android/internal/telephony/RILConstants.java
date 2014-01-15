@@ -163,6 +163,7 @@ cat include/telephony/ril.h | \
     public static final int DATA_PROFILE_MMS       = 5;
     public static final int DATA_PROFILE_SUPL      = 6;
     public static final int DATA_PROFILE_HIPRI     = 7;
+    public static final int DATA_PROFILE_XCAP      = 8;
     public static final int DATA_PROFILE_OEM_BASE  = 1000;
 
     int RIL_REQUEST_GET_SIM_STATUS = 1;
