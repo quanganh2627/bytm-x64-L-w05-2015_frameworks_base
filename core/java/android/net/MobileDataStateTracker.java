@@ -731,6 +731,8 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
                 return PhoneConstants.APN_TYPE_IA;
             case ConnectivityManager.TYPE_MOBILE_XCAP:
                 return PhoneConstants.APN_TYPE_XCAP;
+            case ConnectivityManager.TYPE_MOBILE_EMERGENCY:
+                return PhoneConstants.APN_TYPE_EMERGENCY;
             default:
                 sloge("Error mapping networkType " + netType + " to apnType.");
                 return null;

@@ -367,11 +367,17 @@ public class ConnectivityManager {
      */
     public static final int TYPE_MOBILE_XCAP  = 15;
 
-    /** {@hide} */
-    public static final int MAX_RADIO_TYPE   = TYPE_MOBILE_XCAP;
+    /**
+     * Emergency Call on IP Multimedia Subsystem.
+     * {@hide}
+     */
+    public static final int TYPE_MOBILE_EMERGENCY  = 16;
 
     /** {@hide} */
-    public static final int MAX_NETWORK_TYPE = TYPE_MOBILE_XCAP;
+    public static final int MAX_RADIO_TYPE   = TYPE_MOBILE_EMERGENCY;
+
+    /** {@hide} */
+    public static final int MAX_NETWORK_TYPE = TYPE_MOBILE_EMERGENCY;
 
     /**
      * If you want to set the default network preference,you can directly
@@ -452,6 +458,8 @@ public class ConnectivityManager {
                 return "MOBILE_IA";
             case TYPE_MOBILE_XCAP:
                 return "MOBILE_XCAP";
+            case TYPE_MOBILE_EMERGENCY:
+                return "MOBILE_EMERGENCY";
             default:
                 return Integer.toString(type);
         }
@@ -476,6 +484,7 @@ public class ConnectivityManager {
             case TYPE_MOBILE_CBS:
             case TYPE_MOBILE_IA:
             case TYPE_MOBILE_XCAP:
+            case TYPE_MOBILE_EMERGENCY:
                 return true;
             default:
                 return false;
@@ -508,6 +517,7 @@ public class ConnectivityManager {
             case TYPE_MOBILE_SUPL:
             case TYPE_MOBILE_HIPRI:
             case TYPE_MOBILE_IA:
+            case TYPE_MOBILE_EMERGENCY:
                 return true;
             default:
                 return false;
