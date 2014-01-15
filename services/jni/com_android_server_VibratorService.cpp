@@ -62,10 +62,19 @@ static void vibratorOff(JNIEnv *env, jobject clazz)
     }
 }
 
+static jlong getVibratorMinTimeout(JNIEnv *env, jobject clazz)
+{
+    if (gVibraModule) {
+         return (jlong)gVibraModule->get_vibrator_min_timeout();
+    }
+    return 0;
+}
+
 static JNINativeMethod method_table[] = {
     { "vibratorExists", "()Z", (void*)vibratorExists },
     { "vibratorOn", "(J)V", (void*)vibratorOn },
     { "vibratorOff", "()V", (void*)vibratorOff },
+    { "getVibratorMinTimeout", "()J", (void*)getVibratorMinTimeout },
 };
 
 int register_android_server_VibratorService(JNIEnv *env)
