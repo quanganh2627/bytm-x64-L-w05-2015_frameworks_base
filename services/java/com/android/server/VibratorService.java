@@ -77,6 +77,12 @@ public class VibratorService extends IVibratorService.Stub
     native static boolean vibratorExists();
     native static void vibratorOn(long milliseconds);
     native static void vibratorOff();
+    // Due to vibrator lag time, vibrations under certain threshold cannot be felt.
+    // To compensate this, the HAL returns the minimum timeout allowed for a short vibration.
+    native static long getVibratorMinTimeout();
+
+    // Get lower vibration timeout limit from HAL if any
+    private static final long mVibratorMinTimeout = getVibratorMinTimeout();
 
     private class Vibration implements IBinder.DeathRecipient {
         private final IBinder mToken;
@@ -354,8 +360,9 @@ public class VibratorService extends IVibratorService.Stub
         } catch (RemoteException e) {
         }
         if (vib.mTimeout != 0) {
-            doVibratorOn(vib.mTimeout, vib.mUid);
-            mH.postDelayed(mVibrationRunnable, vib.mTimeout);
+            long effectiveVibTimeout = Math.max(vib.mTimeout, mVibratorMinTimeout);
+            doVibratorOn(effectiveVibTimeout, vib.mUid);
+            mH.postDelayed(mVibrationRunnable, effectiveVibTimeout);
         } else {
             // mThread better be null here. doCancelVibrate should always be
             // called before startNextVibrationLocked or startVibrationLocked.
