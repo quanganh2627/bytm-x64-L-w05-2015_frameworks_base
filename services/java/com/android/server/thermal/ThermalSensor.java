@@ -54,6 +54,34 @@ public class ThermalSensor {
     private int mRecordedValues[];        /* Recorded values of sensor */
     private int mNumberOfInstances[];     /* Number of recorded instances to be considered */
     private boolean mIsMovingAverage = false; /* By default false */
+    private Integer mWeights[];
+    private Integer mOrder[];
+
+    public Integer[] getWeights() {
+        return mWeights;
+    }
+
+    public void setWeights(ArrayList<Integer> list) {
+        if (list != null) {
+            mWeights = new Integer[list.size()];
+            if (mWeights != null) {
+                mWeights = list.toArray(mWeights);
+            }
+        }
+    }
+
+    public Integer[] getOrder() {
+        return mOrder;
+    }
+
+    public void setOrder(ArrayList<Integer> list) {
+        if (list != null) {
+            mOrder = new Integer[list.size()];
+            if (mOrder != null) {
+                mOrder = list.toArray(mOrder);
+            }
+        }
+    }
 
     public void printAttrs() {
         Log.i(TAG, "mSensorID: " + Integer.toString(mSensorID));
@@ -66,6 +94,8 @@ public class ThermalSensor {
         Log.i(TAG, "mErrorCorrection: " + mErrorCorrectionTemp);
         Log.i(TAG, "mTempThresholds[]: " + Arrays.toString(mTempThresholds));
         Log.i(TAG, "mNumberOfInstances[]: " + Arrays.toString(mNumberOfInstances));
+        Log.i(TAG, "mWeights[]: " + Arrays.toString(mWeights));
+        Log.i(TAG, "mOrder[]: " + Arrays.toString(mOrder));
     }
 
     private void setSensorSysfsPath() {
