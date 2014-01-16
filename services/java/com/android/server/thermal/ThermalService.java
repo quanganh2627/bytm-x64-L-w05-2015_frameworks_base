@@ -75,8 +75,12 @@ public class ThermalService extends Binder {
        private static final String THRESHOLD = "Threshold";
        private static final String POLLDELAY = "PollDelay";
        private static final String MOVINGAVGWINDOW = "MovingAverageWindow";
+       private static final String ZONELOGIC = "ZoneLogic";
+       private static final String WEIGHT = "Weight";
+       private static final String ORDER = "Order";
+       private static final String OFFSET = "Offset";
+       private static final String ZONETHRESHOLD = "ZoneThreshold";
        private boolean done = false;
-
        private ThermalManager.PlatformInfo mPlatformInfo;
        private ThermalSensor mCurrSensor;
        private ThermalZone mCurrZone;
@@ -85,9 +89,13 @@ public class ThermalService extends Binder {
        private ArrayList<Integer> mThresholdList;
        private ArrayList<Integer> mPollDelayList;
        private ArrayList<Integer> mMovingAvgWindowList;
+       private ArrayList<Integer> mWeightList = null;
+       private ArrayList<Integer> mOrderList = null;
+       private ArrayList<Integer> mZoneThresholdList = null;
        XmlPullParserFactory mFactory;
        XmlPullParser mParser;
        int tempZoneId = -1;
+       String tempZoneName = null;
        FileReader mInputStream = null;
        ThermalParser(String fname) {
           try {
@@ -182,32 +190,57 @@ public class ThermalService extends Binder {
                        mThermalZones = new ArrayList<ThermalZone>();
                } else {
                    // Retrieve Platform Information
-                   if (mPlatformInfo != null && name.equalsIgnoreCase("PlatformThermalStates"))
+                   if (mPlatformInfo != null && name.equalsIgnoreCase("PlatformThermalStates")) {
                        mPlatformInfo.mMaxThermalStates = Integer.parseInt(mParser.nextText());
                    // Retrieve Zone Information
-                   else if (name.equalsIgnoreCase("ZoneName") && tempZoneId != -1) {
-                        // if modem create a object of type modem and assign to base class
-                        zoneName = mParser.nextText();
-                        if (zoneName.contains("Modem")) {
-                           mCurrZone = new ModemZone(mContext);// upcasting to base class
-                        } else {
+                   } else if (name.equalsIgnoreCase("ZoneName") && tempZoneId != -1) {
+                       // if modem create a object of type modem and assign to base class
+                       tempZoneName = mParser.nextText();
+                   } else if (name.equalsIgnoreCase(ZONELOGIC) && tempZoneId != -1 &&
+                           tempZoneName != null) {
+                       String zoneLogic = mParser.nextText();
+                       if (zoneLogic.equalsIgnoreCase("Virtual")) {
+                           mCurrZone = new VirtualThermalZone();
+                       } else if (zoneLogic.equalsIgnoreCase("Modem")) {
+                           mCurrZone = new ModemZone(mContext);
+                       } else {
+                           //default zone raw
                            mCurrZone = new RawThermalZone();
-                        }
-                        if (mCurrZone != null) {
-                            mCurrZone.setZoneName(zoneName);
-                            mCurrZone.setZoneId(tempZoneId);
-                        }
-                   } else if (name.equalsIgnoreCase("ZoneID"))
+                       }
+                       if (mCurrZone != null) {
+                           mCurrZone.setZoneName(tempZoneName);
+                           mCurrZone.setZoneId(tempZoneId);
+                           mCurrZone.setZoneLogic(zoneLogic);
+                       }
+                   } else if (name.equalsIgnoreCase("ZoneID")) {
                        tempZoneId = Integer.parseInt(mParser.nextText());
-                   else if (name.equalsIgnoreCase("SupportsUEvent") && mCurrZone != null)
+                   } else if (name.equalsIgnoreCase("SupportsUEvent") && mCurrZone != null)
                        mCurrZone.setSupportsUEvent(Integer.parseInt(mParser.nextText()));
-                   else if (name.equalsIgnoreCase("SensorLogic") && mCurrZone != null)
-                       mCurrZone.setSensorLogic(mParser.nextText());
                    else if (name.equalsIgnoreCase("DebounceInterval") && mCurrZone != null)
                        mCurrZone.setDBInterval(Integer.parseInt(mParser.nextText()));
                    else if (name.equalsIgnoreCase(POLLDELAY) && mCurrZone != null) {
                        mPollDelayList = new ArrayList<Integer>();
+                   } else if (name.equalsIgnoreCase(OFFSET) && mCurrZone != null) {
+                       mCurrZone.setOffset(Integer.parseInt(mParser.nextText()));
+                   } else if (name.equalsIgnoreCase(ZONETHRESHOLD) && mCurrZone != null) {
+                       mZoneThresholdList = new ArrayList<Integer>();
+                   } else if (name.equalsIgnoreCase("ZoneThresholdTOff") &&
+                           mZoneThresholdList != null) {
+                       mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
+                   } else if (name.equalsIgnoreCase("ZoneThresholdNormal") &&
+                           mZoneThresholdList != null) {
+                       mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
+                   } else if (name.equalsIgnoreCase("ZoneThresholdWarning") &&
+                           mZoneThresholdList != null) {
+                       mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
+                   } else if (name.equalsIgnoreCase("ZoneThresholdAlert") &&
+                           mZoneThresholdList != null) {
+                       mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
+                   } else if (name.equalsIgnoreCase("ZoneThresholdCritical") &&
+                           mZoneThresholdList != null) {
+                       mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
                    }
+
                    // Retrieve Sensor Information
                    else if (name.equalsIgnoreCase("SensorID") && mCurrSensor != null)
                        mCurrSensor.setSensorID(Integer.parseInt(mParser.nextText()));
@@ -227,7 +260,22 @@ public class ThermalService extends Binder {
                        mCurrSensor.setErrorCorrectionTemp(Integer.parseInt(mParser.nextText()));
                    else if (name.equalsIgnoreCase(THRESHOLD) && mCurrSensor != null) {
                        mThresholdList = new ArrayList<Integer>();
+                   } else if (name.equalsIgnoreCase(WEIGHT) && mCurrSensor != null) {
+                       if (mWeightList == null) {
+                           mWeightList = new ArrayList<Integer>();
+                       }
+                       if (mWeightList != null) {
+                           mWeightList.add(Integer.parseInt(mParser.nextText()));
+                       }
+                   } else if (name.equalsIgnoreCase(ORDER) && mCurrSensor != null) {
+                       if (mOrderList == null) {
+                           mOrderList = new ArrayList<Integer>();
+                       }
+                       if (mOrderList != null) {
+                           mOrderList.add(Integer.parseInt(mParser.nextText()));
+                       }
                    }
+
                    // Poll delay info
                    else if (name.equalsIgnoreCase("DelayTOff") && mPollDelayList != null) {
                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
@@ -284,9 +332,17 @@ public class ThermalService extends Binder {
        }
 
        void processEndElement(String name) {
-         if (name.equalsIgnoreCase(SENSOR) && mCurrSensorList != null) {
-             mCurrSensorList.add(mCurrSensor);
+         if (name.equalsIgnoreCase(SENSOR)) {
+             if (mCurrSensor != null) {
+                 mCurrSensor.setWeights(mWeightList);
+                 mCurrSensor.setOrder(mOrderList);
+             }
+             if (mCurrSensorList != null) {
+                 mCurrSensorList.add(mCurrSensor);
+             }
              mCurrSensor = null;
+             mWeightList = null;
+             mOrderList = null;
          } else if (name.equalsIgnoreCase(ZONE) &&
                  mCurrZone != null && mThermalZones != null) {
              mCurrZone.setSensorList(mCurrSensorList);
@@ -296,6 +352,7 @@ public class ThermalService extends Binder {
              mCurrSensorList = null;
              mCurrZone = null;
              tempZoneId = -1;
+             tempZoneName = null;
          } else if (name.equalsIgnoreCase(THRESHOLD) && (mCurrSensor != null)) {
              mCurrSensor.setThermalThresholds(mThresholdList);
              mThresholdList = null;
@@ -309,6 +366,9 @@ public class ThermalService extends Binder {
          } else if (name.equalsIgnoreCase(THERMAL_CONFIG)) {
              Log.i(TAG, "Parsing Finished..");
              done = true;
+         } else if (name.equalsIgnoreCase(ZONETHRESHOLD) && mCurrZone != null) {
+             mCurrZone.setZoneTempThreshold(mZoneThresholdList);
+             mZoneThresholdList = null;
          }
        }
     }
