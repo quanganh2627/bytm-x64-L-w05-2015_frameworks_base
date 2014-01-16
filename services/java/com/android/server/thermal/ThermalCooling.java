@@ -229,6 +229,7 @@ public class ThermalCooling {
                 }
                 mDevice = null;
             } else if (name.equalsIgnoreCase(ZONETHROTINFO) && mZone != null) {
+                mZone.printAttributes();
                 ThermalManager.sZoneCoolerBindMap.put(mZone.getZoneID(), mZone);
                 mZone = null;
             } else if ((name.equalsIgnoreCase(THROTTLEMASK) || name
