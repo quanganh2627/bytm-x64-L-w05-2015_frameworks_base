@@ -30,6 +30,7 @@ import android.os.BatteryManager;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.ServiceManager;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UEventObserver;
 import android.util.Log;
@@ -39,9 +40,11 @@ import com.android.server.thermal.ThermalManager;
 
 import java.io.DataOutputStream;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
@@ -61,6 +64,7 @@ public class CurrentMgmtService extends Binder {
     private static final String TAG = "CurrentMgmtService";
 
     private static final String DEV_PATH = "SUBSYSTEM=hwmon";
+    private static final String CPU_PATH = "/sys/devices/system/cpu/";
     private final Context mContext;
 
     native static void nativeSubsystemThrottle(int subsystem, int level);
@@ -78,6 +82,191 @@ public class CurrentMgmtService extends Binder {
     private ArrayList<ContributingDevice> mCDevs;
     private ArrayList<State> mLevelStates;
     private ArrayList<State> mTempStates;
+    private transient final List<CpuCore> mCpuList = new ArrayList();
+
+    /**
+     * Native method to read sysfs.
+     * Returns String read from sysfs
+     * @param path path of the sysfs
+     */
+    private native static String native_readSysfs(String path);
+
+    /**
+     * Native method to write sysfs.
+     * Returns integer - 0 on success and -1 on failure
+     * @param path path of the sysfs
+     * @param val value to be written into the sysfs
+     */
+    private native static int native_writeSysfs(String path, int val);
+
+    /**
+     * Method to read sysfs.
+     * Returns a string that contains the value of the sysfs read.
+     * @param path path of the sysfs
+     */
+    public static String readSysfs(String path) {
+        try {
+            return native_readSysfs(path);
+        } catch (UnsatisfiedLinkError e) {
+            Log.e(TAG, "caught UnsatisfiedLinkError in readSysfs");
+            return null;
+        }
+    }
+
+    /**
+     * Native method to write sysfs.
+     * Returns integer - 0 on success and -1 on failure
+     * @param path path of the sysfs
+     * @param val value to be written into the sysfs
+     */
+    public static int writeSysfs(String path, int val) {
+        try {
+            return native_writeSysfs(path, val);
+        } catch (UnsatisfiedLinkError e) {
+            Log.e(TAG, "caught UnsatisfiedLinkError in writeSysfs");
+            return -1;
+        }
+    }
+
+    /**
+     * Class CpuCore to represent each cpu core and set of frequencies
+     */
+    class CpuCore {
+        private final transient String mName;
+        private transient int[] mCpuAvailFreqs;
+        private transient boolean mIsCapped;
+        private transient int mMaxFreq;
+
+       /**
+        * Constructor for the class CpuCore
+        * @param name cpu core name, for eg: cpu0
+        */
+        public CpuCore(String name) {
+            this.mName = name;
+            getAvailFreqs();
+            checkIfCapped();
+        }
+
+        /**
+         * Getter method for mName.
+         * Returns mName as String.
+         */
+        public String getName() {
+            // mName is set in the constructor.
+            // So no setter method required for this variable.
+            return mName;
+        }
+
+        /**
+         * Getter method for mIsCapped.
+         * Returns boolean value of mIsCapped.
+         */
+        public boolean isCapped() {
+            // mIsCapped is already set by calling checkIfCapped() in constructor.
+            // Since this occurs only once during boot, explicit setter method is not needed.
+            return mIsCapped;
+        }
+
+        /**
+         * Getter method for mMaxFreq.
+         * Returns integer value of mMaxfreq.
+         */
+        public int getMaxFreq() {
+            // mMaxFreq is already set by calling checkIfCapped() in constructor.
+            // So no setter method required for this variable.
+            return mMaxFreq;
+        }
+
+        /**
+         * Method to fetch scaling available frequencies of a cpu core.
+         * mCpuAvailFreqs array is initialized in this method.
+         */
+        public final void getAvailFreqs() {
+            String path = CPU_PATH + mName + "/cpufreq/scaling_available_frequencies";
+            String frequencyList = readSysfs(path);
+            if (frequencyList == null) {
+                Log.e(TAG, "Cannot get Available Frequencies");
+                return;
+            }
+            String frequencies[] = frequencyList.split(" ");
+            final int numFreqs = frequencies.length;
+            mCpuAvailFreqs = new int[numFreqs];
+            for (int i = 0; i < frequencies.length; i++) {
+                try {
+                    mCpuAvailFreqs[i] = Integer.parseInt(frequencies[i]);
+                } catch (NumberFormatException e) {
+                    Log.e(TAG, "Number format exception while getting available frequencies");
+                }
+            }
+        }
+
+        /**
+         * Method to check if the scaling maximum frequency is capped.
+         * This method initializes mIsCapped boolean for the current cpu core.
+         */
+        public final void checkIfCapped() {
+            String path = CPU_PATH + mName + "/cpufreq/scaling_max_freq";
+            int curMax;
+            Arrays.sort(mCpuAvailFreqs);
+            mMaxFreq = mCpuAvailFreqs[mCpuAvailFreqs.length - 1];
+            Log.i(TAG, "Maximum frequency:" + mMaxFreq);
+            try {
+                curMax = Integer.parseInt(readSysfs(path));
+            } catch (NumberFormatException e) {
+                Log.e(TAG, "Number format exception while parsing current maximum frequency");
+                return;
+            }
+            if (curMax < mMaxFreq) {
+                mIsCapped = true;
+            }
+        }
+    }
+
+    /**
+     * Method that will check the cpu core list.
+     * This method will create one object per cpu core list.
+     * Parameters like scaling available frequencies and scaling max frequency
+     * will be initialized in the constructor of cpu core.
+     */
+    private void checkFreq() {
+        File cpuDir = new File(CPU_PATH);
+        if (!cpuDir.isDirectory()) {
+            Log.e(TAG, "CPU sysfs path not found by CMS");
+            return;
+        }
+        String cpuList[] = cpuDir.list();
+        for (int i = 0; i < cpuList.length; i++) {
+            if (cpuList[i].startsWith("cpu") && Character.isDigit(cpuList[i].charAt(3))) {
+                CpuCore cpu = new CpuCore(cpuList[i]);
+                mCpuList.add(cpu);
+                Log.i(TAG, "cpu:" + cpuList[i]);
+            }
+        }
+    }
+
+    /**
+     * Method that will check if dynamic turbo is enabled.
+     * Returns boolean
+     */
+    private boolean IsDynamicTurboEnabled() {
+        if (SystemProperties.get("persist.thermal.turbo.dynamic", "0").equals("0")) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Method that will check if SOC is a throttle device.
+     * Returns boolean.
+     */
+    private boolean IsSOCThrottleDevice() {
+        for (ContributingDevice device : mCDevs) {
+            if (device.getName().equals("SOC")) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     private final class BCUReceiver extends BroadcastReceiver {
         @Override
@@ -85,12 +274,48 @@ public class CurrentMgmtService extends Binder {
             int i, j, k, battLevel, battTemp, plugType, status;
             Intent vbusIntent, thermalIntent;
             String actionReceived;
-
+            vbusIntent = new Intent(ACTION_USB_HOST_VBUS);
+            thermalIntent = new Intent();
+            thermalIntent.setAction(ThermalManager.ACTION_THERMAL_ZONE_STATE_CHANGED);
+            thermalIntent.putExtra(ThermalManager.EXTRA_NAME, "CMS");
+            thermalIntent.putExtra(ThermalManager.EXTRA_ZONE, 129);
             actionReceived = intent.getAction();
             if (actionReceived != null &&
                     actionReceived.equals(intent.ACTION_BOOT_COMPLETED)) {
                 Log.i(TAG, "Boot completed");
                 sBootCompleted = true;
+                for (i = 0; i < mCpuList.size(); i++) {
+                    if (mCpuList.get(i).isCapped()) {
+                        if (IsSOCThrottleDevice()) {
+                            return;
+                        }
+                        if (IsDynamicTurboEnabled()) {
+                            if (writeSysfs(CPU_PATH + mCpuList.get(i).getName()
+                                    + "/cpufreq/scaling_max_freq",
+                                    mCpuList.get(i).getMaxFreq()) == 0) {
+                                Log.i(TAG, "Successfully released capped frequency for "
+                                        + mCpuList.get(i).getName());
+                            } else {
+                                Log.e(TAG, "Could not release the capped frequency for "
+                                        + mCpuList.get(i).getName());
+                            }
+                        } else {
+                            // FIXME: Send a warning event and then a normal event.
+                            // Otherwise thermal will ignore the dethrottle request.
+                            thermalIntent.putExtra(ThermalManager.EXTRA_EVENT,
+                                    ThermalManager.THERMAL_HIGH_EVENT);
+                            thermalIntent.putExtra(ThermalManager.EXTRA_STATE,
+                                    ThermalManager.THERMAL_STATE_WARNING);
+                            context.sendBroadcastAsUser(thermalIntent, UserHandle.ALL);
+                            thermalIntent.putExtra(ThermalManager.EXTRA_EVENT,
+                                    ThermalManager.THERMAL_LOW_EVENT);
+                            thermalIntent.putExtra(ThermalManager.EXTRA_STATE,
+                                    ThermalManager.THERMAL_STATE_NORMAL);
+                            context.sendBroadcastAsUser(thermalIntent, UserHandle.ALL);
+                            return;
+                        }
+                    }
+                }
                 return;
             }
 
@@ -124,11 +349,6 @@ public class CurrentMgmtService extends Binder {
             if (sPrevLevelState != sCurLevelState) {
                 Log.i(TAG, "Battery level state changed:" + sCurLevelState);
                 sRecheckTempState = true;
-                vbusIntent = new Intent(ACTION_USB_HOST_VBUS);
-                thermalIntent = new Intent();
-                thermalIntent.setAction(ThermalManager.ACTION_THERMAL_ZONE_STATE_CHANGED);
-                thermalIntent.putExtra(ThermalManager.EXTRA_NAME, "CMS");
-                thermalIntent.putExtra(ThermalManager.EXTRA_ZONE, 129);
                 if (sCurLevelState == 0) {
                     for (i = 0; i < mCDevs.size(); i++) {
                         if (mCDevs.get(i).getID() != 4) {
@@ -300,6 +520,7 @@ public class CurrentMgmtService extends Binder {
         filter.addAction(Intent.ACTION_BOOT_COMPLETED);
         mContext.registerReceiver(new BCUReceiver(), filter);
         nativeInit();
+        checkFreq();
         mUEventObserver.startObserving(DEV_PATH);
     }
 }
