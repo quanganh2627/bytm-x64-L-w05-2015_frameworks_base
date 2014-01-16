@@ -24,7 +24,9 @@
 #include <utils/Log.h>
 #include <hardware/bcu.h>
 
+#include <fcntl.h>
 #include <stdio.h>
+#include <string.h>
 #include <assert.h>
 
 namespace android {
@@ -46,6 +48,89 @@ static void nativeInit(JNIEnv* env, jobject obj) {
     }
 }
 
+static int readFromFile(const char *path, char *buf, size_t size)
+{
+    if (!path)
+        return -1;
+
+    int fd = open(path, O_RDONLY, 0);
+    if (fd < 0) {
+        ALOGE("Could not open '%s'", path);
+        return -1;
+    }
+
+    ssize_t count = read(fd, buf, size);
+    if (count > 0) {
+        while (count > 0 && buf[count-1] == '\n')
+            count--;
+        buf[count] = '\0';
+    } else {
+        buf[0] = '\0';
+    }
+
+    close (fd);
+    return count;
+}
+
+static int writeToFile(const char *path, int val)
+{
+     const int SIZE = 20;
+     int ret, fd, len;
+     char value[SIZE];
+
+     if (!path)
+         return -1;
+
+     fd = open(path, O_RDWR, 0);
+     if (fd < 0) {
+         ALOGE("Could not open '%s'", path);
+         return -1;
+     }
+
+     len = snprintf(value, SIZE, "%d\n", val);
+     ret = write(fd, value, len);
+
+     close(fd);
+     return (ret == len) ? 0 : -1;
+
+}
+
+static jint writeSysfs(JNIEnv* env, jobject obj, jstring jPath, jint jVal)
+{
+    int ret;
+    const char *path = NULL;
+
+    path = jPath ? env->GetStringUTFChars(jPath, NULL) : NULL;
+    if (!path) {
+        jniThrowNullPointerException(env, "path");
+        return -EINVAL;
+    }
+
+    ret = writeToFile(path, jVal);
+    env->ReleaseStringUTFChars(jPath, path);
+    return ret;
+}
+
+static jstring readSysfs(JNIEnv* env, jobject obj, jstring jPath)
+{
+    const char *path = NULL;
+    const int SIZE = 1024;
+    char buf[SIZE];
+
+    path = jPath ? env->GetStringUTFChars(jPath, NULL) : NULL;
+    if (!path) {
+        jniThrowNullPointerException(env, "path");
+        return NULL;
+    }
+
+    if (readFromFile(path, buf, SIZE) > 0) {
+        env->ReleaseStringUTFChars(jPath, path);
+        return env->NewStringUTF(buf);
+    } else {
+        env->ReleaseStringUTFChars(jPath, path);
+        return NULL;
+    }
+}
 
 static void nativeSubsystemThrottle(JNIEnv *env, jobject clazz, jint subsystem, jint level)
 {
@@ -57,6 +142,8 @@ static void nativeSubsystemThrottle(JNIEnv *env, jobject clazz, jint subsystem, 
 static JNINativeMethod method_table[] = {
     { "nativeInit", "()V", (void*) nativeInit },
     { "nativeSubsystemThrottle", "(II)V", (void*)nativeSubsystemThrottle },
+    { "native_readSysfs", "(Ljava/lang/String;)Ljava/lang/String;", (void*)readSysfs},
+    { "native_writeSysfs", "(Ljava/lang/String;I)I", (void*)writeSysfs},
 };
 
 #define FIND_CLASS(var, className) \
