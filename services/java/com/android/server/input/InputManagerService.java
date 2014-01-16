@@ -653,9 +653,8 @@ public class InputManagerService extends IInputManager.Stub
                 final InputDevice inputDevice = mInputDevices[i];
                 deviceIdAndGeneration[i * 2] = inputDevice.getId();
                 deviceIdAndGeneration[i * 2 + 1] = inputDevice.getGeneration();
-
                 if (!inputDevice.isVirtual() && inputDevice.isFullKeyboard()) {
-                    if (!containsInputDeviceWithDescriptor(oldInputDevices,
+                    if (!containsPhyFullKeyboardInputDeviceWithDescriptor(oldInputDevices,
                             inputDevice.getDescriptor())) {
                         mTempFullKeyboards.add(numFullKeyboardsAdded++, inputDevice);
                     } else {
@@ -759,6 +758,19 @@ public class InputManagerService extends IInputManager.Stub
 
         // Reload keyboard layouts.
         reloadKeyboardLayouts();
+    }
+
+    private static boolean containsPhyFullKeyboardInputDeviceWithDescriptor(
+            InputDevice[] inputDevices, String descriptor) {
+        final int numDevices = inputDevices.length;
+        for (int i = 0; i < numDevices; i++) {
+            final InputDevice inputDevice = inputDevices[i];
+            if (inputDevice.getDescriptor().equals(descriptor)) {
+                if (!inputDevice.isVirtual() && inputDevice.isFullKeyboard())
+                    return true;
+            }
+        }
+        return false;
     }
 
     private static boolean containsInputDeviceWithDescriptor(InputDevice[] inputDevices,
