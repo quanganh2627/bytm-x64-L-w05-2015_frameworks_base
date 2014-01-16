@@ -1306,7 +1306,18 @@ public final class ActivityStackSupervisor {
                     r.userId,
                     userInfo)
             ) {
-                throw new SecurityException("Activity start is disallowed by policy");
+                // Start Activity is denied by ASF client
+                // This block of code is same as above abort handling case. If that code is changed
+                // this block will also need to be changed.
+                if (resultRecord != null) {
+                    resultStack.sendActivityResultLocked(-1, resultRecord, resultWho, requestCode,
+                            Activity.RESULT_CANCELED, null);
+                }
+                // We pretend to the caller that it was really started, but
+                // they will just get a cancel result.
+                setDismissKeyguard(false);
+                ActivityOptions.abort(options);
+                return ActivityManager.START_SUCCESS;
             }
         }
 
