@@ -5779,7 +5779,13 @@ public class PackageManagerService extends IPackageManager.Stub {
                         // Except...  if this is a permission that was added
                         // to the platform (note: need to only do this when
                         // updating the platform).
-                        allowed = isNewPlatformPermissionForPackage(perm, pkg);
+                        if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                            if (!pkg.packageName.startsWith("com.intel.arkham.app_container_")) {
+                                allowed = isNewPlatformPermissionForPackage(perm, pkg);
+                            }
+                        } else {
+                            allowed = isNewPlatformPermissionForPackage(perm, pkg);
+                        }
                     }
                 }
                 if (allowed) {
