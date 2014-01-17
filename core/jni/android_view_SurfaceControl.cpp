@@ -41,13 +41,10 @@
 
 #include <ScopedUtfChars.h>
 
-#ifdef INTEL_FEATURE_ASF
-#include "AsfVersionAosp.h"
-#if PLATFORM_ASF_VERSION >= ASF_VERSION_2
+#if PLATFORM_ASF_VERSION >= 2
 // The interface file for inserting hooks to communicate with native service securitydevice
 #include "AsfDeviceAosp.h"
 #include <private/android_filesystem_config.h>
-#endif
 #endif
 
 
@@ -170,7 +167,7 @@ static inline SkBitmap::Config convertPixelFormat(PixelFormat format) {
     }
 }
 
-#if defined(INTEL_FEATURE_ASF) && (PLATFORM_ASF_VERSION >= ASF_VERSION_2)
+#if PLATFORM_ASF_VERSION >= 2
 static bool notifyScreenCaptureAccess() {
     // Adding hook to call security device service
     const int pid = IPCThreadState::self()->getCallingPid();
@@ -197,7 +194,7 @@ static bool notifyScreenCaptureAccess() {
 static jobject nativeScreenshotBitmap(JNIEnv* env, jclass clazz, jobject displayTokenObj,
         jint width, jint height, jint minLayer, jint maxLayer, bool allLayers) {
 
-#if defined(INTEL_FEATURE_ASF) && (PLATFORM_ASF_VERSION >= ASF_VERSION_2)
+#if PLATFORM_ASF_VERSION >= 2
     // Place call to function that acts as a hook point for camera events
     bool response = notifyScreenCaptureAccess();
     // If response is false, deny access to requested application and return NULL.
