@@ -18,6 +18,10 @@
 
 #include <storage/IMountService.h>
 #include <binder/Parcel.h>
+#define MIN_ASF_VERSION 2
+#if PLATFORM_ASF_VERSION >= MIN_ASF_VERSION
+#include "MountListener.h"
+#endif
 
 namespace android {
 
@@ -54,6 +58,10 @@ enum {
 
 class BpMountService: public BpInterface<IMountService>
 {
+#if PLATFORM_ASF_VERSION >= MIN_ASF_VERSION
+private:
+    MountListener mountListener;
+#endif
 public:
     BpMountService(const sp<IBinder>& impl)
         : BpInterface<IMountService>(impl)
@@ -143,6 +151,12 @@ public:
     int32_t mountVolume(const String16& mountPoint)
     {
         Parcel data, reply;
+#if PLATFORM_ASF_VERSION >= MIN_ASF_VERSION
+        // Inform the security framework that a mount event has happened.
+        // Call the security framework event handler.
+        String8 m_mountPoint(mountPoint.string());
+        mountListener.sendVolumeEvent((int)E_VOLUME_MOUNT, m_mountPoint);
+#endif
         data.writeInterfaceToken(IMountService::getInterfaceDescriptor());
         data.writeString16(mountPoint);
         if (remote()->transact(TRANSACTION_mountVolume, data, &reply) != NO_ERROR) {
@@ -160,6 +174,12 @@ public:
     int32_t unmountVolume(const String16& mountPoint, const bool force, const bool removeEncryption)
     {
         Parcel data, reply;
+#if PLATFORM_ASF_VERSION >= MIN_ASF_VERSION
+        // Inform the security framework that an unmount event has happened.
+        // Call the security framework event handler.
+        String8 m_mountPoint(mountPoint.string());
+        mountListener.sendVolumeEvent((int)E_VOLUME_UNMOUNT, m_mountPoint);
+#endif
         data.writeInterfaceToken(IMountService::getInterfaceDescriptor());
         data.writeString16(mountPoint);
         data.writeInt32(force ? 1 : 0);
