@@ -28,12 +28,9 @@
 #include "android_runtime/AndroidRuntime.h"
 #include "android_runtime/Log.h"
 
-#ifdef INTEL_FEATURE_ASF
-#include "AsfVersionAosp.h"
-#if PLATFORM_ASF_VERSION >= ASF_VERSION_2
+#if PLATFORM_ASF_VERSION >= 2
 // The interface file for inserting hooks to communicate with native service securitydevice
 #include "AsfDeviceAosp.h"
-#endif
 #endif
 
 #include <string.h>
@@ -393,7 +390,7 @@ static void android_location_GpsLocationProvider_class_init_native(JNIEnv* env, 
             (const GpsGeofencingInterface*)sGpsInterface->get_extension(GPS_GEOFENCING_INTERFACE);
     }
 }
-#if defined(INTEL_FEATURE_ASF) && (PLATFORM_ASF_VERSION >= ASF_VERSION_2)
+#if PLATFORM_ASF_VERSION >= 2
 static bool notifyGpsAccess(const int pid, const int uid) {
     // Adding hook to call security device service
     AsfDeviceAosp asfDevice;
@@ -813,7 +810,7 @@ static jboolean android_location_GpsLocationProvider_notify_gps_access(JNIEnv* e
         return JNI_TRUE;
     }
 
-#if defined(INTEL_FEATURE_ASF) && (PLATFORM_ASF_VERSION >= ASF_VERSION_2)
+#if PLATFORM_ASF_VERSION >=2
     // Place call to function that acts as a hook point for Gps events
     bool response = notifyGpsAccess(pid, uid);
     // If response is false the ASF had denied permission to access Location
