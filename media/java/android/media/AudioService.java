@@ -573,6 +573,7 @@ public class AudioService extends IAudioService.Stub {
         intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
         intentFilter.addAction(Intent.ACTION_USER_SWITCHED);
         intentFilter.addAction(Intent.HDMI_SET_STATUS);
+        intentFilter.addAction(Intent.ACTION_DIGITAL_AUDIO_DOCK_PLUG);
 
         intentFilter.addAction(Intent.ACTION_CONFIGURATION_CHANGED);
         // TODO merge orientation and rotation
@@ -4201,6 +4202,11 @@ public class AudioService extends IAudioService.Stub {
                                                         AudioSystem.DEVICE_STATE_AVAILABLE,
                                                         "");
                 }
+            } else if (action.equals(Intent.ACTION_DIGITAL_AUDIO_DOCK_PLUG)) {
+                mState = intent.getIntExtra("state", 0);
+                Log.v(TAG, "Broadcast Receiver: Got ACTION_DIGITAL_AUDIO_DOCK_PLUG, state = "
+                        +mState);
+                handleDeviceConnection((mState == 1), AudioSystem.DEVICE_OUT_DGTL_DOCK_HEADSET, "");
             } else if (action.equals(Intent.ACTION_USB_AUDIO_ACCESSORY_PLUG) ||
                            action.equals(Intent.ACTION_USB_AUDIO_DEVICE_PLUG)) {
                 state = intent.getIntExtra("state", 0);

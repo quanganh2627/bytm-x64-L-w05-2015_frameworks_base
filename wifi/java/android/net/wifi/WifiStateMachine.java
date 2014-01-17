@@ -121,6 +121,8 @@ public class WifiStateMachine extends StateMachine {
     private final boolean mP2pSupported;
     private final AtomicBoolean mP2pConnecting = new AtomicBoolean(false);
     private final AtomicBoolean mP2pConnected  = new AtomicBoolean(false);
+    private final AtomicBoolean mSoftApErrorDetected = new AtomicBoolean(false);
+    private WifiConfiguration mLastWifiApConfig = null;
     private boolean mTemporarilyDisconnectWifi = false;
     private final String mPrimaryDeviceType;
 
@@ -1697,6 +1699,23 @@ public class WifiStateMachine extends StateMachine {
         }
     }
 
+    /* Wifi_Hotspot */
+    public List<WifiChannel> getWifiAuthorizedChannels() {
+        String rawList = mWifiNative.getWifiApChannelList();
+        List<WifiChannel> resultList = new ArrayList<WifiChannel>();
+
+        if (rawList == null)
+            return null;
+        // Extract elements from the list and skip duplicates if any
+        String[] items = rawList.split(" ");
+        for (String item : items) {
+            WifiChannel channel = new WifiChannel(item);
+            if (!resultList.contains(channel))
+                resultList.add(channel);
+        }
+        return resultList;
+    }
+
     @Override
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         super.dump(fd, pw, args);
@@ -2496,6 +2515,7 @@ public class WifiStateMachine extends StateMachine {
      * on a running daemon
      */
     private void startSoftApWithConfig(final WifiConfiguration config) {
+        mLastWifiApConfig = config;
         // start hostapd on a seperate thread
         new Thread(new Runnable() {
             public void run() {
@@ -2822,6 +2842,16 @@ public class WifiStateMachine extends StateMachine {
                         transitionTo(mSoftApStartingState);
                     } else {
                         loge("Failed to load driver for softap");
+                        if (mSoftApErrorDetected.get()) {
+                            mSoftApErrorDetected.set(false);
+                            if (mLastWifiApConfig != null &&
+                                    !mLastWifiApConfig.getWifiApConfigurationAdv().isRadioDefault())
+                            {
+                                if (DBG) log("Restart softAP with default radio configuration");
+                                mLastWifiApConfig.getWifiApConfigurationAdv().resetRadioConfig();
+                                setHostApRunning(mLastWifiApConfig, true);
+                            }
+                        }
                     }
                 default:
                     return NOT_HANDLED;

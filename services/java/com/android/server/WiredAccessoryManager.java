@@ -68,6 +68,9 @@ final class WiredAccessoryManager implements WiredAccessoryCallbacks {
     private static final String NAME_USB_AUDIO = "usb_audio";
     private static final String NAME_HDMI_AUDIO = "hdmi_audio";
     private static final String NAME_HDMI = "hdmi";
+    private static final String NAME_USB_AUDIO_EXT = "usb_audio_ext";
+    private static final String NAME_USB_EXTCON = "extcon/usb_audio_ext";
+    private static final String EXTCON_USB_DEVPATH = "/devices/platform/extcon-usb/";
 
     private static final int MSG_NEW_DEVICE_STATE = 1;
 
@@ -346,6 +349,14 @@ final class WiredAccessoryManager implements WiredAccessoryCallbacks {
                 Slog.w(TAG, "This kernel does not have usb audio support");
             }
 
+           // Monitor USB ext audio
+           uei = new UEventInfo(NAME_USB_EXTCON, BIT_USB_HEADSET_ANLG, BIT_USB_HEADSET_DGTL);
+           if (uei.checkSwitchExists()) {
+               retVal.add(uei);
+           } else {
+               Slog.w(TAG, "This kernel does not have usb external audio support");
+           }
+
             // Monitor HDMI
             //
             // If the kernel has support for the "hdmi_audio" switch, use that.  It will be
@@ -375,8 +386,20 @@ final class WiredAccessoryManager implements WiredAccessoryCallbacks {
 
             try {
                 String devPath = event.get("DEVPATH");
-                String name = event.get("SWITCH_NAME");
-                int state = Integer.parseInt(event.get("SWITCH_STATE"));
+
+                // usb extcon switch observed over NAME/ STATE instead of default entries
+                 String name;
+                 try {
+                     name = event.get("SWITCH_NAME");
+                 } catch (Exception e) {
+                     name = event.get("NAME");
+                 }
+                 int state;
+                 try {
+                     state = Integer.parseInt(event.get("SWITCH_STATE"));
+                 } catch (Exception e) {
+                     state = Integer.parseInt(event.get("STATE"));
+                 }
                 synchronized (mLock) {
                     updateStateLocked(devPath, name, state);
                 }
@@ -409,10 +432,17 @@ final class WiredAccessoryManager implements WiredAccessoryCallbacks {
             public String getDevName() { return mDevName; }
 
             public String getDevPath() {
+                if (mDevName.compareTo(NAME_USB_EXTCON) == 0) {
+                    return String.format(Locale.US, "/devices/platform/extcon-usb/%s", mDevName);
+                }
                 return String.format(Locale.US, "/devices/virtual/switch/%s", mDevName);
             }
 
             public String getSwitchStatePath() {
+                if (mDevName.compareTo(NAME_USB_EXTCON) == 0) {
+                    return String.format(Locale.US, "/sys/class/extcon/%s/state",
+                            NAME_USB_AUDIO_EXT);
+                }
                 return String.format(Locale.US, "/sys/class/switch/%s/state", mDevName);
             }
 

@@ -317,12 +317,7 @@ public class WindowManagerService extends IWindowManager.Stub
                     return;
 
                 mForceLandScape = forceToLandscape;
-                if (updateOrientationFromAppTokensLocked(false)) {
-                    Configuration config = null;
-                    config = computeNewConfiguration();
-                    if (config != null)
-                        setNewConfiguration(config);
-                }
+                updateRotation(false, false);
                 Slog.d(TAG, forceToLandscape ? "Force to landscape." : "Screen can rotate.");
             }
         }
@@ -603,11 +598,11 @@ public class WindowManagerService extends IWindowManager.Stub
         // Set to true when the display contains content to show the user.
         // When false, the display manager may choose to mirror or blank the display.
         boolean mDisplayHasContent = false;
+        boolean mDisplayHasBgPresentation = false;
 
         // Only set while traversing the default display based on its content.
         // Affects the behavior of mirroring on secondary displays.
         boolean mObscureApplicationContentOnSecondaryDisplays = false;
-        private boolean mDisplayHasBgPresentation;
     }
     final LayoutFields mInnerFields = new LayoutFields();
 
@@ -3715,9 +3710,6 @@ public class WindowManagerService extends IWindowManager.Stub
             if (req == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
                 req = getOrientationFromAppTokensLocked();
             }
-            if (mForceLandScape && req == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
-                req = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
-            }
 
             if (req != mForcedAppOrientation) {
                 mForcedAppOrientation = req;
@@ -5939,6 +5931,11 @@ public class WindowManagerService extends IWindowManager.Stub
             // No point choosing a rotation if the display is not enabled.
             if (DEBUG_ORIENTATION) Slog.v(TAG, "Deferring rotation, display is not enabled.");
             return false;
+        }
+
+        if (mForceLandScape && mForcedAppOrientation ==
+                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
+                mForcedAppOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
         }
 
         // TODO: Implement forced rotation changes.
@@ -8882,8 +8879,9 @@ public class WindowManagerService extends IWindowManager.Stub
                     // Allow full screen keyguard presentation dialogs to be seen.
                     mInnerFields.mDisplayHasContent = true;
                 }
-                if (!w.isDefaultDisplay() && type == TYPE_SYSTEM_ALERT) {
+                if (!w.mDisplayContent.isDefaultDisplay && type == TYPE_SYSTEM_ALERT) {
                     // We found a background presentation.
+                    mInnerFields.mDisplayHasContent = true;
                     mInnerFields.mDisplayHasBgPresentation = true;
                 }
             }
@@ -9002,8 +9000,6 @@ public class WindowManagerService extends IWindowManager.Stub
 
                 // Reset for each display.
                 mInnerFields.mDisplayHasContent = false;
-
-                // Reset for each display. Will be set to true if bg presentation is found.
                 mInnerFields.mDisplayHasBgPresentation = false;
 
                 int repeats = 0;
@@ -9215,6 +9211,7 @@ public class WindowManagerService extends IWindowManager.Stub
 
                 mDisplayManagerService.setDisplayHasContent(displayId,
                         mInnerFields.mDisplayHasContent,
+                        mInnerFields.mDisplayHasBgPresentation,
                         true /* inTraversal, must call performTraversalInTrans... below */);
 
                 getDisplayContentLocked(displayId).stopDimmingIfNeeded();

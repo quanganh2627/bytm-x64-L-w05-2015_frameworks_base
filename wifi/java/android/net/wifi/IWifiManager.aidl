@@ -18,6 +18,8 @@ package android.net.wifi;
 
 import android.net.wifi.BatchedScanResult;
 import android.net.wifi.BatchedScanSettings;
+import android.net.wifi.WifiApConfiguration;
+import android.net.wifi.WifiChannel;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.ScanResult;
@@ -95,6 +97,8 @@ interface IWifiManager
 
     WifiConfiguration getWifiApConfiguration();
 
+    WifiApConfiguration getWifiApConfigurationAdv();
+
     void setWifiApConfiguration(in WifiConfiguration wifiConfig);
 
     void startWifi();
@@ -132,5 +136,7 @@ interface IWifiManager
     String setRTCoexMode(int enable, int safeChannelBitmap);
 
     String setSafeChannel(int safeChannelBitmap);
+
+    List<WifiChannel> getWifiAuthorizedChannels();
 }
 

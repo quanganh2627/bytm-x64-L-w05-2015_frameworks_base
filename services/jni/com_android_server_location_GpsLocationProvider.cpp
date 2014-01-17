@@ -531,15 +531,18 @@ static void android_location_GpsLocationProvider_agps_set_reference_location(JNI
     switch(type) {
         case AGPS_REF_LOCATION_TYPE_GSM_CELLID:
         case AGPS_REF_LOCATION_TYPE_UMTS_CELLID:
+        case AGPS_REF_LOCATION_TYPE_LTE_CELLID:
             location.type = type;
-            // format is : "mcc:mnc:lac:cid"
+            // format is : "mcc:mnc:lac:cid:psc"
             substr_ptr = strsep(&str_ptr, ":");
             location.u.cellID.mcc = atoi(substr_ptr);
             substr_ptr = strsep(&str_ptr, ":");
             location.u.cellID.mnc = atoi(substr_ptr);
             substr_ptr = strsep(&str_ptr, ":");
             location.u.cellID.lac = atoi(substr_ptr);
-            location.u.cellID.cid = atoi(str_ptr);
+            substr_ptr = strsep(&str_ptr, ":");
+            location.u.cellID.cid = atoi(substr_ptr);
+            location.u.cellID.psc = atoi(str_ptr);
             break;
         case AGPS_REF_LOCATION_TYPE_MAC:
             unsigned char high_byte, low_byte;
