@@ -366,8 +366,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
     private String mUiccHslp = null;
 
     // INTEL_FEATURE_ASF
-    private static int sPid = 0;
-    private static int sUid = 0;
+    private static int sPid;
+    private static int sUid;
     // INTEL_FEATURE_ASF_END
 
     private final IGpsStatusProvider mGpsStatusProvider = new IGpsStatusProvider.Stub() {
