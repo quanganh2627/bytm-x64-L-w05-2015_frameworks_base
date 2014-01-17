@@ -82,6 +82,7 @@ import android.view.Display;
 import com.android.server.pm.UserManagerService;
 import com.intel.arkham.ContainerConstants;
 import com.intel.arkham.IContainerManager;
+import com.intel.asf.AsfAosp;
 import com.intel.config.FeatureConfig;
 
 import java.io.FileDescriptor;
@@ -223,6 +224,12 @@ class ActivityStack {
 
     long mLaunchStartTime = 0;
     long mFullyDrawnStartTime = 0;
+
+    // ASF HOOK
+    // To set the calling app package name
+    private String mCallingPackage = null;
+    // To set the calling app PID
+    private int mCallingPid = 0;
 
     /**
      * Save the most recent screenshot for reuse. This keeps Recents from taking two identical
@@ -1746,6 +1753,28 @@ class ActivityStack {
         }
         TaskRecord task = null;
 
+        // ASF HOOK: Start Activity event
+        if (FeatureConfig.INTEL_FEATURE_ASF
+                && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+            UserInfo userInfo = null;
+            try {
+                userInfo = mService.getCurrentUser();
+            } catch (SecurityException e) {
+                Slog.e(TAG, "SecurityException while retrieving userInfo: " + e);
+            }
+            if (!AsfAosp.sendStartActivityEvent(
+                    r.info,
+                    mCallingPackage,
+                    r.packageName,
+                    r.intent,
+                    r.userId,
+                    userInfo,
+                    mCallingPid)
+            ) {
+                throw new SecurityException("Activity start is disallowed by policy");
+            }
+        }
+
         if (!newTask) {
             // If starting in an existing task, find where that is...
             boolean startIt = true;
@@ -2178,6 +2207,10 @@ class ActivityStack {
 
                 replyChainEnd = -1;
             }
+        // ASF HOOK
+        // Set calling app name and PID
+        //mCallingPackage = callingPackage;
+        //mCallingPid = callingPid;
         }
         return taskInsertionPoint;
     }
