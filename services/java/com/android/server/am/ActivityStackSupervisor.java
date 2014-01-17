@@ -1304,7 +1304,8 @@ public final class ActivityStackSupervisor {
                     r.packageName,
                     r.intent,
                     r.userId,
-                    userInfo)
+                    userInfo,
+                    callingPid)
             ) {
                 throw new SecurityException("Activity start is disallowed by policy");
             }
