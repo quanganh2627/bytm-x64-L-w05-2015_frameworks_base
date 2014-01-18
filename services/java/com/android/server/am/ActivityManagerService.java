@@ -2782,7 +2782,13 @@ public class ActivityManagerService extends ActivityManagerNative
 
             // ASF HOOK: application start event
             if (FeatureConfig.INTEL_FEATURE_ASF) {
-                if (!AsfAosp.sendAppStartEvent(app.info, app.userId, getCurrentUser())) {
+                UserInfo userInfo = null;
+                try {
+                    userInfo = getCurrentUser();
+                } catch (SecurityException e) {
+                    // When there is an exception, null userInfo is sent to ASF client.
+                }
+                if (!AsfAosp.sendAppStartEvent(app.info, app.userId, userInfo)) {
                     throw new SecurityException("process start is disallowed by policy.");
                 }
             }
@@ -3656,7 +3662,12 @@ public class ActivityManagerService extends ActivityManagerNative
 
         // ASF HOOK: application stop event
         if (FeatureConfig.INTEL_FEATURE_ASF) {
-            UserInfo userInfo = getCurrentUser();
+            UserInfo userInfo = null;
+            try {
+                userInfo = getCurrentUser();
+            } catch (SecurityException e) {
+                // When there is an exception, null userInfo is sent to ASF client.
+            }
             AsfAosp.sendAppStopEvent(app.info, app.userId, app.pid, userInfo);
         }
 
