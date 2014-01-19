@@ -1521,21 +1521,13 @@ public class LockPatternUtils extends ParentLockPatternUtils {
 
 
     /**
-     * INTEL_LPAL: check if vtsv service(voice unlock) has been installed
+     * INTEL_LPAL: check if vtsv service(voice unlock) has been enabled.
+     * Left this API here for compatability and future use purpose.
      * @return Whether biometric weak voice lock is installed
      * @hide
      */
     public boolean isBiometricVoiceWeakInstalled() {
-        Log.d(TAG, "isBiometricVoiceWeakInstalled");
-        // Check that it's installed
-        PackageManager pm = mContext.getPackageManager();
-        try {
-            pm.getPackageInfo(VOICE_UNLOCK_SERVICE, PackageManager.GET_ACTIVITIES);
-        } catch (PackageManager.NameNotFoundException e) {
-            Log.d(INTEL_LPAL_TAG, VOICE_UNLOCK_SERVICE + " is not installed");
-            return false;
-        }
-        return true;
+        return FeatureConfig.INTEL_FEATURE_LPAL;
     }
 
     /**

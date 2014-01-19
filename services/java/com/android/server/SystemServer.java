@@ -938,6 +938,16 @@ class ServerThread {
                 Slog.i(TAG, "AwareServices");
             }
 
+           if (FeatureConfig.INTEL_FEATURE_LPAL) {
+                Class[] ptype = new Class[] { Context.class };
+                Object[] obj = new Object[] { context };
+
+                String name = "com.intel.vtsv.VtsvService";
+                registerService(name, ptype , obj);
+
+                Slog.i(TAG, "VtsvService");
+            }
+
             if (!disableNonCoreServices) {
                 try {
                     Slog.i(TAG, "Media Router Service");

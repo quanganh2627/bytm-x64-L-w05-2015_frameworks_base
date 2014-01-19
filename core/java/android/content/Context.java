@@ -2467,6 +2467,18 @@ public abstract class Context {
     public static final String CONSUMER_IR_SERVICE = "consumer_ir";
 
     /**
+     * @hide
+     *
+     * Use with {@link #getSystemService} to retrieve a
+     * {@link com.intel.vtsv.VtsvManager} for interactiing with
+     * lpal device
+     *
+     * @see #getSystemService
+     * @see com.intel.vtsv.VtsvManager
+     */
+    public static final String VTSV_SERVICE = "vtsv";
+
+    /**
      * Determine whether the given permission is allowed for a particular
      * process and user ID running in the system.
      *
