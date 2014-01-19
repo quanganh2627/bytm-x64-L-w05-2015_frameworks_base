@@ -322,6 +322,19 @@ LOCAL_SRC_FILES += \
 	../../$(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/core/java/com/intel/arkham/IContainerManager.aidl
 LOCAL_AIDL_INCLUDES += $(LOCAL_ARKHAM_PATH)/frameworks/disabled/base/core/java
 endif
+
+LOCAL_LPAL_PATH := vendor/intel/lpal
+ifeq ($(strip $(INTEL_FEATURE_LPAL)),true)
+LOCAL_SRC_FILES += \
+	$(call find-other-java-files,../../$(LOCAL_LPAL_PATH)/frameworks/enabled/base/core/java,) \
+	../../$(LOCAL_LPAL_PATH)/frameworks/enabled/base/core/java/com/intel/vtsv/IVtsvEventListener.aidl \
+	../../$(LOCAL_LPAL_PATH)/frameworks/enabled/base/core/java/com/intel/vtsv/IVtsvService.aidl
+LOCAL_AIDL_INCLUDES += $(LOCAL_LPAL_PATH)/frameworks/enabled/base/core/java
+else
+LOCAL_SRC_FILES += \
+	$(call find-other-java-files,../../$(LOCAL_LPAL_PATH)/frameworks/disabled/base/core/java,)
+endif
+
 # FRAMEWORKS_BASE_JAVA_SRC_DIRS comes from build/core/pathmap.mk
 LOCAL_AIDL_INCLUDES += $(FRAMEWORKS_BASE_JAVA_SRC_DIRS)
 
