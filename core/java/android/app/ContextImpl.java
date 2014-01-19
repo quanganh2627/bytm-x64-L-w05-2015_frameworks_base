@@ -121,6 +121,8 @@ import com.android.internal.os.IDropBoxManagerService;
 import com.intel.arkham.ExtendAccountManager;
 import com.intel.config.FeatureConfig;
 
+import com.intel.vtsv.VtsvManager;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -593,6 +595,11 @@ class ContextImpl extends Context {
         registerService(CONSUMER_IR_SERVICE, new ServiceFetcher() {
             public Object createService(ContextImpl ctx) {
                 return new ConsumerIrManager(ctx);
+            }});
+
+        registerService(VTSV_SERVICE, new ServiceFetcher() {
+            public Object createService(ContextImpl ctx) {
+                return new VtsvManager(ctx);
             }});
     }
 
