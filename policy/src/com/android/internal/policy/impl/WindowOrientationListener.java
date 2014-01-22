@@ -807,7 +807,9 @@ public abstract class WindowOrientationListener {
                 if (event.values[0] == TERMINAL_PORTRAIT_UP ||
                     event.values[0] == TERMINAL_PORTRAIT_DOWN ||
                     event.values[0] == TERMINAL_HORIZONTAL_UP ||
-                    event.values[0] == TERMINAL_HORIZONTAL_DOWN) {
+                    event.values[0] == TERMINAL_HORIZONTAL_DOWN ||
+                    event.values[0] == TERMINAL_FACE_UP ||
+                    event.values[0] == TERMINAL_FACE_DOWN) {
                     if (!mAccelRegistered) {
                         mSensorManager.registerListener(mSensorEventListener, mSensor,
                                 10000, mHandler); // 10000 microseconds
