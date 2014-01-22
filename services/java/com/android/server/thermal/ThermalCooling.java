@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-
 /**
  * The ThermalCooling class parses the thermal_throttle_config.xml. This class
  * receives Thermal Intents and takes appropriate actions based on the policies
@@ -272,7 +271,8 @@ public class ThermalCooling {
         // Register for thermal zone state changed notifications
         IntentFilter filter = new IntentFilter();
         filter.addAction(ThermalManager.ACTION_THERMAL_ZONE_STATE_CHANGED);
-        mContext.registerReceiver(mThermalIntentReceiver, filter);
+        mContext.registerReceiver(mThermalIntentReceiver, filter,
+                android.Manifest.permission.BRICK, null);
 
         // register for ongoing emergency call intent
         IntentFilter emergencyIntentFilter = new IntentFilter();

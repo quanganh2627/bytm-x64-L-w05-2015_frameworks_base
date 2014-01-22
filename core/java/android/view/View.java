@@ -8891,7 +8891,12 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
                 invalidate(true);
 
                 needGlobalAttributesUpdate(true);
-                requestLayout();
+
+                // request layout here to make sure correct transparent region computation
+                View root = getRootView();
+                if ((root != null) && !root.isLayoutRequested()) {
+                    root.requestLayout();
+                }
 
                 // a view becoming visible is worth notifying the parent
                 // about in case nothing has focus.  even if this specific view
@@ -17409,8 +17414,6 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
         if (DBG) {
             Log.i("View", "Getting transparent region for: " + this);
         }
-        // sometimes dr is transparent, but getTransparentRegion returns null
-        if (dr.getOpacity() == PixelFormat.TRANSPARENT) return;
 
         final Region r = dr.getTransparentRegion();
         final Rect db = dr.getBounds();

@@ -326,6 +326,12 @@ public class WifiConfiguration implements Parcelable {
      */
     public LinkProperties linkProperties;
 
+    /**
+     * @hide
+     */
+    public WifiApConfiguration mWifiApConfiguration;
+
+
     public WifiConfiguration() {
         networkId = INVALID_NETWORK_ID;
         SSID = null;
@@ -346,6 +352,23 @@ public class WifiConfiguration implements Parcelable {
         ipAssignment = IpAssignment.UNASSIGNED;
         proxySettings = ProxySettings.UNASSIGNED;
         linkProperties = new LinkProperties();
+        mWifiApConfiguration = new WifiApConfiguration();
+    }
+
+
+    /**
+     * @hide
+     */
+    public WifiConfiguration getWifiApConfiguration() {
+        return this;
+    }
+
+
+    /**
+     * @hide
+     */
+    public WifiApConfiguration getWifiApConfigurationAdv() {
+        return mWifiApConfiguration;
     }
 
     /**
@@ -604,6 +627,7 @@ public class WifiConfiguration implements Parcelable {
             ipAssignment = source.ipAssignment;
             proxySettings = source.proxySettings;
             linkProperties = new LinkProperties(source.linkProperties);
+            mWifiApConfiguration = new WifiApConfiguration(source.mWifiApConfiguration);
         }
     }
 
@@ -633,6 +657,7 @@ public class WifiConfiguration implements Parcelable {
         dest.writeString(ipAssignment.name());
         dest.writeString(proxySettings.name());
         dest.writeParcelable(linkProperties, flags);
+        dest.writeParcelable(mWifiApConfiguration, flags);
     }
 
     /** Implement the Parcelable interface {@hide} */
@@ -660,9 +685,19 @@ public class WifiConfiguration implements Parcelable {
 
                 config.enterpriseConfig = in.readParcelable(null);
 
-                config.ipAssignment = IpAssignment.valueOf(in.readString());
-                config.proxySettings = ProxySettings.valueOf(in.readString());
+                String tmp =  in.readString();
+                if (tmp == null) {
+                    config.ipAssignment = IpAssignment.UNASSIGNED;
+                } else {
+                    config.ipAssignment = IpAssignment.valueOf(tmp);
+                }
+
+                tmp =  in.readString();
+                if (tmp != null)
+                    config.proxySettings = ProxySettings.valueOf(tmp);
+
                 config.linkProperties = in.readParcelable(null);
+                config.mWifiApConfiguration = in.readParcelable(null);
 
                 return config;
             }

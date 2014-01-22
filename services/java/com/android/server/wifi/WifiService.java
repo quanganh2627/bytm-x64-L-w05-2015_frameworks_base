@@ -34,6 +34,9 @@ import android.net.wifi.IWifiManager;
 import android.net.wifi.ScanResult;
 import android.net.wifi.BatchedScanResult;
 import android.net.wifi.BatchedScanSettings;
+import android.net.wifi.WifiApConfiguration;
+import android.net.wifi.WifiChannel;
+import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.ProxySettings;
 import android.net.wifi.WifiInfo;
@@ -695,6 +698,15 @@ public class WifiService extends IWifiManager.Stub {
     }
 
     /**
+     * see {@link WifiManager#getWifiApConfigurationAdv()}
+     * @return soft access point configuration
+     */
+    public WifiApConfiguration getWifiApConfigurationAdv() {
+        enforceAccessPermission();
+        return mWifiStateMachine.syncGetWifiApConfiguration().getWifiApConfigurationAdv();
+    }
+
+    /**
      * see {@link WifiManager#setWifiApConfiguration(WifiConfiguration)}
      * @param wifiConfig WifiConfiguration details for soft access point
      */
@@ -707,6 +719,13 @@ public class WifiService extends IWifiManager.Stub {
         } else {
             Slog.e(TAG, "Invalid WifiConfiguration");
         }
+    }
+
+    /**
+     * Wifi_Hotspot: Request the list of authorized channels for Wifi_Hotspot.
+     */
+    public List<WifiChannel> getWifiAuthorizedChannels() {
+        return mWifiStateMachine.getWifiAuthorizedChannels();
     }
 
     /**
