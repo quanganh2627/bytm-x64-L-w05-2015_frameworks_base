@@ -353,12 +353,7 @@ class ServerThread {
             display.setWindowManager(wm);
             display.setInputManager(inputManager);
 
-            // Skip Bluetooth if we have an emulator kernel
-            // TODO: Use a more reliable check to see if this product should
-            // support Bluetooth - see bug 988521
-            if (SystemProperties.get("ro.kernel.qemu").equals("1")) {
-                Slog.i(TAG, "No Bluetooh Service (emulator)");
-            } else if (factoryTest == SystemServer.FACTORY_TEST_LOW_LEVEL) {
+            if (factoryTest == SystemServer.FACTORY_TEST_LOW_LEVEL) {
                 Slog.i(TAG, "No Bluetooth Service (factory test)");
             } else if (!context.getPackageManager().hasSystemFeature
                        (PackageManager.FEATURE_BLUETOOTH)) {
