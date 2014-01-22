@@ -347,6 +347,7 @@ public class VolumePreference extends SeekBarDialogPreference implements
             postStopSample();
             mContext.getContentResolver().unregisterContentObserver(mVolumeObserver);
             mSeekBar.setOnSeekBarChangeListener(null);
+            mHandler.getLooper().quit();
         }
 
         public void revertVolume() {
