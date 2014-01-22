@@ -4481,8 +4481,9 @@ public class PackageManagerService extends IPackageManager.Stub {
                 pkg.applicationInfo.flags |= ApplicationInfo.FLAG_UPDATED_SYSTEM_APP;
                 // ASF HOOK: system package update event
                 if (FeatureConfig.INTEL_FEATURE_ASF) {
+                    int userId = (user != null) ? user.getIdentifier() : 0;
                     AsfAosp.sendSystemAppUpdateEvent(pkg,
-                            sUserManager.getUserInfo(UserHandle.getCallingUserId()));
+                            sUserManager.getUserInfo(userId));
                 }
             }
 
@@ -4568,15 +4569,16 @@ public class PackageManagerService extends IPackageManager.Stub {
         // ASF HOOK: package installation event
         if (FeatureConfig.INTEL_FEATURE_ASF) {
             if ((scanMode & SCAN_NEW_INSTALL) != 0) {
+                int userId = (user != null) ? user.getIdentifier() : 0;
                 if (!AsfAosp.sendPackageInstallEvent(
                         pkg,
                         generatePackageInfo(
                                 pkg,
                                 AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
-                                (user != null) ? UserHandle.getUserId(user.getIdentifier()) : 0
+                                userId >= 0 ? userId : 0
                         ),
                         (scanMode & SCAN_UPDATE_TIME)!=0,
-                        sUserManager.getUserInfo(UserHandle.getCallingUserId()))
+                        sUserManager.getUserInfo(userId))
                 ) {
                     mLastScanError = PackageManager.INSTALL_FAILED_VERIFICATION_FAILURE;
                     return null;
@@ -9766,7 +9768,7 @@ public class PackageManagerService extends IPackageManager.Stub {
      */
     private boolean deleteSystemPackageLI(PackageSetting newPs,
             int[] allUserHandles, boolean[] perUserInstalled,
-            int flags, PackageRemovedInfo outInfo, boolean writeSettings) {
+            int flags, PackageRemovedInfo outInfo, boolean writeSettings, UserHandle user) {
         final boolean applyUserRestrictions
                 = (allUserHandles != null) && (perUserInstalled != null);
         PackageSetting disabledPs = null;
@@ -9797,8 +9799,9 @@ public class PackageManagerService extends IPackageManager.Stub {
         if (FeatureConfig.INTEL_FEATURE_ASF) {
             PackageInfo packageInfo = getPackageInfo(
                     newPs.name, AsfAosp.SECURITY_PACKAGEINFO_FLAGS, 0);
+            int userId = (user != null) ? user.getIdentifier() : 0;
             if (!AsfAosp.sendSystemAppDeleteEvent(packageInfo, newPs.pkg.mPath,
-                    sUserManager.getUserInfo(UserHandle.getCallingUserId()))) {
+                    sUserManager.getUserInfo(userId))) {
                 return false;
             }
         }
@@ -9912,15 +9915,16 @@ public class PackageManagerService extends IPackageManager.Stub {
                     pkg = null;
                 }
             }
+            int userId = (user != null) ? user.getIdentifier() : 0;
             if (!AsfAosp.sendPackageDeleteEvent(
                     packageName,
                     pkg,
                     getPackageInfo(
                             packageName,
                             AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
-                            (user != null) ? UserHandle.getUserId(user.getIdentifier()) : 0
+                            userId >= 0 ? userId : 0
                     ),
-                    sUserManager.getUserInfo(UserHandle.getCallingUserId())
+                    sUserManager.getUserInfo(userId)
             )) {
                 return false;
             }
@@ -10004,7 +10008,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             // When an updated system application is deleted we delete the existing resources as well and
             // fall back to existing code in system partition
             ret = deleteSystemPackageLI(ps, allUserHandles, perUserInstalled,
-                    flags, outInfo, writeSettings);
+                    flags, outInfo, writeSettings, user);
         } else {
             if (DEBUG_REMOVE) Slog.d(TAG, "Removing non-system package:" + ps.name);
             // Kill application pre-emptively especially for apps on sd.
