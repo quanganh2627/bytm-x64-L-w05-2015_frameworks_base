@@ -62,13 +62,15 @@ import android.os.WorkSource;
 import android.provider.Settings;
 import android.provider.Telephony.Carriers;
 import android.provider.Telephony.Sms.Intents;
-import android.telephony.CellLocation;
-import android.telephony.PhoneStateListener;
+import android.telephony.CellIdentityGsm;
+import android.telephony.CellIdentityLte;
+import android.telephony.CellIdentityWcdma;
 import android.telephony.CellInfo;
-import android.telephony.ServiceState;
+import android.telephony.CellInfoGsm;
+import android.telephony.CellInfoLte;
+import android.telephony.CellInfoWcdma;
 import android.telephony.SmsMessage;
 import android.telephony.TelephonyManager;
-import android.telephony.gsm.GsmCellLocation;
 import android.util.Log;
 import android.util.NtpTrustedTime;
 
@@ -96,6 +98,7 @@ import java.io.PrintWriter;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.Properties;
 
@@ -237,8 +240,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
     }
 
     private Object mLock = new Object();
-    private Object mCellLocationLock = new Object();
-    private Boolean mWaitingRefLocations = false;
 
     private int mLocationFlags = LOCATION_INVALID;
 
@@ -339,7 +340,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
     private final ConnectivityManager mConnMgr;
     private final GpsNetInitiatedHandler mNIHandler;
     private final TelephonyManager mTelephonyManager;
-    private boolean mRefLocationRequested;
 
     // Wakelocks
     private final static String WAKELOCK_KEY = "GpsLocationProvider";
@@ -361,7 +361,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
     private GeofenceHardwareImpl mGeofenceHardwareImpl;
 
     private CsmClientGps mCsmClient;
-    private Boolean mModemInService = false;
 
     private String mUiccHslp = null;
 
@@ -426,19 +425,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
     public IGpsGeofenceHardware getGpsGeofenceProxy() {
         return mGpsGeofenceBinder;
     }
-
-    private PhoneStateListener mPhoneStateListener = new PhoneStateListener() {
-        @Override
-        public void onCellLocationChanged(CellLocation location) {
-            updateCellLocation(location);
-        }
-
-        @Override
-        public void onServiceStateChanged(ServiceState serviceState) {
-            mModemInService = serviceState.getDataRegState() == ServiceState.STATE_IN_SERVICE;
-            if (DEBUG) Log.d(TAG, "Modem in service ? " + mModemInService.toString());
-        }
-    };
 
     private final BroadcastReceiver mBroadcastReciever = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
@@ -517,8 +503,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
         mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(
                 Context.APP_OPS_SERVICE));
         mTelephonyManager = (TelephonyManager)context.getSystemService(Context.TELEPHONY_SERVICE);
-        mTelephonyManager.listen(mPhoneStateListener,
-                PhoneStateListener.LISTEN_CELL_LOCATION | PhoneStateListener.LISTEN_SERVICE_STATE);
 
         // Battery statistics service to be notified when GPS turns on or off
         mBatteryStats = IBatteryStats.Stub.asInterface(ServiceManager.getService(
@@ -596,32 +580,57 @@ public class GpsLocationProvider implements LocationProviderInterface {
                 mRefLocHandler = new Handler() {
                     public void handleMessage(Message msg) {
                         int flags = (int)msg.what;
-                        int preferredNetworkMode = RILConstants.PREFERRED_NETWORK_MODE;
-                        int networkMode = Settings.Global.getInt(mContext.getContentResolver(),
-                                Settings.Global.PREFERRED_NETWORK_MODE, preferredNetworkMode);
-
-                        int phoneType = mTelephonyManager.getPhoneType(networkMode);
-
-                        synchronized(mWaitingRefLocations) {
-                            mWaitingRefLocations = true;
-                        }
-
                         try {
-                            if ((flags & AGPS_REQUEST_REFLOC_CELLID) == AGPS_REQUEST_REFLOC_CELLID) {
-                                if ((phoneType == TelephonyManager.PHONE_TYPE_GSM)
-                                        && mModemInService) {
-                                    mRefLocationRequested = true;
-                                    CellLocation.requestLocationUpdate();
-                                    synchronized(mCellLocationLock) {
-                                        try {
-                                            mCellLocationLock.wait(3000);
-                                        } catch (InterruptedException ie) {
-                                            // restore the interrupted status
-                                            Thread.currentThread().interrupt();
+                            if ((flags & AGPS_REQUEST_REFLOC_CELLID)
+                                    == AGPS_REQUEST_REFLOC_CELLID) {
+                                List<CellInfo> cellInfoValue = mTelephonyManager.getAllCellInfo();
+
+                                if (cellInfoValue != null) {
+                                    for (CellInfo ci : cellInfoValue) {
+                                        int type = -1;
+                                        int mcc = -1;
+                                        int mnc = -1;
+                                        int lac = -1;
+                                        int cid = -1;
+                                        int pci = -1;
+                                        if (ci.isRegistered()) {
+                                            if (ci instanceof CellInfoGsm) {
+                                                CellIdentityGsm cellId
+                                                        = ((CellInfoGsm) ci).getCellIdentity();
+                                                type = AGPS_REF_LOCATION_TYPE_GSM_CELLID;
+                                                mcc = cellId.getMcc();
+                                                mnc = cellId.getMnc();
+                                                lac = cellId.getLac();
+                                                cid = cellId.getCid();
+                                            } else if (ci instanceof CellInfoWcdma) {
+                                                CellIdentityWcdma cellId
+                                                        = ((CellInfoWcdma) ci).getCellIdentity();
+                                                type = AGPS_REF_LOCATION_TYPE_UMTS_CELLID;
+                                                mcc = cellId.getMcc();
+                                                mnc = cellId.getMnc();
+                                                lac = cellId.getLac();
+                                                cid = cellId.getCid();
+                                            } else if (ci instanceof CellInfoLte) {
+                                                CellIdentityLte cellId
+                                                        = ((CellInfoLte) ci).getCellIdentity();
+                                                type = AGPS_REF_LOCATION_TYPE_LTE_CELLID;
+                                                mcc = cellId.getMcc();
+                                                mnc = cellId.getMnc();
+                                                lac = cellId.getTac();
+                                                cid = cellId.getCi();
+                                                pci = cellId.getPci();
+                                            } else {
+                                                Log.i(TAG, "Registered cellinfo is unrecognized");
+                                                break;
+                                            }
+
+                                            native_agps_set_ref_location(
+                                                    new String(String.valueOf(type) + ":" + mcc
+                                                    + ":" + mnc + ":" + lac + ":" + cid
+                                                    + ":" + pci));
+                                            break;
                                         }
                                     }
-                                } else {
-                                    Log.i(TAG, "Cell location cannot be requested.");
                                 }
                             }
 
@@ -635,11 +644,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
                                                                         + ":" + bssid));
                             }
                         } finally {
-                            synchronized(mWaitingRefLocations) {
-                                native_agps_set_ref_location(new String(String.valueOf(
-                                        AGPS_REF_LOCATION_END) + ":"));
-                                mWaitingRefLocations = false;
-                            }
+                            native_agps_set_ref_location(new String(String.valueOf(
+                                    AGPS_REF_LOCATION_END) + ":"));
                         }
                     }
                 };
@@ -1897,45 +1903,6 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
     private void requestRefLocation(int flags) {
         mRefLocHandler.obtainMessage(flags).sendToTarget();
-    }
-
-    private final void updateCellLocation(CellLocation location) {
-        if (location instanceof GsmCellLocation && mRefLocationRequested) {
-            mRefLocationRequested = false;
-            GsmCellLocation gsm_cell = (GsmCellLocation)location;
-
-            if ((mTelephonyManager.getNetworkOperator() != null) &&
-                    (mTelephonyManager.getNetworkOperator().length() > 3)) {
-                int type;
-                int mcc = Integer.parseInt(mTelephonyManager.getNetworkOperator().substring(0,3));
-                int mnc = Integer.parseInt(mTelephonyManager.getNetworkOperator().substring(3));
-                int networkType = mTelephonyManager.getNetworkType();
-                if (networkType == TelephonyManager.NETWORK_TYPE_LTE) {
-                    type = AGPS_REF_LOCATION_TYPE_LTE_CELLID;
-                } else if (networkType == TelephonyManager.NETWORK_TYPE_UMTS
-                        || networkType == TelephonyManager.NETWORK_TYPE_HSDPA
-                        || networkType == TelephonyManager.NETWORK_TYPE_HSUPA
-                        || networkType == TelephonyManager.NETWORK_TYPE_HSPA
-                        || networkType == TelephonyManager.NETWORK_TYPE_HSPAP) {
-                    type = AGPS_REF_LOCATION_TYPE_UMTS_CELLID;
-                } else {
-                    type = AGPS_REF_LOCATION_TYPE_GSM_CELLID;
-                }
-
-                synchronized(mWaitingRefLocations) {
-                    if (mWaitingRefLocations.booleanValue())
-                        native_agps_set_ref_location(new String(String.valueOf(type) + ":" + mcc
-                                + ":" + mnc + ":" + gsm_cell.getLac() + ":" + gsm_cell.getCid()
-                                + ":" + gsm_cell.getPsc()));
-                }
-
-            } else {
-                Log.i(TAG, "no network operators");
-            }
-            synchronized(mCellLocationLock) {
-                mCellLocationLock.notify();
-            }
-        }
     }
 
     private void sendMessage(int message, int arg, Object obj) {
