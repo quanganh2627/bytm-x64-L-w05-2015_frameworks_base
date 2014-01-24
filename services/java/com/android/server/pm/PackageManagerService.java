@@ -4482,7 +4482,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                 // ASF HOOK: system package update event
                 if (FeatureConfig.INTEL_FEATURE_ASF) {
                     AsfAosp.sendSystemAppUpdateEvent(pkg,
-                            sUserManager.getUserInfo(ActivityManager.getCurrentUser()));
+                            sUserManager.getUserInfo(UserHandle.getCallingUserId()));
                 }
             }
 
@@ -4576,7 +4576,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                                 (user != null) ? UserHandle.getUserId(user.getIdentifier()) : 0
                         ),
                         (scanMode & SCAN_UPDATE_TIME)!=0,
-                        sUserManager.getUserInfo(ActivityManager.getCurrentUser()))
+                        sUserManager.getUserInfo(UserHandle.getCallingUserId()))
                 ) {
                     mLastScanError = PackageManager.INSTALL_FAILED_VERIFICATION_FAILURE;
                     return null;
@@ -9792,7 +9792,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             PackageInfo packageInfo = getPackageInfo(
                     newPs.name, AsfAosp.SECURITY_PACKAGEINFO_FLAGS, 0);
             if (!AsfAosp.sendSystemAppDeleteEvent(packageInfo, newPs.pkg.mPath,
-                    sUserManager.getUserInfo(ActivityManager.getCurrentUser()))) {
+                    sUserManager.getUserInfo(UserHandle.getCallingUserId()))) {
                 return false;
             }
         }
@@ -9914,7 +9914,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                             AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
                             (user != null) ? UserHandle.getUserId(user.getIdentifier()) : 0
                     ),
-                    sUserManager.getUserInfo(ActivityManager.getCurrentUser())
+                    sUserManager.getUserInfo(UserHandle.getCallingUserId())
             )) {
                 return false;
             }

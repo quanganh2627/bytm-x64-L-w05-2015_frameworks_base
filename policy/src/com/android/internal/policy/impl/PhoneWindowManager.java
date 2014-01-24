@@ -3766,6 +3766,21 @@ public class PhoneWindowManager extends ParentPhoneWindowManager implements Wind
     }
 
     /**
+    * @return Whether FM is being used right now.
+    */
+    boolean isFmRxOn() {
+        final AudioManager am = (AudioManager)mContext.getSystemService(Context.AUDIO_SERVICE);
+        if (am == null) {
+            Log.w(TAG, "GetFmRxMode: couldn't get AudioManager reference");
+            return false;
+        }
+        if (am.getParameters("fm-mode").contains("on"))
+            return true;
+        else
+            return false;
+    }
+
+    /**
      * Tell the audio service to adjust the volume appropriate to the event.
      * @param keycode
      */
@@ -4011,6 +4026,12 @@ public class PhoneWindowManager extends ParentPhoneWindowManager implements Wind
                         // application, handle the volume change here.
                         handleVolumeKey(AudioManager.STREAM_MUSIC, keyCode);
                         break;
+                    }
+                    if(isFmRxOn()){
+                        // If FM is ON, we pass the key to Audio Service,
+                        // handle the volume change here.
+                        Log.i(TAG, "Key input catched in FM Rx mode");
+                        handleVolumeKey(AudioManager.STREAM_MUSIC, keyCode);
                     }
                 }
                 break;
