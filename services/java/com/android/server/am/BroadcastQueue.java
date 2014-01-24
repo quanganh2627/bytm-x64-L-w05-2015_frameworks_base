@@ -341,27 +341,16 @@ public final class BroadcastQueue {
                             packageName);
                 }
             }
-            List<String> asfClientActions = AsfAosp.sendBroadcastIntentEvent(r.callerPackage,
-                    receiversPackageNameList, r.intent, userInfo, r.callingPid);
-
-            if ((asfClientActions != null) &&
-                (!asfClientActions.isEmpty()) &&
-                (asfClientActions.size() == r.receivers.size())
-            ) {
-                int index = 0;
+            List<String> removeIntentRecipients = AsfAosp.sendBroadcastIntentEvent(r.callerPackage,
+                    receiversPackageNameList, r.intent, userInfo);
+            if ((removeIntentRecipients != null) && (!removeIntentRecipients.isEmpty())) {
                 // Filter the Final list of receivers based on ASF client response
-                for (String asfClientAction : asfClientActions) {
-                    Log.d(
-                            TAG,
-                            asfClientAction + " Package " +
-                            receiversPackageNameList.get(index)
-                    );
-                    if (asfClientAction.equals("DENY")) {
-                        asfClientActions.remove(index);
+                for (String removeRecipient : removeIntentRecipients) {
+                    int index = 0;
+                    while ((index = receiversPackageNameList.indexOf(removeRecipient)) != -1) {
+                        receiversPackageNameList.remove(index);
                         r.receivers.remove(index);
-                        index--;
                     }
-                    index++;
                 }
             }
         }

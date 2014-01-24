@@ -34,13 +34,6 @@ LOCAL_C_INCLUDES += \
     frameworks/base/native/include \
     frameworks/base/core/jni/android
 
-ifeq ($(strip $(INTEL_FEATURE_ASF))), true)
-ifneq ($(PLATFORM_ASF_VERSION), 1)
-    LOCAL_SHARED_LIBRARIES += libsecurityfileservice
-    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/libsecurityfileservice/include
-endif
-endif
-
 LOCAL_MODULE:= libandroid
 
 include $(BUILD_SHARED_LIBRARY)

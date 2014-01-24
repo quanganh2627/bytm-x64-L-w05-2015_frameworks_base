@@ -81,6 +81,7 @@ import com.android.server.am.ActivityStack.ActivityState;
 import com.android.server.pm.UserManagerService;
 import com.android.server.wm.StackBox;
 import com.android.server.wm.WindowManagerService;
+import com.intel.asf.AsfAosp;
 
 import com.intel.config.FeatureConfig;
 
@@ -1285,6 +1286,27 @@ public final class ActivityStackSupervisor {
                 setDismissKeyguard(false);
                 ActivityOptions.abort(options);
                 return ActivityManager.START_SWITCHES_CANCELED;
+            }
+        }
+
+        // ASF HOOK: Start Activity event
+        if (FeatureConfig.INTEL_FEATURE_ASF
+                && (AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2)) {
+            UserInfo userInfo = null;
+            try {
+                userInfo = mService.getCurrentUser();
+            } catch (SecurityException e) {
+                // When there is an exception, null userInfo is sent to ASF client.
+            }
+            if (!AsfAosp.sendStartActivityEvent(
+                    r.info,
+                    callingPackage,
+                    r.packageName,
+                    r.intent,
+                    r.userId,
+                    userInfo)
+            ) {
+                throw new SecurityException("Activity start is disallowed by policy");
             }
         }
 
