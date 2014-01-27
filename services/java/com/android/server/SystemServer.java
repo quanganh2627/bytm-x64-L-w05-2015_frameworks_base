@@ -647,13 +647,16 @@ class ServerThread {
 
             try {
                 Slog.i(TAG, "Notification Manager");
-                if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
-                    notification = new ExtendNotificationManagerService(context, statusBar, lights);
-                } else {
-                    notification = new NotificationManagerService(context, statusBar, lights);
+                if (statusBar != null) {
+                    if (FeatureConfig.INTEL_FEATURE_ARKHAM) {
+                        notification = new ExtendNotificationManagerService(context,
+                                statusBar, lights);
+                    } else {
+                        notification = new NotificationManagerService(context, statusBar, lights);
+                    }
+                    ServiceManager.addService(Context.NOTIFICATION_SERVICE, notification);
+                    networkPolicy.bindNotificationManager(notification);
                 }
-                ServiceManager.addService(Context.NOTIFICATION_SERVICE, notification);
-                networkPolicy.bindNotificationManager(notification);
             } catch (Throwable e) {
                 reportWtf("starting Notification Manager", e);
             }
