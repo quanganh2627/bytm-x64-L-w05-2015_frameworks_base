@@ -251,10 +251,10 @@ class ZygoteConnection {
                         ICheckExt check = new CheckExt();
                         if (!check.doCheck(parsedArgs.niceName, new String("arch"))) {
                             System.setProperty("os.arch", "armv7");
-                            Log.d(TAG, "Setting os.arch for Houdini App");
+                            Log.d(TAG, "Setting os.arch");
                             settingHoudiniABI();
                         } else {
-                            Log.d(TAG, "In HoudiniABI black list: " + parsedArgs.niceName);
+                            Log.d(TAG, "In black list: " + parsedArgs.niceName);
                         }
                     } else {
                         unloadHoudini();

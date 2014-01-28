@@ -38,8 +38,6 @@ static void com_android_internal_os_ZygoteConnection_settingHoudiniABI (JNIEnv *
     abi->p = houdini_abi->p;
     abi2->p = houdini_abi2->p;
 
-    LOGD("Finished Houdini ABI setting.\n");
-
     return;
 }
 
