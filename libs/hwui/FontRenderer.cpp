@@ -735,6 +735,7 @@ void FontRenderer::blurImage(uint8_t** image, int32_t width, int32_t height, int
             mRs = new RSC::RS();
             if (!mRs->init(RSC::RS_INIT_LOW_LATENCY | RSC::RS_INIT_SYNCHRONOUS)) {
                 rsInitFailed = true;
+                mRs.clear();
                 ALOGE("blur RS failed to init");
             } else {
                 mRsElement = RSC::Element::A_8(mRs);
