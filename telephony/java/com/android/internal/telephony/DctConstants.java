@@ -99,6 +99,8 @@ public class DctConstants {
     public static final int EVENT_PROVISIONING_APN_ALARM = BASE + 39;
     public static final int EVENT_RADIO_ON = BASE + 40;
     public static final int EVENT_SET_INITIAL_ATTACH_DONE = BASE + 41;
+    public static final int EVENT_IMS_SERVICE_STATE = BASE + 42;
+    public static final int EVENT_DELAYED_TEARDOWN_TIMER = BASE + 43;
 
     /***** Constants *****/
 
