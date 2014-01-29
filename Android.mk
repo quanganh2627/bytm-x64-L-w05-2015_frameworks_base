@@ -57,7 +57,7 @@ LOCAL_SRC_FILES := $(call find-other-java-files,$(FRAMEWORKS_BASE_SUBDIRS))
 ifdef DOLBY_DAP
 LOCAL_SRC_FILES := $(filter-out media/java/android/media/AudioServiceHelper.java, $(LOCAL_SRC_FILES))
 LOCAL_SRC_FILES += $(call all-java-files-under, ../../vendor/intel/PRIVATE/dolby_ds1/java/android/media)
-endif
+endif #DOLBY_END
 # EventLogTags files.
 LOCAL_SRC_FILES += \
        core/java/android/content/EventLogTags.logtags \
@@ -496,7 +496,7 @@ non_base_dirs := \
 ifdef DOLBY_DAP
 non_base_dirs += \
 	../../vendor/intel/PRIVATE/dolby_ds1/java
-endif #DOLBY_DAP
+endif #DOLBY_END
 # These are relative to frameworks/base
 dirs_to_check_apis := \
   $(fwbase_dirs_to_document) \
@@ -553,14 +553,14 @@ framework_docs_LOCAL_API_CHECK_JAVA_LIBRARIES := \
 	telephony-common \
 	voip-common
 
+ifdef DOLBY_DAP
+framework_docs_LOCAL_API_CHECK_JAVA_LIBRARIES += \
+	dolby_ds
+endif #DOLBY_END
 framework_docs_LOCAL_JAVA_LIBRARIES := \
 	$(framework_docs_LOCAL_API_CHECK_JAVA_LIBRARIES) \
 	$(FRAMEWORKS_SUPPORT_JAVA_LIBRARIES)
 
-ifdef DOLBY_DAP
-framework_docs_LOCAL_JAVA_LIBRARIES += \
-			dolby_ds
-endif #DOLBY_DAP
 framework_docs_LOCAL_MODULE_CLASS := JAVA_LIBRARIES
 framework_docs_LOCAL_DROIDDOC_HTML_DIR := docs/html
 # The since flag (-since N.xml API_LEVEL) is used to add API Level information
@@ -850,9 +850,6 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:=$(framework_docs_LOCAL_SRC_FILES)
 LOCAL_INTERMEDIATE_SOURCES:=$(framework_docs_LOCAL_INTERMEDIATE_SOURCES)
 LOCAL_JAVA_LIBRARIES:=$(framework_docs_LOCAL_JAVA_LIBRARIES)
-ifdef DOLBY_DAP
-LOCAL_JAVA_LIBRARIES += dolby_ds
-endif #DOLBY_DAP
 LOCAL_MODULE_CLASS:=$(framework_docs_LOCAL_MODULE_CLASS)
 LOCAL_DROIDDOC_SOURCE_PATH:=$(framework_docs_LOCAL_DROIDDOC_SOURCE_PATH)
 LOCAL_DROIDDOC_HTML_DIR:=$(framework_docs_LOCAL_DROIDDOC_HTML_DIR)
@@ -946,6 +943,9 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:=$(framework_docs_LOCAL_SRC_FILES)
 LOCAL_INTERMEDIATE_SOURCES:=$(framework_docs_LOCAL_INTERMEDIATE_SOURCES)
 LOCAL_JAVA_LIBRARIES:=$(framework_docs_LOCAL_JAVA_LIBRARIES)
+ifdef DOLBY_DAP
+LOCAL_JAVA_LIBRARIES += dolby_ds
+endif #DOLBY_END
 LOCAL_MODULE_CLASS:=$(framework_docs_LOCAL_MODULE_CLASS)
 LOCAL_DROIDDOC_SOURCE_PATH:=$(framework_docs_LOCAL_DROIDDOC_SOURCE_PATH)
 LOCAL_DROIDDOC_HTML_DIR:=$(framework_docs_LOCAL_DROIDDOC_HTML_DIR)

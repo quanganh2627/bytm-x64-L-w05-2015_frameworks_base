@@ -67,7 +67,7 @@ import android.content.res.XmlResourceParser;
 import android.database.ContentObserver;
 /* DOLBY_DAP */
 import android.media.AudioServiceHelper;
-/* DOLBY_DAP END */
+/* DOLBY_END */
 import android.media.MediaPlayer.OnCompletionListener;
 import android.media.MediaPlayer.OnErrorListener;
 import android.net.Uri;
@@ -489,7 +489,7 @@ public class AudioService extends IAudioService.Stub {
 
 /* DOLBY_DAP */
     private AudioServiceHelper mAudioServiceHelper;
-/* DOLBY_DAP END */
+/* DOLBY_END */
 
     ///////////////////////////////////////////////////////////////////////////
     // Construction
@@ -3689,7 +3689,7 @@ public class AudioService extends IAudioService.Stub {
                         mAudioServiceHelper = new AudioServiceHelper();
                         mContext.sendBroadcast(mAudioServiceHelper.getBroadcast());
                     }
-                    /* DOLBY_DAP END */
+                    /* DOLBY_END */
                     // indicate the end of reconfiguration phase to audio HAL
                     AudioSystem.setParameters("restarting=false");
                     break;
