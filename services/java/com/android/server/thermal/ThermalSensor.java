@@ -100,13 +100,15 @@ public class ThermalSensor {
 
     private void setSensorSysfsPath() {
         int indx = ThermalManager.getThermalZoneIndex(mSensorName);
-        if (indx == -1) {
-            indx = ThermalManager. getThermalZoneIndexContains("battery");
-            if (indx != -1) {
-                mSensorPath = ThermalManager.sSysfsSensorBasePath + indx + "/";
-            }
-        } else if (indx != -1) {
-           mSensorPath = ThermalManager.sSysfsSensorBasePath + indx + "/";
+        // The battery subsystem exposes sensors under different names.
+        // The only commonality among them is that all of them contain
+        // the string "battery".
+        if (indx == -1 && mSensorName.contains("battery")) {
+            indx = ThermalManager.getThermalZoneIndexContains("battery");
+        }
+
+        if (indx != -1) {
+            mSensorPath = ThermalManager.sSysfsSensorBasePath + indx + "/";
         }
 
         mSensorSysfsIndx = indx;
