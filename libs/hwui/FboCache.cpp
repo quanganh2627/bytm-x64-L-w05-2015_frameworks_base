@@ -61,31 +61,37 @@ uint32_t FboCache::getMaxSize() {
 
 void FboCache::clear() {
     for (size_t i = 0; i < mCache.size(); i++) {
-        const GLuint fbo = mCache.itemAt(i);
+        const GLuint fbo = mCache.itemAt(i).fbo;
         glDeleteFramebuffers(1, &fbo);
     }
     mCache.clear();
 }
 
-GLuint FboCache::get() {
+GLuint FboCache::get(int w, int h) {
     GLuint fbo;
-    if (mCache.size() > 0) {
-        fbo = mCache.itemAt(mCache.size() - 1);
-        mCache.removeAt(mCache.size() - 1);
-    } else {
-        glGenFramebuffers(1, &fbo);
+    for (int i = mCache.size() - 1; i >= 0; i--) {
+        FboEntry entry = mCache.itemAt(i);
+        if (entry.w == w && entry.h == h) {
+            mCache.removeAt(i);
+            return entry.fbo;
+        }
     }
+
+    glGenFramebuffers(1, &fbo);
     return fbo;
 }
 
-bool FboCache::put(GLuint fbo) {
-    if (mCache.size() < mMaxSize) {
-        mCache.add(fbo);
-        return true;
+bool FboCache::put(GLuint fbo, int w, int h) {
+
+    if (mCache.size() == mMaxSize) {
+        FboEntry entry = mCache.itemAt(0);
+        mCache.removeAt(0);
+        glDeleteFramebuffers(1, &entry.fbo);
     }
 
-    glDeleteFramebuffers(1, &fbo);
-    return false;
+    mCache.replaceAt(FboEntry(fbo, w, h),
+        mCache.insertAt(mCache.size()));
+    return true;
 }
 
 }; // namespace uirenderer

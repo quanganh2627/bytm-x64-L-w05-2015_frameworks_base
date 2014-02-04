@@ -28,6 +28,25 @@ namespace uirenderer {
 // Cache
 ///////////////////////////////////////////////////////////////////////////////
 
+class FboEntry
+{
+public:
+    FboEntry(): fbo(0), w(0), h(0) {}
+    FboEntry(GLuint fbo, int w, int h): fbo(fbo), w(w), h(h) {}
+    FboEntry(const FboEntry& other): fbo(other.fbo), w(other.w), h(other.h) {}
+    FboEntry &operator=(const FboEntry &other) {
+        if (this != &other) {
+            fbo = other.fbo;
+            w = other.w;
+            h = other.h;
+        }
+        return *this;
+    }
+    GLuint fbo;
+    int w;
+    int h;
+};
+
 class FboCache {
 public:
     FboCache();
@@ -42,7 +61,7 @@ public:
      *
      * @return The name of the FBO, or 0 if no FBO can be obtained.
      */
-    GLuint get();
+    GLuint get(int w, int h);
 
     /**
      * Adds the specified FBO to the cache.
@@ -51,7 +70,7 @@ public:
      *
      * @return True if the FBO was added, false otherwise.
      */
-    bool put(GLuint fbo);
+    bool put(GLuint fbo, int w, int h);
 
     /**
      * Clears the cache. This causes all FBOs to be deleted.
@@ -69,7 +88,7 @@ public:
     uint32_t getMaxSize();
 
 private:
-    SortedVector<GLuint> mCache;
+    Vector<FboEntry> mCache;
     uint32_t mMaxSize;
 }; // class FboCache
 
