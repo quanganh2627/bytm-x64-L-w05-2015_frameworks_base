@@ -165,10 +165,8 @@ public class ModemZone extends ThermalZone {
         if (mContext != null) mContext.unregisterReceiver(intentReceiver);
     }
 
-    private boolean isDebounceConditionSatisfied(ThermalSensor t,
-            int temp, int debounceInterval, int oldState) {
-        if (t == null) return false;
-        int lowTemp = t.getLowerThresholdTemp(oldState);
+    private boolean isDebounceConditionSatisfied(int temp, int debounceInterval, int oldState) {
+        int lowTemp = ThermalUtils.getLowerThresholdTemp(oldState, getZoneTempThreshold());
         return (((lowTemp - temp) >= debounceInterval) ? true : false);
     }
 
@@ -217,9 +215,9 @@ public class ModemZone extends ThermalZone {
                 temp = temp * 10; // convert to millidegree celcius
                 t.setCurrTemp(temp);
                 oldState = t.getSensorThermalState();
-                sensorState = ThermalManager.calculateThermalState(temp, t.getTempThresholds());
+                sensorState = ThermalUtils.calculateThermalState(temp, getZoneTempThreshold());
                 if ((sensorState < oldState) &&
-                        (!isDebounceConditionSatisfied(t, temp, debounceInterval, oldState)))
+                        (!isDebounceConditionSatisfied(temp, debounceInterval, oldState)))
                     // update sensor state only if debounce condition statisfied
                     // else retain old state
                     continue;
@@ -254,8 +252,9 @@ public class ModemZone extends ThermalZone {
             for (ThermalSensor t : mThermalSensors) {
                 sensorState = t.getSensorThermalState();
                 if (sensorState != ThermalManager.THERMAL_STATE_OFF) {
-                    minTemp = t.getLowerThresholdTemp(sensorState);
-                    maxTemp = t.getUpperThresholdTemp(sensorState);
+                    Integer[] tempThresholds = getZoneTempThreshold();
+                    minTemp = ThermalUtils.getLowerThresholdTemp(sensorState, tempThresholds);
+                    maxTemp = ThermalUtils.getUpperThresholdTemp(sensorState, tempThresholds);
                     minTemp -= debounceInterval;
                     setModemSensorThreshold(true,t, minTemp, maxTemp);
                 }
@@ -591,8 +590,8 @@ public class ModemZone extends ThermalZone {
             // if the sensor moves to a different state, this gets updated synchronously
             // in zone state variables
 
-            currSensorstate = ThermalManager.calculateThermalState(
-                    temperature, t.getTempThresholds());
+            currSensorstate = ThermalUtils.calculateThermalState(
+                    temperature, getZoneTempThreshold());
             t.setSensorThermalState(currSensorstate);
             t.setCurrTemp(temperature);
 
@@ -611,8 +610,9 @@ public class ModemZone extends ThermalZone {
             } else {
                 // if temp below critical, reset thresholds
                 // reactivate thresholds
-                minTemp = t.getLowerThresholdTemp(currSensorstate);
-                maxTemp = t.getUpperThresholdTemp(currSensorstate);
+                Integer[] tempThresholds = getZoneTempThreshold();
+                minTemp = ThermalUtils.getLowerThresholdTemp(currSensorstate, tempThresholds);
+                maxTemp = ThermalUtils.getUpperThresholdTemp(currSensorstate, tempThresholds);
                 int debounceInterval = getDBInterval();
                 minTemp -= debounceInterval;
                 setModemSensorThreshold(true, t, minTemp, maxTemp);

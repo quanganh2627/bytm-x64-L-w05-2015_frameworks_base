@@ -35,7 +35,7 @@ public class BatteryChargeCurrentControl {
     private static String sThrottlePath;
 
     private static void setThrottlePath() {
-        int indx = ThermalManager.getCoolingDeviceIndexContains("charger");
+        int indx = ThermalUtils.getCoolingDeviceIndexContains("charger");
 
         if (indx != -1) {
             sThrottlePath = ThermalManager.sCoolingDeviceBasePath + indx
@@ -50,7 +50,7 @@ public class BatteryChargeCurrentControl {
         // Charging rate can be controlled in four levels 0 to 3, with
         // 0 being highest rate of charging and 3 being the lowest.
         if (sThrottlePath != null) {
-            ThermalManager.writeSysfs(sThrottlePath, tstate);
+            ThermalUtils.writeSysfs(sThrottlePath, tstate);
             Log.d(TAG, "New throttled charge rate: " + tstate);
         }
     }

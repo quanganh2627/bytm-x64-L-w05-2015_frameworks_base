@@ -256,15 +256,15 @@ static JNINativeMethod sMethods[] = {
         {"native_isFileExists", "(Ljava/lang/String;)Z", (void*)isFileExists},
 };
 
-int register_android_server_thermal_ThermalManager(JNIEnv* env)
+int register_android_server_thermal_ThermalUtils(JNIEnv* env)
 {
-    jclass clazz = env->FindClass("com/android/server/thermal/ThermalManager");
+    jclass clazz = env->FindClass("com/android/server/thermal/ThermalUtils");
     if (clazz == NULL) {
-        ALOGE("Can't find com/android/server/thermal/ThermalManager");
+        ALOGE("Can't find com/android/server/thermal/ThermalUtils");
         return -1;
     }
 
-    return jniRegisterNativeMethods(env, "com/android/server/thermal/ThermalManager",
+    return jniRegisterNativeMethods(env, "com/android/server/thermal/ThermalUtils",
             sMethods, NELEM(sMethods));
 }
 

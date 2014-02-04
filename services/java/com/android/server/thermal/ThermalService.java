@@ -86,7 +86,6 @@ public class ThermalService extends Binder {
        private ThermalZone mCurrZone;
        private ArrayList<ThermalSensor> mCurrSensorList;
        private ArrayList<ThermalZone> mThermalZones;
-       private ArrayList<Integer> mThresholdList;
        private ArrayList<Integer> mPollDelayList;
        private ArrayList<Integer> mMovingAvgWindowList;
        private ArrayList<Integer> mWeightList = null;
@@ -258,9 +257,7 @@ public class ThermalService extends Binder {
                        mCurrSensor.setUEventDevPath(mParser.nextText());
                    else if (name.equalsIgnoreCase("ErrorCorrection") && mCurrSensor != null)
                        mCurrSensor.setErrorCorrectionTemp(Integer.parseInt(mParser.nextText()));
-                   else if (name.equalsIgnoreCase(THRESHOLD) && mCurrSensor != null) {
-                       mThresholdList = new ArrayList<Integer>();
-                   } else if (name.equalsIgnoreCase(WEIGHT) && mCurrSensor != null) {
+                   else if (name.equalsIgnoreCase(WEIGHT) && mCurrSensor != null) {
                        if (mWeightList == null) {
                            mWeightList = new ArrayList<Integer>();
                        }
@@ -287,23 +284,6 @@ public class ThermalService extends Binder {
                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
                    } else if (name.equalsIgnoreCase("DelayCritical") && mPollDelayList != null) {
                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
-                   }
-                   // Threshold info
-                   else if (name.equalsIgnoreCase("ThresholdTOff") &&
-                           mThresholdList != null) {
-                       mThresholdList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("ThresholdNormal") &&
-                           mThresholdList != null) {
-                       mThresholdList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("ThresholdWarning") &&
-                           mThresholdList != null) {
-                       mThresholdList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("ThresholdAlert") &&
-                           mThresholdList != null) {
-                       mThresholdList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("ThresholdCritical") &&
-                           mThresholdList != null) {
-                       mThresholdList.add(Integer.parseInt(mParser.nextText()));
                    }
                    // Moving Average window
                    else if (name.equalsIgnoreCase(MOVINGAVGWINDOW) &&
@@ -353,9 +333,6 @@ public class ThermalService extends Binder {
              mCurrZone = null;
              tempZoneId = -1;
              tempZoneName = null;
-         } else if (name.equalsIgnoreCase(THRESHOLD) && (mCurrSensor != null)) {
-             mCurrSensor.setThermalThresholds(mThresholdList);
-             mThresholdList = null;
          } else if (name.equalsIgnoreCase(POLLDELAY) && (mCurrZone != null)) {
              mCurrZone.setPollDelay(mPollDelayList);
              mPollDelayList = null;
@@ -441,7 +418,7 @@ public class ThermalService extends Binder {
         public void onReceive(Context context, Intent intent)
         {
             ThermalManager.loadiTUXVersion();
-            if (!ThermalManager.configFilesExist()) {
+            if (!ThermalUtils.configFilesExist()) {
                 Log.i(TAG, "Thermal config files dont exist, exiting Thermal service...");
                 return;
             }
@@ -488,8 +465,6 @@ public class ThermalService extends Binder {
                 return;
             }
 
-            /* builds a map of active sensors */
-            ThermalManager.buildSensorMap();
             /* initialize zone critical pending map */
             ThermalManager.initializeZoneCriticalPendingMap();
             /* read persistent system properties for shutdown notification */

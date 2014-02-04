@@ -40,7 +40,7 @@ public class ThermalZoneMonitor implements Runnable {
         try {
             while (true) {
                 if (zone.isZoneStateChanged()) {
-                    ThermalManager.addThermalEvent(zone);
+                    ThermalUtils.addThermalEvent(zone);
                 }
                 Thread.sleep(zone.getPollDelay(zone.getZoneState()));
             }

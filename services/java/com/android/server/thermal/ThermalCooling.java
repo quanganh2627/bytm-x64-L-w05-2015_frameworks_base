@@ -252,11 +252,11 @@ public class ThermalCooling {
 
     private void configureDynamicTurbo() {
         // Disable Dynamic Turbo based on the system property
-        int indx = ThermalManager.getCoolingDeviceIndexContains("SoC");
+        int indx = ThermalUtils.getCoolingDeviceIndexContains("SoC");
         if (indx != -1 && !ThermalManager.sIsDynamicTurboEnabled) {
             String path = ThermalManager.sCoolingDeviceBasePath + indx
                     + ThermalManager.sCoolingDeviceState;
-            ThermalManager.writeSysfs(path, ThermalManager.DISABLE_DYNAMIC_TURBO);
+            ThermalUtils.writeSysfs(path, ThermalManager.DISABLE_DYNAMIC_TURBO);
         }
     }
 
@@ -563,7 +563,7 @@ public class ThermalCooling {
 
                 if (throttlePath.equalsIgnoreCase("auto")) {
                     //construct the throttle path
-                    int indx = ThermalManager.getCoolingDeviceIndexContains(cdev.getDeviceName());
+                    int indx = ThermalUtils.getCoolingDeviceIndexContains(cdev.getDeviceName());
                     if (indx != -1) {
                         throttlePath = ThermalManager.sCoolingDeviceBasePath + indx
                                 + ThermalManager.sCoolingDeviceState;
@@ -572,12 +572,12 @@ public class ThermalCooling {
                     }
                 }
 
-                if (!ThermalManager.isFileExists(throttlePath)) {
+                if (!ThermalUtils.isFileExists(throttlePath)) {
                     Log.i(TAG, "invalid throttle path for cooling device:" + cdev.getDeviceName());
                     return;
                 }
 
-                if (ThermalManager.writeSysfs(throttlePath, finalValue) == -1) {
+                if (ThermalUtils.writeSysfs(throttlePath, finalValue) == -1) {
                     Log.i (TAG, "write to sysfs failed");
                 }
             } catch (IndexOutOfBoundsException e) {

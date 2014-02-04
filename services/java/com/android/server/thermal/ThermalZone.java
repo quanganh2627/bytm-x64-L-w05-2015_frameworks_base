@@ -40,7 +40,7 @@ public class ThermalZone {
 
     private int mDebounceInterval;    /* Debounce value to avoid thrashing of throttling actions */
     private Integer mPollDelay[];     /* Delay between sucessive polls in milli seconds */
-    private boolean mSupportsUEvent;  /* Determines if Sensor supports Uevents */
+    protected boolean mSupportsUEvent;  /* Determines if Sensor supports Uevents */
     private String mZoneLogic;      /* Logic to be used to determine thermal state of zone */
     private boolean mIsZoneActive = false;
     private int mOffset = 0;
@@ -201,7 +201,7 @@ public class ThermalZone {
         return mZoneTempThresholds[index];
     }
 
-    public Integer[] getTempThresholds() {
+    public Integer[] getZoneTempThreshold() {
         return mZoneTempThresholds;
     }
 
@@ -215,10 +215,19 @@ public class ThermalZone {
             return;
         }
 
-        for (ThermalSensor ts : mThermalSensors) {
-            if (ts != null && ts.getSensorActiveStatus()) {
+        if (mSupportsUEvent) {
+            // if uevent just check the first sensor
+            ThermalSensor s = mThermalSensors.get(0);
+            if (s != null && s.getSensorActiveStatus()) {
                 mIsZoneActive = true;
-                break;
+                return;
+            }
+        } else {
+            for (ThermalSensor ts : mThermalSensors) {
+                if (ts != null && ts.getSensorActiveStatus()) {
+                    mIsZoneActive = true;
+                    return;
+                }
             }
         }
     }
@@ -235,5 +244,8 @@ public class ThermalZone {
     }
 
     public void unregisterReceiver() {
+
     }
+    public void registerUevent() {}
+
 }

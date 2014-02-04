@@ -31,7 +31,7 @@ public class GPUMaxFreqControl {
     private static String sGPUThrottlePath = null;
 
     private static void setThrottlePath() {
-        int indx = ThermalManager.getCoolingDeviceIndexContains("gpu_burst");
+        int indx = ThermalUtils.getCoolingDeviceIndexContains("gpu_burst");
 
         if (indx != -1) {
             sGPUThrottlePath = ThermalManager.sCoolingDeviceBasePath + indx
@@ -44,7 +44,7 @@ public class GPUMaxFreqControl {
 
     public static void throttleDevice(int thermalState) {
         if (sGPUThrottlePath != null) {
-            ThermalManager.writeSysfs(sGPUThrottlePath, thermalState);
+            ThermalUtils.writeSysfs(sGPUThrottlePath, thermalState);
         }
     }
 

@@ -179,7 +179,7 @@ public class ThermalNotifier {
     }
 
     private void notifyShutdown() {
-        ThermalManager.writeSysfs(THERMAL_SHUTDOWN_NOTIFY_PATH, 1);
+        ThermalUtils.writeSysfs(THERMAL_SHUTDOWN_NOTIFY_PATH, 1);
         /* We must avoid reboot after shutdown. */
         SystemProperties.set("sys.property_forcedshutdown", "1");
         Intent criticalIntent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
