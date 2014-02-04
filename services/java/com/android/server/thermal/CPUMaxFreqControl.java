@@ -74,7 +74,7 @@ public class CPUMaxFreqControl {
     }
 
     private static void getNumberOfProcessors() {
-        String cpu = ThermalManager.readSysfs(sCPUPresentPath);
+        String cpu = ThermalUtils.readSysfs(sCPUPresentPath);
         if (cpu == null) return;
 
         // This sysfs interface exposes the number of CPUs present in 0-N format,
@@ -87,7 +87,7 @@ public class CPUMaxFreqControl {
     }
 
     private static void readAvailFreq() {
-        String line = ThermalManager.readSysfs(sCPUAvailFreqsPath);
+        String line = ThermalUtils.readSysfs(sCPUAvailFreqsPath);
         if (line == null) return;
 
         // Find the number of tokens
@@ -127,8 +127,8 @@ public class CPUMaxFreqControl {
             String path = sCPUDeviceSysfsPath + "cpu" + i + sCPUThrottleSysfsPath;
             // Sometimes these cpufreq files can be hot-unplugged.
             // So, better check everytime rather than causing an Exception
-            if (ThermalManager.isFileExists(path))
-                ThermalManager.writeSysfs(path, sMaxScalingFreq[tstate]);
+            if (ThermalUtils.isFileExists(path))
+                ThermalUtils.writeSysfs(path, sMaxScalingFreq[tstate]);
         }
     }
 

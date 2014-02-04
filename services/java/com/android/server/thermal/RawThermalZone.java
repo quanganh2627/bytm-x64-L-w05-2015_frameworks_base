@@ -16,6 +16,7 @@
 
 package com.android.server.thermal;
 
+import android.os.UEventObserver;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -24,8 +25,9 @@ import java.util.Arrays;
 /**
  * The RawThermalZone class extends the ThermalZone class, with a default
  * implementation of the isZoneStateChanged() method. This computes the
- * zone state by selecting the maximum state of the all sensors inside
- * this zone.
+ * zone state by first computing max of all sensor temperature (in polling mode)
+ * and comparing this temperature against zone thresholds. For uevent based
+ * monitoring only the temperature of first sensor is used to compute zone state.
  *
  * @hide
  */
@@ -42,61 +44,63 @@ public class RawThermalZone extends ThermalZone {
     }
 
     private boolean updateZoneTemp() {
-        int maxSensorState = ThermalManager.THERMAL_STATE_OFF - 1;
-        int curSensorState = ThermalManager.THERMAL_STATE_OFF - 1;
-        int curTemp = ThermalManager.INVALID_TEMP;
-
-        for (ThermalSensor ts : getThermalSensorList()) {
-            if (ts.getSensorActiveStatus()) {
-                curSensorState = ts.getSensorThermalState();
-                if (curSensorState > maxSensorState) {
-                    maxSensorState = curSensorState;
+        int curTemp = ThermalManager.INVALID_TEMP, maxCurTemp = ThermalManager.INVALID_TEMP;
+        if (isUEventSupported()) {
+            ArrayList<ThermalSensor> list = getThermalSensorList();
+            if (list != null) {
+                // for uevent based monitoring only first sensor used
+                ThermalSensor s = list.get(0);
+                if (s != null) {
+                    maxCurTemp = s.getCurrTemp();
+                }
+            }
+        } else {
+            //zone temp is max of all sensor temp
+            for (ThermalSensor ts : getThermalSensorList()) {
+                if (ts != null && ts.getSensorActiveStatus()) {
                     curTemp = ts.getCurrTemp();
+                    if (curTemp > maxCurTemp) {
+                        maxCurTemp = curTemp;
+                    }
                 }
             }
         }
 
-        if (curTemp != ThermalManager.INVALID_TEMP) {
-            setZoneTemp(curTemp);
+        if (maxCurTemp != ThermalManager.INVALID_TEMP) {
+            setZoneTemp(maxCurTemp);
             return true;
         }
 
         return false;
     }
 
-    private int calcZoneState() {
-        int maxSensorState = ThermalManager.THERMAL_STATE_OFF - 1;
-        int curSensorState = ThermalManager.THERMAL_STATE_OFF - 1;
-        int curTemp = ThermalManager.INVALID_TEMP;
-
-        for (ThermalSensor ts : getThermalSensorList()) {
-            if (ts.getSensorActiveStatus()) {
-                curSensorState = ts.getSensorThermalState();
-                if (curSensorState > maxSensorState) {
-                    maxSensorState = curSensorState;
-                    curTemp = ts.getCurrTemp();
-                }
-            }
-        }
-
-        return maxSensorState;
-    }
-
     private boolean updateZoneParams() {
-        int state;
+        int newZoneState;
         int prevZoneState = getZoneState();
 
         if (!updateZoneTemp()) {
             return false;
         }
 
-        state = calcZoneState();
-        if (state == prevZoneState) {
+        newZoneState = ThermalUtils.calculateThermalState(getZoneTemp(), getZoneTempThreshold());
+        if (newZoneState == prevZoneState) {
             return false;
         }
 
-        setZoneState(state);
-        setEventType(state > prevZoneState ?
+        if (newZoneState == ThermalManager.THERMAL_STATE_OFF) {
+            setZoneState(newZoneState);
+            return true;
+        }
+
+        int threshold = ThermalUtils.getLowerThresholdTemp(prevZoneState, getZoneTempThreshold());
+        if (newZoneState < prevZoneState && getZoneTemp() > (threshold - getDBInterval())) {
+            Log.i(TAG, " THERMAL_LOW_EVENT for zone:" + getZoneName() +
+                    " rejected due to debounce interval");
+            return false;
+        }
+
+        setZoneState(newZoneState);
+        setEventType(newZoneState > prevZoneState ?
                 ThermalManager.THERMAL_HIGH_EVENT :
                 ThermalManager.THERMAL_LOW_EVENT);
         return true;
@@ -108,14 +112,9 @@ public class RawThermalZone extends ThermalZone {
      * zone operates in polling mode.
      */
     public boolean isZoneStateChanged() {
-        // updateSensorAttributes() updates a sensor's state.
-        // Debounce Interval is passed as input, so that for
-        // LOWEVENT (Hot to Cold transition), if decrease in sensor
-        // temperature is less than (threshold - debounce interval), sensor
-        // state change is ignored and original state is maintained.
         for (ThermalSensor ts : getThermalSensorList()) {
             if (ts.getSensorActiveStatus()) {
-                ts.updateSensorAttributes(getDBInterval());
+                ts.updateSensorTemp();
             }
         }
         return updateZoneParams();
@@ -129,10 +128,106 @@ public class RawThermalZone extends ThermalZone {
      * parameter of the UEvent.
      */
     public boolean isZoneStateChanged(ThermalSensor s, int temp) {
-        // Update sensor state, and record the max sensor state and
-        // max sensor temp. This overloaded fucntion updateSensorAttributes()
-        // doesnot do a sysfs read, but only updates temperature.
-        s.updateSensorAttributes(getDBInterval(), temp);
+        if (s == null) return false;
+        s.setCurrTemp(temp);
         return updateZoneParams();
     }
+
+    public void registerUevent() {
+        ArrayList<ThermalSensor> sensorList = getThermalSensorList();
+        String devPath;
+        int indx;
+        if (sensorList == null) return;
+        if (sensorList.size() > 1) {
+            Log.i(TAG, "for zone:" + getZoneName() + " in uevent mode only first sensor used!");
+        }
+        ThermalSensor sensor = sensorList.get(0);
+        if (sensor == null) return;
+        String path = sensor.getUEventDevPath();
+        if (path.equalsIgnoreCase("invalid")) return;
+        if (path.equals("auto")) {
+            // build the sensor UEvent listener path
+            indx = sensor.getSensorSysfsIndx();
+            if (indx == -1) {
+                Log.i(TAG, "Cannot build UEvent path for sensor:" + sensor.getSensorName());
+                return;
+            } else {
+                devPath = ThermalManager.sUEventDevPath + indx;
+            }
+        } else {
+            devPath = path;
+        }
+        // first time update of sensor temp and zone temp
+        sensor.updateSensorTemp();
+        if (updateZoneParams()) {
+            // first intent after initialization
+            sendThermalEvent();
+        }
+        mUEventObserver.startObserving(devPath);
+        programThresholds(sensor);
+    }
+
+    private UEventObserver mUEventObserver = new UEventObserver() {
+        @Override
+        public void onUEvent(UEventObserver.UEvent event) {
+            String sensorName;
+            int sensorTemp, errorVal, eventType = -1;
+            ThermalZone zone;
+            ArrayList<ThermalSensor> sensorList = getThermalSensorList();
+            if (sensorList ==  null) return;
+            // Name of the sensor and current temperature are mandatory parameters of an UEvent
+            sensorName = event.get("NAME");
+            sensorTemp = Integer.parseInt(event.get("TEMP"));
+
+            // eventType is an optional parameter. so, check for null case
+            if (event.get("EVENT") != null)
+               eventType = Integer.parseInt(event.get("EVENT"));
+
+            if (sensorName != null) {
+                Log.i(TAG, "UEvent received for sensor:" + sensorName + " temp:" + sensorTemp);
+                // check the name against the first sensor
+                ThermalSensor sensor = sensorList.get(0);
+                if (sensor != null && sensor.getSensorName() != null
+                        && sensor.getSensorName().equalsIgnoreCase(sensorName)) {
+                    // Adjust the sensor temperature based on the 'error correction' temperature.
+                    // For 'LOW' event, debounce interval will take care of this.
+                    errorVal = sensor.getErrorCorrectionTemp();
+                    if (eventType == ThermalManager.THERMAL_HIGH_EVENT)
+                       sensorTemp += errorVal;
+
+                    // call isZoneStateChanged for zones mapped to this sensor
+                    if (isZoneStateChanged(sensor, sensorTemp)) {
+                        sendThermalEvent();
+                        // reprogram threshold
+                        programThresholds(sensor);
+                    }
+                }
+            }
+        }
+    };
+
+    private void sendThermalEvent() {
+        ThermalEvent thermalEvent = new ThermalEvent(getZoneId(),
+                getEventType(), getZoneState(), getZoneTemp(), getZoneName());
+        try {
+            ThermalManager.sEventQueue.put(thermalEvent);
+        } catch (InterruptedException ex) {
+                Log.i(TAG, "caught InterruptedException in posting to event queue");
+        }
+     }
+
+   private void programThresholds(ThermalSensor s) {
+        if (s == null) return;
+        int zoneState = getZoneState();
+        if (zoneState == ThermalManager.THERMAL_STATE_OFF) return;
+        int lowerTripPoint = ThermalUtils.getLowerThresholdTemp(zoneState,getZoneTempThreshold());
+        int upperTripPoint = ThermalUtils.getUpperThresholdTemp(zoneState, getZoneTempThreshold());
+        // write to sysfs
+        if (lowerTripPoint != ThermalManager.INVALID_TEMP &&
+                upperTripPoint != ThermalManager.INVALID_TEMP) {
+            ThermalUtils.writeSysfs(s.getSensorLowTempPath(), lowerTripPoint);
+            ThermalUtils.writeSysfs(s.getSensorHighTempPath(), upperTripPoint);
+        }
+    }
+
 }

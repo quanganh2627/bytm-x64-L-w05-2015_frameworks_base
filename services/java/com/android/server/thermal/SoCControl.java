@@ -30,7 +30,7 @@ public class SoCControl {
     private static String sSoCThrottlePath = null;
 
     private static void setThrottlePath() {
-        int indx = ThermalManager.getCoolingDeviceIndexContains("SoC");
+        int indx = ThermalUtils.getCoolingDeviceIndexContains("SoC");
 
         if (indx != -1) {
             sSoCThrottlePath = ThermalManager.sCoolingDeviceBasePath + indx
@@ -48,7 +48,7 @@ public class SoCControl {
         }
 
         if (sSoCThrottlePath != null) {
-            ThermalManager.writeSysfs(sSoCThrottlePath, thermalState);
+            ThermalUtils.writeSysfs(sSoCThrottlePath, thermalState);
         }
     }
 

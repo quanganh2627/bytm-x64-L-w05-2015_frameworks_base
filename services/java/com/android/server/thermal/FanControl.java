@@ -29,7 +29,7 @@ public class FanControl {
     private static String sFanThrottlePath = null;
 
     private static void setThrottlePath() {
-        int indx = ThermalManager.getCoolingDeviceIndexContains("Fan_EC");
+        int indx = ThermalUtils.getCoolingDeviceIndexContains("Fan_EC");
 
         if (indx != -1) {
             sFanThrottlePath = ThermalManager.sCoolingDeviceBasePath + indx
@@ -42,7 +42,7 @@ public class FanControl {
 
     public static void throttleDevice(int thermalState) {
         if (sFanThrottlePath != null)
-            ThermalManager.writeSysfs(sFanThrottlePath, thermalState);
+            ThermalUtils.writeSysfs(sFanThrottlePath, thermalState);
     }
 
     public static void init(Context context, String path, ArrayList<Integer> values) {
