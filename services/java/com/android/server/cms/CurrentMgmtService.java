@@ -274,16 +274,16 @@ public class CurrentMgmtService extends Binder {
             int i, j, k, battLevel, battTemp, plugType, status;
             Intent vbusIntent, thermalIntent;
             String actionReceived;
-            vbusIntent = new Intent(ACTION_USB_HOST_VBUS);
-            thermalIntent = new Intent();
-            thermalIntent.setAction(ThermalManager.ACTION_THERMAL_ZONE_STATE_CHANGED);
-            thermalIntent.putExtra(ThermalManager.EXTRA_NAME, "CMS");
-            thermalIntent.putExtra(ThermalManager.EXTRA_ZONE, 129);
             actionReceived = intent.getAction();
             if (actionReceived != null &&
                     actionReceived.equals(intent.ACTION_BOOT_COMPLETED)) {
+                thermalIntent = new Intent();
+                thermalIntent.setAction(ThermalManager.ACTION_THERMAL_ZONE_STATE_CHANGED);
+                thermalIntent.putExtra(ThermalManager.EXTRA_NAME, "CMS");
+                thermalIntent.putExtra(ThermalManager.EXTRA_ZONE, 129);
                 Log.i(TAG, "Boot completed");
                 sBootCompleted = true;
+                takeAction(context);
                 for (i = 0; i < mCpuList.size(); i++) {
                     if (mCpuList.get(i).isCapped()) {
                         if (IsSOCThrottleDevice()) {
@@ -345,95 +345,105 @@ public class CurrentMgmtService extends Binder {
                     sCurTempState = 0;
                 }
             }
+            takeAction(context);
+        }
+    }
 
-            if (sPrevLevelState != sCurLevelState) {
-                Log.i(TAG, "Battery level state changed:" + sCurLevelState);
-                sRecheckTempState = true;
-                if (sCurLevelState == 0) {
-                    for (i = 0; i < mCDevs.size(); i++) {
-                        if (mCDevs.get(i).getID() != 4) {
-                            nativeSubsystemThrottle(mCDevs.get(i).getID(), 0);
-                        }
-                    }
-                    if (sBootCompleted) {
-                        vbusIntent.putExtra(EXTRA_HOST_VBUS, USB_HOST_VBUS_NORMAL);
-                        context.sendBroadcastAsUser(vbusIntent, UserHandle.ALL);
-                        thermalIntent.putExtra(ThermalManager.EXTRA_EVENT,
-                                ThermalManager.THERMAL_LOW_EVENT);
-                        thermalIntent.putExtra(ThermalManager.EXTRA_STATE,
-                                ThermalManager.THERMAL_STATE_NORMAL);
-                        context.sendBroadcastAsUser(thermalIntent, UserHandle.ALL);
-                    } else {
-                        Log.i(TAG, "Boot not complete yet, not broadcasting message");
-                    }
-                } else {
-                    if (sCurLevelState < sPrevLevelState) {
-                        thermalIntent.putExtra(ThermalManager.EXTRA_EVENT,
-                                ThermalManager.THERMAL_LOW_EVENT);
-                    } else {
-                        thermalIntent.putExtra(ThermalManager.EXTRA_EVENT,
-                                ThermalManager.THERMAL_HIGH_EVENT);
-                    }
-                    for (j = 0; j < mLevelStates.get(sCurLevelState).getDevIDList().size(); j++) {
-                        for (k = 0; k < mCDevs.size(); k++) {
-                            if (mCDevs.get(k).getID() ==
-                                   mLevelStates.get(sCurLevelState).getDevIDList().get(j)) {
-                                if (mCDevs.get(k).getID() != 4) {
-                                    nativeSubsystemThrottle(mCDevs.get(k).getID(),
-                                            mCDevs.get(k).getThrottleTriggerByID(0).
-                                            getThrottleValue(0, sCurLevelState));
-                                } else if (sBootCompleted) {
-                                    switch (sCurLevelState) {
-                                        case 1:
-                                            vbusIntent.putExtra(
-                                                    EXTRA_HOST_VBUS, USB_HOST_VBUS_WARNING);
-                                            thermalIntent.putExtra(ThermalManager.EXTRA_STATE,
-                                                    ThermalManager.THERMAL_STATE_WARNING);
-                                            break;
-                                        case 2:
-                                            vbusIntent.putExtra(
-                                                    EXTRA_HOST_VBUS, USB_HOST_VBUS_ALERT);
-                                            thermalIntent.putExtra(ThermalManager.EXTRA_STATE,
-                                                    ThermalManager.THERMAL_STATE_ALERT);
-                                            break;
-                                        case 3:
-                                            vbusIntent.putExtra(
-                                                    EXTRA_HOST_VBUS, USB_HOST_VBUS_CRITICAL);
-                                            thermalIntent.putExtra(ThermalManager.EXTRA_STATE,
-                                                    ThermalManager.THERMAL_STATE_CRITICAL);
-                                            break;
-                                    }
-                                    context.sendBroadcastAsUser(vbusIntent, UserHandle.ALL);
-                                    context.sendBroadcastAsUser(thermalIntent, UserHandle.ALL);
-                                } else {
-                                    Log.i(TAG,
-                                            "Boot not complete yet, not broadcasting message");
-                                }
-                            }
-                        }
+    private void takeAction(Context context) {
+        int i, j, k;
+        Intent vbusIntent, thermalIntent;
+
+        thermalIntent = new Intent();
+        vbusIntent = new Intent(ACTION_USB_HOST_VBUS);
+
+        if (sPrevLevelState != sCurLevelState) {
+            Log.i(TAG, "Battery level state changed:" + sCurLevelState);
+            sRecheckTempState = true;
+            if (sCurLevelState == 0) {
+                for (i = 0; i < mCDevs.size(); i++) {
+                    if (mCDevs.get(i).getID() != 4) {
+                        nativeSubsystemThrottle(mCDevs.get(i).getID(), 0);
                     }
                 }
-                sPrevLevelState = sCurLevelState;
-            }
-            if (sPrevTempState != sCurTempState || sRecheckTempState) {
-                Log.i(TAG, "Battery temperature state changed:" + sCurTempState);
-                sRecheckTempState = false;
-                for (j = 0; j < mTempStates.get(sCurTempState).getDevIDList().size(); j++) {
+                if (sBootCompleted) {
+                    vbusIntent.putExtra(EXTRA_HOST_VBUS, USB_HOST_VBUS_NORMAL);
+                    context.sendBroadcastAsUser(vbusIntent, UserHandle.ALL);
+                    thermalIntent.putExtra(ThermalManager.EXTRA_EVENT,
+                            ThermalManager.THERMAL_LOW_EVENT);
+                    thermalIntent.putExtra(ThermalManager.EXTRA_STATE,
+                            ThermalManager.THERMAL_STATE_NORMAL);
+                    context.sendBroadcastAsUser(thermalIntent, UserHandle.ALL);
+                } else {
+                    Log.i(TAG, "Boot not complete yet, not broadcasting message");
+                }
+            } else {
+                if (sCurLevelState < sPrevLevelState) {
+                    thermalIntent.putExtra(ThermalManager.EXTRA_EVENT,
+                            ThermalManager.THERMAL_LOW_EVENT);
+                } else {
+                    thermalIntent.putExtra(ThermalManager.EXTRA_EVENT,
+                            ThermalManager.THERMAL_HIGH_EVENT);
+                }
+                for (j = 0; j < mLevelStates.get(sCurLevelState).getDevIDList().size(); j++) {
                     for (k = 0; k < mCDevs.size(); k++) {
                         if (mCDevs.get(k).getID() ==
-                                mTempStates.get(sCurTempState).getDevIDList().get(j)) {
-                            if (sCurTempState != 0) {
+                                    mLevelStates.get(sCurLevelState).getDevIDList().get(j)) {
+                            if (mCDevs.get(k).getID() != 4) {
                                 nativeSubsystemThrottle(mCDevs.get(k).getID(),
-                                        mCDevs.get(k).getThrottleTriggerByID(1).
-                                        getThrottleValue(1, sCurTempState));
-                            } else if (sCurTempState == 0 && sCurLevelState == 0) {
-                                nativeSubsystemThrottle(mCDevs.get(k).getID(), 0);
+                                            mCDevs.get(k).getThrottleTriggerByID(0).
+                                            getThrottleValue(0, sCurLevelState));
+                            } else if (sBootCompleted) {
+                                switch (sCurLevelState) {
+                                    case 1:
+                                        vbusIntent.putExtra(
+                                                EXTRA_HOST_VBUS, USB_HOST_VBUS_WARNING);
+                                        thermalIntent.putExtra(ThermalManager.EXTRA_STATE,
+                                                ThermalManager.THERMAL_STATE_WARNING);
+                                        break;
+                                    case 2:
+                                        vbusIntent.putExtra(
+                                                EXTRA_HOST_VBUS, USB_HOST_VBUS_ALERT);
+                                        thermalIntent.putExtra(ThermalManager.EXTRA_STATE,
+                                                ThermalManager.THERMAL_STATE_ALERT);
+                                        break;
+                                    case 3:
+                                        vbusIntent.putExtra(
+                                                EXTRA_HOST_VBUS, USB_HOST_VBUS_CRITICAL);
+                                        thermalIntent.putExtra(ThermalManager.EXTRA_STATE,
+                                                ThermalManager.THERMAL_STATE_CRITICAL);
+                                        break;
+                                }
+                                context.sendBroadcastAsUser(vbusIntent, UserHandle.ALL);
+                                context.sendBroadcastAsUser(thermalIntent, UserHandle.ALL);
+                            } else {
+                                Log.i(TAG,
+                                        "Boot not complete yet, not broadcasting message");
                             }
                         }
                     }
                 }
-                sPrevTempState = sCurTempState;
             }
+            if (sBootCompleted)
+                sPrevLevelState = sCurLevelState;
+        }
+        if (sPrevTempState != sCurTempState || sRecheckTempState) {
+            Log.i(TAG, "Battery temperature state changed:" + sCurTempState);
+            sRecheckTempState = false;
+            for (j = 0; j < mTempStates.get(sCurTempState).getDevIDList().size(); j++) {
+                for (k = 0; k < mCDevs.size(); k++) {
+                    if (mCDevs.get(k).getID() ==
+                            mTempStates.get(sCurTempState).getDevIDList().get(j)) {
+                        if (sCurTempState != 0) {
+                            nativeSubsystemThrottle(mCDevs.get(k).getID(),
+                                    mCDevs.get(k).getThrottleTriggerByID(1).
+                                    getThrottleValue(1, sCurTempState));
+                        } else if (sCurTempState == 0 && sCurLevelState == 0) {
+                            nativeSubsystemThrottle(mCDevs.get(k).getID(), 0);
+                        }
+                    }
+                }
+            }
+            sPrevTempState = sCurTempState;
         }
     }
 
