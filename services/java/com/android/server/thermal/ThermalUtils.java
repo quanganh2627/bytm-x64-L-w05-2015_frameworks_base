@@ -16,6 +16,7 @@
 
 package com.android.server.thermal;
 
+import android.content.Context;
 import android.util.Log;
 
 import java.io.IOException;
@@ -149,8 +150,22 @@ public class ThermalUtils {
         }
     }
 
-    public static boolean configFilesExist() {
-        return isFileExists(ThermalManager.SENSOR_FILE_PATH) &&
-                isFileExists(ThermalManager.THROTTLE_FILE_PATH);
+    public static boolean configFilesExist(Context context) {
+        if (isFileExists(ThermalManager.SENSOR_FILE_PATH) &&
+                isFileExists(ThermalManager.THROTTLE_FILE_PATH)) {
+            return true;
+        } else {
+            ThermalManager.THERMAL_SENSOR_CONFIG_XML_ID = context.getResources().getSystem().
+                    getIdentifier("thermal_sensor_config", "xml", "android");
+            ThermalManager.THERMAL_THROTTLE_CONFIG_XML_ID = context.getResources().getSystem().
+                    getIdentifier("thermal_throttle_config", "xml", "android");
+            if (ThermalManager.THERMAL_SENSOR_CONFIG_XML_ID != 0 &&
+                    ThermalManager.THERMAL_THROTTLE_CONFIG_XML_ID != 0) {
+                Log.i(TAG, "reading thermal config files from overlays");
+                ThermalManager.sIsOverlays = true;
+                return true;
+            }
+        }
+        return false;
     }
 }

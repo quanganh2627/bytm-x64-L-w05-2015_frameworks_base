@@ -84,9 +84,9 @@ public class ThermalCooling {
 
         XmlPullParser mParser;
 
-        ThermalCoolingDevice mDevice;
+        ThermalCoolingDevice mDevice = null;
 
-        ThermalManager.ZoneCoolerBindingInfo mZone;
+        ThermalManager.ZoneCoolerBindingInfo mZone = null;
 
         FileReader mInputStream = null;
 
@@ -117,13 +117,19 @@ public class ThermalCooling {
 
         }
 
+        ThermalParser() {
+            mParser = mContext.getResources().
+                    getXml(ThermalManager.THERMAL_THROTTLE_CONFIG_XML_ID);
+        }
+
         public void parse() {
-            if (mInputStream == null)
-                return;
+            if (ThermalManager.sIsOverlays == false && mInputStream == null) return;
             /* if mParser is null, close any open stream before exiting */
             if (mParser == null) {
                 try {
-                    mInputStream.close();
+                    if (mInputStream != null) {
+                        mInputStream.close();
+                    }
                 } catch (IOException e) {
                     Log.i(TAG, "IOException caught in parse() function");
                 }
@@ -264,7 +270,12 @@ public class ThermalCooling {
         Log.i(TAG, "Thermal Cooling manager init() called");
 
         mContext = context;
-        ThermalParser parser = new ThermalParser(ThermalManager.THROTTLE_FILE_PATH);
+        ThermalParser parser;
+        if (!ThermalManager.sIsOverlays) {
+            parser = new ThermalParser(ThermalManager.THROTTLE_FILE_PATH);
+        } else {
+            parser = new ThermalParser();
+        }
         if (parser == null)
             return false;
         parser.parse();

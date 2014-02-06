@@ -81,18 +81,18 @@ public class ThermalService extends Binder {
        private static final String OFFSET = "Offset";
        private static final String ZONETHRESHOLD = "ZoneThreshold";
        private boolean done = false;
-       private ThermalManager.PlatformInfo mPlatformInfo;
-       private ThermalSensor mCurrSensor;
-       private ThermalZone mCurrZone;
-       private ArrayList<ThermalSensor> mCurrSensorList;
-       private ArrayList<ThermalZone> mThermalZones;
-       private ArrayList<Integer> mPollDelayList;
-       private ArrayList<Integer> mMovingAvgWindowList;
+       private ThermalManager.PlatformInfo mPlatformInfo = null;
+       private ThermalSensor mCurrSensor = null;
+       private ThermalZone mCurrZone = null;
+       private ArrayList<ThermalSensor> mCurrSensorList = null;
+       private ArrayList<ThermalZone> mThermalZones = null;
+       private ArrayList<Integer> mPollDelayList = null;
+       private ArrayList<Integer> mMovingAvgWindowList = null;
        private ArrayList<Integer> mWeightList = null;
        private ArrayList<Integer> mOrderList = null;
        private ArrayList<Integer> mZoneThresholdList = null;
-       XmlPullParserFactory mFactory;
-       XmlPullParser mParser;
+       XmlPullParserFactory mFactory = null;
+       XmlPullParser mParser = null;
        int tempZoneId = -1;
        String tempZoneName = null;
        FileReader mInputStream = null;
@@ -130,6 +130,11 @@ public class ThermalService extends Binder {
           }
        }
 
+       ThermalParser() {
+           mParser = mContext.getResources().
+                   getXml(ThermalManager.THERMAL_SENSOR_CONFIG_XML_ID);
+       }
+
        public ThermalManager.PlatformInfo getPlatformInfo() {
           return mPlatformInfo;
        }
@@ -139,11 +144,13 @@ public class ThermalService extends Binder {
        }
 
        public void parse() {
-       if (mInputStream == null) return;
+       if (ThermalManager.sIsOverlays == false && mInputStream == null) return;
        /* if mParser is null, close any open stream before exiting */
        if (mParser == null) {
            try {
-               mInputStream.close();
+               if (mInputStream != null) {
+                   mInputStream.close();
+               }
            } catch (IOException e) {
                Log.i(TAG,"IOException caught in parse() function");
            }
@@ -418,7 +425,7 @@ public class ThermalService extends Binder {
         public void onReceive(Context context, Intent intent)
         {
             ThermalManager.loadiTUXVersion();
-            if (!ThermalUtils.configFilesExist()) {
+            if (!ThermalUtils.configFilesExist(mContext)) {
                 Log.i(TAG, "Thermal config files dont exist, exiting Thermal service...");
                 return;
             }
@@ -432,7 +439,12 @@ public class ThermalService extends Binder {
             }
 
             /* Parse the thermal configuration file to determine zone/sensor information */
-            ThermalParser mThermalParser = new ThermalParser(ThermalManager.SENSOR_FILE_PATH);
+            ThermalParser mThermalParser;
+            if (!ThermalManager.sIsOverlays) {
+                mThermalParser = new ThermalParser(ThermalManager.SENSOR_FILE_PATH);
+            } else {
+                mThermalParser = new ThermalParser();
+            }
             if (mThermalParser == null) {
                 Log.i(TAG, "ThermalParser creation failed.Thermal Service exiting....");
                 return;
