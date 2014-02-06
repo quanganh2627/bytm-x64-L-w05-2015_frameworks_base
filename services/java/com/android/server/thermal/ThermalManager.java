@@ -43,7 +43,14 @@ public class ThermalManager {
 
     public static final String THROTTLE_FILE_PATH = "/system/etc/thermal_throttle_config.xml";
 
+    public static int THERMAL_SENSOR_CONFIG_XML_ID = -1;
+
+    public static int THERMAL_THROTTLE_CONFIG_XML_ID = -1;
+
     public static String sUEventDevPath = "DEVPATH=/devices/virtual/thermal/thermal_zone";
+
+    /* Whether we are using the config files from overlays directory or from /etc/ */
+    public static boolean sIsOverlays = false;
 
     /**
      * Thermal Zone State Changed Action: This is broadcast when the state of a
