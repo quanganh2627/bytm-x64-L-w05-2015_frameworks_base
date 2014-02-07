@@ -144,6 +144,10 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_STRING_IMS_CALL_STATUS = 0x000000B4;
     /* OEM hook specific to indicate sms available with IMS */
     public static final int RIL_OEM_HOOK_STRING_IMS_SMS_STATUS = 0x000000B5;
+    /* OEM hook specific to get PC-CSCF information with IMS */
+    public static final int RIL_OEM_HOOK_STRING_IMS_GET_PCSCF = 0x000000B6;
+    /* OEM hook specific to IMS to pass SRVCC call infos */
+    public static final int RIL_OEM_HOOK_STRING_IMS_SRVCC_PARAM = 0x000000B7;
     /* OEM hook to get the thermal alarm indication */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_THERMAL_ALARM_IND = 0x000000D0;
     /* OEM hook specific to DSDS for catching out of service URC */
@@ -176,4 +180,8 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_RAW_UNSOL_BEARER_DEACT = 0x000000DE;
     /* OEM hook specific to ciphering indication */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_CIPHERING_IND = 0x000000DF;
+    /* OEM hook specific to indicate SRVCC procedure started or completed*/
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_SRVCCH_STATUS = 0x000000E0;
+    /* OEM hook specific to indicate SRVCC synchronization needed */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_SRVCC_HO_STATUS = 0x000000E1;
 }

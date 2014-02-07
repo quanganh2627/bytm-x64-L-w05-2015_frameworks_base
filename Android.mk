@@ -54,7 +54,10 @@ include $(CLEAR_VARS)
 
 # FRAMEWORKS_BASE_SUBDIRS comes from build/core/pathmap.mk
 LOCAL_SRC_FILES := $(call find-other-java-files,$(FRAMEWORKS_BASE_SUBDIRS))
-
+ifdef DOLBY_DAP
+LOCAL_SRC_FILES := $(filter-out media/java/android/media/AudioServiceHelper.java, $(LOCAL_SRC_FILES))
+LOCAL_SRC_FILES += $(call all-java-files-under, ../../vendor/intel/PRIVATE/dolby_ds1/java/android/media)
+endif
 # EventLogTags files.
 LOCAL_SRC_FILES += \
        core/java/android/content/EventLogTags.logtags \
@@ -289,6 +292,7 @@ LOCAL_SRC_FILES += \
 	telephony/java/com/android/internal/telephony/ITelephonyRegistry.aidl \
 	telephony/java/com/android/internal/telephony/IWapPushManager.aidl \
 	telephony/java/com/intel/internal/telephony/OemTelephony/IOemTelephony.aidl \
+	telephony/java/com/intel/internal/telephony/OemTelephony/ISrvccListener.aidl \
 	wifi/java/android/net/wifi/IWifiManager.aidl \
 	wifi/java/android/net/wifi/p2p/IWifiP2pManager.aidl \
 	packages/services/PacProcessor/com/android/net/IProxyService.aidl \

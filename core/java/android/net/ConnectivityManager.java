@@ -361,11 +361,23 @@ public class ConnectivityManager {
      */
     public static final int TYPE_MOBILE_IA = 14;
 
-    /** {@hide} */
-    public static final int MAX_RADIO_TYPE   = TYPE_MOBILE_IA;
+    /**
+     * It may coexist with default data connections.
+     * {@hide}
+     */
+    public static final int TYPE_MOBILE_XCAP  = 15;
+
+    /**
+     * Emergency Call on IP Multimedia Subsystem.
+     * {@hide}
+     */
+    public static final int TYPE_MOBILE_EMERGENCY  = 16;
 
     /** {@hide} */
-    public static final int MAX_NETWORK_TYPE = TYPE_MOBILE_IA;
+    public static final int MAX_RADIO_TYPE   = TYPE_MOBILE_EMERGENCY;
+
+    /** {@hide} */
+    public static final int MAX_NETWORK_TYPE = TYPE_MOBILE_EMERGENCY;
 
     /**
      * If you want to set the default network preference,you can directly
@@ -444,6 +456,10 @@ public class ConnectivityManager {
                 return "WIFI_P2P";
             case TYPE_MOBILE_IA:
                 return "MOBILE_IA";
+            case TYPE_MOBILE_XCAP:
+                return "MOBILE_XCAP";
+            case TYPE_MOBILE_EMERGENCY:
+                return "MOBILE_EMERGENCY";
             default:
                 return Integer.toString(type);
         }
@@ -467,6 +483,8 @@ public class ConnectivityManager {
             case TYPE_MOBILE_IMS:
             case TYPE_MOBILE_CBS:
             case TYPE_MOBILE_IA:
+            case TYPE_MOBILE_XCAP:
+            case TYPE_MOBILE_EMERGENCY:
                 return true;
             default:
                 return false;
@@ -499,6 +517,7 @@ public class ConnectivityManager {
             case TYPE_MOBILE_SUPL:
             case TYPE_MOBILE_HIPRI:
             case TYPE_MOBILE_IA:
+            case TYPE_MOBILE_EMERGENCY:
                 return true;
             default:
                 return false;
@@ -1492,4 +1511,93 @@ public class ConnectivityManager {
         } catch (RemoteException e) {
         }
     }
+
+    /**
+     * Add an SA entry
+     *
+     * @param srcAddress source address
+     * @param dstAddress destination address
+     * @param secProtocol security protocol to use (esp/ah)
+     * @param mode mode (tunnel/tranport)
+     * @param spi spi
+     * @param aalgo authentication algorithm
+     * @param authKey authentication key
+     * @param ealgo encryption algorithm
+     * @param encryptKey encryption key
+     * @param time validity time of the entry
+     *
+     * @return the entry identifier.
+     * {@hide}
+     */
+    public int addIpSecSAEntry(String srcAddress, String dstAddress, String secProtocol,
+            String mode, int spi, String aalgo, String authKey, String ealgo, String encryptKey,
+            long time) {
+        try {
+            return mService.addIpSecSAEntry(srcAddress, dstAddress, secProtocol,
+                    mode, spi, aalgo, authKey, ealgo, encryptKey, time);
+        } catch (RemoteException e) {
+        }
+        return 0;
+    }
+
+    /**
+     * Add an SP entry
+     *
+     * @param srcAddress source address
+     * @param srcPort source port
+     * @param dstAddress destination address
+     * @param dstPort destination port
+     * @param protocol protocol (UDP, TCP, ANY)
+     * @param direction direction (in/out)
+     * @param secProtocol (esp/ah)
+     * @param mode mode (tunnel/transport)
+     * @param time validity time of the entry
+     *
+     * @return entry identifier
+     * {@hide}
+     */
+    public int addIpSecSPEntry(String srcAddress, int srcPort,
+            String dstAddress, int dstPort, String protocol,
+            String direction, String secProtocol, String mode, long time) {
+        try {
+            return mService.addIpSecSPEntry(srcAddress, srcPort,
+                    dstAddress, dstPort, protocol, direction, secProtocol, mode, time);
+        } catch (RemoteException e) {
+        }
+        return 0;
+    }
+
+    /**
+     * Delete an SA entry
+     *
+     * @param srcAddress source address
+     * @param dstAddress destination address
+     * @param spi spi
+     * @param secProtocol security protocol (esp/ah)
+     * @param mode mode (tunnel/transport)
+     *
+     * {@hide}
+     */
+    public void deleteIpSecSAEntry(String srcAddress, String dstAddress, int spi,
+            String secProtocol, String mode) {
+        try {
+            mService.deleteIpSecSAEntry(srcAddress, dstAddress, spi, secProtocol, mode);
+        } catch (RemoteException e) {
+        }
+    }
+
+    /**
+     * Delete an SP entry
+     *
+     * @param id entry identifier (as returned by addIpSecSPEntry)
+     *
+     * {@hide}
+     */
+    public void deleteIpSecSPEntry(int id) {
+        try {
+            mService.deleteIpSecSPEntry(id);
+        } catch (RemoteException e) {
+        }
+    }
+
 }

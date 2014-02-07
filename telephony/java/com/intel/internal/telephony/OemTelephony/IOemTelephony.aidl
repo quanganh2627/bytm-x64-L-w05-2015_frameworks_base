@@ -16,6 +16,11 @@
 
 package com.intel.internal.telephony.OemTelephony;
 
+import android.os.Message;
+
+import com.intel.internal.telephony.OemTelephony.ISrvccListener;
+import com.intel.internal.telephony.OemTelephony.OemSrvccSyncParam;
+
 /**
  * Interface used to interact with the OEM Hook.
  *
@@ -185,5 +190,45 @@ interface IOemTelephony {
      */
     void powerOffModem();
     String sendAtCommand(String command);
-}
 
+    /*
+     * Get the current status of IMS network.
+     *
+     * @param iface the interface name for which we want to retrieve
+     *              pcscf data from.
+     * @param m the message on which the result will be sent. obj field
+     *          of message will contain a string array with the following
+     *          content: <ul>
+     *          <li> [0] the cid of the PDN </li>
+     *          <li> [1] the first pcscf server ip</li>
+     *          <li> [2] the second pcscf server ip</li>
+     *          </ul>
+     *
+     * {@hide}
+     */
+    void getPcscf(in String iface, in Message result);
+
+    /*
+     * Sends the SRVCC synchronization params to the modem.
+     * @param params the list of params to send.
+     *
+     * {@hide}
+     */
+    void setSrvccSyncParams(in List<OemSrvccSyncParam> params, in Message result);
+
+    /**
+     * Interface to register for new SRVCC listener
+     * @param listener listener object
+     *
+     * {@hide}
+     */
+    void registerSrvccListener(in ISrvccListener listener);
+
+    /**
+     * Interface to de-register SRVCC listener
+     * @param listener listener object
+     *
+     * {@hide}
+     */
+    void unregisterSrvccListener(in ISrvccListener listener);
+}

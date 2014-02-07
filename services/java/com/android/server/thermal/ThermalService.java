@@ -191,7 +191,7 @@ public class ThermalService extends Binder {
                         if (zoneName.contains("Modem")) {
                            mCurrZone = new ModemZone(mContext);// upcasting to base class
                         } else {
-                           mCurrZone = new ThermalZone();
+                           mCurrZone = new RawThermalZone();
                         }
                         if (mCurrZone != null) {
                             mCurrZone.setZoneName(zoneName);
@@ -202,7 +202,7 @@ public class ThermalService extends Binder {
                    else if (name.equalsIgnoreCase("SupportsUEvent") && mCurrZone != null)
                        mCurrZone.setSupportsUEvent(Integer.parseInt(mParser.nextText()));
                    else if (name.equalsIgnoreCase("SensorLogic") && mCurrZone != null)
-                       mCurrZone.setSensorLogic(Integer.parseInt(mParser.nextText()));
+                       mCurrZone.setSensorLogic(mParser.nextText());
                    else if (name.equalsIgnoreCase("DebounceInterval") && mCurrZone != null)
                        mCurrZone.setDBInterval(Integer.parseInt(mParser.nextText()));
                    else if (name.equalsIgnoreCase(POLLDELAY) && mCurrZone != null) {
@@ -304,7 +304,7 @@ public class ThermalService extends Binder {
              mPollDelayList = null;
          } else if (name.equalsIgnoreCase(MOVINGAVGWINDOW) &&
                  (mCurrSensor != null && mCurrZone != null)) {
-             mCurrSensor.setMovingAvgWindow(mMovingAvgWindowList, mCurrZone.getPollDelayList());
+             mCurrSensor.setMovingAvgWindow(mMovingAvgWindowList, mCurrZone.getPollDelay());
              mMovingAvgWindowList = null;
          } else if (name.equalsIgnoreCase(THERMAL_CONFIG)) {
              Log.i(TAG, "Parsing Finished..");

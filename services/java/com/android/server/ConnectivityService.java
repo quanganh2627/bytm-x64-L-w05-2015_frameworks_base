@@ -3584,6 +3584,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 usedNetworkType = ConnectivityManager.TYPE_MOBILE_IMS;
             } else if (TextUtils.equals(feature, Phone.FEATURE_ENABLE_CBS)) {
                 usedNetworkType = ConnectivityManager.TYPE_MOBILE_CBS;
+            } else if (TextUtils.equals(feature, Phone.FEATURE_ENABLE_XCAP)) {
+                usedNetworkType = ConnectivityManager.TYPE_MOBILE_XCAP;
+            } else if (TextUtils.equals(feature, Phone.FEATURE_ENABLE_EMERGENCY)) {
+                usedNetworkType = ConnectivityManager.TYPE_MOBILE_EMERGENCY;
             } else {
                 Slog.e(TAG, "Can't match any mobile netTracker!");
             }
@@ -4950,5 +4954,46 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     void setAlarm(int timeoutInMilliseconds, PendingIntent intent) {
         long wakeupTime = SystemClock.elapsedRealtime() + timeoutInMilliseconds;
         mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, wakeupTime, intent);
+    }
+
+    @Override
+    public int addIpSecSAEntry(String srcAddress, String dstAddress, String secProtocol,
+            String mode, int spi, String aalgo, String authKey, String ealgo, String encryptKey,
+            long time) {
+        try {
+            return mNetd.addIpSecSA(srcAddress, dstAddress, ealgo, encryptKey, aalgo,
+                    authKey, spi, secProtocol, mode, time);
+        } catch (RemoteException e) {
+        }
+        return 0;
+    }
+
+    @Override
+    public int addIpSecSPEntry(String srcAddress, int srcPort,
+            String dstAddress, int dstPort, String protocol,
+            String direction, String secProtocol, String mode, long time) {
+        try {
+            return mNetd.addIpSecSP(srcAddress, srcPort, dstAddress, dstPort, protocol, mode,
+                    direction, secProtocol, time);
+        } catch (RemoteException e) {
+        }
+        return 0;
+    }
+
+    @Override
+    public void deleteIpSecSAEntry(String srcAddress, String dstAddress, int spi,
+        String secProtocol, String mode) {
+        try {
+            mNetd.deleteIpSecSA(srcAddress, dstAddress, spi, secProtocol, mode);
+        } catch (RemoteException e) {
+        }
+    }
+
+    @Override
+    public void deleteIpSecSPEntry(int id) {
+        try {
+            mNetd.deleteIpSecSP(id);
+        } catch (RemoteException e) {
+        }
     }
 }

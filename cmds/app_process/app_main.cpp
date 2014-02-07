@@ -16,6 +16,8 @@
 #include <cutils/trace.h>
 #include <android_runtime/AndroidRuntime.h>
 #include <sys/personality.h>
+#include <sys/utsname.h>
+#include <sys/resource.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -162,6 +164,44 @@ int main(int argc, char* const argv[])
         }
     }
     unsetenv("NO_ADDR_COMPAT_LAYOUT_FIXUP");
+#endif
+
+#ifdef __i386__
+    struct utsname u_name;
+    if (uname(&u_name) == -1) {
+        fprintf(stderr, "Error: uname call failed.\n");
+    } else {
+        char value[PROPERTY_VALUE_MAX];
+        int ret;
+        ret = property_get("ro.config.personality", value, "");
+        if (ret && !strcmp(value, "compat_layout")
+                && (getenv("NO_ADDR_COMPAT_LAYOUT_FIXUP") == NULL)) {
+            int old_personality;
+            old_personality = personality((unsigned long)-1);
+            if (!strcmp(u_name.machine, "x86_64")
+                    && !(old_personality & ADDR_LIMIT_3GB)) {
+                /* In zygote, set stack limit to force mmap/heap area initially
+                 * below 2G, so as to workaround buggy applications that assume
+                 * positive memory address.
+                 * NOTE: A 64bit kernel allows either a 3G or 4G user space for
+                 * a 32bit application. In the case of a 3G user address space,
+                 * the 0x90000000 magic number is incorrect and Houdini apps
+                 * may fail, but tuning has shown it generally allows Houdini
+                 * apps to run successfully.
+                 */
+                struct rlimit rlim;
+                rlim.rlim_max = rlim.rlim_cur = 0x90000000;
+                int res = 0;
+                res = setrlimit(RLIMIT_STACK, &rlim);
+            } else {
+                personality(old_personality | ADDR_COMPAT_LAYOUT);
+            }
+            setenv("NO_ADDR_COMPAT_LAYOUT_FIXUP", "1", 1);
+            execv("/system/bin/app_process", argv);
+            return -1;
+        }
+        unsetenv("NO_ADDR_COMPAT_LAYOUT_FIXUP");
+    }
 #endif
 
     // These are global variables in ProcessState.cpp
