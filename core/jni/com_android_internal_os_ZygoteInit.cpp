@@ -38,6 +38,7 @@
 
 #include <sys/capability.h>
 #include <sys/prctl.h>
+#include <cutils/properties.h>
 
 namespace android {
 
@@ -268,8 +269,15 @@ static jobject com_android_internal_os_ZygoteInit_createFileDescriptor (
 void *houdini_handler = NULL;
 static void com_android_internal_os_ZygoteInit_preloadHoudini ()
 {
-    if (houdini_handler == NULL)
+    if (houdini_handler == NULL) {
+        char value[PROPERTY_VALUE_MAX];
+        int ret;
+        ret = property_get("ro.config.no_preload_hdn", value, "");
+        if (ret && !strcmp(value, "true")) {
+            return;
+        }
         houdini_handler = dlopen("/system/lib/libhoudini.so", RTLD_LAZY);
+    }
 }
 #endif
 
