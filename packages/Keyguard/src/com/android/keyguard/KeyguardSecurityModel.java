@@ -116,6 +116,9 @@ public class KeyguardSecurityModel {
                 default:
                     throw new IllegalStateException("Unknown unlock mode:" + mode);
             }
+            if (FeatureConfig.INTEL_FEATURE_ADAPTIVE_AUTHENTICATION) {
+                mode = mLockPatternUtils.checkSafe() ? SecurityMode.None : mode;
+            }
         }
         return mode;
     }
