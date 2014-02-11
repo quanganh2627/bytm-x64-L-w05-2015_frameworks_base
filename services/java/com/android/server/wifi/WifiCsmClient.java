@@ -46,7 +46,7 @@ public class WifiCsmClient extends CsmClient {
         if (mUsageCount++ == 0) {
             if (DBG) Slog.d(TAG, "Modem lock");
             try {
-                this.startAsync();
+                this.csmStartModem();
             } catch (CsmException e) {
                 Slog.d(TAG, "startAsync error " + e);
             }
@@ -59,7 +59,7 @@ public class WifiCsmClient extends CsmClient {
     public synchronized void putModem() {
         if (--mUsageCount == 0) {
             if (DBG) Slog.d(TAG, "Modem unlock");
-            this.stop();
+            this.csmStop();
         } else if (mUsageCount < 0) {
             Slog.e(TAG, "putModem: Unbalanced call");
             mUsageCount = 0;
