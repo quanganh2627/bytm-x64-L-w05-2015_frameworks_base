@@ -1338,7 +1338,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 if (isUp) {
                     if (mCsmClient != null) {
                         try {
-                            mCsmClient.startAsync();
+                            mCsmClient.csmStartModem();
                         } catch (CsmException e) {
                             if (DBG) Log.d(TAG, "Unable to start CsmClientBt.", e);
                         }
@@ -1351,7 +1351,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     }
                 } else {
                     if (mCsmClient != null) {
-                        mCsmClient.stop();
+                        mCsmClient.csmStop();
                     }
                     //If Bluetooth is off, send service down event to proxy objects, and unbind
                     if (!isUp && canUnbindBluetoothService()) {

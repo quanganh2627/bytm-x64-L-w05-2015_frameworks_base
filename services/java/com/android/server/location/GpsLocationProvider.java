@@ -1218,7 +1218,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
                         return;
                     }
                 }
-                mCsmClient.startAsync();
+                mCsmClient.csmStartModem();
             } catch (CsmException e) {
                 Log.e(TAG, "CsmClient.startClient failed in startNavigating() ", e);
             }
@@ -1286,7 +1286,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
             mLastFixTime = 0;
             mLocationFlags = LOCATION_INVALID;
 
-            mCsmClient.stop();
+            mCsmClient.csmStop();
 
             // reset SV count to zero
             updateStatus(LocationProvider.TEMPORARILY_UNAVAILABLE, 0);
