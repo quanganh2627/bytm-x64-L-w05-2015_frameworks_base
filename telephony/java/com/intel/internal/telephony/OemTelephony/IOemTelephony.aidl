@@ -18,6 +18,7 @@ package com.intel.internal.telephony.OemTelephony;
 
 import android.os.Message;
 
+import com.intel.internal.telephony.OemTelephony.IDedicatedBearerListener;
 import com.intel.internal.telephony.OemTelephony.ISrvccListener;
 import com.intel.internal.telephony.OemTelephony.OemSrvccSyncParam;
 
@@ -231,4 +232,20 @@ interface IOemTelephony {
      * {@hide}
      */
     void unregisterSrvccListener(in ISrvccListener listener);
+
+    /**
+     * Interface to register Dedicated Bearer info listener
+     * @param listener Dedicated Bearer info listener object
+     *
+     * {@hide}
+     */
+     void registerDedicatedBearerListener(in IDedicatedBearerListener listener);
+
+    /**
+     * Interface to de-register Dedicated Bearer listener
+     * @param listener Dedicated Bearer listener object
+     *
+     * {@hide}
+     */
+     void unregisterDedicatedBearerListener(in IDedicatedBearerListener listener);
 }
