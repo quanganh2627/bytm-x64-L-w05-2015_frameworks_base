@@ -1315,8 +1315,9 @@ public final class ActivityStackSupervisor {
                      * above to abort the IntentFirewall
                      * checkStartActivity(). If that code is changed
                      * this block will also need to be changed.
+                     * Resolved KW issue in this copy.
                      */
-                    if (resultRecord != null) {
+                    if (resultStack != null && resultRecord != null) {
                         resultStack.sendActivityResultLocked(-1, resultRecord, resultWho, requestCode,
                                 Activity.RESULT_CANCELED, null);
                     }
