@@ -293,6 +293,7 @@ LOCAL_SRC_FILES += \
 	telephony/java/com/android/internal/telephony/IWapPushManager.aidl \
 	telephony/java/com/intel/internal/telephony/OemTelephony/IOemTelephony.aidl \
 	telephony/java/com/intel/internal/telephony/OemTelephony/ISrvccListener.aidl \
+	telephony/java/com/intel/internal/telephony/OemTelephony/IDedicatedBearerListener.aidl \
 	wifi/java/android/net/wifi/IWifiManager.aidl \
 	wifi/java/android/net/wifi/p2p/IWifiP2pManager.aidl \
 	packages/services/PacProcessor/com/android/net/IProxyService.aidl \
