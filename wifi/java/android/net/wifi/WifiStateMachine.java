@@ -3517,6 +3517,9 @@ public class WifiStateMachine extends StateMachine {
                             // Load and re-enable networks when going back to enabled state
                             // This is essential for networks to show up after restore
                             mWifiConfigStore.loadAndEnableAllNetworks();
+                            if (mP2pSupported) {
+                                mWifiNative.p2pSetDisabled(false);
+                            }
                             mWifiP2pChannel.sendMessage(CMD_ENABLE_P2P);
                         } else {
                             mWifiConfigStore.enableAllNetworks();
