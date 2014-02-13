@@ -23,6 +23,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.io.File;
 import java.lang.NumberFormatException;
+import java.lang.StringBuilder;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.Hashtable;
@@ -199,6 +200,18 @@ public class ThermalManager {
         private ArrayList<CoolingDeviceInfo> mCoolingDeviceInfoList = null;
 
         private CoolingDeviceInfo lastCoolingDevInfoInstance = null;
+
+        public void printAttributes() {
+            if (mCoolingDeviceInfoList == null) return;
+            StringBuilder s = new StringBuilder();
+            for (CoolingDeviceInfo c : mCoolingDeviceInfoList) {
+                if (c != null) {
+                    s.append(c.getCoolingDeviceId());
+                    s.append(",");
+                }
+            }
+            Log.i(TAG, "zone id:" + mZoneID + " coolingDevID  mapped:" + s.toString());
+        }
 
         public class CoolingDeviceInfo {
             private int CDeviceID;
@@ -405,6 +418,7 @@ public class ThermalManager {
     }
 
     public static int calculateThermalState(int temp, Integer mThresholds[]) {
+        if (mThresholds == null) return THERMAL_STATE_OFF;
         // Return OFF state if temperature less than starting of thresholds
         if (temp < mThresholds[0])
             return ThermalManager.THERMAL_STATE_OFF;

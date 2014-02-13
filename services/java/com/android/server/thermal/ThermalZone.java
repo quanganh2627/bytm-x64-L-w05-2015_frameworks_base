@@ -41,16 +41,20 @@ public class ThermalZone {
     private int mDebounceInterval;    /* Debounce value to avoid thrashing of throttling actions */
     private Integer mPollDelay[];     /* Delay between sucessive polls in milli seconds */
     private boolean mSupportsUEvent;  /* Determines if Sensor supports Uevents */
-    private String mSensorLogic;      /* Logic to be used to determine thermal state of zone */
+    private String mZoneLogic;      /* Logic to be used to determine thermal state of zone */
     private boolean mIsZoneActive = false;
+    private int mOffset = 0;
+    private Integer mZoneTempThresholds[];  /* Array containing temperature thresholds */
 
     public void printAttrs() {
         Log.i(TAG, "mZoneID:" + Integer.toString(mZoneID));
         Log.i(TAG, "mDBInterval: " + Integer.toString(mDebounceInterval));
         Log.i(TAG, "mZoneName:" + mZoneName);
         Log.i(TAG, "mSupportsUEvent:" + Boolean.toString(mSupportsUEvent));
-        Log.i(TAG, "mSensorLogic:" + mSensorLogic);
+        Log.i(TAG, "mZoneLogic:" + mZoneLogic);
+        Log.i(TAG, "mOffset:" + mOffset);
         Log.i(TAG, "mPollDelay[]:" + Arrays.toString(mPollDelay));
+        Log.i(TAG, "mZoneTempThresholds[]: " + Arrays.toString(mZoneTempThresholds));
 
         for (ThermalSensor ts : mThermalSensors) {
             ts.printAttrs();
@@ -128,12 +132,12 @@ public class ThermalZone {
         return mSupportsUEvent;
     }
 
-    public void setSensorLogic(String type) {
-        mSensorLogic = type;
+    public void setZoneLogic(String type) {
+        mZoneLogic = type;
     }
 
-    public String getSensorLogic() {
-        return mSensorLogic;
+    public String getZoneLogic() {
+        return mZoneLogic;
     }
 
     public void setDBInterval(int interval) {
@@ -142,6 +146,14 @@ public class ThermalZone {
 
     public int getDBInterval() {
         return mDebounceInterval;
+    }
+
+    public int getOffset() {
+        return mOffset;
+    }
+
+    public void setOffset(int offset) {
+        mOffset  = offset;
     }
 
     public void setPollDelay(ArrayList<Integer> delayList) {
@@ -172,6 +184,25 @@ public class ThermalZone {
             index = ThermalManager.THERMAL_STATE_NORMAL + 1;
 
         return mPollDelay[index];
+    }
+
+    public void setZoneTempThreshold(ArrayList<Integer> thresholdList) {
+        if (thresholdList != null ) {
+            mZoneTempThresholds = new Integer[thresholdList.size()];
+            if (mZoneTempThresholds != null) {
+                mZoneTempThresholds = thresholdList.toArray(mZoneTempThresholds);
+            }
+        }
+    }
+
+    public int getZoneTempThreshold(int index) {
+        if (index < 0 || index >= mZoneTempThresholds.length)
+            return -1;
+        return mZoneTempThresholds[index];
+    }
+
+    public Integer[] getTempThresholds() {
+        return mZoneTempThresholds;
     }
 
     public boolean getZoneActiveStatus() {

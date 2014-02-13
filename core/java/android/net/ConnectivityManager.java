@@ -26,6 +26,7 @@ import android.os.Build.VERSION_CODES;
 import android.os.Messenger;
 import android.os.RemoteException;
 import android.os.ResultReceiver;
+import android.os.SystemProperties;
 import android.provider.Settings;
 
 import java.net.InetAddress;
@@ -361,18 +362,19 @@ public class ConnectivityManager {
      */
     public static final int TYPE_MOBILE_IA = 14;
 
+    /* The TYPE_XXXXX == 15 is forbidden to WA issues seen during CTS */
+
     /**
      * It may coexist with default data connections.
      * {@hide}
      */
-    public static final int TYPE_MOBILE_XCAP  = 15;
+    public static final int TYPE_MOBILE_XCAP  = 16;
 
     /**
      * Emergency Call on IP Multimedia Subsystem.
      * {@hide}
      */
-    public static final int TYPE_MOBILE_EMERGENCY  = 16;
-
+    public static final int TYPE_MOBILE_EMERGENCY  = 17;
     /** {@hide} */
     public static final int MAX_RADIO_TYPE   = TYPE_MOBILE_EMERGENCY;
 
@@ -413,7 +415,11 @@ public class ConnectivityManager {
      * @return a boolean.  {@code true} if the type is valid, else {@code false}
      */
     public static boolean isNetworkTypeValid(int networkType) {
-        return networkType >= 0 && networkType <= MAX_NETWORK_TYPE;
+        if (SystemProperties.getInt("persist.ims_support", 0) == 2) {
+            return networkType >= 0 && networkType <= MAX_NETWORK_TYPE;
+        } else {
+            return networkType >= 0 && networkType <= TYPE_MOBILE_IA;
+        }
     }
 
     /**
