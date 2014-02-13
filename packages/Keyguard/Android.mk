@@ -28,10 +28,10 @@ LOCAL_JAVA_LIBRARIES := services com.intel.config
 
 
 ifeq ($(strip $(INTEL_FEATURE_LPAL)),true)
-LOCAL_SRC_FILES += $(call all-java-files-under, ../../../../vendor/intel/PRIVATE/lpal/frameworks/enabled/base/packages/Keyguard/src)
+LOCAL_SRC_FILES += $(call all-java-files-under, ../../../../vendor/intel/lpal/frameworks/enabled/base/packages/Keyguard/src)
 LOCAL_STATIC_JAVA_LIBRARIES := vtsvmanager
 else
-LOCAL_SRC_FILES += $(call all-java-files-under, ../../../..//vendor/intel/PRIVATE/lpal/frameworks/disabled/base/packages/Keyguard/src)
+LOCAL_SRC_FILES += $(call all-java-files-under, ../../../../vendor/intel/lpal/frameworks/disabled/base/packages/Keyguard/src)
 endif
 
 
