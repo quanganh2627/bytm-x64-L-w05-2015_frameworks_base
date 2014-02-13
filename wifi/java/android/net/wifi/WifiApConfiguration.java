@@ -29,10 +29,14 @@ public class WifiApConfiguration implements Parcelable {
     public WifiChannel mChannel;
     public String mHwMode;
     public boolean mIs80211n;
+    public String mIpAddress;
+    public String mNetMask;
 
     public static final String HW_MODE_A = "a";
     public static final String HW_MODE_AC = "c";
     public static final String HW_MODE_BG = "g";
+    public final static String DEFAULT_SERVER_ADDRESS = "192.168.43.1";
+    public final static String DEFAULT_NETMASK = "255.255.255.0";
 
     /** @hide */
     public WifiApConfiguration() {
@@ -40,6 +44,8 @@ public class WifiApConfiguration implements Parcelable {
         mChannel = new WifiChannel(WifiChannel.DEFAULT_2_4_CHANNEL);
         mHwMode = HW_MODE_BG;
         mIs80211n = true;
+        mIpAddress = DEFAULT_SERVER_ADDRESS;
+        mNetMask = DEFAULT_NETMASK;
     }
 
     /** copy constructor {@hide} */
@@ -48,6 +54,8 @@ public class WifiApConfiguration implements Parcelable {
             mChannel = source.mChannel;
             mHwMode = source.mHwMode;
             mIs80211n = source.mIs80211n;
+            mIpAddress = source.mIpAddress;
+            mNetMask = source.mNetMask;
         }
     }
 
@@ -61,6 +69,8 @@ public class WifiApConfiguration implements Parcelable {
         dest.writeParcelable(mChannel, flags);
         dest.writeString(mHwMode);
         dest.writeInt(mIs80211n ? 1 : 0);
+        dest.writeString(mIpAddress);
+        dest.writeString(mNetMask);
     }
 
     /** @hide */
@@ -96,6 +106,8 @@ public class WifiApConfiguration implements Parcelable {
                 config.mChannel = in.readParcelable(null);
                 config.mHwMode = in.readString();
                 config.mIs80211n = (in.readInt() == 1);
+                config.mIpAddress = in.readString();
+                config.mNetMask = in.readString();
             }
             return config;
         }
