@@ -31,4 +31,6 @@ interface ILockSettings {
     boolean havePattern(int userId);
     boolean havePassword(int userId);
     void removeUser(int userId);
+    boolean checkSafe(int userId);
+    void aaUpdate(int userId);
 }

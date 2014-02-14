@@ -334,6 +334,8 @@ LOCAL_JAVA_LIBRARIES := bouncycastle conscrypt core core-junit ext okhttp
 
 LOCAL_JAVA_LIBRARIES += com.intel.config
 
+LOCAL_STATIC_JAVA_LIBRARIES += com.intel.aa.ctr
+
 LOCAL_MODULE := framework-base
 
 LOCAL_JAR_EXCLUDE_FILES := none
