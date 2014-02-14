@@ -450,15 +450,16 @@ interface INetworkManagementService
      * Add Security association in security database.
      *
      */
-    int addIpSecSA(String src, String dst, String ealgo, String ekey, String aalgo, String akey,
-            int spid, String secProtocol, String mode, long time);
+    int addIpSecSA(String src, int srcPort, String dst, int dstPort, String ealgo, String ekey,
+            String aalgo, String akey, int spid, String secProtocol, String mode, long time,
+            int reqid);
 
     /**
      * Add Security policy in security database.
      *
      */
     int addIpSecSP(String src, int srcPort, String dst, int dspPort, String protocol, String mode,
-            String direction, String secProtocol, long time);
+            String direction, String secProtocol, long time, int reqid);
 
     /**
      * Delete Security association in security database.

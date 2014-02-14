@@ -4957,12 +4957,12 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     }
 
     @Override
-    public int addIpSecSAEntry(String srcAddress, String dstAddress, String secProtocol,
-            String mode, int spi, String aalgo, String authKey, String ealgo, String encryptKey,
-            long time) {
+    public int addIpSecSAEntry(String srcAddress, int srcPort, String dstAddress, int dstPort,
+            String secProtocol, String mode, int spi, String aalgo, String authKey, String ealgo,
+            String encryptKey, long time, int reqid) {
         try {
-            return mNetd.addIpSecSA(srcAddress, dstAddress, ealgo, encryptKey, aalgo,
-                    authKey, spi, secProtocol, mode, time);
+            return mNetd.addIpSecSA(srcAddress, srcPort, dstAddress, dstPort, ealgo, encryptKey,
+                    aalgo, authKey, spi, secProtocol, mode, time, reqid);
         } catch (RemoteException e) {
         }
         return 0;
@@ -4971,10 +4971,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     @Override
     public int addIpSecSPEntry(String srcAddress, int srcPort,
             String dstAddress, int dstPort, String protocol,
-            String direction, String secProtocol, String mode, long time) {
+            String direction, String secProtocol, String mode, long time, int reqid) {
         try {
             return mNetd.addIpSecSP(srcAddress, srcPort, dstAddress, dstPort, protocol, mode,
-                    direction, secProtocol, time);
+                    direction, secProtocol, time, reqid);
         } catch (RemoteException e) {
         }
         return 0;

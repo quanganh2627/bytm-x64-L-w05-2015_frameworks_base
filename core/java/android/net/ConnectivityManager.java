@@ -1522,7 +1522,9 @@ public class ConnectivityManager {
      * Add an SA entry
      *
      * @param srcAddress source address
+     * @param srcPort source port
      * @param dstAddress destination address
+     * @param dstPort destination port
      * @param secProtocol security protocol to use (esp/ah)
      * @param mode mode (tunnel/tranport)
      * @param spi spi
@@ -1531,16 +1533,17 @@ public class ConnectivityManager {
      * @param ealgo encryption algorithm
      * @param encryptKey encryption key
      * @param time validity time of the entry
+     * @param reqid requestId allowing to uniquely match an SP with an SA.
      *
      * @return the entry identifier.
      * {@hide}
      */
-    public int addIpSecSAEntry(String srcAddress, String dstAddress, String secProtocol,
-            String mode, int spi, String aalgo, String authKey, String ealgo, String encryptKey,
-            long time) {
+    public int addIpSecSAEntry(String srcAddress, int srcPort, String dstAddress, int dstPort,
+            String secProtocol, String mode, int spi, String aalgo, String authKey, String ealgo,
+            String encryptKey, long time, int reqid) {
         try {
-            return mService.addIpSecSAEntry(srcAddress, dstAddress, secProtocol,
-                    mode, spi, aalgo, authKey, ealgo, encryptKey, time);
+            return mService.addIpSecSAEntry(srcAddress, srcPort, dstAddress, dstPort, secProtocol,
+                    mode, spi, aalgo, authKey, ealgo, encryptKey, time, reqid);
         } catch (RemoteException e) {
         }
         return 0;
@@ -1558,16 +1561,17 @@ public class ConnectivityManager {
      * @param secProtocol (esp/ah)
      * @param mode mode (tunnel/transport)
      * @param time validity time of the entry
+     * @param reqid requestId allowing to uniquely match an SP with an SA.
      *
      * @return entry identifier
      * {@hide}
      */
     public int addIpSecSPEntry(String srcAddress, int srcPort,
             String dstAddress, int dstPort, String protocol,
-            String direction, String secProtocol, String mode, long time) {
+            String direction, String secProtocol, String mode, long time, int reqid) {
         try {
             return mService.addIpSecSPEntry(srcAddress, srcPort,
-                    dstAddress, dstPort, protocol, direction, secProtocol, mode, time);
+                    dstAddress, dstPort, protocol, direction, secProtocol, mode, time, reqid);
         } catch (RemoteException e) {
         }
         return 0;
