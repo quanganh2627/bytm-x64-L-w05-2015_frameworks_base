@@ -33,6 +33,7 @@ LOCAL_JAVA_LIBRARIES += android.policy conscrypt telephony-common com.intel.mult
 
 LOCAL_JAVA_LIBRARIES += com.intel.asf
 
+LOCAL_STATIC_JAVA_LIBRARIES += com.intel.aa
 
 include $(BUILD_JAVA_LIBRARY)
 
