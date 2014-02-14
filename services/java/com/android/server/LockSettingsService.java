@@ -47,6 +47,7 @@ import android.util.Slog;
 
 import com.android.internal.widget.ILockSettings;
 import com.android.internal.widget.LockPatternUtils;
+import com.intel.server.aa.AdaptiveAuthenticationHandler;
 
 import com.intel.arkham.ContainerCommons;
 import com.intel.config.FeatureConfig;
@@ -85,6 +86,7 @@ public class LockSettingsService extends ILockSettings.Stub {
 
     private final Context mContext;
     private LockPatternUtils mLockPatternUtils;
+    private AdaptiveAuthenticationHandler mAAhandler = null;
 
     public LockSettingsService(Context context) {
         mContext = context;
@@ -92,6 +94,9 @@ public class LockSettingsService extends ILockSettings.Stub {
         mOpenHelper = new DatabaseHelper(mContext);
 
         mLockPatternUtils = new LockPatternUtils(context);
+        if (FeatureConfig.INTEL_FEATURE_ADAPTIVE_AUTHENTICATION) {
+            mAAhandler = AdaptiveAuthenticationHandler.GetInstance(mLockPatternUtils, context);
+        }
     }
 
     public void systemReady() {
@@ -400,6 +405,15 @@ public class LockSettingsService extends ILockSettings.Stub {
         } finally {
             db.endTransaction();
         }
+    }
+
+    public boolean checkSafe(int userId) {
+        checkWritePermission(userId);
+        return mAAhandler.checkSafe(userId);
+    }
+
+    public void aaUpdate(int userId) {
+        mAAhandler.aaUpdate(userId);
     }
 
     private void writeFile(String name, byte[] hash) {
