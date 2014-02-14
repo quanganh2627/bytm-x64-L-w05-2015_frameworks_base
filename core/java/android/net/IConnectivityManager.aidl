@@ -153,11 +153,13 @@ interface IConnectivityManager
 
     void setAirplaneMode(boolean enable);
 
-    int addIpSecSAEntry(String IpAddressSrc, String IpAddressDst, String protocol, String mode,
-            int spi, String aalgo, String authKey, String ealgo, String encryptKey, long time);
+    int addIpSecSAEntry(String IpAddressSrc, int portSrc, String IpAddressDst, int portDst,
+            String protocol, String mode, int spi, String aalgo, String authKey, String ealgo,
+            String encryptKey, long time, int reqid);
 
     int addIpSecSPEntry(String IpAddressSrc, int portSrc, String IpAddressDst, int portDst,
-            String protocol, String direction, String secProtocol, String mode, long time);
+            String protocol, String direction, String secProtocol, String mode, long time,
+            int reqid);
 
     void deleteIpSecSAEntry(String IpAddressSrc, String IpAddressDst, int spi, String secProtocol,
             String mode);

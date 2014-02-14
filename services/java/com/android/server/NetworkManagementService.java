@@ -1775,14 +1775,16 @@ public class NetworkManagementService extends INetworkManagementService.Stub
     }
 
     @Override
-    public int addIpSecSA(String src, String dst, String ealgo, String ekey, String aalgo,
-            String akey, int spid, String secProtocol, String mode, long time) {
+    public int addIpSecSA(String src, int srcPort, String dst, int dstPort, String ealgo,
+            String ekey, String aalgo, String akey, int spid, String secProtocol, String mode,
+            long time, int reqid) {
         NativeDaemonEvent event;
 
         try {
-            event = mConnector.execute("ipsec", "addsa", src, dst, ealgo, ekey, aalgo, akey,
+            event = mConnector.execute("ipsec", "addsa", src, Integer.valueOf(srcPort).toString(),
+                    dst, Integer.valueOf(dstPort).toString(), ealgo, ekey, aalgo, akey,
                     Integer.valueOf(spid).toString(), secProtocol, mode,
-                    Long.valueOf(time).toString());
+                    Long.valueOf(time).toString(), Integer.valueOf(reqid).toString());
             if (event.isClassOk()) {
                 return Integer.parseInt(event.getMessage());
             } else {
@@ -1797,12 +1799,12 @@ public class NetworkManagementService extends INetworkManagementService.Stub
 
     @Override
     public int addIpSecSP(String src, int srcPort, String dst, int dstPort, String protocol,
-            String mode, String direction, String secProtocol, long time) {
+            String mode, String direction, String secProtocol, long time, int reqid) {
         NativeDaemonEvent event;
         try {
             event = mConnector.execute("ipsec", "addsp", src, Integer.valueOf(srcPort).toString(),
                     dst, Integer.valueOf(dstPort).toString(), protocol, mode, direction,
-                    secProtocol, Long.valueOf(time).toString());
+                    secProtocol, Long.valueOf(time).toString(), Integer.valueOf(reqid).toString());
             if (event.isClassOk()) {
                 return Integer.parseInt(event.getMessage());
             } else {
