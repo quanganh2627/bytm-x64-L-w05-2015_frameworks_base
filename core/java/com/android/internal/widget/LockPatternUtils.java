@@ -44,6 +44,7 @@ import com.android.internal.R;
 import com.android.internal.telephony.ITelephony;
 import com.google.android.collect.Lists;
 import com.intel.arkham.ParentLockPatternUtils;
+import com.intel.internal.widget.aa.constants.Constants;
 import com.intel.config.FeatureConfig;
 
 import java.security.MessageDigest;
@@ -1695,6 +1696,52 @@ public class LockPatternUtils extends ParentLockPatternUtils {
                 // Cant do much
                 Log.e(INTEL_LPAL_TAG, "Unable to save lock password " + re);
             }
+        }
+    }
+
+    // Adaptive Authentication
+    public boolean checkSafe() {
+        Log.d(TAG, "check safe");
+        try {
+            return getLockSettings().checkSafe(getCurrentOrCallingUserId());
+        } catch (RemoteException re) {
+            // What can we do?
+            Log.e(TAG, "checkSafe failed " + re);
+            return false;
+        }
+    }
+
+    public void setSafeZone(String sz) {
+        Log.d(TAG, "set safe zone");
+        setString(Constants.AA_SAFEZONE_KEY, sz, getCurrentOrCallingUserId());
+        // need to update AA calculation
+        aaUpdate();
+    }
+
+    public String getSafeZone() {
+        Log.d(TAG, "get safe zone");
+        return getString(Constants.AA_SAFEZONE_KEY);
+    }
+
+    public void setAAState(boolean state) {
+        Log.d(TAG, "set aa state");
+        setBoolean(Constants.AA_ON_OFF_KEY, state, getCurrentOrCallingUserId());
+        // need to update AA calculation
+        aaUpdate();
+    }
+
+    public boolean getAAState() {
+        Log.d(TAG, "get aa state");
+        return getBoolean(Constants.AA_ON_OFF_KEY, false, getCurrentOrCallingUserId());
+    }
+
+    private void aaUpdate() {
+        Log.d(TAG, "aa update");
+        try {
+            getLockSettings().aaUpdate(getCurrentOrCallingUserId());
+        } catch (RemoteException re) {
+            // What can we do?
+            Log.e(TAG, "aa update " + re);
         }
     }
 }
