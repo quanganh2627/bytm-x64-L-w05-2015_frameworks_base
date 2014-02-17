@@ -58,6 +58,7 @@ import android.net.wifi.p2p.WifiP2pService;
 import android.os.BatteryStats;
 import android.os.Binder;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
 import android.os.Message;
@@ -71,6 +72,7 @@ import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.WorkSource;
 import android.provider.Settings;
+import android.provider.Settings.Global;
 import android.util.Log;
 import android.util.LruCache;
 import android.text.TextUtils;
@@ -234,6 +236,8 @@ public class WifiStateMachine extends StateMachine {
     private PowerManager.WakeLock mWakeLock;
 
     private Context mContext;
+
+    private WizardFinishedObserver mwizardFinishedObserver;
 
     private final Object mDhcpResultsLock = new Object();
     private DhcpResults mDhcpResults;
@@ -643,6 +647,23 @@ public class WifiStateMachine extends StateMachine {
 
     private BatchedScanSettings mBatchedScanSettings = null;
 
+    private class WizardFinishedObserver extends ContentObserver {
+        WizardFinishedObserver() {
+            super(new Handler());
+            mContext.getContentResolver().registerContentObserver(Settings.Global.getUriFor(
+                    Settings.Global.DEVICE_PROVISIONED), false, this);
+        }
+
+        @Override
+        public void onChange(boolean selfChange) {
+            if (Settings.Global.getInt(mContext.getContentResolver(),
+                    Settings.Global.DEVICE_PROVISIONED, 0) != 0) {
+                Global.putInt(mContext.getContentResolver(),
+                        Global.WIFI_SCAN_ALWAYS_AVAILABLE, (0));
+            }
+        }
+    }
+
     /**
      * Track the worksource/cost of the current settings and track what's been noted
      * to the battery stats, so we can mark the end of the previous when changing.
@@ -823,6 +844,11 @@ public class WifiStateMachine extends StateMachine {
         setLogRecSize(2000);
         setLogOnlyTransitions(false);
         if (DBG) setDbg(true);
+
+        boolean scanAlwaysSupported = mContext.getResources().getBoolean(
+                R.bool.config_wifi_scanalways_support);
+        if (!scanAlwaysSupported)
+            mwizardFinishedObserver = new WizardFinishedObserver();
 
         //start the state machine
         start();
