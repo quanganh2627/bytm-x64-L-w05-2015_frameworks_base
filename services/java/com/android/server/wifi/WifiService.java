@@ -355,6 +355,10 @@ public class WifiService extends IWifiManager.Stub {
                                     int channel = lastWifiApConfig.getWifiApConfigurationAdv().
                                             getChannel();
                                     int newChannel = channel;
+                                    /*  Channel width is the same for all 2.4GHz channels*/
+                                    WifiChannel.ChannelWidth width = lastWifiApConfig.
+                                            getWifiApConfigurationAdv().getWifiChannel().
+                                            getWidth();
 
                                     if (( safeChannels & (1 << channel - 1)) != 0) {
                                         // current channel is not good, we need to find
@@ -372,7 +376,7 @@ public class WifiService extends IWifiManager.Stub {
                                                 + " new channel:" + newChannel);
                                         mWifiStateMachine.setHostApRunning(null, false);
                                         lastWifiApConfig.getWifiApConfigurationAdv().
-                                        setChannel(newChannel);
+                                        setChannel(newChannel, width);
                                         mWifiStateMachine.setHostApRunning(lastWifiApConfig, true);
                                     } else {
                                         Slog.i(TAG, "NOT restarting softap old channel: " + channel
