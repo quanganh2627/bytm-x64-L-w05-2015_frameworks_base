@@ -19,6 +19,7 @@ package android.net.wifi;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.util.Log;
 
 /**
  * A class storing channel number, band, and LTE conflict for wifi radio channel
@@ -28,24 +29,86 @@ import android.os.Parcelable;
 public class WifiChannel implements Parcelable, Comparable<WifiChannel> {
 
     public enum Band { BAND_2_4GHZ, BAND_5GHZ }
+    public enum ChannelWidth { HT20, HT40, HT80, HT80P80, HT160}
 
     public static final int DEFAULT_2_4_CHANNEL = 6;
     public static final int DEFAULT_5_CHANNEL = 36;
 
+    private static final int IEEE80211_HT_CAP_SGI_40          = 0x0040;
+    private static final int IEEE80211_HT_CAP_SUP_WIDTH_20_40 = 0x0002;
+    private static final int IEEE80211_VHT_CAP_SHORT_GI_80    = 0x0020;
+
     private int mChannel;
-
-
-    /** @hide */
-    public WifiChannel(int channelNumber) {
-        mChannel = channelNumber;
-    }
+    private ChannelWidth mWidth;
 
     /** @hide */
-    public WifiChannel(String channelNumber) {
+    public WifiChannel(String channelNumber, String htCapab, String vhtCapab) {
         try {
             mChannel = Integer.parseInt(channelNumber);
         } catch (NumberFormatException e) {
             mChannel = DEFAULT_2_4_CHANNEL;
+        }
+        mWidth = ChannelWidth.HT20;
+        try {
+            int htCap  = Integer.parseInt(htCapab, 16);
+            int vhtCap = Integer.parseInt(vhtCapab, 16);
+            if (((htCap & IEEE80211_HT_CAP_SGI_40) == IEEE80211_HT_CAP_SGI_40) ||
+                ((htCap & IEEE80211_HT_CAP_SUP_WIDTH_20_40) == IEEE80211_HT_CAP_SUP_WIDTH_20_40)) {
+                mWidth = ChannelWidth.HT40;
+            }
+            if ((vhtCap & IEEE80211_VHT_CAP_SHORT_GI_80) == IEEE80211_VHT_CAP_SHORT_GI_80) {
+                    mWidth = ChannelWidth.HT80;
+            }
+        } catch (NumberFormatException e) {
+            mWidth = ChannelWidth.HT20;
+        }
+    }
+
+    /** @hide */
+    public WifiChannel(String channelNumber, ChannelWidth width) {
+        try {
+            mChannel = Integer.parseInt(channelNumber);
+        } catch (NumberFormatException e) {
+            mChannel = DEFAULT_2_4_CHANNEL;
+        }
+        mWidth = width;
+    }
+
+    /** @hide */
+    public WifiChannel(int channelNumber, ChannelWidth width) {
+        mChannel = channelNumber;
+        mWidth = width;
+    }
+
+    /** @hide */
+    public WifiChannel(String channelNumber, int width) {
+        try {
+            mChannel = Integer.parseInt(channelNumber);
+        } catch (NumberFormatException e) {
+            mChannel = DEFAULT_2_4_CHANNEL;
+        }
+        try {
+            if (width < ChannelWidth.values().length) {
+                mWidth = ChannelWidth.values()[width];
+            } else {
+                mWidth = ChannelWidth.HT20;
+            }
+        } catch (NumberFormatException e) {
+            mWidth = ChannelWidth.HT20;
+        }
+    }
+
+    /** @hide */
+    public WifiChannel(int channelNumber, int width) {
+        mChannel = channelNumber;
+        try {
+            if (width < ChannelWidth.values().length) {
+                mWidth = ChannelWidth.values()[width];
+            } else {
+                mWidth = ChannelWidth.HT20;
+            }
+        } catch (NumberFormatException e) {
+            mWidth = ChannelWidth.HT20;
         }
     }
 
@@ -72,6 +135,29 @@ public class WifiChannel implements Parcelable, Comparable<WifiChannel> {
     }
 
     /** @hide */
+    public ChannelWidth getWidth() {
+        return mWidth;
+    }
+
+    /** @hide */
+    public void setWidth(ChannelWidth width) {
+        mWidth = width;
+    }
+
+    /** @hide */
+    public void setWidth(int width) {
+        try {
+            if (width < ChannelWidth.values().length) {
+                mWidth = ChannelWidth.values()[width];
+            } else {
+                mWidth = ChannelWidth.HT20;
+            }
+        } catch (NumberFormatException e) {
+            mWidth = ChannelWidth.HT20;
+        }
+    }
+
+    /** @hide */
     public Boolean isLteConflict() {
         // TODO this will be used to flag conflicts with LTE
         return false;
@@ -80,7 +166,8 @@ public class WifiChannel implements Parcelable, Comparable<WifiChannel> {
     /** @hide */
     @Override
     public String toString() {
-        return Integer.toString(mChannel);
+        return "Channel " + Integer.toString(mChannel) + " " +
+               "Width " + mWidth.toString();
     }
 
     /** @hide */
@@ -100,13 +187,14 @@ public class WifiChannel implements Parcelable, Comparable<WifiChannel> {
     /** Implement the Parcelable interface */
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeInt(mChannel);
+        dest.writeInt(mWidth.ordinal());
     }
 
     /** Implement the Parcelable interface */
     public static final Creator<WifiChannel> CREATOR
         = new Creator<WifiChannel>() {
         public WifiChannel createFromParcel(Parcel in) {
-            return new WifiChannel(in.readInt());
+            return new WifiChannel(in.readInt(), in.readInt());
         }
 
         public WifiChannel[] newArray(int size) {
