@@ -1738,16 +1738,49 @@ public class WifiStateMachine extends StateMachine {
     public List<WifiChannel> getWifiAuthorizedChannels() {
         String rawList = mWifiNative.getWifiApChannelList();
         List<WifiChannel> resultList = new ArrayList<WifiChannel>();
+        String ht_capa  = "";
+        String vht_capa = "";
+        String chan = "";
 
         if (rawList == null)
             return null;
         // Extract elements from the list and skip duplicates if any
         String[] items = rawList.split(" ");
+
         for (String item : items) {
-            WifiChannel channel = new WifiChannel(item);
+            if (item.startsWith("Mode")) {
+                continue;
+            }
+            if (item.startsWith("HT_Capab")) {
+                String[] values = item.split("=");
+                for (String val : values) {
+                    if (val.startsWith("0x")) {
+                        ht_capa = val.substring(2);
+                    }
+                }
+                continue;
+            }
+            if (item.startsWith("VHT_Capab")) {
+                String[] values = item.split("=");
+                for (String val : values) {
+                    if (val.startsWith("0x")) {
+                        vht_capa = val.substring(2);
+                    }
+                }
+                continue;
+            }
+            if (item.startsWith("Channels")) {
+                continue;
+            }
+            if (item.startsWith("CH")) {
+                chan = item.substring(2);
+            }
+
+            WifiChannel channel = new WifiChannel(chan, ht_capa, vht_capa);
             if (!resultList.contains(channel))
                 resultList.add(channel);
         }
+        if (DBG) logd(resultList.toString());
         return resultList;
     }
 
