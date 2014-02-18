@@ -51,7 +51,7 @@ class WifiApConfigStore extends StateMachine {
     private static final String AP_CONFIG_FILE = Environment.getDataDirectory() +
         "/misc/wifi/softap.conf";
 
-    private static final int AP_CONFIG_FILE_VERSION = 2;
+    private static final int AP_CONFIG_FILE_VERSION = 3;
 
     private State mDefaultState = new DefaultState();
     private State mInactiveState = new InactiveState();
@@ -162,9 +162,8 @@ class WifiApConfigStore extends StateMachine {
                 }
 
                 if (cfg != null) {
-                    cfg.mChannel = new WifiChannel(in.readInt());
-                    cfg.mHwMode = in.readUTF();
-                    cfg.mIs80211n = (in.readInt() != 0);
+                    cfg.setChannel(new WifiChannel(in.readInt(),
+                            WifiChannel.ChannelWidth.valueOf(in.readUTF())));
                 }
 
                 mWifiConfig = config;
@@ -203,9 +202,8 @@ class WifiApConfigStore extends StateMachine {
                 }
 
                 if (cfg != null) {
-                    out.writeInt(cfg.mChannel.getChannel());
-                    out.writeUTF(cfg.mHwMode);
-                    out.writeInt(cfg.mIs80211n ? 1 : 0);
+                    out.writeInt(cfg.getWifiChannel().getChannel());
+                    out.writeUTF(cfg.getWifiChannel().getWidth().toString());
                 }
             }
         } catch (IOException e) {
@@ -235,9 +233,8 @@ class WifiApConfigStore extends StateMachine {
 
             WifiApConfiguration cfg = config.getWifiApConfigurationAdv();
             if (cfg != null) {
-                cfg.mChannel = new WifiChannel(WifiChannel.DEFAULT_2_4_CHANNEL);
-                cfg.mHwMode = cfg.HW_MODE_BG;
-                cfg.mIs80211n = true;
+                cfg.setChannel(new WifiChannel(WifiChannel.DEFAULT_2_4_CHANNEL,
+                        WifiChannel.ChannelWidth.HT20));
             }
             sendMessage(WifiStateMachine.CMD_SET_AP_CONFIG, config);
         }
