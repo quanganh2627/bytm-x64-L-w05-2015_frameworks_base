@@ -67,309 +67,353 @@ public class ThermalService extends Binder {
     private ThermalCooling mCoolingManager;
 
     public class ThermalParser {
-       // Names of the XML Tags
-       private static final String PINFO = "PlatformInfo";
-       private static final String SENSOR = "Sensor";
-       private static final String ZONE = "Zone";
-       private static final String THERMAL_CONFIG = "thermalconfig";
-       private static final String THRESHOLD = "Threshold";
-       private static final String POLLDELAY = "PollDelay";
-       private static final String MOVINGAVGWINDOW = "MovingAverageWindow";
-       private static final String ZONELOGIC = "ZoneLogic";
-       private static final String WEIGHT = "Weight";
-       private static final String ORDER = "Order";
-       private static final String OFFSET = "Offset";
-       private static final String ZONETHRESHOLD = "ZoneThreshold";
-       private boolean done = false;
-       private ThermalManager.PlatformInfo mPlatformInfo = null;
-       private ThermalSensor mCurrSensor = null;
-       private ThermalZone mCurrZone = null;
-       private ArrayList<ThermalSensor> mCurrSensorList = null;
-       private ArrayList<ThermalZone> mThermalZones = null;
-       private ArrayList<Integer> mPollDelayList = null;
-       private ArrayList<Integer> mMovingAvgWindowList = null;
-       private ArrayList<Integer> mWeightList = null;
-       private ArrayList<Integer> mOrderList = null;
-       private ArrayList<Integer> mZoneThresholdList = null;
-       XmlPullParserFactory mFactory = null;
-       XmlPullParser mParser = null;
-       int tempZoneId = -1;
-       String tempZoneName = null;
-       FileReader mInputStream = null;
-       ThermalParser(String fname) {
-          try {
-               mFactory = XmlPullParserFactory.newInstance(System.
-                       getProperty(XmlPullParserFactory.PROPERTY_NAME), null);
-               mFactory.setNamespaceAware(true);
-               mParser = mFactory.newPullParser();
-          } catch (SecurityException e) {
-               Log.e(TAG, "SecurityException caught in ThermalParser");
-          } catch (IllegalArgumentException e) {
-               Log.e(TAG, "IllegalArgumentException caught in ThermalParser");
-          } catch (XmlPullParserException xppe) {
-               xppe.printStackTrace();
-               Log.e(TAG, "XmlPullParserException caught in ThermalParser");
-          }
+        // Names of the XML Tags
+        private static final String PINFO = "PlatformInfo";
+        private static final String SENSOR_ATTRIB = "SensorAttrib";
+        private static final String SENSOR = "Sensor";
+        private static final String ZONE = "Zone";
+        private static final String THERMAL_CONFIG = "thermalconfig";
+        private static final String THRESHOLD = "Threshold";
+        private static final String POLLDELAY = "PollDelay";
+        private static final String MOVINGAVGWINDOW = "MovingAverageWindow";
+        private static final String ZONELOGIC = "ZoneLogic";
+        private static final String WEIGHT = "Weight";
+        private static final String ORDER = "Order";
+        private static final String OFFSET = "Offset";
+        private static final String ZONETHRESHOLD = "ZoneThreshold";
+        private boolean mDone = false;
+        private ThermalManager.PlatformInfo mPlatformInfo = null;
+        private ThermalSensor mCurrSensor = null;
+        private ThermalZone mCurrZone = null;
+        private ArrayList<ThermalSensorAttrib> mCurrSensorAttribList = null;
+        private ThermalSensorAttrib mCurrSensorAttrib = null;
+        private ArrayList<ThermalZone> mThermalZones = null;
+        private ArrayList<Integer> mPollDelayList = null;
+        private ArrayList<Integer> mMovingAvgWindowList = null;
+        private ArrayList<Integer> mWeightList = null;
+        private ArrayList<Integer> mOrderList = null;
+        private ArrayList<Integer> mZoneThresholdList = null;
+        private String mSensorName = null;
+        XmlPullParserFactory mFactory = null;
+        XmlPullParser mParser = null;
+        int mTempZoneId = -1;
+        String mTempZoneName = null;
+        FileReader mInputStream = null;
+        ThermalParser(String fname) {
+            try {
+                mFactory = XmlPullParserFactory.newInstance(System.
+                        getProperty(XmlPullParserFactory.PROPERTY_NAME), null);
+                mFactory.setNamespaceAware(true);
+                mParser = mFactory.newPullParser();
+            } catch (SecurityException e) {
+                Log.e(TAG, "SecurityException caught in ThermalParser");
+            } catch (IllegalArgumentException e) {
+                Log.e(TAG, "IllegalArgumentException caught in ThermalParser");
+            } catch (XmlPullParserException xppe) {
+                Log.e(TAG, "XmlPullParserException caught in ThermalParser");
+            }
 
-          try {
-
-               mInputStream = new FileReader(fname);
-               mPlatformInfo = null;
-               mCurrSensor = null;
-               mCurrZone = null;
-               mCurrSensorList = null;
-               mThermalZones = null;
-               if (mInputStream == null) return;
-               if (mParser != null) {
-                   mParser.setInput(mInputStream);
-               }
-          } catch (FileNotFoundException e) {
-              Log.e(TAG, "FileNotFoundException Exception in ThermalParser()");
-          } catch (XmlPullParserException e) {
-              Log.e(TAG, "XmlPullParserException Exception in ThermalParser()");
-          }
-       }
-
-       ThermalParser() {
-           mParser = mContext.getResources().
-                   getXml(ThermalManager.THERMAL_SENSOR_CONFIG_XML_ID);
-       }
-
-       public ThermalManager.PlatformInfo getPlatformInfo() {
-          return mPlatformInfo;
-       }
-
-       public ArrayList<ThermalZone> getThermalZoneList() {
-          return mThermalZones;
-       }
-
-       public void parse() {
-       if (ThermalManager.sIsOverlays == false && mInputStream == null) return;
-       /* if mParser is null, close any open stream before exiting */
-       if (mParser == null) {
-           try {
-               if (mInputStream != null) {
-                   mInputStream.close();
-               }
-           } catch (IOException e) {
-               Log.i(TAG,"IOException caught in parse() function");
-           }
-           return;
-       }
-
-       try {
-               int mEventType = mParser.getEventType();
-               while (mEventType != XmlPullParser.END_DOCUMENT && !done) {
-                  switch (mEventType) {
-                  case XmlPullParser.START_DOCUMENT:
-                       Log.i(TAG, "StartDocument");
-                       break;
-                  case XmlPullParser.START_TAG:
-                       processStartElement(mParser.getName());
-                       break;
-                  case XmlPullParser.END_TAG:
-                       processEndElement(mParser.getName());
-                       break;
-                  }
-                  mEventType = mParser.next();
-               }
-               // end of parsing, close the stream
-               if (mInputStream != null) mInputStream.close();
-          } catch (XmlPullParserException xppe) {
-               xppe.printStackTrace();
-          } catch (Exception e) {
-               e.printStackTrace();
-          }
-       }
-
-       void processStartElement(String name) {
-          String zoneName;
-          try {
-               if (name.equalsIgnoreCase(PINFO)) {
-                   mPlatformInfo = new ThermalManager.PlatformInfo();
-               } else if (name.equalsIgnoreCase(SENSOR)) {
-                   if (mCurrSensorList == null)
-                      mCurrSensorList = new ArrayList<ThermalSensor>();
-                      mCurrSensor = new ThermalSensor();
-               } else if (name.equalsIgnoreCase(ZONE)) {
-                   if (mThermalZones == null)
-                       mThermalZones = new ArrayList<ThermalZone>();
-               } else {
-                   // Retrieve Platform Information
-                   if (mPlatformInfo != null && name.equalsIgnoreCase("PlatformThermalStates")) {
-                       mPlatformInfo.mMaxThermalStates = Integer.parseInt(mParser.nextText());
-                   // Retrieve Zone Information
-                   } else if (name.equalsIgnoreCase("ZoneName") && tempZoneId != -1) {
-                       // if modem create a object of type modem and assign to base class
-                       tempZoneName = mParser.nextText();
-                   } else if (name.equalsIgnoreCase(ZONELOGIC) && tempZoneId != -1 &&
-                           tempZoneName != null) {
-                       String zoneLogic = mParser.nextText();
-                       if (zoneLogic.equalsIgnoreCase("Virtual")) {
-                           mCurrZone = new VirtualThermalZone();
-                       } else if (zoneLogic.equalsIgnoreCase("Modem")) {
-                           mCurrZone = new ModemZone(mContext);
-                       } else {
-                           //default zone raw
-                           mCurrZone = new RawThermalZone();
-                       }
-                       if (mCurrZone != null) {
-                           mCurrZone.setZoneName(tempZoneName);
-                           mCurrZone.setZoneId(tempZoneId);
-                           mCurrZone.setZoneLogic(zoneLogic);
-                       }
-                   } else if (name.equalsIgnoreCase("ZoneID")) {
-                       tempZoneId = Integer.parseInt(mParser.nextText());
-                   } else if (name.equalsIgnoreCase("SupportsUEvent") && mCurrZone != null)
-                       mCurrZone.setSupportsUEvent(Integer.parseInt(mParser.nextText()));
-                   else if (name.equalsIgnoreCase("DebounceInterval") && mCurrZone != null)
-                       mCurrZone.setDBInterval(Integer.parseInt(mParser.nextText()));
-                   else if (name.equalsIgnoreCase(POLLDELAY) && mCurrZone != null) {
-                       mPollDelayList = new ArrayList<Integer>();
-                   } else if (name.equalsIgnoreCase(OFFSET) && mCurrZone != null) {
-                       mCurrZone.setOffset(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase(ZONETHRESHOLD) && mCurrZone != null) {
-                       mZoneThresholdList = new ArrayList<Integer>();
-                   } else if (name.equalsIgnoreCase("ZoneThresholdTOff") &&
-                           mZoneThresholdList != null) {
-                       mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("ZoneThresholdNormal") &&
-                           mZoneThresholdList != null) {
-                       mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("ZoneThresholdWarning") &&
-                           mZoneThresholdList != null) {
-                       mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("ZoneThresholdAlert") &&
-                           mZoneThresholdList != null) {
-                       mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("ZoneThresholdCritical") &&
-                           mZoneThresholdList != null) {
-                       mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
-                   }
-
-                   // Retrieve Sensor Information
-                   else if (name.equalsIgnoreCase("SensorID") && mCurrSensor != null)
-                       mCurrSensor.setSensorID(Integer.parseInt(mParser.nextText()));
-                   else if (name.equalsIgnoreCase("SensorName") && mCurrSensor != null)
-                       mCurrSensor.setSensorName(mParser.nextText());
-                   else if (name.equalsIgnoreCase("SensorPath") && mCurrSensor != null)
-                       mCurrSensor.setSensorPath(mParser.nextText());
-                   else if (name.equalsIgnoreCase("InputTemp") && mCurrSensor != null)
-                       mCurrSensor.setInputTempPath(mParser.nextText());
-                   else if (name.equalsIgnoreCase("HighTemp") && mCurrSensor != null)
-                       mCurrSensor.setHighTempPath(mParser.nextText());
-                   else if (name.equalsIgnoreCase("LowTemp") && mCurrSensor != null)
-                       mCurrSensor.setLowTempPath(mParser.nextText());
-                   else if (name.equalsIgnoreCase("UEventDevPath") && mCurrSensor != null)
-                       mCurrSensor.setUEventDevPath(mParser.nextText());
-                   else if (name.equalsIgnoreCase("ErrorCorrection") && mCurrSensor != null)
-                       mCurrSensor.setErrorCorrectionTemp(Integer.parseInt(mParser.nextText()));
-                   else if (name.equalsIgnoreCase(WEIGHT) && mCurrSensor != null) {
-                       if (mWeightList == null) {
-                           mWeightList = new ArrayList<Integer>();
-                       }
-                       if (mWeightList != null) {
-                           mWeightList.add(Integer.parseInt(mParser.nextText()));
-                       }
-                   } else if (name.equalsIgnoreCase(ORDER) && mCurrSensor != null) {
-                       if (mOrderList == null) {
-                           mOrderList = new ArrayList<Integer>();
-                       }
-                       if (mOrderList != null) {
-                           mOrderList.add(Integer.parseInt(mParser.nextText()));
-                       }
-                   }
-
-                   // Poll delay info
-                   else if (name.equalsIgnoreCase("DelayTOff") && mPollDelayList != null) {
-                       mPollDelayList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("DelayNormal") && mPollDelayList != null) {
-                       mPollDelayList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("DelayWarning") && mPollDelayList != null) {
-                       mPollDelayList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("DelayAlert") && mPollDelayList != null) {
-                       mPollDelayList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("DelayCritical") && mPollDelayList != null) {
-                       mPollDelayList.add(Integer.parseInt(mParser.nextText()));
-                   }
-                   // Moving Average window
-                   else if (name.equalsIgnoreCase(MOVINGAVGWINDOW) &&
-                           mCurrZone != null) {
-                       mMovingAvgWindowList = new ArrayList<Integer>();
-                   } else if (name.equalsIgnoreCase("WindowTOff") &&
-                           mMovingAvgWindowList != null) {
-                       mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("WindowNormal") &&
-                           mMovingAvgWindowList != null) {
-                       mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("WindowWarning") &&
-                           mMovingAvgWindowList != null) {
-                       mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("WindowAlert") &&
-                           mMovingAvgWindowList != null) {
-                       mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
-                   } else if (name.equalsIgnoreCase("WindowCritical") &&
-                           mMovingAvgWindowList != null) {
-                       mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
-                   }
+            try {
+                mInputStream = new FileReader(fname);
+                mPlatformInfo = null;
+                mCurrSensor = null;
+                mCurrZone = null;
+                mThermalZones = null;
+                if (mInputStream == null) return;
+                if (mParser != null) {
+                    mParser.setInput(mInputStream);
                 }
-           } catch (Exception e) {
-               e.printStackTrace();
-           }
-       }
+            } catch (FileNotFoundException e) {
+                Log.e(TAG, "FileNotFoundException Exception in ThermalParser()");
+            } catch (XmlPullParserException e) {
+                Log.e(TAG, "XmlPullParserException Exception in ThermalParser()");
+            }
+        }
 
-       void processEndElement(String name) {
-         if (name.equalsIgnoreCase(SENSOR)) {
-             if (mCurrSensor != null) {
-                 mCurrSensor.setWeights(mWeightList);
-                 mCurrSensor.setOrder(mOrderList);
-             }
-             if (mCurrSensorList != null) {
-                 mCurrSensorList.add(mCurrSensor);
-             }
-             mCurrSensor = null;
-             mWeightList = null;
-             mOrderList = null;
-         } else if (name.equalsIgnoreCase(ZONE) &&
-                 mCurrZone != null && mThermalZones != null) {
-             mCurrZone.setSensorList(mCurrSensorList);
-             // check to see if zone is active
-             mCurrZone.computeZoneActiveStatus();
-             mThermalZones.add(mCurrZone);
-             mCurrSensorList = null;
-             mCurrZone = null;
-             tempZoneId = -1;
-             tempZoneName = null;
-         } else if (name.equalsIgnoreCase(POLLDELAY) && (mCurrZone != null)) {
-             mCurrZone.setPollDelay(mPollDelayList);
-             mPollDelayList = null;
-         } else if (name.equalsIgnoreCase(MOVINGAVGWINDOW) &&
-                 (mCurrSensor != null && mCurrZone != null)) {
-             mCurrSensor.setMovingAvgWindow(mMovingAvgWindowList, mCurrZone.getPollDelay());
-             mMovingAvgWindowList = null;
-         } else if (name.equalsIgnoreCase(THERMAL_CONFIG)) {
-             Log.i(TAG, "Parsing Finished..");
-             done = true;
-         } else if (name.equalsIgnoreCase(ZONETHRESHOLD) && mCurrZone != null) {
-             mCurrZone.setZoneTempThreshold(mZoneThresholdList);
-             mZoneThresholdList = null;
-         }
-       }
+        ThermalParser() {
+            mParser = mContext.getResources().
+                    getXml(ThermalManager.THERMAL_SENSOR_CONFIG_XML_ID);
+        }
+
+        public ThermalManager.PlatformInfo getPlatformInfo() {
+            return mPlatformInfo;
+        }
+
+        public ArrayList<ThermalZone> getThermalZoneList() {
+            return mThermalZones;
+        }
+
+        public boolean parse() {
+            if (ThermalManager.sIsOverlays == false && mInputStream == null) return false;
+            /* if mParser is null, close any open stream before exiting */
+            if (mParser == null) {
+                try {
+                    if (mInputStream != null) {
+                        mInputStream.close();
+                    }
+                } catch (IOException e) {
+                    Log.i(TAG, "IOException caught in parse() function");
+                }
+                return false;
+            }
+
+            boolean ret = true;
+            try {
+                int mEventType = mParser.getEventType();
+                while (mEventType != XmlPullParser.END_DOCUMENT && !mDone) {
+                    switch (mEventType) {
+                        case XmlPullParser.START_DOCUMENT:
+                            Log.i(TAG, "StartDocument");
+                            break;
+                        case XmlPullParser.START_TAG:
+                            if (!processStartElement(mParser.getName())) {
+                                if (mInputStream != null) mInputStream.close();
+                                return false;
+                            }
+                            break;
+                        case XmlPullParser.END_TAG:
+                            processEndElement(mParser.getName());
+                            break;
+                    }
+                    mEventType = mParser.next();
+                }
+            } catch (XmlPullParserException xppe) {
+                Log.i(TAG, "XmlPullParserException caught in parse() function");
+                ret = false;
+            } catch (IOException e) {
+                Log.i(TAG, "IOException caught in parse() function");
+                ret = false;
+            } finally {
+                try {
+                    // end of parsing, close the stream
+                    // close is moved here, since if there is an exception
+                    // while parsing doc, input stream needs to be closed
+                    if (mInputStream != null) mInputStream.close();
+                } catch (IOException e) {
+                    Log.i(TAG, "IOException caught in parse() function");
+                    ret = false;
+                }
+                return ret;
+            }
+        }
+
+        boolean processStartElement(String name) {
+            if (name == null)
+                return false;
+            String zoneName;
+            boolean ret = true;
+            try {
+                if (name.equalsIgnoreCase(PINFO)) {
+                    mPlatformInfo = new ThermalManager.PlatformInfo();
+                } else if (name.equalsIgnoreCase(SENSOR)) {
+                    if (mCurrSensor == null) {
+                        mCurrSensor = new ThermalSensor();
+                    }
+                } else if (name.equalsIgnoreCase(SENSOR_ATTRIB)) {
+                    if (mCurrSensorAttribList == null) {
+                        mCurrSensorAttribList = new ArrayList<ThermalSensorAttrib>();
+                    }
+                    mCurrSensorAttrib = new ThermalSensorAttrib();
+                } else if (name.equalsIgnoreCase(ZONE)) {
+                    if (mThermalZones == null)
+                        mThermalZones = new ArrayList<ThermalZone>();
+                } else {
+                    // Retrieve Platform Information
+                    if (mPlatformInfo != null && name.equalsIgnoreCase("PlatformThermalStates")) {
+                        mPlatformInfo.mMaxThermalStates = Integer.parseInt(mParser.nextText());
+                        // Retrieve Zone Information
+                    } else if (name.equalsIgnoreCase("ZoneName") && mTempZoneId != -1) {
+                        // if modem create a object of type modem and assign to base class
+                        mTempZoneName = mParser.nextText();
+                    } else if (name.equalsIgnoreCase(ZONELOGIC) && mTempZoneId != -1
+                            && mTempZoneName != null) {
+                        String zoneLogic = mParser.nextText();
+                        if (zoneLogic.equalsIgnoreCase("VirtualSkin")) {
+                            mCurrZone = new VirtualThermalZone();
+                        } else if (zoneLogic.equalsIgnoreCase("Modem")) {
+                            mCurrZone = new ModemZone(mContext);
+                        } else {
+                            // default zone raw
+                            mCurrZone = new RawThermalZone();
+                        }
+                        if (mCurrZone != null) {
+                            mCurrZone.setZoneName(mTempZoneName);
+                            mCurrZone.setZoneId(mTempZoneId);
+                            mCurrZone.setZoneLogic(zoneLogic);
+                        }
+                    } else if (name.equalsIgnoreCase("ZoneID")) {
+                        mTempZoneId = Integer.parseInt(mParser.nextText());
+                    } else if (name.equalsIgnoreCase("SupportsUEvent") && mCurrZone != null)
+                        mCurrZone.setSupportsUEvent(Integer.parseInt(mParser.nextText()));
+                    else if (name.equalsIgnoreCase("SupportsEmultemp") && mCurrZone != null)
+                        mCurrZone.setEmulTempFlag(Integer.parseInt(mParser.nextText()));
+                    else if (name.equalsIgnoreCase("DebounceInterval") && mCurrZone != null)
+                        mCurrZone.setDBInterval(Integer.parseInt(mParser.nextText()));
+                    else if (name.equalsIgnoreCase(POLLDELAY) && mCurrZone != null) {
+                        mPollDelayList = new ArrayList<Integer>();
+                    } else if (name.equalsIgnoreCase(OFFSET) && mCurrZone != null) {
+                        mCurrZone.setOffset(Integer.parseInt(mParser.nextText()));
+                    } else if (name.equalsIgnoreCase(ZONETHRESHOLD) && mCurrZone != null) {
+                        mZoneThresholdList = new ArrayList<Integer>();
+                    } else if (name.equalsIgnoreCase("ZoneThresholdTOff")
+                            && mZoneThresholdList != null) {
+                        mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (name.equalsIgnoreCase("ZoneThresholdNormal")
+                            && mZoneThresholdList != null) {
+                        mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (name.equalsIgnoreCase("ZoneThresholdWarning")
+                            && mZoneThresholdList != null) {
+                        mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (name.equalsIgnoreCase("ZoneThresholdAlert")
+                            && mZoneThresholdList != null) {
+                        mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (name.equalsIgnoreCase("ZoneThresholdCritical")
+                            && mZoneThresholdList != null) {
+                        mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
+                    }
+
+                    // Retrieve Sensor Information
+                    else if (name.equalsIgnoreCase("SensorName")) {
+                        if (mCurrSensorAttrib != null) {
+                            mCurrSensorAttrib.setSensorName(mParser.nextText());
+                        } else if (mCurrSensor != null) {
+                            mCurrSensor.setSensorName(mParser.nextText());
+                        }
+                    } else if (name.equalsIgnoreCase("SensorPath") && mCurrSensor != null)
+                        mCurrSensor.setSensorPath(mParser.nextText());
+                    else if (name.equalsIgnoreCase("InputTemp") && mCurrSensor != null)
+                        mCurrSensor.setInputTempPath(mParser.nextText());
+                    else if (name.equalsIgnoreCase("HighTemp") && mCurrSensor != null)
+                        mCurrSensor.setHighTempPath(mParser.nextText());
+                    else if (name.equalsIgnoreCase("LowTemp") && mCurrSensor != null)
+                        mCurrSensor.setLowTempPath(mParser.nextText());
+                    else if (name.equalsIgnoreCase("UEventDevPath") && mCurrSensor != null)
+                        mCurrSensor.setUEventDevPath(mParser.nextText());
+                    else if (name.equalsIgnoreCase("ErrorCorrection") && mCurrSensor != null)
+                        mCurrSensor.setErrorCorrectionTemp(Integer.parseInt(mParser.nextText()));
+                    else if (name.equalsIgnoreCase(WEIGHT) && mCurrSensorAttrib != null) {
+                        if (mWeightList == null) {
+                            mWeightList = new ArrayList<Integer>();
+                        }
+                        if (mWeightList != null) {
+                            mWeightList.add(Integer.parseInt(mParser.nextText()));
+                        }
+                    } else if (name.equalsIgnoreCase(ORDER) && mCurrSensorAttrib != null) {
+                        if (mOrderList == null) {
+                            mOrderList = new ArrayList<Integer>();
+                        }
+                        if (mOrderList != null) {
+                            mOrderList.add(Integer.parseInt(mParser.nextText()));
+                        }
+                    }
+
+                    // Poll delay info
+                    else if (name.equalsIgnoreCase("DelayTOff") && mPollDelayList != null) {
+                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (name.equalsIgnoreCase("DelayNormal") && mPollDelayList != null) {
+                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (name.equalsIgnoreCase("DelayWarning") && mPollDelayList != null) {
+                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (name.equalsIgnoreCase("DelayAlert") && mPollDelayList != null) {
+                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (name.equalsIgnoreCase("DelayCritical") && mPollDelayList != null) {
+                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
+                    }
+                    // Moving Average window
+                    else if (name.equalsIgnoreCase(MOVINGAVGWINDOW)
+                            && mCurrZone != null) {
+                        mMovingAvgWindowList = new ArrayList<Integer>();
+                    } else if (name.equalsIgnoreCase("WindowTOff")
+                            && mMovingAvgWindowList != null) {
+                        mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (name.equalsIgnoreCase("WindowNormal")
+                            && mMovingAvgWindowList != null) {
+                        mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (name.equalsIgnoreCase("WindowWarning")
+                            && mMovingAvgWindowList != null) {
+                        mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (name.equalsIgnoreCase("WindowAlert")
+                            && mMovingAvgWindowList != null) {
+                        mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (name.equalsIgnoreCase("WindowCritical")
+                            && mMovingAvgWindowList != null) {
+                        mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
+                    }
+                }
+            } catch (XmlPullParserException e) {
+                Log.i(TAG, "XmlPullParserException caught in processStartElement()");
+                ret = false;
+            } catch (IOException e) {
+                Log.i(TAG, "IOException caught in processStartElement()");
+                ret = false;
+            } finally {
+                return ret;
+            }
+        }
+
+        void processEndElement(String name) {
+            if (name.equalsIgnoreCase(SENSOR)) {
+                // insert in map, only if no sensor with same name already in map
+                if (ThermalManager.getSensor(mCurrSensor.getSensorName()) == null) {
+                    ThermalManager.sSensorMap.put(mCurrSensor.getSensorName(), mCurrSensor);
+                    mCurrSensor.printAttrs();
+                } else {
+                    Log.i(TAG, "sensor:" + mCurrSensor.getSensorName() + " already present");
+                }
+                mCurrSensor = null;
+            } else if (name.equalsIgnoreCase(SENSOR_ATTRIB) && mCurrSensorAttribList != null) {
+                if (mCurrSensorAttrib != null) {
+                    mCurrSensorAttrib.setWeights(mWeightList);
+                    mCurrSensorAttrib.setOrder(mOrderList);
+                }
+                mWeightList = null;
+                mOrderList = null;
+                if (ThermalManager.getSensor(mCurrSensorAttrib.getSensorName()) != null) {
+                    // this is valid sensor, so now update the zone sensorattrib list
+                    // and sensor list.This check is needed to avoid a scenario where
+                    // a invalid sensor name might be included in sensorattrib list.
+                    // This check filters out all invalid sensor attrib.
+                    mCurrSensorAttribList.add(mCurrSensorAttrib);
+                }
+            } else if (name.equalsIgnoreCase(ZONE) && mCurrZone != null
+                    && mThermalZones != null) {
+                mCurrZone.setSensorList(mCurrSensorAttribList);
+                // check to see if zone is active
+                mCurrZone.computeZoneActiveStatus();
+                mThermalZones.add(mCurrZone);
+                mCurrZone = null;
+                mTempZoneId = -1;
+                mTempZoneName = null;
+                mCurrSensorAttribList = null;
+            } else if (name.equalsIgnoreCase(POLLDELAY) && mCurrZone != null) {
+                mCurrZone.setPollDelay(mPollDelayList);
+                mPollDelayList = null;
+            } else if (name.equalsIgnoreCase(MOVINGAVGWINDOW) && mCurrZone != null) {
+                mCurrZone.setMovingAvgWindow(mMovingAvgWindowList);
+                mMovingAvgWindowList = null;
+            } else if (name.equalsIgnoreCase(THERMAL_CONFIG)) {
+                Log.i(TAG, "Parsing Finished..");
+                mDone = true;
+            } else if (name.equalsIgnoreCase(ZONETHRESHOLD) && mCurrZone != null) {
+                mCurrZone.setZoneTempThreshold(mZoneThresholdList);
+                mZoneThresholdList = null;
+            }
+        }
     }
 
     /* Class to notifying thermal events */
     public class Notify implements Runnable {
         private final BlockingQueue cQueue;
         Notify (BlockingQueue q) {
-             cQueue = q;
+            cQueue = q;
         }
 
         public void run () {
-           try {
+            try {
                 while (true) { consume((ThermalEvent) cQueue.take()); }
             } catch (InterruptedException ex) {
                 Log.i(TAG, "caught InterruptedException in run()");
-              }
+            }
         }
 
         /* Method to consume thermal event */
@@ -450,11 +494,9 @@ public class ThermalService extends Binder {
                 return;
             }
 
-            try {
-                 mThermalParser.parse();
-            } catch (Exception e) {
-                 Log.i(TAG, "ThermalManagement XML Parsing Failed");
-                 return;
+            if (!mThermalParser.parse()) {
+                Log.i(TAG, "ThermalManagement XML Parsing Failed...Thermal Service exiting");
+                return;
             }
 
             /* Retrieve the platform information after parsing */

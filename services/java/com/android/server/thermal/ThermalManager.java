@@ -70,6 +70,10 @@ public class ThermalManager {
     public static Hashtable<Integer, ThermalCoolingDevice> sCDevMap =
             new Hashtable<Integer, ThermalCoolingDevice>();
 
+    /* Hashtable of sensor name and sensor object */
+    public static Hashtable<String, ThermalSensor> sSensorMap =
+            new Hashtable<String, ThermalSensor>();
+
     public static final int CRITICAL_TRUE = 1;
     public static final int CRITICAL_FALSE = 0;
     /* sZoneCriticalPendingMap stores info whether a zone is in critical state and platform
@@ -442,5 +446,10 @@ public class ThermalManager {
         synchronized (sCriticalPendingLock) {
            return sCriticalZonesCount > 0;
         }
+    }
+
+    public static ThermalSensor getSensor(String sensorName) {
+        if (sensorName == null || sSensorMap == null) return null;
+        return sSensorMap.get(sensorName);
     }
 }

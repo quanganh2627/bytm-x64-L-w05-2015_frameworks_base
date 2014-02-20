@@ -122,8 +122,8 @@ public class ThermalCooling {
                     getXml(ThermalManager.THERMAL_THROTTLE_CONFIG_XML_ID);
         }
 
-        public void parse() {
-            if (ThermalManager.sIsOverlays == false && mInputStream == null) return;
+        public boolean parse() {
+            if (ThermalManager.sIsOverlays == false && mInputStream == null) return false;
             /* if mParser is null, close any open stream before exiting */
             if (mParser == null) {
                 try {
@@ -133,8 +133,10 @@ public class ThermalCooling {
                 } catch (IOException e) {
                     Log.i(TAG, "IOException caught in parse() function");
                 }
-                return;
+                return false;
             }
+
+            boolean ret = true;
             try {
                 int mEventType = mParser.getEventType();
                 while (mEventType != XmlPullParser.END_DOCUMENT && !done) {
@@ -143,7 +145,10 @@ public class ThermalCooling {
                             Log.i(TAG, "StartDocument");
                             break;
                         case XmlPullParser.START_TAG:
-                            processStartElement(mParser.getName());
+                            if (!processStartElement(mParser.getName())) {
+                                if (mInputStream != null) mInputStream.close();
+                                return false;
+                            }
                             break;
                         case XmlPullParser.END_TAG:
                             processEndElement(mParser.getName());
@@ -151,19 +156,32 @@ public class ThermalCooling {
                     }
                     mEventType = mParser.next();
                 }
-                // end of parsing close the input stream
-                if (mInputStream != null)
-                    mInputStream.close();
             } catch (XmlPullParserException xppe) {
                 Log.i(TAG, "XmlPullParserException caught in parse() function");
+                ret = false;
             } catch (IOException e) {
                 Log.i(TAG, "IOException caught in parse() function");
+                ret = false;
+            } finally {
+                try {
+                    // end of parsing, close the stream
+                    // close is moved here, since if there is an exception
+                    // while parsing doc, input stream needs to be closed
+                    if (mInputStream != null) {
+                        mInputStream.close();
+                    }
+                } catch (IOException e) {
+                    Log.i(TAG, "IOException caught in parse() function");
+                    ret = false;
+                }
+                return ret;
             }
         }
 
-        void processStartElement(String name) {
+        boolean processStartElement(String name) {
             if (name == null)
-                return;
+                return false;
+            boolean ret = true;
             try {
                 if (name.equalsIgnoreCase(CDEVINFO)) {
                     if (mDevice == null)
@@ -220,9 +238,13 @@ public class ThermalCooling {
                     }
                 }
             } catch (XmlPullParserException e) {
-                Log.i(TAG, "XmlPullParserException caught in processStartElement():");
+                Log.i(TAG, "XmlPullParserException caught in processStartElement()");
+                ret = false;
             } catch (IOException e) {
-                Log.i(TAG, "IOException caught in processStartElement():");
+                Log.i(TAG, "IOException caught in processStartElement()");
+                ret = false;
+            } finally {
+                return ret;
             }
         }
 
@@ -278,7 +300,7 @@ public class ThermalCooling {
         }
         if (parser == null)
             return false;
-        parser.parse();
+        if (!parser.parse()) return false;
 
         // Register for thermal zone state changed notifications
         IntentFilter filter = new IntentFilter();

@@ -16,10 +16,13 @@
 
 package com.android.server.thermal;
 
+import android.os.UEventObserver;
 import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Hashtable;
+import java.util.Iterator;
 
 /**
  * The ThermalZone class contains attributes of a Thermal zone. A Thermal zone
@@ -35,9 +38,13 @@ public class ThermalZone {
     protected int mCurrEventType;        /* specifies thermal event type, HIGH or LOW */
     protected String mZoneName;          /* Name of the Thermal zone */
     /* List of sensors under this thermal zone */
-    protected ArrayList <ThermalSensor> mThermalSensors = null;
+    protected ArrayList<ThermalSensor> mThermalSensors = null;
+    // sensor name - sensorAttrib object hash to improve lookup performace
+    // during runtime thermal monitoring like re-programming sensor thresholds
+    // calculating weighted zone temp.
+    protected Hashtable<String, ThermalSensorAttrib> mThermalSensorsAttribMap = null;
     protected int mZoneTemp;             /* Temperature of the Thermal Zone */
-
+    protected boolean mSupportsEmulTemp = true;
     private int mDebounceInterval;    /* Debounce value to avoid thrashing of throttling actions */
     private Integer mPollDelay[];     /* Delay between sucessive polls in milli seconds */
     protected boolean mSupportsUEvent;  /* Determines if Sensor supports Uevents */
@@ -45,6 +52,68 @@ public class ThermalZone {
     private boolean mIsZoneActive = false;
     private int mOffset = 0;
     private Integer mZoneTempThresholds[];  /* Array containing temperature thresholds */
+
+    /* MovingAverage related declarations */
+    private int mRecordedValuesHead = -1; /* Index pointing to the head of past values of sensor */
+    private int mRecordedValues[];        /* Recorded values of sensor */
+    private int mNumberOfInstances[];     /* Number of recorded instances to be considered */
+    private ArrayList<Integer> mWindowList = null;
+    private boolean mIsMovingAverage = false; /* By default false */
+
+
+    public boolean getMovingAverageFlag() {
+        return mIsMovingAverage;
+    }
+
+    public void setMovingAvgWindow(ArrayList<Integer> windowList) {
+        int maxValue = Integer.MIN_VALUE; // -2^31
+
+        if (windowList == null || mPollDelay == null) {
+            Log.i(TAG, "setMovingAvgWindow input is null");
+            mIsMovingAverage = false;
+            return;
+        }
+        mNumberOfInstances = new int[windowList.size()];
+        if (mNumberOfInstances == null) {
+            Log.i(TAG, "failed to create poll windowlist");
+            mIsMovingAverage = false;
+            return;
+        }
+        mIsMovingAverage = true;
+        for (int i = 0; i < windowList.size(); i++) {
+            if (mPollDelay[i] == 0) {
+                mIsMovingAverage = false;
+                Log.i(TAG, "Polling delay is zero, WMA disabled\n");
+                return;
+            }
+            mNumberOfInstances[i] = windowList.get(i) / mPollDelay[i];
+            if (mNumberOfInstances[i] <= 0) {
+                mIsMovingAverage = false;
+                Log.i(TAG, "Polling delay greater than moving average window, WMA disabled\n");
+                return;
+            }
+            maxValue = Math.max(mNumberOfInstances[i], maxValue);
+        }
+        mRecordedValues = new int[maxValue];
+    }
+
+    public int movingAverageTemp() {
+        int index, calIndex;
+        int predictedTemp = 0;
+
+        mRecordedValuesHead = (mRecordedValuesHead + 1) % mRecordedValues.length;
+        mRecordedValues[mRecordedValuesHead] = mZoneTemp;
+
+        // Sensor State starts with -1, InstancesList starts with 0
+        for (index = 0; index < mNumberOfInstances[mCurrThermalState + 1]; index++) {
+            calIndex = mRecordedValuesHead - index;
+            if (calIndex < 0) {
+                calIndex = mRecordedValues.length + calIndex;
+            }
+            predictedTemp += mRecordedValues[calIndex];
+        }
+        return predictedTemp / index;
+    }
 
     public void printAttrs() {
         Log.i(TAG, "mZoneID:" + Integer.toString(mZoneID));
@@ -55,9 +124,30 @@ public class ThermalZone {
         Log.i(TAG, "mOffset:" + mOffset);
         Log.i(TAG, "mPollDelay[]:" + Arrays.toString(mPollDelay));
         Log.i(TAG, "mZoneTempThresholds[]: " + Arrays.toString(mZoneTempThresholds));
+        Log.i(TAG, "mNumberOfInstances[]: " + Arrays.toString(mNumberOfInstances));
+        Log.i(TAG, "mEmulTempFlag:" + mSupportsEmulTemp);
+        printSensors();
+        printSensorAttribList();
+    }
 
+    private void printSensors() {
+        if (mThermalSensors == null) return;
+        StringBuilder s =  new StringBuilder();
         for (ThermalSensor ts : mThermalSensors) {
-            ts.printAttrs();
+            if (ts != null) {
+                s.append(ts.getSensorName());
+                s.append(",");
+            }
+        }
+        Log.i(TAG, "zoneID: " + mZoneID + " sensors mapped:" + s.toString());
+    }
+
+    private void printSensorAttribList() {
+        if (mThermalSensorsAttribMap == null) return;
+        Iterator it = (Iterator) mThermalSensorsAttribMap.keySet().iterator();
+        if (it == null) return;
+        while (it.hasNext()) {
+            mThermalSensorsAttribMap.get((String) it.next()).printAttrs();
         }
     }
 
@@ -76,8 +166,28 @@ public class ThermalZone {
         return type == 0 ? "LOW" : "HIGH";
     }
 
-    public void setSensorList(ArrayList<ThermalSensor> ThermalSensors) {
-        mThermalSensors = ThermalSensors;
+    public void setSensorList(ArrayList<ThermalSensorAttrib> sensorAtribList) {
+        if (sensorAtribList == null || ThermalManager.sSensorMap == null) return;
+        for (ThermalSensorAttrib sa : sensorAtribList) {
+            // since each object of sensor attrib list is already validated during
+            // parsing it is gauranteed that 'sa != null' and a valid sensor object 's'
+            // will be returned. Hence skipping null check..
+            if (mThermalSensors == null) {
+                // first time allocation
+                mThermalSensors = new ArrayList<ThermalSensor>();
+                if (mThermalSensors == null) {
+                    // allocation failure. return
+                    return;
+                }
+            }
+            if (mThermalSensorsAttribMap == null) {
+                // first time allocation
+                mThermalSensorsAttribMap = new Hashtable<String, ThermalSensorAttrib>();
+                if (mThermalSensorsAttribMap == null) return;
+            }
+            mThermalSensors.add(ThermalManager.getSensor(sa.getSensorName()));
+            mThermalSensorsAttribMap.put(sa.getSensorName(), sa);
+        }
     }
 
     public ArrayList<ThermalSensor> getThermalSensorList() {
@@ -232,20 +342,200 @@ public class ThermalZone {
         }
     }
 
-    public boolean isZoneStateChanged() {
-        return false;
+    public void setEmulTempFlag(int flag) {
+        mSupportsEmulTemp = (flag == 1);
     }
 
-    public boolean isZoneStateChanged(ThermalSensor ts, int temp) {
-        return false;
+    public boolean getEmulTempFlag() {
+        return mSupportsEmulTemp;
     }
 
+    // over ride in Specific zone class which inherit ThermalZone
     public void startMonitoring() {
     }
 
+    // over ride in ModemZone to unregister Modem specific intents
     public void unregisterReceiver() {
 
     }
-    public void registerUevent() {}
 
+    /**
+     * Function that calculates the state of the Thermal Zone after reading
+     * temperatures of all sensors in the zone. This function is used when a
+     * zone operates in polling mode.
+     */
+    public boolean isZoneStateChanged() {
+        for (ThermalSensor ts : mThermalSensors) {
+            if (ts.getSensorActiveStatus()) {
+                ts.updateSensorTemp();
+            }
+        }
+        return updateZoneParams();
+    }
+
+    /**
+     * Function that calculates the state of the Thermal Zone after reading
+     * temperatures of all sensors in the zone. This is an overloaded function
+     * used when a zone supports UEvent notifications from kernel. When a
+     * sensor sends an UEvent, it also sends its current temperature as a
+     * parameter of the UEvent.
+     */
+    public boolean isZoneStateChanged(ThermalSensor s, int temp) {
+        if (s == null) return false;
+        s.setCurrTemp(temp);
+        return updateZoneParams();
+    }
+
+    /**
+     * Method to update Zone Temperature and Zone Thermal State
+     */
+    public boolean updateZoneParams() {
+        int newZoneState;
+        int prevZoneState = mCurrThermalState;
+
+        if (!updateZoneTemp()) {
+            return false;
+        }
+
+        newZoneState = ThermalUtils.calculateThermalState(mZoneTemp, mZoneTempThresholds);
+        if (newZoneState == prevZoneState) {
+            return false;
+        }
+
+        if (newZoneState == ThermalManager.THERMAL_STATE_OFF) {
+            setZoneState(newZoneState);
+            return true;
+        }
+
+        int threshold = ThermalUtils.getLowerThresholdTemp(prevZoneState, mZoneTempThresholds);
+        if (newZoneState < prevZoneState && getZoneTemp() > (threshold - getDBInterval())) {
+            Log.i(TAG, " THERMAL_LOW_EVENT for zone:" + getZoneName()
+                    + " rejected due to debounce interval");
+            return false;
+        }
+
+        setZoneState(newZoneState);
+        setEventType(newZoneState > prevZoneState
+                ? ThermalManager.THERMAL_HIGH_EVENT
+                : ThermalManager.THERMAL_LOW_EVENT);
+        return true;
+    }
+
+    public boolean updateZoneTemp() {
+        return false;
+    }
+
+    public void registerUevent() {
+        String devPath;
+        int indx;
+        if (mThermalSensors == null) return;
+        if (mThermalSensors.size() > 1) {
+            Log.i(TAG, "for zone:" + getZoneName() + " in uevent mode only first sensor used!");
+        }
+        ThermalSensor sensor = mThermalSensors.get(0);
+        if (sensor == null) return;
+        String path = sensor.getUEventDevPath();
+        if (path.equalsIgnoreCase("invalid")) return;
+        if (path.equals("auto")) {
+            // build the sensor UEvent listener path
+            indx = sensor.getSensorSysfsIndx();
+            if (indx == -1) {
+                Log.i(TAG, "Cannot build UEvent path for sensor:" + sensor.getSensorName());
+                return;
+            } else {
+                devPath = ThermalManager.sUEventDevPath + indx;
+            }
+        } else {
+            devPath = path;
+        }
+        // first time update of sensor temp and zone temp
+        sensor.updateSensorTemp();
+        if (updateZoneParams()) {
+            // first intent after initialization
+            sendThermalEvent();
+        }
+        mUEventObserver.startObserving(devPath);
+        programThresholds(sensor);
+    }
+
+    public UEventObserver mUEventObserver = new UEventObserver() {
+        @Override
+        public void onUEvent(UEventObserver.UEvent event) {
+            String sensorName;
+            int sensorTemp, errorVal, eventType = -1;
+            ThermalZone zone;
+            if (mThermalSensors ==  null) return;
+            // Name of the sensor and current temperature are mandatory parameters of an UEvent
+            sensorName = event.get("NAME");
+            sensorTemp = Integer.parseInt(event.get("TEMP"));
+
+            // eventType is an optional parameter. so, check for null case
+            if (event.get("EVENT") != null)
+                eventType = Integer.parseInt(event.get("EVENT"));
+
+            if (sensorName != null) {
+                Log.i(TAG, "UEvent received for sensor:" + sensorName + " temp:" + sensorTemp);
+                // check the name against the first sensor
+                ThermalSensor sensor = mThermalSensors.get(0);
+                if (sensor != null && sensor.getSensorName() != null
+                        && sensor.getSensorName().equalsIgnoreCase(sensorName)) {
+                    // Adjust the sensor temperature based on the 'error correction' temperature.
+                    // For 'LOW' event, debounce interval will take care of this.
+                    errorVal = sensor.getErrorCorrectionTemp();
+                    if (eventType == ThermalManager.THERMAL_HIGH_EVENT)
+                        sensorTemp += errorVal;
+
+                    if (isZoneStateChanged(sensor, sensorTemp)) {
+                        sendThermalEvent();
+                        // reprogram threshold
+                        programThresholds(sensor);
+                    }
+                }
+            }
+        }
+    };
+
+    public void programThresholds(ThermalSensor s) {
+        if (s == null) return;
+        int zoneState = getZoneState();
+        if (zoneState == ThermalManager.THERMAL_STATE_OFF) return;
+        int lowerTripPoint = ThermalUtils.getLowerThresholdTemp(zoneState, getZoneTempThreshold());
+        int upperTripPoint = ThermalUtils.getUpperThresholdTemp(zoneState, getZoneTempThreshold());
+        if (lowerTripPoint != ThermalManager.INVALID_TEMP
+                && upperTripPoint != ThermalManager.INVALID_TEMP) {
+            ThermalSensorAttrib sa = mThermalSensorsAttribMap.get(s.getSensorName());
+            if (sa == null) return;
+            // assuming a linear equation for reverse calculation of systherms
+            // i.e. order always 1. so ignore order array
+            Integer[] weights = sa.getWeights();
+            int m = 1;
+            // if no weights provided assume a default 1
+            if (weights != null) {
+                // take the first weight only.
+                // prevent divide by zero exception
+                m = weights[0] == 0 ? 1 : weights[0];
+            }
+
+            int newLowerTripPoint = (lowerTripPoint - mOffset) / m;
+            int newUpperTripPoint = (upperTripPoint - mOffset) / m;
+            if (ThermalUtils.writeSysfs(s.getSensorLowTempPath(), newLowerTripPoint) == -1) {
+                Log.i(TAG, "error while programming lower trip point:" + newLowerTripPoint
+                        + "for sensor:" + s.getSensorName());
+            }
+            if (ThermalUtils.writeSysfs(s.getSensorHighTempPath(), upperTripPoint) == -1) {
+                Log.i(TAG, "error while programming upper trip point:" + newUpperTripPoint
+                        + "for sensor:" + s.getSensorName());
+            }
+        }
+    }
+
+    public void sendThermalEvent() {
+        ThermalEvent thermalEvent = new ThermalEvent(mZoneID,
+                mCurrEventType, mCurrThermalState, mZoneTemp, mZoneName);
+        try {
+            ThermalManager.sEventQueue.put(thermalEvent);
+        } catch (InterruptedException ex) {
+            Log.i(TAG, "caught InterruptedException in posting to event queue");
+        }
+    }
 }
