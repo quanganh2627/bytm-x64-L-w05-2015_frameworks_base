@@ -36,44 +36,38 @@ public class VirtualThermalZone extends ThermalZone {
         super();
     }
 
-    // override thermal zone setSupportsUEvent
-    public void setSupportsUEvent(int flag) {
-        Log.i(TAG, "Virtual Zone:" + getZoneName() + " supports only poling mode!!");
-        mSupportsUEvent = false;
-    }
-
     public void startMonitoring() {
         new ThermalZoneMonitor(this);
     }
 
-    private boolean updateZoneTemp() {
+    // override fucntion
+    public boolean updateZoneTemp() {
         int curZoneTemp = ThermalManager.INVALID_TEMP;
         int rawSensorTemp, sensorTemp;
-        Integer weights[], order[];
+        int weightedTemp;
         boolean flag = false;
-        for (ThermalSensor ts : getThermalSensorList()) {
-            if (ts != null && ts.getSensorActiveStatus()) {
-                rawSensorTemp = ts.getCurrTemp();
-                weights = ts.getWeights();
-                order = ts.getOrder();
-                if (flag == false) {
-                    // one time initialization of zone temp
-                    curZoneTemp = 0;
-                    flag = true;
+
+        if (isUEventSupported()) {
+            ArrayList<ThermalSensor> list = getThermalSensorList();
+            if (list != null) {
+                // for uevent based monitoring only first sensor used
+                ThermalSensor s = list.get(0);
+                if (s != null) {
+                    curZoneTemp = getWeightedTemp(s);
                 }
-                if (weights != null && order == null) {
-                    // only first weight will be considered
-                    curZoneTemp += weights[0] * rawSensorTemp;
-                } else if (weights != null && order != null && weights.length == order.length) {
-                    // if order array is provided in xml,
-                    // it should be of same size as weights array
-                    sensorTemp = 0;
-                    for (int i = 0; i < weights.length; i++) {
-                        sensorTemp += weights[i] * (int) Math.pow(rawSensorTemp, order[i]);
+            }
+        } else {
+            for (ThermalSensor ts : getThermalSensorList()) {
+                if (ts != null && ts.getSensorActiveStatus()) {
+                    if (flag == false) {
+                        // one time initialization of zone temp
+                        curZoneTemp = 0;
+                        flag = true;
                     }
-                    curZoneTemp += sensorTemp;
-                } else {
-                    curZoneTemp += rawSensorTemp;
+                    weightedTemp = getWeightedTemp(ts);
+                    if (weightedTemp != ThermalManager.INVALID_TEMP) {
+                        curZoneTemp += weightedTemp;
+                    }
                 }
             }
         }
@@ -81,54 +75,41 @@ public class VirtualThermalZone extends ThermalZone {
         if (curZoneTemp != ThermalManager.INVALID_TEMP) {
             curZoneTemp += getOffset();
             setZoneTemp(curZoneTemp);
+            if (getMovingAverageFlag() && !isUEventSupported()) {
+                // only for polling mode apply moving average on predicted zone temp
+                setZoneTemp(movingAverageTemp());
+            }
             return true;
         }
 
         return false;
     }
 
-    private boolean updateZoneParams() {
-        int newZoneState;
-        int prevZoneState = getZoneState();
+    private int getWeightedTemp(ThermalSensor ts) {
+        int curZoneTemp = 0;
+        int rawSensorTemp = ts.getCurrTemp();
+        Integer weights[], order[];
 
-        if (!updateZoneTemp()) {
-            return false;
-        }
-        newZoneState = ThermalUtils.calculateThermalState(getZoneTemp(), getZoneTempThreshold());
-        if (newZoneState == prevZoneState) {
-            return false;
-        }
-
-        if (newZoneState == ThermalManager.THERMAL_STATE_OFF) {
-            setZoneState(newZoneState);
-            return true;
-        }
-
-        int threshold = ThermalUtils.getLowerThresholdTemp(prevZoneState, getZoneTempThreshold());
-        if (newZoneState < prevZoneState && getZoneTemp() > (threshold - getDBInterval())) {
-            Log.i(TAG, " THERMAL_LOW_EVENT for zone:" + getZoneName() +
-                    " rejected due to debounce interval");
-            return false;
-        }
-
-        setZoneState(newZoneState);
-        setEventType(newZoneState > prevZoneState ?
-                ThermalManager.THERMAL_HIGH_EVENT :
-                ThermalManager.THERMAL_LOW_EVENT);
-        return true;
-    }
-
-    /**
-     * Function that calculates the state of the Thermal Zone after reading
-     * temperatures of all sensors in the zone. This function is used when a
-     * zone operates in polling mode.
-     */
-    public boolean isZoneStateChanged() {
-        for (ThermalSensor ts : getThermalSensorList()) {
-            if (ts.getSensorActiveStatus()) {
-                ts.updateSensorTemp();
+        ThermalSensorAttrib sa = mThermalSensorsAttribMap.get(ts.getSensorName());
+        if (sa == null) return ThermalManager.INVALID_TEMP;
+        weights = sa.getWeights();
+        order = sa.getOrder();
+        if (weights == null && order == null) return rawSensorTemp;
+        if (weights != null) {
+            if (order == null) {
+                // only first weight will be considered
+                return (weights[0] * rawSensorTemp);
+            } else if (order != null && weights.length == order.length) {
+                // if order array is provided in xml,
+                // it should be of same size as weights array
+                int sensorTemp = 0;
+                for (int i = 0; i < weights.length; i++) {
+                    sensorTemp += weights[i] * (int) Math.pow(rawSensorTemp, order[i]);
+                }
+                return sensorTemp;
             }
         }
-        return updateZoneParams();
+        // for every other mismatch return the raw sensor temp
+        return rawSensorTemp;
     }
 }

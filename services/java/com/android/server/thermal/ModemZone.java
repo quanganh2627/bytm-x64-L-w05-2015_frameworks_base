@@ -100,6 +100,16 @@ public class ModemZone extends ThermalZone {
     private int mModemOffState = ThermalManager.THERMAL_STATE_OFF;
     private ThermalManager.ZoneCoolerBindingInfo mZoneCoolerBindInfo = null;
 
+    // irrespective of what flag is set in XML, emul temp flag is false for Modem thermal zone
+    // over ride function. so that even if flag is 1 in XML, 0 will be written
+    public void setEmulTempFlag(int flag) {
+        mSupportsEmulTemp = false;
+        if (flag != 0) {
+            Log.i(TAG, "zone:" + getZoneName()
+                    + "is a Modem zone, doesnt support emulated temperature");
+        }
+    }
+
     public ModemZone(Context context) {
         super();
         mPhoneService = IOemTelephony.Stub.asInterface(ServiceManager.getService("oemtelephony"));

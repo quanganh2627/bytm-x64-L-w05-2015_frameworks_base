@@ -42,58 +42,22 @@ public class ThermalSensor {
     private String mLowTempPath;    /* sys path to set the intermediate lower threshold */
     private String mUEventDevPath;  /* sys path for uevent listener */
     private int mErrorCorrectionTemp; /* Temperature difference in mC */
-    private int mSensorID;
+    // sensorID field only used by ModemZone. For all other sensors, sensor name is used
+    // as an identifier.
+    private int mSensorID = -1;
     private int mSensorState;       /* Thermal state of the sensor */
     private int mCurrTemp;          /* Holds the latest temperature of the sensor */
     private int mSensorSysfsIndx; /* Index of this sensor in the sysfs */
     private boolean mIsSensorActive = false; /* Whether this sensor is active */
 
-    /* MovingAverage related declarations */
-    private int mRecordedValuesHead = -1; /* Index pointing to the head of past values of sensor */
-    private int mRecordedValues[];        /* Recorded values of sensor */
-    private int mNumberOfInstances[];     /* Number of recorded instances to be considered */
-    private boolean mIsMovingAverage = false; /* By default false */
-    private Integer mWeights[];
-    private Integer mOrder[];
-
-    public Integer[] getWeights() {
-        return mWeights;
-    }
-
-    public void setWeights(ArrayList<Integer> list) {
-        if (list != null) {
-            mWeights = new Integer[list.size()];
-            if (mWeights != null) {
-                mWeights = list.toArray(mWeights);
-            }
-        }
-    }
-
-    public Integer[] getOrder() {
-        return mOrder;
-    }
-
-    public void setOrder(ArrayList<Integer> list) {
-        if (list != null) {
-            mOrder = new Integer[list.size()];
-            if (mOrder != null) {
-                mOrder = list.toArray(mOrder);
-            }
-        }
-    }
-
     public void printAttrs() {
-        Log.i(TAG, "mSensorID: " + Integer.toString(mSensorID));
-        Log.i(TAG, "mSensorPath: " + mSensorPath);
         Log.i(TAG, "mSensorName: " + mSensorName);
+        Log.i(TAG, "mSensorPath: " + mSensorPath);
         Log.i(TAG, "mInputTempPath: " + mInputTempPath);
         Log.i(TAG, "mHighTempPath: " + mHighTempPath);
         Log.i(TAG, "mLowTempPath: " + mLowTempPath);
         Log.i(TAG, "mUEventDevPath: " + mUEventDevPath);
         Log.i(TAG, "mErrorCorrection: " + mErrorCorrectionTemp);
-        Log.i(TAG, "mNumberOfInstances[]: " + Arrays.toString(mNumberOfInstances));
-        Log.i(TAG, "mWeights[]: " + Arrays.toString(mWeights));
-        Log.i(TAG, "mOrder[]: " + Arrays.toString(mOrder));
     }
 
     private void setSensorSysfsPath() {
@@ -137,10 +101,6 @@ public class ThermalSensor {
 
     public int getSensorID() {
         return mSensorID;
-    }
-
-    public void setSensorID(int id) {
-        mSensorID = id;
     }
 
     public int getSensorSysfsIndx() {
@@ -194,39 +154,6 @@ public class ThermalSensor {
         return mErrorCorrectionTemp;
     }
 
-    public void setMovingAvgWindow(ArrayList<Integer> windowList, Integer[] delay) {
-        int maxValue = Integer.MIN_VALUE; // -2^31
-
-        if (windowList == null || delay == null) {
-            Log.i(TAG, "setMovingAvgWindow input is null");
-            return;
-        }
-        mNumberOfInstances = new int[windowList.size()];
-        if (mNumberOfInstances == null) {
-            Log.i(TAG, "failed to create poll windowlist");
-            return;
-        }
-        mIsMovingAverage = true;
-        try {
-            for (int i = 0; i < windowList.size(); i++) {
-                if (delay[i] == 0) {
-                    mIsMovingAverage = false;
-                    Log.i(TAG, "Polling delay is zero, WMA disabled\n");
-                    return;
-                }
-                mNumberOfInstances[i] = windowList.get(i) / delay[i];
-                if (mNumberOfInstances[i] <= 0) {
-                    mIsMovingAverage = false;
-                    Log.i(TAG, "Polling delay greater than moving average window, WMA disabled\n");
-                    return;
-                }
-                maxValue = Math.max(mNumberOfInstances[i], maxValue);
-            }
-            mRecordedValues = new int[maxValue];
-        } catch (IndexOutOfBoundsException e) {
-            Log.i(TAG, "IndexOutOfBoundsException caught in setMovingAvgWindow()\n");
-        }
-    }
 
     public void setInputTempPath(String name) {
         // sensor path is none, it means sensor temperature reporting is
@@ -254,7 +181,11 @@ public class ThermalSensor {
         if (name != null && name.equalsIgnoreCase("auto")) {
             mHighTempPath = mSensorPath + ThermalManager.sSysfsSensorHighTempPath;
         } else {
-            mHighTempPath = mSensorPath + name;
+            if (mSensorPath != null && mSensorPath.equalsIgnoreCase("none")) {
+                mHighTempPath = "invalid";
+            } else {
+                mHighTempPath = mSensorPath + name;
+            }
         }
     }
 
@@ -266,7 +197,11 @@ public class ThermalSensor {
         if (name != null && name.equalsIgnoreCase("auto")) {
             mLowTempPath = mSensorPath + ThermalManager.sSysfsSensorLowTempPath;
         } else {
-            mLowTempPath = mSensorPath + name;
+            if (mSensorPath != null && mSensorPath.equalsIgnoreCase("none")) {
+                mLowTempPath = "invalid";
+            } else {
+                mLowTempPath = mSensorPath + name;
+            }
         }
     }
 
@@ -282,23 +217,6 @@ public class ThermalSensor {
         return mCurrTemp;
     }
 
-    public int movingAverageTemp(int currTemp) {
-        int index, calIndex;
-        int predictedTemp = 0;
-
-        mRecordedValuesHead = (mRecordedValuesHead + 1) % mRecordedValues.length;
-        mRecordedValues[mRecordedValuesHead] = currTemp;
-
-        // Sensor State starts with -1, InstancesList starts with 0
-        for (index = 0; index < mNumberOfInstances[mSensorState + 1]; index++) {
-            calIndex = mRecordedValuesHead - index;
-            if (calIndex < 0) {
-                calIndex = mRecordedValues.length + calIndex;
-            }
-            predictedTemp += mRecordedValues[calIndex];
-        }
-        return predictedTemp / index;
-    }
 
     /**
      * Method to read the current temperature from sensor. This method should be
@@ -316,11 +234,7 @@ public class ThermalSensor {
         } catch (NumberFormatException e) {
             Log.i(TAG, "NumberFormatException in updateSensorTemp():" + mInputTempPath);
         }
-        if (mIsMovingAverage) {
-            setCurrTemp(movingAverageTemp(val));
-        } else {
-            setCurrTemp(val);
-        }
+        setCurrTemp(val);
     }
 
     public int getSensorThermalState() {
