@@ -207,6 +207,10 @@ public class CurrentMgmtService extends Binder {
         public final void checkIfCapped() {
             String path = CPU_PATH + mName + "/cpufreq/scaling_max_freq";
             int curMax;
+
+            if (mCpuAvailFreqs == null)
+                return;
+
             Arrays.sort(mCpuAvailFreqs);
             mMaxFreq = mCpuAvailFreqs[mCpuAvailFreqs.length - 1];
             Log.i(TAG, "Maximum frequency:" + mMaxFreq);
