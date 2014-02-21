@@ -59,6 +59,7 @@ import android.widget.ImageView;
 import com.android.systemui.R;
 import java.io.InputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -212,7 +213,18 @@ class SaveImageInBackgroundTask extends AsyncTask<SaveImageInBackgroundData, Voi
             values.put(MediaStore.Images.ImageColumns.MIME_TYPE, "image/png");
             values.put(MediaStore.Images.ImageColumns.WIDTH, mImageWidth);
             values.put(MediaStore.Images.ImageColumns.HEIGHT, mImageHeight);
+
+            OutputStream out = new FileOutputStream(mImageFilePath);
+            try {
+                image.compress(Bitmap.CompressFormat.PNG, 100, out);
+                out.flush();
+            } finally {
+                out.close();
+            }
+            values.put(MediaStore.Images.ImageColumns.SIZE, new File(mImageFilePath).length());
+
             Uri uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+            values.clear();
 
             String subjectDate = new SimpleDateFormat("hh:mma, MMM dd, yyyy")
                 .format(new Date(mImageTime));
@@ -230,25 +242,6 @@ class SaveImageInBackgroundTask extends AsyncTask<SaveImageInBackgroundData, Voi
                      r.getString(com.android.internal.R.string.share),
                      PendingIntent.getActivity(context, 0, chooserIntent,
                              PendingIntent.FLAG_CANCEL_CURRENT));
-
-            OutputStream out = resolver.openOutputStream(uri);
-            image.compress(Bitmap.CompressFormat.PNG, 100, out);
-            out.flush();
-            out.close();
-
-            // update file size in the database
-            values.clear();
-            InputStream in = resolver.openInputStream(uri);
-
-            try {
-                int size = in.available();
-                values.put(MediaStore.Images.ImageColumns.SIZE, size);
-            } catch (Exception e) {
-                values.put(MediaStore.Images.ImageColumns.SIZE, new File(mImageFilePath).length());
-            } finally {
-                resolver.update(uri, values, null, null);
-                in.close();
-            }
 
             params[0].imageUri = uri;
             params[0].image = null;
