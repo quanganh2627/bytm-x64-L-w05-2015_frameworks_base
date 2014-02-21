@@ -18,12 +18,13 @@ package com.android.server.wifi;
 
 import android.content.Context;
 import android.os.RemoteException;
+import android.os.SystemClock;
+
+import android.telephony.TelephonyManager;
 import android.util.Log;
 
 import com.android.server.wifi.ICsmWifiOffloadSystemService;
 import com.intel.cws.cwsservicemanagerclient.CsmClient;
-
-
 /**
  * CsmWifiOffloadSystemService handles remote WiFi offload operation requests by implementing
  * the ICsmWifiOffloadSystemService interface.
@@ -118,13 +119,17 @@ public class CsmWifiOffloadSystemService extends ICsmWifiOffloadSystemService.St
 
 
     private class CsmWifiOffloadClient extends CsmClient {
+        private static final long SIM_CHECK_DELAY_MS = 7000;
+
         private boolean mIsSimPresent;
+        private long mModemUpTimestamp;
 
         public CsmWifiOffloadClient(Context context) {
             super(context, CSM_ID_WIFI_OFFLOAD, 1);
             if (DEBUG) Log.d(CSM_SERVICE_TAG, "Create CsmWifiOffloadClient object");
             csmActivateSimStatusReceiver();
             mIsSimPresent = false;
+            mModemUpTimestamp = 0;
         }
 
         public void uiccBeginTransaction() throws RemoteException {
@@ -156,6 +161,14 @@ public class CsmWifiOffloadSystemService extends ICsmWifiOffloadSystemService.St
         public String uiccTransmitAPDU(int inst, int p1, int p2, int p3, byte[] command)
             throws RemoteException {
             if (DEBUG) Log.d(CSM_SERVICE_TAG, "Entering CsmWifiOffloadClient / uiccTransmitAPDU");
+
+            long delaySoFar = SystemClock.elapsedRealtime() - mModemUpTimestamp;
+            if (mModemUpTimestamp != 0 && !mIsSimPresent && delaySoFar >= SIM_CHECK_DELAY_MS) {
+                Log.e(CSM_SERVICE_TAG, "SIM presence = " + mIsSimPresent + " probably not consistent !!");
+                mIsSimPresent = TelephonyManager.getDefault().hasIccCard();
+                Log.e(CSM_SERVICE_TAG, "Reloaded SIM presence = " + mIsSimPresent);
+            }
+
             if (mIsSimPresent && (mCwsServiceMgr != null)) {
                 return mCwsServiceMgr.uiccTransmitAPDU(CSM_ID_WIFI_OFFLOAD, inst, p1, p2, p3, command);
             }
@@ -166,6 +179,21 @@ public class CsmWifiOffloadSystemService extends ICsmWifiOffloadSystemService.St
 
             String ret = new String("");
             return ret;
+        }
+
+        @Override
+        public void csmClientModemAvailable() {
+            if (DEBUG) Log.d(CSM_SERVICE_TAG, "Entering CsmWifiOffloadClient/..ModemAvailable");
+            mModemUpTimestamp = SystemClock.elapsedRealtime();
+            return;
+        }
+
+        @Override
+        public void csmClientModemUnavailable() {
+            if (DEBUG) Log.d(CSM_SERVICE_TAG, "Entering CsmWifiOffloadClient/..ModemUnavailable");
+            mIsSimPresent = false;
+            mModemUpTimestamp = 0;
+            return;
         }
 
         @Override
