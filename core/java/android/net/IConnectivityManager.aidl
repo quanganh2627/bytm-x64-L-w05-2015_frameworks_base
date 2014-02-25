@@ -165,4 +165,6 @@ interface IConnectivityManager
             String mode);
 
     void deleteIpSecSPEntry(int id);
+
+    void setDhcpRanges(in String[] dhcpRanges);
 }

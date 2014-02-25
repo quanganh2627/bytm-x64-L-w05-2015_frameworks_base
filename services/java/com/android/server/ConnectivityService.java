@@ -3327,6 +3327,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     }
 
     // javadoc from interface
+    public void setDhcpRanges(String[] dhcpRanges) {
+        mTethering.setDhcpRanges(dhcpRanges);
+    }
+    // javadoc from interface
     public int tether(String iface) {
         enforceTetherChangePermission();
 
