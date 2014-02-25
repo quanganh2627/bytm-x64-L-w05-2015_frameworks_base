@@ -329,6 +329,11 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
 
     public void interfaceClassDataActivityChanged(String label, boolean active) {}
 
+    /*@hide*/
+    public void setDhcpRanges(String [] dhcpRanges) {
+        mDhcpRange = dhcpRanges;
+    }
+
     public int tether(String iface) {
         if (DBG) Log.d(TAG, "Tethering " + iface);
         TetherInterfaceSM sm = null;
@@ -1248,10 +1253,12 @@ public class Tethering extends INetworkManagementEventObserver.Stub {
                 }
                 try {
                     mNMService.startTethering(mDhcpRange);
+                    mDhcpRange = DHCP_DEFAULT_RANGE;
                 } catch (Exception e) {
                     try {
                         mNMService.stopTethering();
                         mNMService.startTethering(mDhcpRange);
+                        mDhcpRange = DHCP_DEFAULT_RANGE;
                     } catch (Exception ee) {
                         transitionTo(mStartTetheringErrorState);
                         return false;
