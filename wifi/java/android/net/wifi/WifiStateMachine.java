@@ -114,6 +114,12 @@ public class WifiStateMachine extends StateMachine {
 
     private static final String NETWORKTYPE = "WIFI";
     private static final boolean DBG = false;
+    private static final String[] DHCP_RANGES = {// Inspired from Tethering.java
+        "192.168.42.2", "192.168.42.254", "192.168.43.2", "192.168.43.254",
+        "192.168.44.2", "192.168.44.254", "192.168.45.2", "192.168.45.254",
+        "192.168.46.2", "192.168.46.254", "192.168.47.2", "192.168.47.254",
+        "192.168.48.2", "192.168.48.254",
+    };
 
     private WifiMonitor mWifiMonitor;
     private WifiNative mWifiNative;
@@ -1852,6 +1858,26 @@ public class WifiStateMachine extends StateMachine {
         }
     }
 
+    private static String[] getDhcpRanges(String address, String netmask) {
+        String [] dhcpRanges = DHCP_RANGES;
+        Inet4Address inetAddress = (Inet4Address)NetworkUtils.numericToInetAddress(address);
+        int addressInt = NetworkUtils.inetAddressToInt2(inetAddress);
+        int netMaskPrefix = NetworkUtils.
+                netmaskIntToPrefixLength(NetworkUtils.
+                        inetAddressToInt((Inet4Address)NetworkUtils.
+                                numericToInetAddress(netmask)));
+        Inet4Address addressNetworkPart = (Inet4Address)NetworkUtils.
+                getNetworkPart(inetAddress, netMaskPrefix);
+        int networkInt = NetworkUtils.inetAddressToInt2(addressNetworkPart);
+        int maxIpAddress = NetworkUtils.generateReversedNetMask(netMaskPrefix) | networkInt;
+        int maxIpWifiAddress = maxIpAddress - 1;
+        int minIpWifiAddress = addressInt + 1;
+        // We are setting only the wifi range
+        dhcpRanges[2] = NetworkUtils.intToInetAddress2(minIpWifiAddress).getHostAddress();
+        dhcpRanges[3] = NetworkUtils.intToInetAddress2(maxIpWifiAddress).getHostAddress();
+        return dhcpRanges;
+    }
+
     private boolean startTethering(ArrayList<String> available) {
 
         boolean wifiAvailable = false;
@@ -1859,8 +1885,8 @@ public class WifiStateMachine extends StateMachine {
         checkAndSetConnectivityInstance();
 
         String[] wifiRegexs = mCm.getTetherableWifiRegexs();
-        String ipAddress;
-        int netMaskPrefix;
+        String ipAddress = WifiApConfiguration.DEFAULT_SERVER_ADDRESS;;
+        int netMaskPrefix = 24;
         for (String intf : available) {
             for (String regex : wifiRegexs) {
                 if (intf.matches(regex)) {
@@ -1890,7 +1916,13 @@ public class WifiStateMachine extends StateMachine {
                         loge("Error configuring interface " + intf + ", :" + e);
                         return false;
                     }
-
+                    if (!ipAddress.equals(WifiApConfiguration.DEFAULT_SERVER_ADDRESS)
+                            || netMaskPrefix != 24) {
+                        String[] ranges = getDhcpRanges(ipAddress, mLastWifiApConfig.
+                                getWifiApConfigurationAdv().mNetMask);
+                        mCm.setDhcpRanges(getDhcpRanges(ipAddress, mLastWifiApConfig.
+                                getWifiApConfigurationAdv().mNetMask));
+                    }
                     if(mCm.tether(intf) != ConnectivityManager.TETHER_ERROR_NO_ERROR) {
                         loge("Error tethering on " + intf);
                         return false;

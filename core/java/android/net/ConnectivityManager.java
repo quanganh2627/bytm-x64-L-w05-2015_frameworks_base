@@ -991,6 +991,18 @@ public class ConnectivityManager {
     }
 
     /**
+     * Set dhcp ranges before starting softap
+     * @param dhcpRanges
+     * {@hide}
+     */
+    public void setDhcpRanges(String[] dhcpRanges) {
+        try {
+            mService.setDhcpRanges(dhcpRanges);
+        } catch (RemoteException e) {
+        }
+    }
+
+    /**
      * Attempt to tether the named interface.  This will setup a dhcp server
      * on the interface, forward and NAT IP packets and forward DNS requests
      * to the best active upstream network interface.  Note that if no upstream
