@@ -126,6 +126,25 @@ public class NetworkUtils {
     }
 
     /**
+     * Convert a IPv4 address from an integer to an InetAddress.
+     * Alternate behavior of intToInetAddress
+     * @param hostAddress an int corresponding to the IPv4 address in network byte inversed order
+     * @hide
+     */
+    public static InetAddress intToInetAddress2(int hostAddress) {
+        byte[] addressBytes = { (byte)(0xff & (hostAddress >> 24)),
+                (byte)(0xff & (hostAddress >> 16)),
+                (byte)(0xff & (hostAddress >> 8)),
+                (byte)(0xff & hostAddress)};
+
+        try {
+            return InetAddress.getByAddress(addressBytes);
+        } catch (UnknownHostException e) {
+            throw new AssertionError();
+        }
+    }
+
+    /**
      * Convert a IPv4 address from an InetAddress to an integer
      * @param inetAddr is an InetAddress corresponding to the IPv4 address
      * @return the IP address as an integer in network byte order
@@ -135,6 +154,20 @@ public class NetworkUtils {
         byte [] addr = inetAddr.getAddress();
         return ((addr[3] & 0xff) << 24) | ((addr[2] & 0xff) << 16) |
                 ((addr[1] & 0xff) << 8) | (addr[0] & 0xff);
+    }
+
+    /**
+     * Convert a IPv4 address from an InetAddress to an integer
+     * Alternate behaviour from inetAddressToInt
+     * @param inetAddr is an InetAddress corresponding to the IPv4 address
+     * @return the IP address as an integer in network byte inversed order
+     * @hide
+     */
+    public static int inetAddressToInt2(Inet4Address inetAddr)
+            throws IllegalArgumentException {
+        byte [] addr = inetAddr.getAddress();
+        return ((addr[0] & 0xff) << 24) | ((addr[1] & 0xff) << 16) |
+                ((addr[2] & 0xff) << 8) | (addr[3] & 0xff);
     }
 
     /**
@@ -158,6 +191,21 @@ public class NetworkUtils {
      */
     public static int netmaskIntToPrefixLength(int netmask) {
         return Integer.bitCount(netmask);
+    }
+
+    /**
+     * Generates an integer representing the inversed netmask
+     * @param prefix representing the netmask
+     * @return an integer with parameters's bits to 0 flipped to 1 and bits to 1 flipped to 0
+     * @hide
+     */
+    public static int  generateReversedNetMask(int prefix) {
+        int toGen = 32 - prefix;
+        int result = 0;
+        for (int i =0; i< toGen; i++) {
+            result = result | (1 << i);
+        }
+        return result;
     }
 
     /**
