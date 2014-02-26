@@ -81,6 +81,7 @@ import com.android.server.am.ActivityStack.ActivityState;
 import com.android.server.pm.UserManagerService;
 import com.android.server.wm.StackBox;
 import com.android.server.wm.WindowManagerService;
+import com.intel.asf.AsfAosp;
 
 import com.intel.config.FeatureConfig;
 
@@ -1285,6 +1286,47 @@ public final class ActivityStackSupervisor {
                 setDismissKeyguard(false);
                 ActivityOptions.abort(options);
                 return ActivityManager.START_SWITCHES_CANCELED;
+            }
+        }
+
+        // ASF HOOK: Start Activity event.
+        if (FeatureConfig.INTEL_FEATURE_ASF) {
+            // Cache the calling package name which may be the
+            // triggering app for futrue Application Security Events.
+            AsfAosp.setCallingPackage(callingPackage);
+
+            // Start Activity event
+            if (AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+                UserInfo userInfo = null;
+                try {
+                    userInfo = mService.getCurrentUser();
+                } catch (SecurityException e) {
+                    // When there is an exception, null userInfo is sent to ASF client.
+                }
+                if (!AsfAosp.sendStartActivityEvent(
+                        r.info,
+                        callingPackage,
+                        r.packageName,
+                        r.intent,
+                        r.userId,
+                        userInfo) ) {
+                    // Start Activity is denied by ASF client
+                    /* NOTE: This block of code is same as that used
+                     * above to abort the IntentFirewall
+                     * checkStartActivity(). If that code is changed
+                     * this block will also need to be changed.
+                     * Resolved KW issue in this copy.
+                     */
+                    if (resultStack != null && resultRecord != null) {
+                        resultStack.sendActivityResultLocked(-1, resultRecord, resultWho, requestCode,
+                                Activity.RESULT_CANCELED, null);
+                    }
+                    // We pretend to the caller that it was really started, but
+                    // they will just get a cancel result.
+                    setDismissKeyguard(false);
+                    ActivityOptions.abort(options);
+                    return ActivityManager.START_SUCCESS;
+                }
             }
         }
 

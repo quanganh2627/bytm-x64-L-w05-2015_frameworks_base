@@ -87,7 +87,9 @@ import com.android.server.net.BaseNetworkObserver;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.net.InetAddress;
+import java.net.Inet4Address;
 import java.net.Inet6Address;
+import android.net.NetworkUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -1785,7 +1787,8 @@ public class WifiStateMachine extends StateMachine {
         checkAndSetConnectivityInstance();
 
         String[] wifiRegexs = mCm.getTetherableWifiRegexs();
-
+        String ipAddress;
+        int netMaskPrefix;
         for (String intf : available) {
             for (String regex : wifiRegexs) {
                 if (intf.matches(regex)) {
@@ -1794,9 +1797,19 @@ public class WifiStateMachine extends StateMachine {
                     try {
                         ifcg = mNwService.getInterfaceConfig(intf);
                         if (ifcg != null) {
-                            /* IP/netmask: 192.168.43.1/255.255.255.0 */
+                            ipAddress = mLastWifiApConfig.getWifiApConfigurationAdv().mIpAddress;
+                            if (ipAddress == null) {
+                                ipAddress = WifiApConfiguration.DEFAULT_SERVER_ADDRESS;
+                                netMaskPrefix = 24;
+                            } else {
+                                netMaskPrefix = NetworkUtils.
+                                netmaskIntToPrefixLength(NetworkUtils.
+                                        inetAddressToInt((Inet4Address)NetworkUtils.
+                                                numericToInetAddress(mLastWifiApConfig.
+                                                        getWifiApConfigurationAdv().mNetMask)));
+                            }
                             ifcg.setLinkAddress(new LinkAddress(
-                                    NetworkUtils.numericToInetAddress("192.168.43.1"), 24));
+                                    NetworkUtils.numericToInetAddress(ipAddress), netMaskPrefix));
                             ifcg.setInterfaceUp();
 
                             mNwService.setInterfaceConfig(intf, ifcg);
@@ -3517,6 +3530,9 @@ public class WifiStateMachine extends StateMachine {
                             // Load and re-enable networks when going back to enabled state
                             // This is essential for networks to show up after restore
                             mWifiConfigStore.loadAndEnableAllNetworks();
+                            if (mP2pSupported) {
+                                mWifiNative.p2pSetDisabled(false);
+                            }
                             mWifiP2pChannel.sendMessage(CMD_ENABLE_P2P);
                         } else {
                             mWifiConfigStore.enableAllNetworks();
