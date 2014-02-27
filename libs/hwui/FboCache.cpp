@@ -61,11 +61,17 @@ uint32_t FboCache::getMaxSize() {
 
 void FboCache::clear() {
     for (size_t i = 0; i < mCache.size(); i++) {
+#ifdef HWUI_IMG_FBO_CACHE_OPTIM
         const GLuint fbo = mCache.itemAt(i).fbo;
+#else
+        const GLuint fbo = mCache.itemAt(i);
+#endif
         glDeleteFramebuffers(1, &fbo);
     }
     mCache.clear();
 }
+
+#ifdef HWUI_IMG_FBO_CACHE_OPTIM
 
 GLuint FboCache::get(int w, int h) {
     GLuint fbo;
@@ -93,6 +99,31 @@ bool FboCache::put(GLuint fbo, int w, int h) {
         mCache.insertAt(mCache.size()));
     return true;
 }
+
+#else /* HWUI_IMG_FBO_CACHE_OPTIM */
+
+GLuint FboCache::get(int w, int h) {
+    GLuint fbo;
+    if (mCache.size() > 0) {
+        fbo = mCache.itemAt(mCache.size() - 1);
+        mCache.removeAt(mCache.size() - 1);
+    } else {
+       glGenFramebuffers(1, &fbo);
+    }
+    return fbo;
+}
+
+bool FboCache::put(GLuint fbo, int w, int h) {
+    if (mCache.size() < mMaxSize) {
+        mCache.add(fbo);
+        return true;
+    }
+
+    glDeleteFramebuffers(1, &fbo);
+    return false;
+}
+
+#endif /* HWUI_IMG_FBO_CACHE_OPTIM */
 
 }; // namespace uirenderer
 }; // namespace android
