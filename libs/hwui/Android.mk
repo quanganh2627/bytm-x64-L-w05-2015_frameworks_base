@@ -75,6 +75,10 @@ ifeq ($(USE_OPENGL_RENDERER),true)
 			bionic/libstdc++/include
 	endif
 
+    ifeq ($(HWUI_IMG_FBO_CACHE_OPTIM),true)
+        LOCAL_CFLAGS += -DHWUI_IMG_FBO_CACHE_OPTIM
+    endif
+
 	ifndef HWUI_COMPILE_SYMBOLS
 		LOCAL_CFLAGS += -fvisibility=hidden
 	endif

@@ -28,6 +28,8 @@ namespace uirenderer {
 // Cache
 ///////////////////////////////////////////////////////////////////////////////
 
+#ifdef HWUI_IMG_FBO_CACHE_OPTIM
+
 class FboEntry
 {
 public:
@@ -46,6 +48,8 @@ public:
     int w;
     int h;
 };
+
+#endif
 
 class FboCache {
 public:
@@ -88,7 +92,11 @@ public:
     uint32_t getMaxSize();
 
 private:
+#ifdef HWUI_IMG_FBO_CACHE_OPTIM
     Vector<FboEntry> mCache;
+#else
+    SortedVector<GLuint> mCache;
+#endif
     uint32_t mMaxSize;
 }; // class FboCache
 
