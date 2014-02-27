@@ -416,7 +416,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
                 List<AccessibilityServiceInfo> installedServices =
                         new ArrayList<AccessibilityServiceInfo>();
                 installedServices.addAll(userState.mInstalledServices);
-                installedServices.remove(userState.mUiAutomationService);
+                installedServices.remove(userState.mUiAutomationService.mAccessibilityServiceInfo);
                 return installedServices;
             }
             return userState.mInstalledServices;
