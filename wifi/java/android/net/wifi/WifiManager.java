@@ -2220,27 +2220,29 @@ public class WifiManager {
     }
 
     /** @hide */
-    public String setSafeChannel(int safeChannelBitmap) {
+    public boolean setSafeChannel(int safeChannelBitmap) {
         if (mService == null) {
-            return "";
+            return false;
         } else {
             try {
-                return mService.setSafeChannel(safeChannelBitmap);
+                mService.setSafeChannel(safeChannelBitmap);
+                return true;
             } catch (RemoteException e) {
-                return "";
+                return false;
             }
         }
     }
 
     /** @hide */
-    public String setRTCoexMode(int enable, int safeChannelBitmap) {
+    public boolean setRTCoexMode(int enable, int safeChannelBitmap) {
         if (mService == null) {
-            return "";
+            return false;
         } else {
             try {
-                return mService.setRTCoexMode(enable,safeChannelBitmap);
+                mService.setRTCoexMode(enable, safeChannelBitmap);
+                return true;
             } catch (RemoteException e) {
-                return "";
+                return false;
             }
         }
     }
