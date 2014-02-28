@@ -188,18 +188,16 @@ Layer* LayerRenderer::createLayer(uint32_t width, uint32_t height, bool isOpaque
     LAYER_RENDERER_LOGD("Requesting new render layer %dx%d", width, height);
 
     Caches& caches = Caches::getInstance();
+    GLuint fbo = caches.fboCache.get();
+    if (!fbo) {
+        ALOGW("Could not obtain an FBO");
+        return NULL;
+    }
 
     caches.activeTexture(0);
     Layer* layer = caches.layerCache.get(width, height);
     if (!layer) {
         ALOGW("Could not obtain a layer");
-        return NULL;
-    }
-
-    GLuint fbo = caches.fboCache.get(layer->getWidth(), layer->getHeight());
-    if (!fbo) {
-        ALOGW("Could not obtain an FBO");
-        Caches::getInstance().resourceCache.decrementRefcount(layer);
         return NULL;
     }
 
@@ -364,7 +362,7 @@ bool LayerRenderer::copyLayer(Layer* layer, SkBitmap* bitmap) {
     if (layer && bitmap->width() <= caches.maxTextureSize &&
             bitmap->height() <= caches.maxTextureSize) {
 
-        GLuint fbo = caches.fboCache.get(bitmap->width(), bitmap->height());
+        GLuint fbo = caches.fboCache.get();
         if (!fbo) {
             ALOGW("Could not obtain an FBO");
             return false;
@@ -480,7 +478,7 @@ error:
         layer->setAlpha(alpha, mode);
         layer->setFbo(previousLayerFbo);
         caches.deleteTexture(texture);
-        caches.fboCache.put(fbo, bitmap->width(), bitmap->height());
+        caches.fboCache.put(fbo);
         glViewport(previousViewport[0], previousViewport[1],
                 previousViewport[2], previousViewport[3]);
 
