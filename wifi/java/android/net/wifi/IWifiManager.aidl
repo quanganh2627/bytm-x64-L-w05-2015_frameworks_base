@@ -133,9 +133,9 @@ interface IWifiManager
 
     void pollBatchedScan();
 
-    String setRTCoexMode(int enable, int safeChannelBitmap);
+    void setRTCoexMode(int enable, int safeChannelBitmap);
 
-    String setSafeChannel(int safeChannelBitmap);
+    void setSafeChannel(int safeChannelBitmap);
 
     List<WifiChannel> getWifiAuthorizedChannels();
 }
