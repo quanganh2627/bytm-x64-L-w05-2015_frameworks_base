@@ -38,6 +38,10 @@
         <group gid="mei" />
     </permission>
 
+    <permission name="com.intel.permission.SECURITY_ENGINE" >
+        <group gid="security" />
+    </permission>
+
     <permission name="android.permission.BLUETOOTH_ADMIN" >
         <group gid="net_bt_admin" />
     </permission>
