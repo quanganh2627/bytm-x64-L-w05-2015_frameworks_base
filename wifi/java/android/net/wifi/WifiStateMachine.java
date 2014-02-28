@@ -450,6 +450,11 @@ public class WifiStateMachine extends StateMachine {
     /* Reload all networks and reconnect */
     static final int CMD_RELOAD_TLS_AND_RECONNECT         = BASE + 142;
 
+    /* Set safe channels for Coex */
+    static final int CMD_SET_SAFE_CHANNELS                = BASE + 143;
+    /* Set RT Coex mode */
+    static final int CMD_SET_RT_COEX_MODE                 = BASE + 144;
+
     /* Wifi state machine modes of operation */
     /* CONNECT_MODE - connect to any 'known' AP when it becomes available */
     public static final int CONNECT_MODE                   = 1;
@@ -1806,6 +1811,15 @@ public class WifiStateMachine extends StateMachine {
         mWifiConfigStore.dump(fd, pw, args);
     }
 
+
+    public void setSafeChannel(int safeChannelBitmap) {
+        sendMessage(CMD_SET_SAFE_CHANNELS, safeChannelBitmap);
+    }
+
+    public void setRTCoexMode(int enable, int safeChannelBitmap) {
+        sendMessage(CMD_SET_RT_COEX_MODE, enable, safeChannelBitmap);
+    }
+
     /*********************************************************
      * Internal private functions
      ********************************************************/
@@ -2762,6 +2776,8 @@ public class WifiStateMachine extends StateMachine {
                 case WifiWatchdogStateMachine.GOOD_LINK_DETECTED:
                 case CMD_NO_NETWORKS_PERIODIC_SCAN:
                 case CMD_DISABLE_P2P_RSP:
+                case CMD_SET_SAFE_CHANNELS:
+                case CMD_SET_RT_COEX_MODE:
                     break;
                 case DhcpStateMachine.CMD_ON_QUIT:
                     mDhcpStateMachine = null;
@@ -3021,6 +3037,8 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_SET_FREQUENCY_BAND:
                 case CMD_START_PACKET_FILTERING:
                 case CMD_STOP_PACKET_FILTERING:
+                case CMD_SET_SAFE_CHANNELS:
+                case CMD_SET_RT_COEX_MODE:
                     deferMessage(message);
                     break;
                 default:
@@ -3083,6 +3101,12 @@ public class WifiStateMachine extends StateMachine {
                     break;
                 case CMD_SET_OPERATIONAL_MODE:
                     mOperationalMode = message.arg1;
+                    break;
+                case CMD_SET_SAFE_CHANNELS:
+                    mWifiNative.setSafeChannel(message.arg1);
+                    break;
+                case CMD_SET_RT_COEX_MODE:
+                    mWifiNative.setRTCoexMode(message.arg1, message.arg2);
                     break;
                 default:
                     return NOT_HANDLED;
@@ -4495,6 +4519,8 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_START_PACKET_FILTERING:
                 case CMD_STOP_PACKET_FILTERING:
                 case CMD_TETHER_STATE_CHANGE:
+                case CMD_SET_SAFE_CHANNELS:
+                case CMD_SET_RT_COEX_MODE:
                     deferMessage(message);
                     break;
                 case WifiStateMachine.CMD_RESPONSE_AP_CONFIG:
@@ -4549,6 +4575,12 @@ public class WifiStateMachine extends StateMachine {
                     if (startTethering(stateChange.available)) {
                         transitionTo(mTetheringState);
                     }
+                    break;
+                case CMD_SET_SAFE_CHANNELS:
+                    mWifiNative.setSafeChannel(message.arg1);
+                    break;
+                case CMD_SET_RT_COEX_MODE:
+                    mWifiNative.setRTCoexMode(message.arg1, message.arg2);
                     break;
                 default:
                     return NOT_HANDLED;
