@@ -976,7 +976,7 @@ bool OpenGLRenderer::createLayer(float left, float top, float right, float botto
 
 bool OpenGLRenderer::createFboLayer(Layer* layer, Rect& bounds, Rect& clip, GLuint previousFbo) {
     layer->clipRect.set(clip);
-    layer->setFbo(mCaches.fboCache.get());
+    layer->setFbo(mCaches.fboCache.get(layer->getWidth(), layer->getHeight()));
 
     mSnapshot->region = &mSnapshot->layer->region;
     mSnapshot->flags |= Snapshot::kFlagFboTarget | Snapshot::kFlagIsFboLayer |
