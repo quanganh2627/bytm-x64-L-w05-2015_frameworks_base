@@ -592,14 +592,17 @@ static void android_os_Parcel_enforceInterface(JNIEnv* env, jclass clazz, jint n
         const jchar* str = env->GetStringCritical(name, 0);
         if (str) {
             IPCThreadState* threadState = IPCThreadState::self();
-            const int32_t oldPolicy = threadState->getStrictModePolicy();
+            // const int32_t oldPolicy = threadState->getStrictModePolicy();
             const bool isValid = parcel->enforceInterface(
                 String16(str, env->GetStringLength(name)),
                 threadState);
             env->ReleaseStringCritical(name, str);
             if (isValid) {
                 const int32_t newPolicy = threadState->getStrictModePolicy();
-                if (oldPolicy != newPolicy) {
+                // WORKAGROUND FOR BZ 157193: On some condition, Dalvik's strictMode
+                // flag was not sync with binder side, we need to force set it during
+                // this transaction.
+                // if (oldPolicy != newPolicy) {
                     // Need to keep the Java-level thread-local strict
                     // mode policy in sync for the libcore
                     // enforcements, which involves an upcall back
@@ -608,7 +611,7 @@ static void android_os_Parcel_enforceInterface(JNIEnv* env, jclass clazz, jint n
                     // pseudo-public, and used via AIDL
                     // auto-generation...)
                     set_dalvik_blockguard_policy(env, newPolicy);
-                }
+                // }
                 return;     // everything was correct -> return silently
             }
         }
