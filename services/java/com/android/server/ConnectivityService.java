@@ -719,7 +719,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         mContext.registerReceiver(mProvisioningReceiver, filter);
 
         // CAM MODIFIED
-        mCamAppContinuityFeature = new CamApplicationContinuity(this);
+        mCamAppContinuityFeature = new CamApplicationContinuity(this, mContext ,mHandler);
         mCamAppContinuityFeature.initializeAppContinuity();
     }
 
@@ -5081,31 +5081,6 @@ public class ConnectivityService extends IConnectivityManager.Stub {
 
     // MODIFIED CAM
     /** CAM Application Continuity Specific Code **/
-
-    /**
-     * This method will be called from the CamApplicationContinuity code for sending events to
-     * InternalHandler of Connectivity service.
-     */
-    void sendCamMessage(String eventType, int value) {
-        if (eventType.equals(CamManager.CAM_INTERFACE_CHANGE_ACTION)) {
-            Message msg = new Message();
-            msg.what = EVENT_SET_CAM_INTERFACE_CHANGE_ACTION;
-            msg.arg1 = value;
-            mHandler.sendMessage(msg);
-        }
-        else if (eventType.equals(CamManager.CAM_CONNECT_WWAN_ACTION)) {
-            Message msg = new Message();
-            msg.what = EVENT_SET_CAM_CONNECT_WWAN;
-            mHandler.sendMessage(msg);
-        }
-    }
-
-    /**
-     * Required for sending broadcast event to CAM Service indicating the Bring-up of WWAN interface
-     */
-    Context getContext() {
-        return mContext;
-    }
 
     /**
      * We need to get the Mobile Network's NetworkStateTracker to teardown/bring-up of WWAN
