@@ -68,8 +68,8 @@ public abstract class WindowOrientationListener {
     private final int TERMINAL_HORIZONTAL_UP = 133;
     private final int TERMINAL_HORIZONTAL_DOWN = 134;
     private final int TERMINAL_UNKNOWN = 135;
-    /* 8 seconds, SensorManager.SENSOR_DELAY_UI is 15HZ,  8 * 15 = 120 */
-    private final int ACCEL_EVENT_MAX = 120;
+    /* 8 seconds, using delay 10ms(100HZ),  8 * 100 = 800 */
+    private final int ACCEL_EVENT_MAX = 800;
     private Sensor mTerminal;
     private TerminalEventListenerImpl mTerminalEventListener;
     private int mAccelEventCount = 0;
@@ -810,8 +810,7 @@ public abstract class WindowOrientationListener {
                     event.values[0] == TERMINAL_HORIZONTAL_DOWN) {
                     if (!mAccelRegistered) {
                         mSensorManager.registerListener(mSensorEventListener, mSensor,
-                                                        SensorManager.SENSOR_DELAY_UI,
-                                                        mHandler);
+                                10000, mHandler); // 10000 microseconds
                         mAccelRegistered = true;
                     }
                     mAccelEventCount = 0;

@@ -488,6 +488,11 @@ class WifiController extends StateMachine {
                             checkLocksAndTransitionWhenDeviceIdle();
                         }
                     }
+                    else{ // wifi is Off, check Scan state
+                        if (mSettingsStore.isScanAlwaysAvailable()) {
+                            transitionTo(mStaDisabledWithScanState);
+                        }
+                    }
                     break;
                 case CMD_SCAN_ALWAYS_MODE_CHANGED:
                     if (mSettingsStore.isScanAlwaysAvailable()) {

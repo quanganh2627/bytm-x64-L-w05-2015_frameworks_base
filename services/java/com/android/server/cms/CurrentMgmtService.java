@@ -235,6 +235,10 @@ public class CurrentMgmtService extends Binder {
             return;
         }
         String cpuList[] = cpuDir.list();
+        if (cpuList == null) {
+            Log.e(TAG, "CPU sysfs path not accessed by CMS");
+            return;
+        }
         for (int i = 0; i < cpuList.length; i++) {
             if (cpuList[i].startsWith("cpu") && Character.isDigit(cpuList[i].charAt(3))) {
                 CpuCore cpu = new CpuCore(cpuList[i]);
