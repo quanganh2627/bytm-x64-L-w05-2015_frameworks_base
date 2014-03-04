@@ -24,20 +24,27 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.NetworkStateTracker;
 import android.os.Binder;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Slog;
 
 import com.intel.cam.api.CamManager;
 
 /** CAM Application Continuity Specific Code **/
 class CamApplicationContinuity {
-    CamApplicationContinuity(ConnectivityService cs) {
+
+    private Context mContext;
+    private Handler mHandler;
+
+    CamApplicationContinuity(ConnectivityService cs, Context context, Handler Handler) {
         mConnecitvityService = cs;
+        mContext = context;
+        mHandler = Handler;
     }
 
     void initializeAppContinuity() {
         // appC = new AppContinuity(this);
         // Get instance of CamManager
-        Context mContext = mConnecitvityService.getContext();
         mCamManager = CamManager.getInstance(mContext);
 
         mFilter = new IntentFilter();
@@ -54,10 +61,10 @@ class CamApplicationContinuity {
                                     + "Service with arg "
                                     + intent.getIntExtra(CamManager.EXTRA_INTERFACE_CHANGE, 1));
                             int value = intent.getIntExtra(CamManager.EXTRA_INTERFACE_CHANGE, 1);
-                            mConnecitvityService.sendCamMessage(action, value);
+                            sendCamMessage(action, value);
                         } else if (action.equals(CamManager.CAM_CONNECT_WWAN_ACTION)) {
                             log("Received CAM_CONNECT_WWAN_ACTION action in connectivity Service");
-                            mConnecitvityService.sendCamMessage(action, 0);
+                            sendCamMessage(action, 0);
                         }
                     }
                 }, mFilter);
@@ -101,7 +108,7 @@ class CamApplicationContinuity {
                     log("APPCONT:Sending Event to CAM, WWAN is now up");
                 }
                 // mContext.sendBroadcast(intent);
-                mConnecitvityService.getContext().sendBroadcast(intent);
+                mContext.sendBroadcast(intent);
             } finally {
                 Binder.restoreCallingIdentity(ident);
             }
@@ -219,7 +226,6 @@ class CamApplicationContinuity {
         if (null == mCamManager) {
             // Attempt to get the instance of Cam Manager again.
             // Will fail if Cam Service is not installed.
-            Context mContext = mConnecitvityService.getContext();
             mCamManager = CamManager.getInstance(mContext);
             if (mCamManager == null) {
                 log("isAppContinuityEnabled() CAM is NULL");
@@ -260,7 +266,6 @@ class CamApplicationContinuity {
             log("isAppContinuityEnabled() CAM is NULL");
             // Attempt to get the instance of Cam Manager again.
             // Will fail if Cam Service is not installed.
-            Context mContext = mConnecitvityService.getContext();
             mCamManager = CamManager.getInstance(mContext);
             if (mCamManager == null) {
                 log("isAppContinuityEnabled() CAM is NULL");
@@ -278,6 +283,26 @@ class CamApplicationContinuity {
         }
 
         return true;
+    }
+
+    /** CAM Application Continuity Specific Code **/
+
+    /**
+     * This method will be called from the CamApplicationContinuity code for sending events to
+     * InternalHandler of Connectivity service.
+     */
+    void sendCamMessage(String eventType, int value) {
+        if (eventType.equals(CamManager.CAM_INTERFACE_CHANGE_ACTION)) {
+            Message msg = new Message();
+            msg.what = EVENT_SET_CAM_INTERFACE_CHANGE_ACTION;
+            msg.arg1 = value;
+            mHandler.sendMessage(msg);
+        }
+        else if (eventType.equals(CamManager.CAM_CONNECT_WWAN_ACTION)) {
+            Message msg = new Message();
+            msg.what = EVENT_SET_CAM_CONNECT_WWAN;
+            mHandler.sendMessage(msg);
+        }
     }
 
     private void log(String s) {
