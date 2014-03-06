@@ -26,17 +26,24 @@ import android.os.Parcelable;
  */
 public class WifiApConfiguration implements Parcelable {
 
-    private WifiChannel mChannel;
+    public WifiChannel mChannel;
+    public String mHwMode;
+    public boolean mIs80211n;
     public String mIpAddress;
     public String mNetMask;
 
+    public static final String HW_MODE_A = "a";
+    public static final String HW_MODE_AC = "c";
+    public static final String HW_MODE_BG = "g";
     public final static String DEFAULT_SERVER_ADDRESS = "192.168.43.1";
     public final static String DEFAULT_NETMASK = "255.255.255.0";
 
     /** @hide */
     public WifiApConfiguration() {
         super();
-        mChannel = new WifiChannel(WifiChannel.DEFAULT_2_4_CHANNEL, WifiChannel.ChannelWidth.HT20);
+        mChannel = new WifiChannel(WifiChannel.DEFAULT_2_4_CHANNEL);
+        mHwMode = HW_MODE_BG;
+        mIs80211n = true;
         mIpAddress = DEFAULT_SERVER_ADDRESS;
         mNetMask = DEFAULT_NETMASK;
     }
@@ -45,6 +52,8 @@ public class WifiApConfiguration implements Parcelable {
     public WifiApConfiguration(WifiApConfiguration source) {
         if (source != null) {
             mChannel = source.mChannel;
+            mHwMode = source.mHwMode;
+            mIs80211n = source.mIs80211n;
             mIpAddress = source.mIpAddress;
             mNetMask = source.mNetMask;
         }
@@ -58,46 +67,33 @@ public class WifiApConfiguration implements Parcelable {
     /** Implement the Parcelable interface {@hide} */
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeParcelable(mChannel, flags);
+        dest.writeString(mHwMode);
+        dest.writeInt(mIs80211n ? 1 : 0);
         dest.writeString(mIpAddress);
         dest.writeString(mNetMask);
     }
 
     /** @hide */
     public void resetRadioConfig() {
-        mChannel = new WifiChannel(WifiChannel.DEFAULT_2_4_CHANNEL, WifiChannel.ChannelWidth.HT20);
+        mChannel = new WifiChannel(WifiChannel.DEFAULT_2_4_CHANNEL);
+        mHwMode = HW_MODE_BG;
+        mIs80211n = true;
     }
 
     /** @hide */
     public boolean isRadioDefault() {
         return (mChannel.getChannel() == WifiChannel.DEFAULT_2_4_CHANNEL &&
-                mChannel.getWidth() == WifiChannel.ChannelWidth.HT20);
+                mHwMode == HW_MODE_BG && mIs80211n);
     }
 
     /** @hide */
-    public void setChannel(int chan, int width) {
+    public void setChannel(int chan) {
         mChannel.setChannel(chan);
-        mChannel.setWidth(width);
-    }
-
-    /** @hide */
-    public void setChannel(int chan, WifiChannel.ChannelWidth width) {
-        mChannel.setChannel(chan);
-        mChannel.setWidth(width);
-    }
-
-    /** @hide */
-    public void setChannel(WifiChannel channel) {
-        mChannel = channel;
     }
 
     /** @hide */
     public int getChannel() {
         return mChannel.getChannel();
-    }
-
-    /** @hide */
-    public WifiChannel getWifiChannel() {
-        return mChannel;
     }
 
     /** Implement the Parcelable interface {@hide} */
@@ -108,6 +104,8 @@ public class WifiApConfiguration implements Parcelable {
 
             if (config != null) {
                 config.mChannel = in.readParcelable(null);
+                config.mHwMode = in.readString();
+                config.mIs80211n = (in.readInt() == 1);
                 config.mIpAddress = in.readString();
                 config.mNetMask = in.readString();
             }

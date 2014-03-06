@@ -162,8 +162,9 @@ class WifiApConfigStore extends StateMachine {
                 }
 
                 if (cfg != null) {
-                    cfg.setChannel(new WifiChannel(in.readInt(),
-                                                   WifiChannel.ChannelWidth.valueOf(in.readUTF())));
+                    cfg.mChannel = new WifiChannel(in.readInt());
+                    cfg.mHwMode = in.readUTF();
+                    cfg.mIs80211n = (in.readInt() != 0);
                 }
 
                 mWifiConfig = config;
@@ -202,8 +203,9 @@ class WifiApConfigStore extends StateMachine {
                 }
 
                 if (cfg != null) {
-                    out.writeInt(cfg.getWifiChannel().getChannel());
-                    out.writeUTF(cfg.getWifiChannel().getWidth().toString());
+                    out.writeInt(cfg.mChannel.getChannel());
+                    out.writeUTF(cfg.mHwMode);
+                    out.writeInt(cfg.mIs80211n ? 1 : 0);
                 }
             }
         } catch (IOException e) {
@@ -233,7 +235,9 @@ class WifiApConfigStore extends StateMachine {
 
             WifiApConfiguration cfg = config.getWifiApConfigurationAdv();
             if (cfg != null) {
-                cfg.setChannel(new WifiChannel(WifiChannel.DEFAULT_2_4_CHANNEL, WifiChannel.ChannelWidth.HT20));
+                cfg.mChannel = new WifiChannel(WifiChannel.DEFAULT_2_4_CHANNEL);
+                cfg.mHwMode = cfg.HW_MODE_BG;
+                cfg.mIs80211n = true;
             }
             sendMessage(WifiStateMachine.CMD_SET_AP_CONFIG, config);
         }
