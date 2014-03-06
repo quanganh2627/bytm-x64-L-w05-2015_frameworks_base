@@ -1098,24 +1098,29 @@ public class NetworkManagementService extends INetworkManagementService.Stub
 
     private void executeSetSoftap(
             WifiConfiguration wifiConfig, String wlanIface) {
-        String width = wifiConfig.getWifiApConfigurationAdv().getWifiChannel().getWidth().toString();
-        String channel = Integer.toString(wifiConfig.getWifiApConfigurationAdv().getWifiChannel().getChannel());
+        String hwMode = wifiConfig.getWifiApConfigurationAdv().mHwMode;
+        // mode "ac" is not yet supported by lower layers
+        if (hwMode.equals("c"))
+            hwMode = "a";
         String countryCode = Settings.Global.getString(mContext.getContentResolver(),
                 Settings.Global.WIFI_COUNTRY_CODE);
         try {
             if (countryCode != null && !countryCode.isEmpty()) {
                 countryCode = countryCode.toUpperCase();
                 mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
-                        "broadcast", channel,
+                        "broadcast", wifiConfig.getWifiApConfigurationAdv().mChannel.toString(),
                         getSecurityType(wifiConfig),
                         new SensitiveArg(wifiConfig.preSharedKey),
-                        " ", " ", width, countryCode);
+                        " ", " ",
+                        hwMode, wifiConfig.getWifiApConfigurationAdv().mIs80211n ? "1" : "0",
+                        countryCode);
             } else {
                 mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
-                        "broadcast", channel,
+                        "broadcast", wifiConfig.getWifiApConfigurationAdv().mChannel.toString(),
                         getSecurityType(wifiConfig),
                         new SensitiveArg(wifiConfig.preSharedKey),
-                        " ", " ", width);
+                        " ", " ",
+                        hwMode, wifiConfig.getWifiApConfigurationAdv().mIs80211n ? "1" : "0");
             }
         } catch (NativeDaemonConnectorException e) {
             throw e.rethrowAsParcelableException();
