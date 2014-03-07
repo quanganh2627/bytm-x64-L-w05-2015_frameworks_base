@@ -246,7 +246,7 @@ public class ThermalSensor {
     }
 
     // Modem specific sensor IDs
-    public void UpdateSensorID() {
+    public void updateSensorID() {
         mSensorID = -1;
         if (mSensorName == null) return;
 
@@ -256,6 +256,25 @@ public class ThermalSensor {
             mSensorID = OemTelephonyConstants.MODEM_SENSOR_ID_RF;
         } else if (mSensorName.contains("BB")) {
             mSensorID = OemTelephonyConstants.MODEM_SENSOR_ID_BASEBAND_CHIP;
+        } else if (mSensorName.contains("PMU")) {
+            mSensorID = OemTelephonyConstants.MODEM_SENSOR_ID_PMU;
+        } else if (mSensorName.contains("PA")) {
+            mSensorID = OemTelephonyConstants.MODEM_SENSOR_ID_PA;
+        }
+    }
+
+    public void updateSensorName() {
+        if (mSensorName == null) return;
+        if (mSensorName.contains("PCB")) {
+            mSensorName = OemTelephonyConstants.MODEM_SENSOR_PCB;
+        } else if (mSensorName.contains("RF")) {
+            mSensorName = OemTelephonyConstants.MODEM_SENSOR_RF;
+        } else if (mSensorName.contains("BB")) {
+            mSensorName = OemTelephonyConstants.MODEM_SENSOR_BB;
+        } else if (mSensorName.contains("PMU")) {
+            mSensorName = OemTelephonyConstants.MODEM_SENSOR_PMU;
+        } else if (mSensorName.contains("PA")) {
+            mSensorName = OemTelephonyConstants.MODEM_SENSOR_PA;
         }
     }
 }
