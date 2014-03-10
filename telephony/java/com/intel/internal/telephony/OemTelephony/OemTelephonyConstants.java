@@ -190,4 +190,6 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_RAW_UNSOL_SRVCCH_STATUS = 0x000000E0;
     /* OEM hook specific to indicate SRVCC synchronization needed */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_SRVCC_HO_STATUS = 0x000000E1;
+    /* OEM hook specific to indicate bearer activation */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_BEARER_ACT = 0x000000E2;
 }
