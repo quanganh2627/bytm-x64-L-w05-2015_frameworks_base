@@ -189,6 +189,14 @@ Layer* LayerRenderer::createLayer(uint32_t width, uint32_t height, bool isOpaque
 
     Caches& caches = Caches::getInstance();
 
+#ifndef HWUI_IMG_FBO_CACHE_OPTIM
+    GLuint fbo = caches.fboCache.get(0, 0);
+    if (!fbo) {
+        ALOGW("Could not obtain an FBO");
+        return NULL;
+    }
+#endif
+
     caches.activeTexture(0);
     Layer* layer = caches.layerCache.get(width, height);
     if (!layer) {
@@ -196,12 +204,14 @@ Layer* LayerRenderer::createLayer(uint32_t width, uint32_t height, bool isOpaque
         return NULL;
     }
 
+#ifdef HWUI_IMG_FBO_CACHE_OPTIM
     GLuint fbo = caches.fboCache.get(layer->getWidth(), layer->getHeight());
     if (!fbo) {
         ALOGW("Could not obtain an FBO");
         Caches::getInstance().resourceCache.decrementRefcount(layer);
         return NULL;
     }
+#endif
 
     // We first obtain a layer before comparing against the max texture size
     // because layers are not allocated at the exact desired size. They are

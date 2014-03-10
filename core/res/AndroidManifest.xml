@@ -796,6 +796,9 @@
         android:description="@string/permdesc_nfc"
         android:label="@string/permlab_nfc" />
 
+    <permission android:name="android.permission.MEICLIENT"
+        android:protectionLevel="system|signature" />
+
     <!-- Allows an internal user to use privileged ConnectivityManager APIs.
         @hide -->
     <permission android:name="android.permission.CONNECTIVITY_INTERNAL"
