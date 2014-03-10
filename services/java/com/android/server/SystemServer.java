@@ -43,6 +43,7 @@ import android.util.EventLog;
 import android.util.Log;
 import android.util.Slog;
 import android.view.WindowManager;
+import android.view.WindowManagerPolicy;
 
 import com.android.internal.R;
 import com.android.internal.os.BinderInternal;
@@ -76,7 +77,6 @@ import com.android.server.wifi.CsmWifiOffloadSystemService;
 import com.android.server.wm.WindowManagerService;
 import com.intel.arkham.ExtendAccountManagerService;
 import com.intel.config.FeatureConfig;
-import com.intel.multidisplay.DisplayObserver;
 import com.intel.cws.cwsservicemanager.CwsServiceMgr;
 
 import dalvik.system.VMRuntime;
@@ -727,12 +727,14 @@ class ServerThread {
                 }
             }
 
-            try {
+            if (true) {
+                Class[] ptype = new Class[]
+                        { Context.class, WindowManagerPolicy.WindowManagerFuncs.class };
+                Object[] obj = new Object[] { context, wm };
+
+                String name = "com.intel.multidisplay.DisplayObserver";
                 Slog.i(TAG, "Intel Display Observer");
-                // Listen for display changes
-                DisplayObserver dso = new DisplayObserver(context, wm);
-            } catch (Throwable e) {
-                reportWtf("starting Intel DisplayObserver", e);
+                createServiceWithConstructor(name, ptype , obj);
             }
 
             if (!disableNonCoreServices) {
@@ -1248,6 +1250,25 @@ class ServerThread {
         }
         return object;
     }
+
+    private Object createServiceWithConstructor(String serviceClassName,
+            java.lang.Class[] ptype, java.lang.Object[] objArray) {
+        Object object = null;
+        Slog.d(TAG, "registerService service: " + serviceClassName);
+        try {
+            Class c = Class.forName(serviceClassName);
+            Constructor cons = c.getConstructor(ptype);
+            object = cons.newInstance(objArray);
+        } catch (IllegalAccessException iae) {
+            Slog.e(TAG, "Got expected PackageAccess complaint", iae);
+        } catch (InstantiationError ie) {
+            Slog.e(TAG, "Got expected InstantationError", ie);
+        } catch (Exception ex) {
+            Slog.e(TAG, "Got unexpected MaybeAbstract failure", ex);
+        }
+        return object;
+    }
+
 }
 
 public class SystemServer {
