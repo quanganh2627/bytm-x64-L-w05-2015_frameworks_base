@@ -36,4 +36,18 @@ oneway interface IDedicatedBearerListener {
      * @param tftInfo
      */
     void onTftChanged(in OemTftInfo tftInfo);
+
+     /**
+     * Callback called when a new dedicated bearer is closed
+     * @param iface
+     * @param cid
+     */
+    void onDedicatedBearerClosed(in String iface, in int cid);
+
+     /**
+     * Callback called when a new dedicated bearer is opened
+     * @param iface
+     * @param cid
+     */
+    void onDedicatedBearerOpen(in String iface, in int cid);
 }
