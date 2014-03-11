@@ -132,14 +132,20 @@ static int lookup_contains(const char *base_path, const char *name)
 static jboolean isFileExists(JNIEnv* env, jobject obj, jstring jPath)
 {
     const char *path = NULL;
-
+    jboolean ret = true;
     path = jPath ? env->GetStringUTFChars(jPath, NULL) : NULL;
     if (!path) {
         return false;
     }
 
     int fd = open(path, O_RDONLY, 0);
-    return fd < 0 ? false: true;
+    if (fd < 0) {
+        ret = false;
+    } else {
+        close(fd);
+    }
+    env->ReleaseStringUTFChars(jPath, path);
+    return ret;
 }
 
 static jint getThermalZoneIndex(JNIEnv* env, jobject obj, jstring jType)
