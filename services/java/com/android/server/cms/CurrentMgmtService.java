@@ -28,6 +28,7 @@ import static android.hardware.usb.UsbManager.USB_HOST_VBUS_ALERT;
 import static android.hardware.usb.UsbManager.USB_HOST_VBUS_CRITICAL;
 import android.os.BatteryManager;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
@@ -83,6 +84,8 @@ public class CurrentMgmtService extends Binder {
     private ArrayList<State> mLevelStates;
     private ArrayList<State> mTempStates;
     private transient final List<CpuCore> mCpuList = new ArrayList();
+    private Handler mOverrideHandler = new Handler();
+    private static final int INTERVAL = 30000;
 
     /**
      * Native method to read sysfs.
@@ -276,6 +279,62 @@ public class CurrentMgmtService extends Binder {
         return false;
     }
 
+    /**
+     * Method that will check if user has overridden the throttling
+     * policy for any device.
+     */
+    private void checkForUserOverrides() {
+        // If call-only mode is selected by user, just set override options
+        // to false for all devices and return.
+        if (SystemProperties.get("persist.sys.callMode", "1").equals("1")) {
+            for (ContributingDevice device : mCDevs) {
+                device.setThrottleOverride(false);
+            }
+            return;
+        }
+        // Check for camera/usb throttling overrides.
+        for (ContributingDevice device : mCDevs) {
+            if (device.getName().equals("camera")) {
+                if (!SystemProperties.get("persist.sys.enableCameraFlash", "0").equals("0")) {
+                    device.setThrottleOverride(true);
+                    nativeSubsystemThrottle(device.getID(), 0);
+                } else {
+                    device.setThrottleOverride(false);
+                }
+            } else if (device.getName().equals("otg")) {
+                if (!SystemProperties.get("persist.sys.enableUsbHostMode", "0").equals("0")) {
+                    device.setThrottleOverride(true);
+                    Intent vbusIntent = new Intent(ACTION_USB_HOST_VBUS);
+                    vbusIntent.putExtra(EXTRA_HOST_VBUS, USB_HOST_VBUS_NORMAL);
+                    mContext.sendBroadcastAsUser(vbusIntent, UserHandle.ALL);
+                } else {
+                    device.setThrottleOverride(false);
+                }
+            }
+        }
+    }
+
+    /**
+     * This runnable will monitor if user has overridden the default throttling setting.
+     * This should be started only when the state is not normal.
+     * It will be stopped once normal state is reached.
+     * This is to address the corner case where the device is booted in
+     * in low battery (warning/alert/critical states).
+     * The current management service would have already throttled the devices.
+     * If the user has overridden the default setting, it will be notified to
+     * Current management service only after next state change.
+     * It might be annoying to the user if he/she needs to wait for the next state
+     * change. Hence, introduce this runnable which can periodically monitor
+     * user overrides.
+     */
+    private Runnable mUserOverrideCheck = new Runnable() {
+        public void run() {
+            checkForUserOverrides();
+            mOverrideHandler.removeCallbacks(mUserOverrideCheck);
+            mOverrideHandler.postDelayed(mUserOverrideCheck, INTERVAL);
+        }
+    };
+
     private final class BCUReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -365,11 +424,24 @@ public class CurrentMgmtService extends Binder {
         vbusIntent = new Intent(ACTION_USB_HOST_VBUS);
 
         if (sPrevLevelState != sCurLevelState) {
+            // If current throttling level is higher than previous level,
+            // we take more severe actions. So, we need to monitor if
+            // user wants to override the default action for better
+            // user experience. Monitoring is done through mOverrideHandler.
+            // This polls based on uptimemillis and hence no impact on idle state.
+            if (sPrevLevelState < sCurLevelState) {
+                mOverrideHandler.postDelayed(mUserOverrideCheck, 0);
+            } else {
+                checkForUserOverrides();
+            }
             Log.i(TAG, "Battery level state changed:" + sCurLevelState);
             sRecheckTempState = true;
             if (sCurLevelState == 0) {
+                // As soon as current level becomes normal, stop monitoring user
+                // overrides since we don't throttle in normal state.
+                mOverrideHandler.removeCallbacks(mUserOverrideCheck);
                 for (i = 0; i < mCDevs.size(); i++) {
-                    if (mCDevs.get(i).getID() != 4) {
+                    if (!(mCDevs.get(i).getName().equals("otg")) && !(mCDevs.get(i).getName().equals("SOC"))) {
                         nativeSubsystemThrottle(mCDevs.get(i).getID(), 0);
                     }
                 }
@@ -396,10 +468,16 @@ public class CurrentMgmtService extends Binder {
                     for (k = 0; k < mCDevs.size(); k++) {
                         if (mCDevs.get(k).getID() ==
                                     mLevelStates.get(sCurLevelState).getDevIDList().get(j)) {
-                            if (mCDevs.get(k).getID() != 4) {
-                                nativeSubsystemThrottle(mCDevs.get(k).getID(),
+                            if (!(mCDevs.get(k).getName().equals("otg"))
+                                    && !(mCDevs.get(k).getName().equals("SOC"))) {
+                                // Do not throttle the devices which the user has specifically
+                                // overridden in custom settings.
+                                if (!((sCurLevelState > sPrevLevelState)
+                                        && mCDevs.get(k).getThrottleOverride())) {
+                                    nativeSubsystemThrottle(mCDevs.get(k).getID(),
                                             mCDevs.get(k).getThrottleTriggerByID(0).
                                             getThrottleValue(0, sCurLevelState));
+                                }
                             } else if (sBootCompleted) {
                                 switch (sCurLevelState) {
                                     case 1:
@@ -421,8 +499,16 @@ public class CurrentMgmtService extends Binder {
                                                 ThermalManager.THERMAL_STATE_CRITICAL);
                                         break;
                                 }
-                                context.sendBroadcastAsUser(vbusIntent, UserHandle.ALL);
-                                context.sendBroadcastAsUser(thermalIntent, UserHandle.ALL);
+                                if (mCDevs.get(k).getName().equals("otg")
+                                        && !(mCDevs.get(k).getThrottleOverride()
+                                        && (sCurLevelState > sPrevLevelState))) {
+                                    context.sendBroadcastAsUser(vbusIntent, UserHandle.ALL);
+                                }
+                                if (mCDevs.get(k).getName().equals("SOC")
+                                        && !(mCDevs.get(k).getThrottleOverride()
+                                        && (sCurLevelState > sPrevLevelState))) {
+                                    context.sendBroadcastAsUser(thermalIntent, UserHandle.ALL);
+                                }
                             } else {
                                 Log.i(TAG,
                                         "Boot not complete yet, not broadcasting message");
@@ -431,21 +517,28 @@ public class CurrentMgmtService extends Binder {
                     }
                 }
             }
-            if (sBootCompleted)
+            if (sBootCompleted) {
                 sPrevLevelState = sCurLevelState;
+            }
         }
+
         if (sPrevTempState != sCurTempState || sRecheckTempState) {
             Log.i(TAG, "Battery temperature state changed:" + sCurTempState);
             sRecheckTempState = false;
+            checkForUserOverrides();
             for (j = 0; j < mTempStates.get(sCurTempState).getDevIDList().size(); j++) {
                 for (k = 0; k < mCDevs.size(); k++) {
                     if (mCDevs.get(k).getID() ==
                             mTempStates.get(sCurTempState).getDevIDList().get(j)) {
                         if (sCurTempState != 0) {
-                            nativeSubsystemThrottle(mCDevs.get(k).getID(),
-                                    mCDevs.get(k).getThrottleTriggerByID(1).
-                                    getThrottleValue(1, sCurTempState));
+                            if (!((sCurTempState > sPrevTempState)
+                                    && mCDevs.get(k).getThrottleOverride())) {
+                                nativeSubsystemThrottle(mCDevs.get(k).getID(),
+                                        mCDevs.get(k).getThrottleTriggerByID(1).
+                                        getThrottleValue(1, sCurTempState));
+                            }
                         } else if (sCurTempState == 0 && sCurLevelState == 0) {
+                            mOverrideHandler.removeCallbacks(mUserOverrideCheck);
                             nativeSubsystemThrottle(mCDevs.get(k).getID(), 0);
                         }
                     }

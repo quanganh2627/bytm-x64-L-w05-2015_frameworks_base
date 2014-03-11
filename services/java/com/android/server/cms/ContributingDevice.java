@@ -21,6 +21,7 @@ public class ContributingDevice {
     private String mName;
     private ArrayList<throttleTrigger> mThrottleTriggers;
     private int mTriggercnt = 0;
+    private boolean mThrottleOverride;
 
     public ContributingDevice() {
         mThrottleTriggers = new ArrayList<throttleTrigger>();
@@ -32,6 +33,14 @@ public class ContributingDevice {
 
     public throttleTrigger getThrottleTriggerByID(int id) {
         return mThrottleTriggers.get(id);
+    }
+
+    public boolean getThrottleOverride() {
+        return mThrottleOverride;
+    }
+
+    public void setThrottleOverride(boolean canOverride) {
+        mThrottleOverride = canOverride;
     }
 
     public class throttleTrigger {
