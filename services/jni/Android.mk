@@ -74,9 +74,6 @@ endif
 LOCAL_CFLAGS += -DEGL_EGLEXT_PROTOTYPES -DGL_GLEXT_PROTOTYPES
 
 ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
-ifeq ($(USE_MDS_LEGACY),true)
-    LOCAL_CFLAGS += -DUSE_MDS_LEGACY
-endif
     LOCAL_SHARED_LIBRARIES += \
         libmultidisplay \
         libbinder \
