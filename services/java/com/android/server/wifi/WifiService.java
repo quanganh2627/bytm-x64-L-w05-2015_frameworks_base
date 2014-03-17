@@ -94,6 +94,7 @@ import static com.android.server.wifi.WifiController.CMD_USER_PRESENT;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
 import static com.android.server.wifi.WifiController.CMD_DEVICE_IDLE;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLED;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLING;
 
 import com.intel.arkham.ContainerCommons;
 import com.intel.config.FeatureConfig;
@@ -343,7 +344,9 @@ public class WifiService extends IWifiManager.Stub {
                             Slog.i(TAG, "got safechannels " + safeChannels);
 
                             // only if soft ap is already started
-                            if (mWifiStateMachine.syncGetWifiApState() == WIFI_AP_STATE_ENABLED) {
+                            int wifiApState = mWifiStateMachine.syncGetWifiApState();
+                            if (wifiApState == WIFI_AP_STATE_ENABLED
+                                    || wifiApState == WIFI_AP_STATE_ENABLING) {
                                 WifiConfiguration lastWifiApConfig = mWifiStateMachine.
                                         getLastWifiApConfig();
                                 if (lastWifiApConfig != null &&
