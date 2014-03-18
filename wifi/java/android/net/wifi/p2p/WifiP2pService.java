@@ -239,6 +239,9 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
      * The variable will not be used outside of certification scope. */
     private String sigmaWpsPin;
 
+    /* Used to measure P2P connection time */
+    private long mConnectionTime = 0;
+
     /**
      * Error code definition.
      * see the Table.8 in the WiFi Direct specification for the detail.
@@ -1121,6 +1124,8 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
             switch (message.what) {
                 case WifiP2pManager.CONNECT:
                     if (DBG) logd(getName() + " sending connect");
+                    mConnectionTime = System.nanoTime();
+                    logd("Connection start timer");
                     WifiP2pConfig config = (WifiP2pConfig) message.obj;
                     if (isConfigInvalid(config)) {
                         loge("Dropping connect requeset " + config);
@@ -1735,6 +1740,9 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                         }
                         mPeers.updateStatus(deviceAddress, WifiP2pDevice.CONNECTED);
                         if (DBG) logd(getName() + " ap sta connected");
+                        mConnectionTime = System.nanoTime() - mConnectionTime;
+                        logd("Connection time (with dhcp): " + mConnectionTime/1000000 + "ms");
+                        mConnectionTime = 0;
                         sendPeersChangedBroadcast();
                     } else {
                         loge("Connect on null device address, ignore");
@@ -2090,6 +2098,7 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
         }
 
         logd("Started Dhcp server on " + intf);
+        logd("Connection time (no dhcp): " + (System.nanoTime() - mConnectionTime)/1000000 + "ms");
    }
 
     private void stopDhcpServer(String intf) {
