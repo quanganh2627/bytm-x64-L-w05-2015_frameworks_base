@@ -1703,7 +1703,12 @@ public class LockPatternUtils extends ParentLockPatternUtils {
     public boolean checkSafe() {
         Log.d(TAG, "check safe");
         try {
-            return getLockSettings().checkSafe(getCurrentOrCallingUserId());
+            ILockSettings lockSettings = getLockSettings();
+            if (lockSettings == null) {
+                Log.e(TAG, "can't get lock setting service");
+                return false;
+            }
+            return lockSettings.checkSafe(getCurrentOrCallingUserId());
         } catch (RemoteException re) {
             // What can we do?
             Log.e(TAG, "checkSafe failed " + re);
@@ -1738,7 +1743,12 @@ public class LockPatternUtils extends ParentLockPatternUtils {
     private void aaUpdate() {
         Log.d(TAG, "aa update");
         try {
-            getLockSettings().aaUpdate(getCurrentOrCallingUserId());
+            ILockSettings lockSettings = getLockSettings();
+            if (lockSettings == null) {
+                Log.e(TAG, "can't get lock setting service");
+                return;
+            }
+            lockSettings.aaUpdate(getCurrentOrCallingUserId());
         } catch (RemoteException re) {
             // What can we do?
             Log.e(TAG, "aa update " + re);
