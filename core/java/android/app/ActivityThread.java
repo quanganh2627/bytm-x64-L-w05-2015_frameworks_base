@@ -4071,10 +4071,12 @@ public final class ActivityThread {
     }
 
     final void handleTrimMemory(int level) {
-        if (DEBUG_MEMORY_TRIM) Slog.v(TAG, "Trimming memory to level: " + level);
+        Slog.v(TAG, "**BZ184169** Trimming memory to level: " + level);
 
         final WindowManagerGlobal windowManager = WindowManagerGlobal.getInstance();
+        Slog.v(TAG, "**BZ184169**  windowManager.startTrimMemory");
         windowManager.startTrimMemory(level);
+        Slog.v(TAG, "**BZ184169**  onTrimMemory");
 
         ArrayList<ComponentCallbacks2> callbacks = collectComponentCallbacks(true, null);
 
@@ -4082,8 +4084,10 @@ public final class ActivityThread {
         for (int i = 0; i < N; i++) {
             callbacks.get(i).onTrimMemory(level);
         }
+        Slog.v(TAG, "**BZ184169**  windowManager.endTrimMemory()");
 
         windowManager.endTrimMemory();
+        Slog.v(TAG, "**BZ184169**  handleTrimMemory complete");
     }
 
     private void setupGraphicsSupport(LoadedApk info, File cacheDir) {
