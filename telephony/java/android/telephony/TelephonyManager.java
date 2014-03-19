@@ -666,6 +666,11 @@ public class TelephonyManager {
     public static final int NETWORK_TYPE_EHRPD = 14;
     /** Current network is HSPA+ */
     public static final int NETWORK_TYPE_HSPAP = 15;
+    /**
+     * Current network is S2B
+     * @hide
+     * */
+    public static final int NETWORK_TYPE_S2B = 16;
 
     /**
      * @return the NETWORK_TYPE_xxxx for current data connection.
@@ -773,6 +778,7 @@ public class TelephonyManager {
             case NETWORK_TYPE_HSPAP:
                 return NETWORK_CLASS_3_G;
             case NETWORK_TYPE_LTE:
+            case NETWORK_TYPE_S2B:
                 return NETWORK_CLASS_4_G;
             default:
                 return NETWORK_CLASS_UNKNOWN;
@@ -823,6 +829,8 @@ public class TelephonyManager {
                 return "iDEN";
             case NETWORK_TYPE_HSPAP:
                 return "HSPA+";
+            case NETWORK_TYPE_S2B:
+                return "S2B";
             default:
                 return "UNKNOWN";
         }
