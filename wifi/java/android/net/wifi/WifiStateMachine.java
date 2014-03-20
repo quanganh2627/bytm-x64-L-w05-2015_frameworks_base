@@ -58,6 +58,7 @@ import android.net.wifi.p2p.WifiP2pService;
 import android.os.BatteryStats;
 import android.os.Binder;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
 import android.os.Message;
@@ -71,6 +72,7 @@ import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.WorkSource;
 import android.provider.Settings;
+import android.provider.Settings.Global;
 import android.util.Log;
 import android.util.LruCache;
 import android.text.TextUtils;
@@ -234,6 +236,8 @@ public class WifiStateMachine extends StateMachine {
     private PowerManager.WakeLock mWakeLock;
 
     private Context mContext;
+
+    private WizardFinishedObserver mwizardFinishedObserver;
 
     private final Object mDhcpResultsLock = new Object();
     private DhcpResults mDhcpResults;
@@ -445,6 +449,11 @@ public class WifiStateMachine extends StateMachine {
     /* Reload all networks and reconnect */
     static final int CMD_RELOAD_TLS_AND_RECONNECT         = BASE + 142;
 
+    /* Set safe channels for Coex */
+    static final int CMD_SET_SAFE_CHANNELS                = BASE + 143;
+    /* Set RT Coex mode */
+    static final int CMD_SET_RT_COEX_MODE                 = BASE + 144;
+
     /* Wifi state machine modes of operation */
     /* CONNECT_MODE - connect to any 'known' AP when it becomes available */
     public static final int CONNECT_MODE                   = 1;
@@ -643,6 +652,23 @@ public class WifiStateMachine extends StateMachine {
 
     private BatchedScanSettings mBatchedScanSettings = null;
 
+    private class WizardFinishedObserver extends ContentObserver {
+        WizardFinishedObserver() {
+            super(new Handler());
+            mContext.getContentResolver().registerContentObserver(Settings.Global.getUriFor(
+                    Settings.Global.DEVICE_PROVISIONED), false, this);
+        }
+
+        @Override
+        public void onChange(boolean selfChange) {
+            if (Settings.Global.getInt(mContext.getContentResolver(),
+                    Settings.Global.DEVICE_PROVISIONED, 0) != 0) {
+                Global.putInt(mContext.getContentResolver(),
+                        Global.WIFI_SCAN_ALWAYS_AVAILABLE, (0));
+            }
+        }
+    }
+
     /**
      * Track the worksource/cost of the current settings and track what's been noted
      * to the battery stats, so we can mark the end of the previous when changing.
@@ -823,6 +849,11 @@ public class WifiStateMachine extends StateMachine {
         setLogRecSize(2000);
         setLogOnlyTransitions(false);
         if (DBG) setDbg(true);
+
+        boolean scanAlwaysSupported = mContext.getResources().getBoolean(
+                R.bool.config_wifi_scanalways_support);
+        if (!scanAlwaysSupported)
+            mwizardFinishedObserver = new WizardFinishedObserver();
 
         //start the state machine
         start();
@@ -1747,6 +1778,15 @@ public class WifiStateMachine extends StateMachine {
         mWifiConfigStore.dump(fd, pw, args);
     }
 
+
+    public void setSafeChannel(int safeChannelBitmap) {
+        sendMessage(CMD_SET_SAFE_CHANNELS, safeChannelBitmap);
+    }
+
+    public void setRTCoexMode(int enable, int safeChannelBitmap) {
+        sendMessage(CMD_SET_RT_COEX_MODE, enable, safeChannelBitmap);
+    }
+
     /*********************************************************
      * Internal private functions
      ********************************************************/
@@ -1780,6 +1820,32 @@ public class WifiStateMachine extends StateMachine {
         }
     }
 
+    private static String[] getDhcpRanges(String address, String netmask) {
+        String[] DHCP_RANGES = {// Inspired from Tethering.java
+                "192.168.42.2", "192.168.42.254", "192.168.43.2", "192.168.43.254",
+                "192.168.44.2", "192.168.44.254", "192.168.45.2", "192.168.45.254",
+                "192.168.46.2", "192.168.46.254", "192.168.47.2", "192.168.47.254",
+                "192.168.48.2", "192.168.48.254",
+        };
+
+        Inet4Address inetAddress = (Inet4Address)NetworkUtils.numericToInetAddress(address);
+        int addressInt = NetworkUtils.inetAddressToInt2(inetAddress);
+        int netMaskPrefix = NetworkUtils.
+                netmaskIntToPrefixLength(NetworkUtils.
+                        inetAddressToInt((Inet4Address)NetworkUtils.
+                                numericToInetAddress(netmask)));
+        Inet4Address addressNetworkPart = (Inet4Address)NetworkUtils.
+                getNetworkPart(inetAddress, netMaskPrefix);
+        int networkInt = NetworkUtils.inetAddressToInt2(addressNetworkPart);
+        int maxIpAddress = NetworkUtils.generateReversedNetMask(netMaskPrefix) | networkInt;
+        int maxIpWifiAddress = maxIpAddress - 1;
+        int minIpWifiAddress = addressInt + 1;
+        // We are setting only the wifi range
+        DHCP_RANGES[2] = NetworkUtils.intToInetAddress2(minIpWifiAddress).getHostAddress();
+        DHCP_RANGES[3] = NetworkUtils.intToInetAddress2(maxIpWifiAddress).getHostAddress();
+        return DHCP_RANGES;
+    }
+
     private boolean startTethering(ArrayList<String> available) {
 
         boolean wifiAvailable = false;
@@ -1787,8 +1853,8 @@ public class WifiStateMachine extends StateMachine {
         checkAndSetConnectivityInstance();
 
         String[] wifiRegexs = mCm.getTetherableWifiRegexs();
-        String ipAddress;
-        int netMaskPrefix;
+        String ipAddress = WifiApConfiguration.DEFAULT_SERVER_ADDRESS;;
+        int netMaskPrefix = 24;
         for (String intf : available) {
             for (String regex : wifiRegexs) {
                 if (intf.matches(regex)) {
@@ -1818,7 +1884,13 @@ public class WifiStateMachine extends StateMachine {
                         loge("Error configuring interface " + intf + ", :" + e);
                         return false;
                     }
-
+                    if (!ipAddress.equals(WifiApConfiguration.DEFAULT_SERVER_ADDRESS)
+                            || netMaskPrefix != 24) {
+                        String[] ranges = getDhcpRanges(ipAddress, mLastWifiApConfig.
+                                getWifiApConfigurationAdv().mNetMask);
+                        mCm.setDhcpRanges(getDhcpRanges(ipAddress, mLastWifiApConfig.
+                                getWifiApConfigurationAdv().mNetMask));
+                    }
                     if(mCm.tether(intf) != ConnectivityManager.TETHER_ERROR_NO_ERROR) {
                         loge("Error tethering on " + intf);
                         return false;
@@ -2701,6 +2773,8 @@ public class WifiStateMachine extends StateMachine {
                 case WifiWatchdogStateMachine.GOOD_LINK_DETECTED:
                 case CMD_NO_NETWORKS_PERIODIC_SCAN:
                 case CMD_DISABLE_P2P_RSP:
+                case CMD_SET_SAFE_CHANNELS:
+                case CMD_SET_RT_COEX_MODE:
                     break;
                 case DhcpStateMachine.CMD_ON_QUIT:
                     mDhcpStateMachine = null;
@@ -2960,6 +3034,8 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_SET_FREQUENCY_BAND:
                 case CMD_START_PACKET_FILTERING:
                 case CMD_STOP_PACKET_FILTERING:
+                case CMD_SET_SAFE_CHANNELS:
+                case CMD_SET_RT_COEX_MODE:
                     deferMessage(message);
                     break;
                 default:
@@ -3022,6 +3098,12 @@ public class WifiStateMachine extends StateMachine {
                     break;
                 case CMD_SET_OPERATIONAL_MODE:
                     mOperationalMode = message.arg1;
+                    break;
+                case CMD_SET_SAFE_CHANNELS:
+                    mWifiNative.setSafeChannel(message.arg1);
+                    break;
+                case CMD_SET_RT_COEX_MODE:
+                    mWifiNative.setRTCoexMode(message.arg1, message.arg2);
                     break;
                 default:
                     return NOT_HANDLED;
@@ -4421,6 +4503,8 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_START_PACKET_FILTERING:
                 case CMD_STOP_PACKET_FILTERING:
                 case CMD_TETHER_STATE_CHANGE:
+                case CMD_SET_SAFE_CHANNELS:
+                case CMD_SET_RT_COEX_MODE:
                     deferMessage(message);
                     break;
                 case WifiStateMachine.CMD_RESPONSE_AP_CONFIG:
@@ -4475,6 +4559,12 @@ public class WifiStateMachine extends StateMachine {
                     if (startTethering(stateChange.available)) {
                         transitionTo(mTetheringState);
                     }
+                    break;
+                case CMD_SET_SAFE_CHANNELS:
+                    mWifiNative.setSafeChannel(message.arg1);
+                    break;
+                case CMD_SET_RT_COEX_MODE:
+                    mWifiNative.setRTCoexMode(message.arg1, message.arg2);
                     break;
                 default:
                     return NOT_HANDLED;

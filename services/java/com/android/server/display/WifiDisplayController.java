@@ -514,7 +514,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
                         Slog.d(TAG, "  " + describeWifiP2pDevice(device));
                     }
 
-                    if (isWifiDisplay(device)) {
+                    if (isWifiDisplay(device) || device.equals(mConnectingDevice)) {
                         mAvailableWifiDisplayPeers.add(device);
                         if (mReconnectDesiredDevice != null &&
                             device.deviceAddress.equals(mReconnectDesiredDevice.deviceAddress))
