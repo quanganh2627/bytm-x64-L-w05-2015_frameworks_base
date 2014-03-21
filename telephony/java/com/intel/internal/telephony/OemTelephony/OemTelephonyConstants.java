@@ -150,6 +150,8 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_STRING_IMS_SRVCC_PARAM = 0x000000B7;
     /* OEM hook specific to DSDS to reset the SIM */
     public static final int RIL_OEM_HOOK_STRING_SIM_RESET = 0x000000B8;
+    /* OEM hook specific to DSDS to get the DVP Config */
+    public static final int RIL_OEM_HOOK_STRING_GET_DVP_STATE = 0x000000B9;
     /* OEM hook to get the thermal alarm indication */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_THERMAL_ALARM_IND = 0x000000D0;
     /* OEM hook specific to DSDS for catching out of service URC */
