@@ -1011,6 +1011,19 @@ public class WifiManager {
     }
 
     /**
+     * Check if setting frequency band if allowed at present time
+     * @return {@code true} if allowed, {@code false} otherwise.
+     * @hide
+     */
+    public boolean isSetFrequencyBandAllowed() {
+        try {
+            return mService.isSetFrequencyBandAllowed();
+        } catch (RemoteException e) {
+            return false;
+        }
+    }
+
+    /**
      * Return the DHCP-assigned addresses from the last successful DHCP request,
      * if any.
      * @return the DHCP information

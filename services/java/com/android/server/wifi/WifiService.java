@@ -1065,6 +1065,17 @@ public class WifiService extends IWifiManager.Stub {
     }
 
     /**
+     * Check if setFrequencyBand is allowed
+     * Depending on context set frequency band could not be allowed, for example when a
+     * P2P connection is established
+     * @return {@code true} if allowed, {@code false} if not allowed.
+     */
+    public boolean isSetFrequencyBandAllowed() {
+        enforceAccessPermission();
+        return mWifiStateMachine.isSetFrequencyBandAllowed();
+    }
+
+    /**
      * Return the DHCP-assigned addresses from the last successful DHCP request,
      * if any.
      * @return the DHCP information

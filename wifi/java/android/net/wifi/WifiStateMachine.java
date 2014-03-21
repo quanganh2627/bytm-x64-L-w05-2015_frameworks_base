@@ -1667,6 +1667,16 @@ public class WifiStateMachine extends StateMachine {
     }
 
     /**
+     * Check if setFrequencyBand is allowed.
+     * Sometime it could not: currently when p2p connected and acting as GO
+     * To make it simple, just check P2P connection state
+     * Other constrainst could be added here later.
+     */
+    public boolean isSetFrequencyBandAllowed() {
+        return !mP2pConnecting.get() && !mP2pConnected.get();
+    }
+
+    /**
      * Returns a list of supported frequency bands
      */
     public List<Integer> getSupportedBands() {

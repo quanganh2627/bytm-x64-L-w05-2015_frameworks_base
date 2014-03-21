@@ -138,5 +138,7 @@ interface IWifiManager
     void setSafeChannel(int safeChannelBitmap);
 
     List<WifiChannel> getWifiAuthorizedChannels();
+
+    boolean isSetFrequencyBandAllowed();
 }
 
