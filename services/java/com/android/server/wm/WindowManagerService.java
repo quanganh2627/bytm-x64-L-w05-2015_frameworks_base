@@ -296,8 +296,6 @@ public class WindowManagerService extends IWindowManager.Stub
 
     private final boolean mHeadless;
 
-    private boolean mForceLandScape;
-
     final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -305,25 +303,6 @@ public class WindowManagerService extends IWindowManager.Stub
             if (DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED.equals(action)) {
                 mKeyguardDisableHandler.sendEmptyMessage(
                     KeyguardDisableHandler.KEYGUARD_POLICY_CHANGED);
-            }
-            if (Intent.ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE.equals(action)) {
-                Bundle extras = intent.getExtras();
-                if (extras == null) {
-                    Slog.d(TAG, "No extra content");
-                    return;
-                }
-                boolean forceToLandscape = extras.getBoolean(Intent.EXTRA_SET_LANDSCAPE);
-                if (forceToLandscape == mForceLandScape)
-                    return;
-
-                mForceLandScape = forceToLandscape;
-                if (updateOrientationFromAppTokensLocked(false)) {
-                    Configuration config = null;
-                    config = computeNewConfiguration();
-                    if (config != null)
-                        setNewConfiguration(config);
-                }
-                Slog.d(TAG, forceToLandscape ? "Force to landscape." : "Screen can rotate.");
             }
         }
     };
@@ -764,9 +743,6 @@ public class WindowManagerService extends IWindowManager.Stub
         mPointerEventDispatcher = new PointerEventDispatcher(mInputManager.monitorInput(TAG));
 
         mFxSession = new SurfaceSession();
-
-        mForceLandScape = false;
-
         mDisplayManager = (DisplayManager)context.getSystemService(Context.DISPLAY_SERVICE);
         mDisplayManager.registerDisplayListener(this, null);
         Display[] displays = mDisplayManager.getDisplays();
@@ -807,7 +783,6 @@ public class WindowManagerService extends IWindowManager.Stub
         // Track changes to DevicePolicyManager state so we can enable/disable keyguard.
         IntentFilter filter = new IntentFilter();
         filter.addAction(DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED);
-        filter.addAction(Intent.ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE);
         mContext.registerReceiver(mBroadcastReceiver, filter);
 
         mHoldingScreenWakeLock = pmc.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK
@@ -3714,9 +3689,6 @@ public class WindowManagerService extends IWindowManager.Stub
             int req = getOrientationFromWindowsLocked();
             if (req == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
                 req = getOrientationFromAppTokensLocked();
-            }
-            if (mForceLandScape && req == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
-                req = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
             }
 
             if (req != mForcedAppOrientation) {
