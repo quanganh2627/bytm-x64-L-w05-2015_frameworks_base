@@ -240,7 +240,8 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
     private String sigmaWpsPin;
 
     /* Used to measure P2P connection time */
-    private long mConnectionTime = 0;
+    private long mConnectionTimeNoDhcp = 0;
+    private long mConnectionTimeWithDhcp = 0;
 
     /**
      * Error code definition.
@@ -1124,7 +1125,7 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
             switch (message.what) {
                 case WifiP2pManager.CONNECT:
                     if (DBG) logd(getName() + " sending connect");
-                    mConnectionTime = System.nanoTime();
+                    mConnectionTimeWithDhcp = System.nanoTime();
                     logd("Connection start timer");
                     WifiP2pConfig config = (WifiP2pConfig) message.obj;
                     if (isConfigInvalid(config)) {
@@ -1723,6 +1724,16 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
             }
         }
 
+        private void logCrashTool(String type, String data0, String data1) {
+            Intent msg = new Intent();
+            msg.setAction("intel.intent.action.phonedoctor.REPORT_INFO");
+            msg.putExtra("intel.intent.extra.phonedoctor.TYPE", "CWS.WIFI_"+ type);
+            msg.putExtra("intel.intent.extra.phonedoctor.DATA0", data0);
+            msg.putExtra("intel.intent.extra.phonedoctor.DATA1", data1);
+            mContext.sendBroadcast(msg);
+            return;
+        }
+
         @Override
         public boolean processMessage(Message message) {
             if (DBG) logd(getName() + message.toString());
@@ -1740,9 +1751,16 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                         }
                         mPeers.updateStatus(deviceAddress, WifiP2pDevice.CONNECTED);
                         if (DBG) logd(getName() + " ap sta connected");
-                        mConnectionTime = System.nanoTime() - mConnectionTime;
-                        logd("Connection time (with dhcp): " + mConnectionTime/1000000 + "ms");
-                        mConnectionTime = 0;
+                        mConnectionTimeWithDhcp = (System.nanoTime() -
+                                   mConnectionTimeWithDhcp)/1000000;
+                        logd("Connection time (with dhcp): " + mConnectionTimeWithDhcp + "ms");
+                        String lCtoolStr = "with dhcp " + String.valueOf(mConnectionTimeWithDhcp)
+                                   + "ms";
+                        String lCtoolStr2 = "no dhcp " + String.valueOf(mConnectionTimeNoDhcp)
+                                   + "ms";
+                        logCrashTool("P2P_CONNECTED", lCtoolStr2, lCtoolStr);
+                        mConnectionTimeWithDhcp = 0;
+                        mConnectionTimeNoDhcp = 0;
                         sendPeersChangedBroadcast();
                     } else {
                         loge("Connect on null device address, ignore");
@@ -2098,7 +2116,8 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
         }
 
         logd("Started Dhcp server on " + intf);
-        logd("Connection time (no dhcp): " + (System.nanoTime() - mConnectionTime)/1000000 + "ms");
+        mConnectionTimeNoDhcp = (System.nanoTime() - mConnectionTimeWithDhcp)/1000000;
+        logd("Connection time (no dhcp): " + mConnectionTimeNoDhcp + "ms");
    }
 
     private void stopDhcpServer(String intf) {
