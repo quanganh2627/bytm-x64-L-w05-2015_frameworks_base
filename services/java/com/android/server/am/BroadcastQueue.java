@@ -337,13 +337,18 @@ public final class BroadcastQueue {
             }
 
             List<String> receiversPackageNameList = new ArrayList<String>();
+
+            // If there are no receivers, there will be no receivers
+            // to remove and the event is not needed.
+            if (r.receivers == null) {
+                return;
+            }
             for (Object receiver : r.receivers) {
                 if (receiver instanceof ResolveInfo) {
                     receiversPackageNameList.add(((ResolveInfo)receiver).
                             activityInfo.applicationInfo.packageName);
                 } else if (receiver instanceof BroadcastFilter){
-                    receiversPackageNameList.add(((BroadcastFilter)receiver).
-                            packageName);
+                    receiversPackageNameList.add(((BroadcastFilter)receiver).packageName);
                 }
             }
 
@@ -370,12 +375,15 @@ public final class BroadcastQueue {
         if (mBroadcastsScheduled) {
             return;
         }
-        // ASF HOOK: intent broadcast event generation
-        for (BroadcastRecord parallelBroadcast : mParallelBroadcasts) {
-            sendBroadcastIntentEvent(parallelBroadcast);
-        }
-        for (BroadcastRecord orderedBroadcast : mOrderedBroadcasts) {
-            sendBroadcastIntentEvent(orderedBroadcast);
+        if (FeatureConfig.INTEL_FEATURE_ASF
+                && (AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2)) {
+            // ASF HOOK: intent broadcast event generation
+            for (BroadcastRecord parallelBroadcast : mParallelBroadcasts) {
+                sendBroadcastIntentEvent(parallelBroadcast);
+            }
+            for (BroadcastRecord orderedBroadcast : mOrderedBroadcasts) {
+                sendBroadcastIntentEvent(orderedBroadcast);
+            }
         }
         mHandler.sendMessage(mHandler.obtainMessage(BROADCAST_INTENT_MSG, this));
         mBroadcastsScheduled = true;
