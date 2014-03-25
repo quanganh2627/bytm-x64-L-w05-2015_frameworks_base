@@ -773,6 +773,11 @@ public class KeyguardHostView extends KeyguardViewBase {
         mLockPatternUtils.reportFailedPasswordAttempt();
         if (showTimeout) {
             showTimeoutDialog();
+            // Turn off AA
+            if (FeatureConfig.INTEL_FEATURE_ADAPTIVE_AUTHENTICATION
+                    && mLockPatternUtils.getAAState()) {
+                mLockPatternUtils.setAAState(false);
+            }
         }
     }
 
