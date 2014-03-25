@@ -3349,26 +3349,6 @@ public class Intent implements Parcelable, Cloneable {
      */
     public static final String HDMI_SET_STATUS= "android.intent.action.SET.HDMI_STATUS";
 
-    /**
-     * Used to force the screen orientation to landscape.
-     * The boolean extra field {@link #EXTRA_SET_LANDSCAPE} can be set to true
-     * to request the screen orientation forced to landscape unless the application
-     * has already specified it.
-     *
-     * {@hide}
-     */
-    public static final String ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE =
-            "android.intent.action.REQUEST_SCREEN_ORIENTATION_LANDSCAPE";
-
-    /**
-     * Set to true in {@link #ACTION_REQUEST_SCREEN_ORIENTATION_LANDSCAPE} to
-     * force device's screen orientation to landscape. Or set to false to let
-     * the device orientation changed according to the originall logic.
-     *
-     * {@hide}
-     */
-    public static final String EXTRA_SET_LANDSCAPE = "android.intent.extra.SET_LANDSCAPE";
-
     // ---------------------------------------------------------------------
     // ---------------------------------------------------------------------
     // Intent flags (see mFlags variable).
