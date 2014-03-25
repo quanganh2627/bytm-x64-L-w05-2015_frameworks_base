@@ -17,6 +17,7 @@ package com.android.server.cms;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.IOException;
 import java.util.ArrayList;
 
 import org.xmlpull.v1.XmlPullParser;
@@ -43,12 +44,14 @@ public class ParseCmsConfig {
     public boolean parseCmsThrottleConfig() {
         XmlPullParserFactory factory = null;
         XmlPullParser parser = null;
+        InputStream is = null;
+        InputStreamReader isr = null;
         try {
             factory = XmlPullParserFactory.newInstance();
             factory.setNamespaceAware(true);
+            is = new FileInputStream("/system/etc/cms_throttle_config.xml");
+            isr = new InputStreamReader(is);
             parser = factory.newPullParser();
-            InputStream is = new FileInputStream("/system/etc/cms_throttle_config.xml");
-            InputStreamReader isr = new InputStreamReader(is);
             parser.setInput(isr);
 
             int eventType = parser.getEventType();
@@ -97,6 +100,14 @@ public class ParseCmsConfig {
             }
         } catch (Exception e) {
             return false;
+        } finally {
+            if (isr != null) {
+                try {
+                    isr.close();
+                } catch (IOException e) {
+                    return false;
+                }
+            }
         }
         return true;
     }
@@ -105,12 +116,14 @@ public class ParseCmsConfig {
         mCDevs = new ArrayList<ContributingDevice>();
         XmlPullParserFactory factory = null;
         XmlPullParser parser = null;
+        InputStream is = null;
+        InputStreamReader isr = null;
         try {
             factory = XmlPullParserFactory.newInstance();
             factory.setNamespaceAware(true);
+            is = new FileInputStream("/system/etc/cms_device_config.xml");
+            isr = new InputStreamReader(is);
             parser = factory.newPullParser();
-            InputStream is = new FileInputStream("/system/etc/cms_device_config.xml");
-            InputStreamReader isr = new InputStreamReader(is);
             parser.setInput(isr);
 
             int eventType = parser.getEventType();
@@ -151,9 +164,16 @@ public class ParseCmsConfig {
                 }
                 eventType = parser.next();
             }
-
         } catch (Exception e) {
             return false;
+        } finally {
+            if (isr != null) {
+                try {
+                    isr.close();
+                } catch (IOException e) {
+                    return false;
+                }
+            }
         }
         return true;
     }
