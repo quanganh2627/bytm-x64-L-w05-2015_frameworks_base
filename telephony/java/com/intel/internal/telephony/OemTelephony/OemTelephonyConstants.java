@@ -233,6 +233,8 @@ public interface OemTelephonyConstants {
             = 0x000000BD;
     /* OEM hook to activate or deactivate the registration status and band information */
     public static final int RIL_OEM_HOOK_STRING_SET_REG_STATUS_AND_BAND_IND = 0x000000BE;
+     /* OEM hook to have an automatic selection of CSG cell */
+    public static final int RIL_OEM_HOOK_STRING_CSG_SET_AUTOMATIC_SELECTION = 0x000000BF;
     /* OEM hook to get the thermal alarm indication */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_THERMAL_ALARM_IND = 0x000000D0;
     /* OEM hook specific to DSDS for catching out of service URC */
