@@ -279,4 +279,6 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_RAW_UNSOL_THERMAL_ALARM_IND_V2 = 0x000000E3;
     /* OEM hook to get the registration status and band information indication */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_REG_STATUS_AND_BAND_IND = 0x000000E4;
+    /* OEM hook specific to CSG indication */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_CSG_IND = 0x000000E5;
 }
