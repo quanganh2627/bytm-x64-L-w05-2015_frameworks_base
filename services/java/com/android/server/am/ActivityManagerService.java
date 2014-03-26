@@ -13997,7 +13997,8 @@ public class ActivityManagerService extends ActivityManagerNative
                     // so we can allow these clients to exist during
                     // boot.
                     if (FeatureConfig.INTEL_FEATURE_ASF && mAsfLaunchInProgress &&
-                            AsfAosp.ACTION_LAUNCH_SECURITY_CLIENT.equals(intent.getAction())) {
+                            AsfAosp.ACTION_LAUNCH_SECURITY_CLIENT.equals(intent.getAction()) &&
+                            receivers != null) {
                         for (Object receiver : receivers) {
                             if (receiver instanceof ResolveInfo) {
                                 ResolveInfo resolveInfo = (ResolveInfo)receiver;
