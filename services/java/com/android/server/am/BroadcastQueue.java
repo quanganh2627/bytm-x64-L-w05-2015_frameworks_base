@@ -32,6 +32,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.pm.UserInfo;
+import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -327,10 +328,14 @@ public final class BroadcastQueue {
                 && (AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2)) {
             UserInfo userInfo = null;
             try {
+                // Get user in a clear binder context then restore ID
+                long id = Binder.clearCallingIdentity();
                 userInfo = mService.getCurrentUser();
+                Binder.restoreCallingIdentity(id);
             } catch (SecurityException e) {
                 Log.w(TAG, "SecurityException while retrieving userInfo: " + e);
             }
+
             List<String> receiversPackageNameList = new ArrayList<String>();
             for (Object receiver : r.receivers) {
                 if (receiver instanceof ResolveInfo) {
@@ -341,6 +346,7 @@ public final class BroadcastQueue {
                             packageName);
                 }
             }
+
             List<String> removeIntentRecipients = AsfAosp.sendBroadcastIntentEvent(r.callerPackage,
                     receiversPackageNameList, r.intent, userInfo);
             if ((removeIntentRecipients != null) && (!removeIntentRecipients.isEmpty())) {
