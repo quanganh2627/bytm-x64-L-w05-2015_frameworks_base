@@ -462,27 +462,33 @@ public final class ShutdownThread extends Thread {
                     bluetoothOff = true;
                 }
 
-                try {
-                    radioOff = phone == null;
-                    if (!radioOff) {
-                        Log.w(TAG, "Turning off radio...");
-                        phone.setRadio(false);
-                    }
-                } catch (RemoteException ex) {
-                    Log.e(TAG, "RemoteException during radio shutdown", ex);
-                    radioOff = true;
-                }
 
-                try {
-                    IOemTelephony oemTelephonyService = IOemTelephony.Stub.asInterface(
-                            ServiceManager.getService("oemtelephony"));
-                    if (oemTelephonyService != null) {
-                        oemTelephonyService.powerOffModem();
+                if (SystemProperties.getBoolean("ro.radio.noril", false)) {
+                    radioOff = true;
+                } else {
+                    // Switch off radio only if device has ril
+                    try {
+                        radioOff = phone == null;
+                        if (!radioOff) {
+                            Log.w(TAG, "Turning off radio...");
+                            phone.setRadio(false);
+                        }
+                    } catch (RemoteException ex) {
+                        Log.e(TAG, "RemoteException during radio shutdown", ex);
                         radioOff = true;
                     }
-                } catch (RemoteException ex) {
-                    Log.e(TAG, "RemoteException during modem power off", ex);
-                    radioOff = true;
+
+                    try {
+                        IOemTelephony oemTelephonyService = IOemTelephony.Stub.asInterface(
+                                ServiceManager.getService("oemtelephony"));
+                        if (oemTelephonyService != null) {
+                            oemTelephonyService.powerOffModem();
+                            radioOff = true;
+                        }
+                    } catch (RemoteException ex) {
+                        Log.e(TAG, "RemoteException during modem power off", ex);
+                        radioOff = true;
+                    }
                 }
 
                 try {
