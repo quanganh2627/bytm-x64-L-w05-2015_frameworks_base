@@ -130,8 +130,12 @@ public interface OemTelephonyConstants {
     // Ciphering Indication Intents.
     public static final String ACTION_CIPHERING_STATE_CHANGED =
             "intel.intent.action.CIPHERING_STATE_CHANGED";
-    // The key for ciphering status
-    public static final String CIPHERING_STATUS_KEY = "CipheringStatus"; // ON/OFF
+    // The key for ciphering status (ON/OFF)
+    public static final String CIPHERING_STATUS_KEY = "CipheringStatus";
+
+    // OemTelephony availability
+    public static final String OEM_TELEPHONY_READY =
+            "intel.intent.action.OEM_TELEPHONY_READY";
 
     // These enumerations should be in sync with what is used in
     // ril adaptation
