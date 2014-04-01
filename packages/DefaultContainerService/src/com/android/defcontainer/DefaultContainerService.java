@@ -855,7 +855,7 @@ public class DefaultContainerService extends IntentService {
         sizeBytes += 2 * NativeLibraryHelper.sumNativeBinariesLI(apkFile);
 
         if (forwardLocked) {
-            sizeBytes += PackageHelper.extractPublicFiles(apkFile.getPath(), null);
+            sizeBytes += 2 * PackageHelper.extractPublicFiles(apkFile.getPath(), null);
         }
 
         int sizeMb = (int) (sizeBytes >> 20);
