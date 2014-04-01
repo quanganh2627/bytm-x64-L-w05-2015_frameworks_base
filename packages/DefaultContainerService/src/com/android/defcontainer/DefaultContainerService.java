@@ -852,10 +852,10 @@ public class DefaultContainerService extends IntentService {
 
         // Check all the native files that need to be copied and add that to the
         // container size.
-        sizeBytes += NativeLibraryHelper.sumNativeBinariesLI(apkFile);
+        sizeBytes += 2 * NativeLibraryHelper.sumNativeBinariesLI(apkFile);
 
         if (forwardLocked) {
-            sizeBytes += PackageHelper.extractPublicFiles(apkFile.getPath(), null);
+            sizeBytes += 2 * PackageHelper.extractPublicFiles(apkFile.getPath(), null);
         }
 
         int sizeMb = (int) (sizeBytes >> 20);
