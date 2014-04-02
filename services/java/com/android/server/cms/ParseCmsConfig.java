@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package com.android.server.cms;
+import android.util.Log;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -32,6 +33,7 @@ public class ParseCmsConfig {
 
     private ContributingDevice mCDev;
     private String mText;
+    private static final String TAG = "CurrentMgmt parser";
 
     public ArrayList<ThrottleTrigger> getThrottleTriggers() {
         return mThrottleTriggers;
@@ -105,6 +107,7 @@ public class ParseCmsConfig {
                 try {
                     isr.close();
                 } catch (IOException e) {
+                    Log.e(TAG, "cannot close the inputstream reader");
                     return false;
                 }
             }
@@ -121,7 +124,7 @@ public class ParseCmsConfig {
         try {
             factory = XmlPullParserFactory.newInstance();
             factory.setNamespaceAware(true);
-            is = new FileInputStream("/system/etc/cms_throttle_config.xml");
+            is = new FileInputStream("/system/etc/cms_device_config.xml");
             isr = new InputStreamReader(is);
             parser = factory.newPullParser();
             parser.setInput(isr);
@@ -171,6 +174,7 @@ public class ParseCmsConfig {
                 try {
                     isr.close();
                 } catch (IOException e) {
+                    Log.e(TAG, "cannot close the inputstream reader");
                     return false;
                 }
             }
