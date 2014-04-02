@@ -146,8 +146,10 @@ public class ThermalZone {
         if (mThermalSensorsAttribMap == null) return;
         Iterator it = (Iterator) mThermalSensorsAttribMap.keySet().iterator();
         if (it == null) return;
+        ThermalSensorAttrib sensorAttrib = null;
         while (it.hasNext()) {
-            mThermalSensorsAttribMap.get((String) it.next()).printAttrs();
+            sensorAttrib = mThermalSensorsAttribMap.get((String) it.next());
+            if (sensorAttrib != null) sensorAttrib.printAttrs();
         }
     }
 

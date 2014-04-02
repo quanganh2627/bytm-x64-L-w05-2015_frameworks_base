@@ -354,6 +354,7 @@ public class ThermalService extends Binder {
         void processEndElement(String name) {
             if (name.equalsIgnoreCase(SENSOR)) {
                 // insert in map, only if no sensor with same name already in map
+                if (mCurrSensor == null) return;
                 if (ThermalManager.getSensor(mCurrSensor.getSensorName()) == null) {
                     ThermalManager.sSensorMap.put(mCurrSensor.getSensorName(), mCurrSensor);
                     mCurrSensor.printAttrs();
@@ -368,7 +369,8 @@ public class ThermalService extends Binder {
                 }
                 mWeightList = null;
                 mOrderList = null;
-                if (ThermalManager.getSensor(mCurrSensorAttrib.getSensorName()) != null) {
+                if (mCurrSensorAttrib != null
+                        && ThermalManager.getSensor(mCurrSensorAttrib.getSensorName()) != null) {
                     // this is valid sensor, so now update the zone sensorattrib list
                     // and sensor list.This check is needed to avoid a scenario where
                     // a invalid sensor name might be included in sensorattrib list.
