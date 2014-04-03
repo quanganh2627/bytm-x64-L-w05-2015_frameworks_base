@@ -724,8 +724,14 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         mContext.registerReceiver(mProvisioningReceiver, filter);
 
         // CAM MODIFIED
-        mCamAppContinuityFeature = new CamApplicationContinuity(this, mContext ,mHandler);
-        mCamAppContinuityFeature.initializeAppContinuity();
+        if (isNetworkSupported(ConnectivityManager.TYPE_MOBILE)) {
+            mCamAppContinuityFeature = new CamApplicationContinuity(this, mContext ,mHandler);
+            mCamAppContinuityFeature.initializeAppContinuity();
+        }
+        else {
+            log("APPCONT: Disabling Feat since no supported mobile networks avail");
+            mCamAppContinuityFeature = null;
+        }
         mAppOpsManager = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
     }
 
@@ -2052,7 +2058,9 @@ public class ConnectivityService extends IConnectivityManager.Stub {
 
         // CAM MODIFIED
         // For App Continuity changes
-        mCamAppContinuityFeature.resetNeedToTearDown();
+        if (null != mCamAppContinuityFeature) {
+            mCamAppContinuityFeature.resetNeedToTearDown();
+        }
 
         mNetTrackers[prevNetType].setTeardownRequested(false);
 
@@ -2417,8 +2425,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             }
             if (mActiveDefaultNetwork != -1
                     && mActiveDefaultNetwork != newNetType
-                    && null != mCamAppContinuityFeature
-                    && true == mCamAppContinuityFeature.camNeedToTearDown(info)) {
+                    && camHandleConnectNewNetwork(info)) {
                 if (APP_CONT_DBG) {
                     log("APPCONT: handleConnect: App continuity is disabled/non-CAM connection");
                 }
@@ -3267,14 +3274,18 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 case EVENT_SET_CAM_INTERFACE_CHANGE_ACTION:
                 {
                     final int interfaceChange = msg.arg1;
-                    mCamAppContinuityFeature.handleInterfaceChangeEvents(
-                            EVENT_SET_CAM_INTERFACE_CHANGE_ACTION, interfaceChange);
+                    if (null != mCamAppContinuityFeature) {
+                        mCamAppContinuityFeature.handleInterfaceChangeEvents(
+                                EVENT_SET_CAM_INTERFACE_CHANGE_ACTION, interfaceChange);
+                    }
                     break;
                 }
                 case EVENT_SET_CAM_CONNECT_WWAN:
                 {
-                    mCamAppContinuityFeature.handleInterfaceChangeEvents(
-                            EVENT_SET_CAM_CONNECT_WWAN, -1);
+                    if (null != mCamAppContinuityFeature) {
+                        mCamAppContinuityFeature.handleInterfaceChangeEvents(
+                                EVENT_SET_CAM_CONNECT_WWAN, -1);
+                    }
                     break;
                 }
 
@@ -5156,5 +5167,13 @@ public class ConnectivityService extends IConnectivityManager.Stub {
      */
     NetworkStateTracker getNetworkStateTrackerInfo() {
         return mNetTrackers[ConnectivityManager.TYPE_MOBILE];
+    }
+    private boolean camHandleConnectNewNetwork(NetworkInfo info) {
+        if (null == mCamAppContinuityFeature)
+            return true;
+        else if (true == mCamAppContinuityFeature.camNeedToTearDown(info))
+            return true;
+        else
+            return false;
     }
 }
