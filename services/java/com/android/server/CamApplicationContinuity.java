@@ -43,7 +43,6 @@ class CamApplicationContinuity {
     }
 
     void initializeAppContinuity() {
-        // appC = new AppContinuity(this);
         // Get instance of CamManager
         mCamManager = CamManager.getInstance(mContext);
 
@@ -92,60 +91,63 @@ class CamApplicationContinuity {
             log("APPCONT:Policy requires Not Tearing Down mNeedToTearDown=" + mNeedToTearDown
                     + "isAppContinuityFeatureEnabled(): " + isAppContinuityFeatureEnabled());
         }
-        /*
-         * When MOBILE network is brought up when already connected to a bad
-         * WiFi network we need to send an event to CAM informing the bring-up
-         * of WWAN
-         */
-        if (mNeedToTearDown == false && newNetType == ConnectivityManager.TYPE_MOBILE) {
-            // send and Event
+        if (isAppContinuityFeatureEnabled())
+        {
+            /*
+             * When MOBILE network is brought up when already connected to a bad
+             * WiFi network we need to send an event to CAM informing the bring-up
+             * of WWAN
+             */
+            if (mNeedToTearDown == false && newNetType == ConnectivityManager.TYPE_MOBILE) {
+                // send and Event
 
-            Intent intent = new Intent(CamManager.CAM_WWAN_CONNECTED_ACTION);
-            final long ident = Binder.clearCallingIdentity();
+                Intent intent = new Intent(CamManager.CAM_WWAN_CONNECTED_ACTION);
+                final long ident = Binder.clearCallingIdentity();
 
-            try {
+                try {
+                    if (APP_CONT_DBG) {
+                        log("APPCONT:Sending Event to CAM, WWAN is now up");
+                    }
+                    // mContext.sendBroadcast(intent);
+                    mContext.sendBroadcast(intent);
+                } finally {
+                    Binder.restoreCallingIdentity(ident);
+                }
+            }
+            /*
+             * For handling tear down of WWAN when manual connection to WiFi network
+             * (which is not CAM managed) is done and WWAN was up
+             */
+            else if (newNetType == ConnectivityManager.TYPE_WIFI) {
                 if (APP_CONT_DBG) {
-                    log("APPCONT:Sending Event to CAM, WWAN is now up");
+                    log("APPCONT: Try getting the Mobile State Tracker Explicitly calling teardown "
+                            + "for 3G");
                 }
-                // mContext.sendBroadcast(intent);
-                mContext.sendBroadcast(intent);
-            } finally {
-                Binder.restoreCallingIdentity(ident);
-            }
-        }
-        /*
-         * For handling tear down of WWAN when manual connection to WiFi network
-         * (which is not CAM managed) is done and WWAN was up
-         */
-        else if (newNetType == ConnectivityManager.TYPE_WIFI) {
-            if (APP_CONT_DBG) {
-                log("APPCONT: Try getting the Mobile State Tracker Explicitly calling teardown "
-                        + "for 3G");
-            }
-            // NetworkStateTracker thisConnectedNet =
-            // mNetTrackers[ConnectivityManager.TYPE_MOBILE];
-            NetworkStateTracker thisConnectedNet = mConnecitvityService
-                    .getNetworkStateTrackerInfo();
-            NetworkInfo getWWANInfo = thisConnectedNet.getNetworkInfo();
+                // NetworkStateTracker thisConnectedNet =
+                // mNetTrackers[ConnectivityManager.TYPE_MOBILE];
+                NetworkStateTracker thisConnectedNet = mConnecitvityService
+                        .getNetworkStateTrackerInfo();
+                NetworkInfo getWWANInfo = thisConnectedNet.getNetworkInfo();
 
-            if (getWWANInfo != null) {
-                // Verify that the connection is a manual connection
-                if (!isAppContinuityEnabled(info.getType())) {
-                    if (getWWANInfo.isConnectedOrConnecting()) {
-                        if (APP_CONT_DBG) {
-                            log("APPCONT: CAM_INTERFACE_CHANGE_ACTION - Calling "
-                                    + "teardown on MOBILE");
+                if (getWWANInfo != null) {
+                    // Verify that the connection is a manual connection
+                    if (!isAppContinuityEnabled(info.getType())) {
+                        if (getWWANInfo.isConnectedOrConnecting()) {
+                            if (APP_CONT_DBG) {
+                                log("APPCONT: CAM_INTERFACE_CHANGE_ACTION - Calling "
+                                        + "teardown on MOBILE");
+                            }
+                            mConnecitvityService.teardown(thisConnectedNet);
                         }
-                        mConnecitvityService.teardown(thisConnectedNet);
-                    }
-                    else if (APP_CONT_DBG) {
-                        log("APPCONT: CAM_INTERFACE_CHANGE_ACTION - Did Not called teardown "
-                                + "on WWAN, not in connected state");
+                        else if (APP_CONT_DBG) {
+                            log("APPCONT: CAM_INTERFACE_CHANGE_ACTION - Did Not called teardown "
+                                    + "on WWAN, not in connected state");
+                        }
                     }
                 }
-            }
-            else if (APP_CONT_DBG) {
-                log("APPCONT: CAM_INTERFACE_CHANGE_ACTION - Found WWAN info NULL");
+                else if (APP_CONT_DBG) {
+                    log("APPCONT: CAM_INTERFACE_CHANGE_ACTION - Found WWAN info NULL");
+                }
             }
         }
     }
@@ -154,66 +156,71 @@ class CamApplicationContinuity {
      * Handles the WWAN->WLAN and bring-up WWAN events
      */
     void handleInterfaceChangeEvents(int eventType, int eventData) {
-        // Event indicating selection of best WLAN network and request to
-        // bring-down the WWAN
-        if (eventType == EVENT_SET_CAM_INTERFACE_CHANGE_ACTION) {
-            // Handles only 3G-WiFi case here
-            log("APPCONT: CAM_INTERFACE_CHANGE_ACTION " + eventData);
-            NetworkInfo info;
-            if (eventData == 1) {
-                // 3G - WiFi case
-                info = mConnecitvityService.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
-                // NetworkStateTracker thisConnectedNet =
-                // mNetTrackers[ConnectivityManager.TYPE_MOBILE];
-                NetworkStateTracker thisConnectedNet = mConnecitvityService
-                        .getNetworkStateTrackerInfo();
-                if (thisConnectedNet != null) {
-                    NetworkInfo getWWANInfo = thisConnectedNet.getNetworkInfo();
-                    if (getWWANInfo != null) {
-                        if (getWWANInfo.isConnectedOrConnecting()) {
-                            log("APPCONT: CAM_INTERFACE_CHANGE_ACTION - Calling teardown "
-                                    + "on MOBILE");
-                            mConnecitvityService.teardown(thisConnectedNet);
+        if (isAppContinuityFeatureEnabled())
+        {
+            // Event indicating selection of best WLAN network and request to
+            // bring-down the WWAN
+            if (eventType == EVENT_SET_CAM_INTERFACE_CHANGE_ACTION) {
+                // Handles only 3G-WiFi case here
+                log("APPCONT: CAM_INTERFACE_CHANGE_ACTION " + eventData);
+                NetworkInfo info;
+                if (eventData == 1) {
+                    // 3G - WiFi case
+                    info = mConnecitvityService.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+                    // NetworkStateTracker thisConnectedNet =
+                    // mNetTrackers[ConnectivityManager.TYPE_MOBILE];
+                    NetworkStateTracker thisConnectedNet = mConnecitvityService
+                            .getNetworkStateTrackerInfo();
+                    if (thisConnectedNet != null) {
+                        NetworkInfo getWWANInfo = thisConnectedNet.getNetworkInfo();
+                        if (getWWANInfo != null) {
+                            if (getWWANInfo.isConnectedOrConnecting()) {
+                                log("APPCONT: CAM_INTERFACE_CHANGE_ACTION - Calling teardown "
+                                        + "on MOBILE");
+                                mConnecitvityService.teardown(thisConnectedNet);
+                            } else {
+                                log("APPCONT: CAM_INTERFACE_CHANGE_ACTION - Did Not called teardown"
+                                        + " on WWAN, not in connected state");
+                            }
                         } else {
-                            log("APPCONT: CAM_INTERFACE_CHANGE_ACTION - Did Not called teardown"
-                                    + " on WWAN, not in connected state");
+                            log("APPCONT: CAM_INTERFACE_CHANGE_ACTION - Found WWAN info NULL");
                         }
-                    } else {
-                        log("APPCONT: CAM_INTERFACE_CHANGE_ACTION - Found WWAN info NULL");
                     }
-                }
-                // handleConnect(info);
-            }
-        }
-        // Event requesting bring-up of the WWAN interface when connected WLAN
-        // has bad quality
-        else if (eventType == EVENT_SET_CAM_CONNECT_WWAN) {
-            // Handles only WiFi-3G case here
-            log("APPCONT: Event  EVENT_SET_CAM_CONNECT_WWAN ++");
-
-            mNeedToTearDown = false;
-
-            log("APPCONT: Try getting the Mobile State Tracker");
-            // NetworkStateTracker checkTracker =
-            // mNetTrackers[ConnectivityManager.TYPE_MOBILE];
-            NetworkStateTracker checkTracker = mConnecitvityService.getNetworkStateTrackerInfo();
-            if (checkTracker != null) {
-                NetworkInfo checkInfo = checkTracker.getNetworkInfo();
-
-                if (checkInfo != null) {
-                    if (!checkInfo.isConnectedOrConnecting()
-                           || checkTracker.isTeardownRequested()) {
-                        checkInfo.setFailover(true);
-                        log("APPCONT: Trying to reconnnect with Mobile");
-                        checkTracker.reconnect();
-                    }
+                    // handleConnect(info);
                 }
             }
-            else {
-                log("APPCONT: Mobile State Tracker being null");
+            // Event requesting bring-up of the WWAN interface when connected WLAN
+            // has bad quality
+            else if (eventType == EVENT_SET_CAM_CONNECT_WWAN) {
+                // Handles only WiFi-3G case here
+                log("APPCONT: Event  EVENT_SET_CAM_CONNECT_WWAN ++");
+
+                mNeedToTearDown = false;
+
+                log("APPCONT: Try getting the Mobile State Tracker");
+                // NetworkStateTracker checkTracker =
+                // mNetTrackers[ConnectivityManager.TYPE_MOBILE];
+                NetworkStateTracker checkTracker = mConnecitvityService.getNetworkStateTrackerInfo();
+                if (checkTracker != null) {
+                    NetworkInfo checkInfo = checkTracker.getNetworkInfo();
+
+                    if (checkInfo != null) {
+                        if (!checkInfo.isConnectedOrConnecting()
+                               || checkTracker.isTeardownRequested()) {
+                            checkInfo.setFailover(true);
+                            log("APPCONT: Trying to reconnnect with Mobile");
+                            checkTracker.reconnect();
+                        }
+                    }
+                }
+                else {
+                    log("APPCONT: Mobile State Tracker being null");
+                }
             }
         }
-
+        else {
+            log("APPCONT: Application Continuity Feature is Disabled");
+        }
     }
 
     /**
