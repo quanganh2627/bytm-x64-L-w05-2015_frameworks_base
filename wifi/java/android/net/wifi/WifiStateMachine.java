@@ -1730,9 +1730,11 @@ public class WifiStateMachine extends StateMachine {
     private void configureLinkProperties() {
         if (mWifiConfigStore.isUsingStaticIp(mLastNetworkId)) {
             mLinkProperties = mWifiConfigStore.getLinkProperties(mLastNetworkId);
+            mLinkProperties = WifiConfiguration.stripUndisplayableConfig(mLinkProperties);
         } else {
             synchronized (mDhcpInfoInternal) {
                 mLinkProperties = mDhcpInfoInternal.makeLinkProperties();
+                mLinkProperties = WifiConfiguration.stripUndisplayableConfig(mLinkProperties);
             }
             mLinkProperties.setHttpProxy(mWifiConfigStore.getProxyProperties(mLastNetworkId));
         }
@@ -1953,6 +1955,7 @@ public class WifiStateMachine extends StateMachine {
             LinkProperties linkProperties = dhcpInfoInternal.makeLinkProperties();
             linkProperties.setHttpProxy(mWifiConfigStore.getProxyProperties(mLastNetworkId));
             linkProperties.setInterfaceName(mInterfaceName);
+            linkProperties = WifiConfiguration.stripUndisplayableConfig(linkProperties);
             if (!linkProperties.equals(mLinkProperties)) {
                 if (DBG) {
                     log("Link configuration changed for netId: " + mLastNetworkId
