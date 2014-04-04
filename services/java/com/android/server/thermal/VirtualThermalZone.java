@@ -16,6 +16,7 @@
 
 package com.android.server.thermal;
 
+import android.os.UEventObserver;
 import android.util.Log;
 
 import java.lang.Math;
@@ -31,9 +32,39 @@ import java.util.Arrays;
 public class VirtualThermalZone extends ThermalZone {
 
     private static final String TAG = "VirtualThermalZone";
+    private String mEmulTempPath;
+
+    public void setEmulTempPath(String path) {
+        mEmulTempPath = path;
+    }
+
+    public String getEmulTempPath() {
+        return mEmulTempPath;
+    }
 
     public VirtualThermalZone() {
         super();
+    }
+
+    // overridden to start UEvent observer only for Virtual zone
+    public void startEmulTempObserver() {
+        if (!getEmulTempFlag()) {
+            return;
+        }
+        int indx = ThermalUtils.getThermalZoneIndex(getZoneName());
+        if (indx == -1) {
+            Log.i(TAG, "Could not obtain emul_temp sysfs node for " + getZoneName());
+            return;
+        }
+        String uEventDevPath = ThermalManager.sUEventDevPath + indx;
+        setEmulTempPath(ThermalManager.sSysfsSensorBasePath + indx + "/emul_temp");
+        mEmulTempObserver.startObserving(uEventDevPath);
+    }
+
+    public void unregisterReceiver() {
+        if (getEmulTempFlag()) {
+            mEmulTempObserver.stopObserving();
+        }
     }
 
     public void startMonitoring() {
@@ -41,6 +72,87 @@ public class VirtualThermalZone extends ThermalZone {
     }
 
     // override fucntion
+    public void calibrateThresholds() {
+        ThermalSensor ts = getThermalSensorList().get(0);
+        Integer weights[] = (mThermalSensorsAttribMap.get(ts.getSensorName())).getWeights();
+        int m = weights[0];
+        int c = getOffset();
+
+        if (m == 0) return;
+        for (int i = 0; i < mZoneTempThresholds.length; i++) {
+            // We do not want to convert '0'. Let it represent 0 C.
+            if (mZoneTempThresholds[i] == 0) continue;
+            // Get raw systherm temperature: y=mx+c <--> x=(y-c)/m
+            mZoneTempThresholds[i] = ((mZoneTempThresholds[i] - c) * 1000) / m;
+        }
+        Log.i(TAG, "calibrateThresholds[]: " + Arrays.toString(mZoneTempThresholds));
+    }
+
+    private int calculateZoneTemp() {
+        int curZoneTemp = 0;
+        int weightedTemp;
+        ArrayList<ThermalSensor> list = getThermalSensorList();
+
+        // Check if the SensorList is sane and usable
+        if (list == null || list.get(0) == null) {
+            return ThermalManager.INVALID_TEMP;
+        }
+
+        if (isUEventSupported()) {
+            // for uevent based monitoring only first sensor used
+            ThermalSensor ts = list.get(0);
+            weightedTemp = getWeightedTemp(ts, ts.readSensorTemp());
+            return weightedTemp == ThermalManager.INVALID_TEMP
+                    ? ThermalManager.INVALID_TEMP : weightedTemp + getOffset();
+        }
+
+        // Polling mode
+        for (ThermalSensor ts : list) {
+            if (ts != null && ts.getSensorActiveStatus()) {
+                weightedTemp = getWeightedTemp(ts, ts.readSensorTemp());
+                if (weightedTemp == ThermalManager.INVALID_TEMP) {
+                    return ThermalManager.INVALID_TEMP;
+                }
+                curZoneTemp += weightedTemp;
+            }
+        }
+        return curZoneTemp + getOffset();
+    }
+
+    private UEventObserver mEmulTempObserver = new UEventObserver() {
+        @Override
+        public void onUEvent(UEventObserver.UEvent event) {
+            String type = event.get("EVENT");
+            if (type == null || Integer.parseInt(type) != ThermalManager.THERMAL_EMUL_TEMP_EVENT) {
+                Log.i(TAG, "EventType does not match");
+                return;
+            }
+
+            if (!getZoneName().equals(event.get("NAME"))) {
+                Log.i(TAG, "ZoneName does not match");
+                return;
+            }
+
+            int temp = calculateZoneTemp();
+            if (temp == ThermalManager.INVALID_TEMP) {
+                Log.i(TAG, "Obtained INVALID_TEMP[0xDEADBEEF]");
+                return;
+            }
+
+            String path = getEmulTempPath();
+            if (path == null) {
+                Log.i(TAG, "EmulTempPath is null");
+                return;
+            }
+
+            int ret = ThermalUtils.writeSysfs(path, temp);
+            if (ret == -1) {
+                Log.i(TAG, "Writing into emul_temp sysfs failed");
+            }
+        }
+    };
+
+    // override function
     public boolean updateZoneTemp() {
         int curZoneTemp = ThermalManager.INVALID_TEMP;
         int rawSensorTemp, sensorTemp;
@@ -48,14 +160,8 @@ public class VirtualThermalZone extends ThermalZone {
         boolean flag = false;
 
         if (isUEventSupported()) {
-            ArrayList<ThermalSensor> list = getThermalSensorList();
-            if (list != null) {
-                // for uevent based monitoring only first sensor used
-                ThermalSensor s = list.get(0);
-                if (s != null) {
-                    curZoneTemp = getWeightedTemp(s);
-                }
-            }
+            // In UEvent mode, the obtained temperature is the zone temperature
+            return true;
         } else {
             for (ThermalSensor ts : getThermalSensorList()) {
                 if (ts != null && ts.getSensorActiveStatus()) {
@@ -86,25 +192,33 @@ public class VirtualThermalZone extends ThermalZone {
     }
 
     private int getWeightedTemp(ThermalSensor ts) {
-        int curZoneTemp = 0;
-        int rawSensorTemp = ts.getCurrTemp();
-        Integer weights[], order[];
+        return getWeightedTemp(ts, ts.getCurrTemp());
+    }
 
+    private int getWeightedTemp(ThermalSensor ts, int rawSensorTemp) {
+        int curZoneTemp = 0;
+        Integer weights[], order[];
         ThermalSensorAttrib sa = mThermalSensorsAttribMap.get(ts.getSensorName());
-        if (sa == null) return ThermalManager.INVALID_TEMP;
+
+        // No point in calculating 'WeightedTemp' on an 'anyway invalid' temperature
+        if (rawSensorTemp == ThermalManager.INVALID_TEMP || sa == null) {
+            return ThermalManager.INVALID_TEMP;
+        }
+
         weights = sa.getWeights();
         order = sa.getOrder();
         if (weights == null && order == null) return rawSensorTemp;
         if (weights != null) {
             if (order == null) {
                 // only first weight will be considered
-                return (weights[0] * rawSensorTemp);
+                return (weights[0] * rawSensorTemp) / 1000;
             } else if (order != null && weights.length == order.length) {
                 // if order array is provided in xml,
                 // it should be of same size as weights array
                 int sensorTemp = 0;
                 for (int i = 0; i < weights.length; i++) {
-                    sensorTemp += weights[i] * (int) Math.pow(rawSensorTemp, order[i]);
+                    // Divide by 1000 to convert to mC
+                    sensorTemp += (weights[i] * (int) Math.pow(rawSensorTemp, order[i])) / 1000;
                 }
                 return sensorTemp;
             }

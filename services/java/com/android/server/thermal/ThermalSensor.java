@@ -217,6 +217,21 @@ public class ThermalSensor {
         return mCurrTemp;
     }
 
+    /**
+     * Method that actually does a Sysfs read.
+     */
+    public int readSensorTemp() {
+        int val = ThermalManager.INVALID_TEMP;
+        try {
+            String tempStr = ThermalUtils.readSysfs(mInputTempPath);
+            if (tempStr != null) {
+                val = Integer.parseInt(tempStr.trim());
+            }
+        } catch (NumberFormatException e) {
+            Log.i(TAG, "NumberFormatException in readSensorTemp():" + mInputTempPath);
+        }
+        return val;
+    }
 
     /**
      * Method to read the current temperature from sensor. This method should be
@@ -225,16 +240,10 @@ public class ThermalSensor {
      * previously read value.
      */
     public void updateSensorTemp() {
-        int val = ThermalManager.INVALID_TEMP;
-        try {
-            String tempStr = ThermalUtils.readSysfs(mInputTempPath);
-            if (tempStr != null) {
-                val = Integer.parseInt(tempStr.trim());
-            }
-        } catch (NumberFormatException e) {
-            Log.i(TAG, "NumberFormatException in updateSensorTemp():" + mInputTempPath);
+        int val = readSensorTemp();
+        if (val != ThermalManager.INVALID_TEMP) {
+            setCurrTemp(val);
         }
-        setCurrTemp(val);
     }
 
     public int getSensorThermalState() {

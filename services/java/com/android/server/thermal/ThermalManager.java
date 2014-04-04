@@ -150,6 +150,8 @@ public class ThermalManager {
 
     public static final int THERMAL_HIGH_EVENT = 1;
 
+    public static final int THERMAL_EMUL_TEMP_EVENT = 2;
+
     public static final int INVALID_TEMP = 0xDEADBEEF;
 
     /* base sysfs path for sensors */
@@ -355,6 +357,7 @@ public class ThermalManager {
                 continue;
             }
             if (zone.isUEventSupported()) {
+                zone.calibrateThresholds();
                 zone.registerUevent();
             } else {
                 // start polling thread for each zone

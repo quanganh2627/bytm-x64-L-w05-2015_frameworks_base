@@ -66,9 +66,9 @@ static int writeToFile(const char *path, int val)
     if (!path)
         return -1;
 
-    fd = open(path, O_RDWR, 0);
+    fd = open(path, O_WRONLY, 0);
     if (fd < 0) {
-        ALOGE("Could not open '%s'", path);
+        ALOGE("writeToFile: Could not open '%s' err: %d", path, errno);
         return -1;
     }
 
