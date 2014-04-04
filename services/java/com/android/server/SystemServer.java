@@ -171,6 +171,7 @@ class ServerThread {
         ConsumerIrService consumerIr = null;
         CwsServiceMgr cwsService = null;
         EthernetService eth = null;
+        WakeService wakeservice = null;
 
         // Create a handler thread just for the window manager to enjoy.
         HandlerThread wmHandlerThread = new HandlerThread("WindowManager");
@@ -303,6 +304,13 @@ class ServerThread {
                ServiceManager.addService("thermalservice", thermalservice);
             } else {
                Log.i(TAG, "Thermal Service disabled");
+            }
+
+            //Wake Service for wakeup from standby
+            if (SystemProperties.get("persist.service.wake.enable").equals("1")) {
+                Slog.i(TAG, "Wake Service enabled");
+                wakeservice = new WakeService(context);
+                ServiceManager.addService("wakeservice", wakeservice);
             }
 
             Slog.i(TAG, "Battery Service");
