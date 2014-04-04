@@ -51,7 +51,7 @@ public class ThermalZone {
     private String mZoneLogic;      /* Logic to be used to determine thermal state of zone */
     private boolean mIsZoneActive = false;
     private int mOffset = 0;
-    private Integer mZoneTempThresholds[];  /* Array containing temperature thresholds */
+    protected Integer mZoneTempThresholds[];  /* Array containing temperature thresholds */
 
     /* MovingAverage related declarations */
     private int mRecordedValuesHead = -1; /* Index pointing to the head of past values of sensor */
@@ -352,13 +352,22 @@ public class ThermalZone {
         return mSupportsEmulTemp;
     }
 
-    // over ride in Specific zone class which inherit ThermalZone
+    // override in Specific zone class which inherit ThermalZone
     public void startMonitoring() {
     }
 
-    // over ride in ModemZone to unregister Modem specific intents
+    // override in ModemZone to unregister Modem specific intents
+    // override in VirtualThermalZone to stop UEvent observers
     public void unregisterReceiver() {
 
+    }
+
+    // override in VirtualThermalZone class
+    public void startEmulTempObserver() {
+    }
+
+    // override in VirtualThermalZone class
+    public void calibrateThresholds() {
     }
 
     /**
@@ -385,6 +394,7 @@ public class ThermalZone {
     public boolean isZoneStateChanged(ThermalSensor s, int temp) {
         if (s == null) return false;
         s.setCurrTemp(temp);
+        setZoneTemp(temp);
         return updateZoneParams();
     }
 
@@ -410,10 +420,13 @@ public class ThermalZone {
         }
 
         int threshold = ThermalUtils.getLowerThresholdTemp(prevZoneState, mZoneTempThresholds);
-        if (newZoneState < prevZoneState && getZoneTemp() > (threshold - getDBInterval())) {
-            Log.i(TAG, " THERMAL_LOW_EVENT for zone:" + getZoneName()
-                    + " rejected due to debounce interval");
-            return false;
+        // For Interrupt based zones, HW (should) takes care of the debounce.
+        if (!isUEventSupported()) {
+            if (newZoneState < prevZoneState && getZoneTemp() > (threshold - getDBInterval())) {
+                Log.i(TAG, " THERMAL_LOW_EVENT for zone:" + getZoneName()
+                        + " rejected due to debounce interval");
+                return false;
+            }
         }
 
         setZoneState(newZoneState);
@@ -452,6 +465,7 @@ public class ThermalZone {
         }
         // first time update of sensor temp and zone temp
         sensor.updateSensorTemp();
+        setZoneTemp(sensor.getCurrTemp());
         if (updateZoneParams()) {
             // first intent after initialization
             sendThermalEvent();
@@ -505,27 +519,12 @@ public class ThermalZone {
         int upperTripPoint = ThermalUtils.getUpperThresholdTemp(zoneState, getZoneTempThreshold());
         if (lowerTripPoint != ThermalManager.INVALID_TEMP
                 && upperTripPoint != ThermalManager.INVALID_TEMP) {
-            ThermalSensorAttrib sa = mThermalSensorsAttribMap.get(s.getSensorName());
-            if (sa == null) return;
-            // assuming a linear equation for reverse calculation of systherms
-            // i.e. order always 1. so ignore order array
-            Integer[] weights = sa.getWeights();
-            int m = 1;
-            // if no weights provided assume a default 1
-            if (weights != null) {
-                // take the first weight only.
-                // prevent divide by zero exception
-                m = weights[0] == 0 ? 1 : weights[0];
-            }
-
-            int newLowerTripPoint = (lowerTripPoint - mOffset) / m;
-            int newUpperTripPoint = (upperTripPoint - mOffset) / m;
-            if (ThermalUtils.writeSysfs(s.getSensorLowTempPath(), newLowerTripPoint) == -1) {
-                Log.i(TAG, "error while programming lower trip point:" + newLowerTripPoint
+            if (ThermalUtils.writeSysfs(s.getSensorLowTempPath(), lowerTripPoint) == -1) {
+                Log.i(TAG, "error while programming lower trip point:" + lowerTripPoint
                         + "for sensor:" + s.getSensorName());
             }
             if (ThermalUtils.writeSysfs(s.getSensorHighTempPath(), upperTripPoint) == -1) {
-                Log.i(TAG, "error while programming upper trip point:" + newUpperTripPoint
+                Log.i(TAG, "error while programming upper trip point:" + upperTripPoint
                         + "for sensor:" + s.getSensorName());
             }
         }

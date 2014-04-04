@@ -245,7 +245,7 @@ public class ThermalService extends Binder {
                         mTempZoneId = Integer.parseInt(mParser.nextText());
                     } else if (name.equalsIgnoreCase("SupportsUEvent") && mCurrZone != null)
                         mCurrZone.setSupportsUEvent(Integer.parseInt(mParser.nextText()));
-                    else if (name.equalsIgnoreCase("SupportsEmultemp") && mCurrZone != null)
+                    else if (name.equalsIgnoreCase("SupportsEmulTemp") && mCurrZone != null)
                         mCurrZone.setEmulTempFlag(Integer.parseInt(mParser.nextText()));
                     else if (name.equalsIgnoreCase("DebounceInterval") && mCurrZone != null)
                         mCurrZone.setDBInterval(Integer.parseInt(mParser.nextText()));
@@ -382,6 +382,7 @@ public class ThermalService extends Binder {
                 mCurrZone.setSensorList(mCurrSensorAttribList);
                 // check to see if zone is active
                 mCurrZone.computeZoneActiveStatus();
+                mCurrZone.startEmulTempObserver();
                 mThermalZones.add(mCurrZone);
                 mCurrZone = null;
                 mTempZoneId = -1;
@@ -472,7 +473,7 @@ public class ThermalService extends Binder {
         {
             ThermalManager.loadiTUXVersion();
             if (!ThermalUtils.configFilesExist(mContext)) {
-                Log.i(TAG, "Thermal config files dont exist, exiting Thermal service...");
+                Log.i(TAG, "Thermal config files do not exist. Exiting ThermalService");
                 return;
             }
 
@@ -480,8 +481,14 @@ public class ThermalService extends Binder {
             configureTurboProperties();
 
             /* Start and Initialize the Thermal Cooling Manager */
-            if (mCoolingManager != null) {
-                if (!mCoolingManager.init(mContext)) return;
+            if (mCoolingManager == null) {
+                Log.i(TAG, "mCoolingManager is null. Exiting ThermalService");
+                return;
+            }
+
+            if (!mCoolingManager.init(mContext)) {
+                Log.i(TAG, "mCoolingManager.init() failed. Exiting ThermalService");
+                return;
             }
 
             /* Parse the thermal configuration file to determine zone/sensor information */
@@ -492,12 +499,14 @@ public class ThermalService extends Binder {
                 mThermalParser = new ThermalParser();
             }
             if (mThermalParser == null) {
-                Log.i(TAG, "ThermalParser creation failed.Thermal Service exiting....");
+                Log.i(TAG, "ThermalParser creation failed. Exiting ThermalService");
                 return;
             }
 
             if (!mThermalParser.parse()) {
-                Log.i(TAG, "ThermalManagement XML Parsing Failed...Thermal Service exiting");
+                mCoolingManager.unregisterReceivers();
+                ThermalManager.unregisterZoneReceivers();
+                Log.i(TAG, "ThermalManagement XML Parsing Failed. Exiting ThermalService");
                 return;
             }
 
@@ -515,8 +524,8 @@ public class ThermalService extends Binder {
 
             /* if no active zone, just exit Thermal manager Service */
             if (ThermalManager.isThermalServiceNeeded() == false) {
-                Log.i(TAG, "No active thermal zones, Thermal Service exiting");
-                if (mCoolingManager != null) mCoolingManager.unregisterReceivers();
+                Log.i(TAG, "No active thermal zones. Exiting ThermalService");
+                mCoolingManager.unregisterReceivers();
                 ThermalManager.unregisterZoneReceivers();
                 return;
             }
