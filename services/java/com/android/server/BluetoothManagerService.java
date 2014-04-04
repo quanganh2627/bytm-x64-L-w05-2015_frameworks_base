@@ -225,16 +225,40 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
 
                     handleCoexSafeChannels(minFreq, maxFreq);
                 }
+                else {
+                    Log.e(TAG, "Empty information for intent: " + action);
+                }
             } else if (CsmCoexMgr.ACTION_COEX_RT_CONTROL.equals(action)) {
 
-                if (DBG) Log.d(TAG, "COEX_RT : Control recevied");
-                int coexRtState = intent.getIntExtra(
-                        CsmCoexMgr.COEX_RT_EXTRA_STATE,
-                        CsmCoexMgr.COEX_RT_STATE_OFF);
+                if (DBG) Log.d(TAG, "COEX_RT : Control received");
+                Bundle bundle = intent.getBundleExtra(CsmCoexMgr.COEX_RT_CONTROL_EXTRA);
+                if (bundle != null) {
+                    int channelEnable = bundle.getInt(CsmCoexMgr.COEX_RT_STATE);
+                    int rxCenterFrequency = 0;
+                    int txCenterFrequency = 0;
+                    int rxChannelBandwith = 0;
+                    int txChannelBandwith = 0;
+                    int channelType = 0;
+                    if (channelEnable == CsmCoexMgr.COEX_RT_STATE_ON) {
+                        rxCenterFrequency = bundle.getInt(CsmCoexMgr.COEX_RT_RX_CENTER_FREQUENCY);
+                        txCenterFrequency = bundle.getInt(CsmCoexMgr.COEX_RT_TX_CENTER_FREQUENCY);
+                        rxChannelBandwith = bundle.getInt(CsmCoexMgr.COEX_RT_RX_CHANNEL_BANDWITH);
+                        txChannelBandwith = bundle.getInt(CsmCoexMgr.COEX_RT_TX_CHANNEL_BANDWITH);
+                        channelType = bundle.getInt(CsmCoexMgr.COEX_RT_CHANNEL_TYPE);
+                    }
+                    if (DBG) Log.d(TAG, "COEX_RT : channelEnable= " + channelEnable +
+                            " rxCenterFrequency= " + rxCenterFrequency +
+                            " txCenterFrequency= " + txCenterFrequency +
+                            " rxChannelBandwith= " + rxChannelBandwith +
+                            " txChannelBandwith= " + txChannelBandwith +
+                            " channelType = " + channelType);
 
-                if (DBG) Log.d(TAG, "COEX_RT : new state = " + coexRtState);
-
-                handleCoexRtControl(coexRtState);
+                    handleCoexRtControl(channelEnable, rxCenterFrequency, txCenterFrequency,
+                            rxChannelBandwith, txChannelBandwith, channelType);
+                }
+                else {
+                    Log.e(TAG, "Empty information for intent: " + action);
+                }
             }
         }
     };
@@ -317,7 +341,8 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         }
     }
 
-    private void handleCoexRtControl(int coexRtState) {
+    private void handleCoexRtControl(int coexRtState, int rxCenterFreq, int txCenterFreq,
+            int rxChannelBandwith, int txChannelBandwith, int channelType) {
         if (mAdapter == null) {
             mAdapter = BluetoothAdapter.getDefaultAdapter();
         }
@@ -336,12 +361,12 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
             }
 
             if (false == mAdapter.setMWSChannelParameters(
-                    enable,
-                    0, // MWS_RX_Center_Frequency
-                    0, // MWS_TX_Center_Frequency
-                    0, // MWS_RX_Channel_Bandwidth
-                    0, // MWS_TX_Channel_Bandwidthint txChannelBandwidth,
-                    0) // MWS_Channel_Type: 0x00:TDD, 0x01: FDD
+                    enable,             // MWS_Channel_Enable
+                    rxCenterFreq,       // MWS_RX_Center_Frequency
+                    txCenterFreq,       // MWS_TX_Center_Frequency
+                    rxChannelBandwith,  // MWS_RX_Channel_Bandwidth
+                    txChannelBandwith,  // MWS_TX_Channel_Bandwidth
+                    channelType)        // MWS_Channel_Type: 0x00:TDD, 0x01: FDD
                 ) {
                 Log.e(TAG, "COEX_RT : setMWSTransportLayer() failed");
             }
