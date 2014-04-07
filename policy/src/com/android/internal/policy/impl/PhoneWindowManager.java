@@ -62,6 +62,7 @@ import android.os.SystemProperties;
 import android.os.UEventObserver;
 import android.os.UserHandle;
 import android.os.Vibrator;
+import android.os.SystemProperties;
 import android.provider.Settings;
 import android.service.dreams.DreamService;
 import android.service.dreams.IDreamManager;
@@ -808,12 +809,14 @@ public class PhoneWindowManager extends ParentPhoneWindowManager implements Wind
     // Action associated to the timer triggered in interceptPowerKeyDown. Run once the timer expires.
     private final Runnable mPowerLongLongPress = new Runnable() {
         public void run() {
-            Log.i(TAG, String.format("LongLongPressOnPower: force shutdown requested : vibrate %d ms and run shutdown",
-                                       SHUTDOWN_VIBRATE_MS));
-            // vibrate to indicate shutdown is started
-            mVibrator.vibrate(SHUTDOWN_VIBRATE_MS);
-            SystemProperties.set("sys.property_forcedshutdown", "1");
-            mWindowManagerFuncs.shutdown(false);
+            if (!SystemProperties.getBoolean("ro.disablelonglongpress",false)) {
+                Log.i(TAG, String.format("LongLongPressOnPower: force shutdown requested : vibrate %d ms and run shutdown",
+                                         SHUTDOWN_VIBRATE_MS));
+                // vibrate to indicate shutdown is started
+                mVibrator.vibrate(SHUTDOWN_VIBRATE_MS);
+                SystemProperties.set("sys.property_forcedshutdown", "1");
+                mWindowManagerFuncs.shutdown(false);
+            }
         }
     };
 
