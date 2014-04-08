@@ -374,6 +374,9 @@ public final class BluetoothAdapter {
     private static final int LE_CHANNEL_MAP_MEANINGFUL_BITS = 37;
     private static final int LE_CHANNEL_MAP_RESERVED_MSB = 3;
 
+    private static final int EXT_FRAME_NUM_PERIOD_MIN = 1;
+    private static final int EXT_FRAME_NUM_PERIOD_MAX = 32;
+
     /**
      * Get a handle to the default local Bluetooth adapter.
      * <p>Currently Android only supports one Bluetooth adapter, but the API
@@ -944,17 +947,17 @@ public final class BluetoothAdapter {
     }
 
     /**
-      * Set AFH Channel Classification to support LTE/BT coexistence and more.
-      * This can be used to set the AFH Channel Classification for both BT and LE
-      * to performance degradation due to coexistence issue
-      *
-      * <p> Use this function along with {@link #BluetoothPhoneService}
-      * service to set re-configure the AFH Channel mapping during the LTE/BT coexistence handling.
-      *
-      * @return true on success, false on error
-      *
-      * @hide
-      */
+     * Set AFH Channel Classification to support LTE/BT coexistence and more.
+     * This can be used to set the AFH Channel Classification for both BT and LE
+     * to performance degradation due to coexistence issue
+     *
+     * <p> Use this function along with {@link #BluetoothPhoneService}
+     * service to set re-configure the AFH Channel mapping during the LTE/BT coexistence handling.
+     *
+     * @return true on success, false on error
+     *
+     * @hide
+     */
     public boolean setChannelClassification(BitSet BTChannelClassification,
             BitSet LEChannelClassification) {
 
@@ -1004,15 +1007,15 @@ public final class BluetoothAdapter {
     }
 
     /**
-      * Set MWS Channel Parameters to enable/disable Wireless Coexistence Interface.
-      *
-      * <p> Use this function along with {@link #BluetoothPhoneService}
-      * service to configure LTE/BT RT coexistence.
-      *
-      * @return true on success, false on error
-      *
-      * @hide
-      */
+     * Set MWS Channel Parameters to enable/disable Wireless Coexistence Interface.
+     *
+     * <p> Use this function along with {@link #BluetoothPhoneService}
+     * service to configure LTE/BT RT coexistence.
+     *
+     * @return true on success, false on error
+     *
+     * @hide
+     */
     public boolean setMWSChannelParameters(
             int enable,
             int rxCenterFreq,
@@ -1056,15 +1059,15 @@ public final class BluetoothAdapter {
     }
 
     /**
-      * Set MWS Transport Layer of the Wireless Coexistence Interface.
-      *
-      * <p> Use this function along with {@link #BluetoothPhoneService}
-      * service to configure LTE/BT RT coexistence.
-      *
-      * @return true on success, false on error
-      *
-      * @hide
-      */
+     * Set MWS Transport Layer of the Wireless Coexistence Interface.
+     *
+     * <p> Use this function along with {@link #BluetoothPhoneService}
+     * service to configure LTE/BT RT coexistence.
+     *
+     * @return true on success, false on error
+     *
+     * @hide
+     */
     public boolean setMWSTransportLayer(
             int transportLayer,
             int toBaudRate,
@@ -1093,6 +1096,65 @@ public final class BluetoothAdapter {
             }
          } catch (RemoteException e) {
              Log.e(TAG, "setMWSTransportLayer:", e);
+         }
+
+         return false;
+    }
+
+    /**
+     * Set External Frame Config of the Wireless Coexistence Interface.
+     *
+     * <p> Use this function along with {@link #BluetoothPhoneService}
+     * service to configure External Frame used for LTE/BT RT coexistence.
+     *
+     * @return true on success, false on error
+     *
+     * @hide
+     */
+    public boolean setExternalFrameConfig(
+            int frameDuration,
+            int frameSyncOffset,
+            int frameSyncJitter,
+            byte numPeriod,
+            int[] periodDuration,
+            byte[] periodType) {
+
+        if (DBG) {
+            Log.d(TAG, "setExternalFrameConfig(): frameDuration = "
+                    + frameDuration + ", frameSyncOffset = "
+                    + frameSyncOffset + ", frameSyncJitter = "
+                    + frameSyncJitter + " , numPeriod = "
+                    + numPeriod);
+        }
+
+        if (getState() != STATE_ON) return false;
+        if ((numPeriod < EXT_FRAME_NUM_PERIOD_MIN) || (numPeriod > EXT_FRAME_NUM_PERIOD_MAX)) {
+            Log.e(TAG, "setExternalFrameConfig: Invalid Parameters - numPeriod = "
+                    + numPeriod + " (should be between " + EXT_FRAME_NUM_PERIOD_MIN
+                    + " and " +  EXT_FRAME_NUM_PERIOD_MAX + ")");
+            return false;
+        }
+        // check size of the arrays
+        if ((periodDuration.length != numPeriod) || (periodType.length != numPeriod)) {
+            Log.e(TAG, "setExternalFrameConfig: Invalid length for periodDuration ("
+                    + periodDuration.length + ") or periodType ("
+                    + periodType.length + ") - should be " + numPeriod);
+            return false;
+        }
+        try {
+            synchronized(mManagerCallback) {
+                if (mService != null) {
+                    return mService.setExternalFrameConfig(
+                            frameDuration,
+                            frameSyncOffset,
+                            frameSyncJitter,
+                            numPeriod,
+                            periodDuration,
+                            periodType);
+                }
+            }
+         } catch (RemoteException e) {
+             Log.e(TAG, "setExternalFrameConfig:", e);
          }
 
          return false;

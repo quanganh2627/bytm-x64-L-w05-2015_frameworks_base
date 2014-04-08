@@ -259,6 +259,45 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 else {
                     Log.e(TAG, "Empty information for intent: " + action);
                 }
+            } else if (CsmCoexMgr.ACTION_COEX_EXT_FRAME_CONFIG.equals(action)) {
+
+                if (DBG) Log.d(TAG, "COEX_RT : External Frame config intent received");
+                Bundle bundleExt =
+                        intent.getBundleExtra(CsmCoexMgr.COEX_EXT_FRAME_CONFIG_EXTRA);
+                if (bundleExt != null) {
+                    int frameDuration =
+                            bundleExt.getInt(CsmCoexMgr.COEX_EXT_FRAME_CONFIG_DURATION);
+                    int frameSyncOffset =
+                            bundleExt.getInt(CsmCoexMgr.COEX_EXT_FRAME_CONFIG_OFFSET);
+                    int frameSyncJitter =
+                            bundleExt.getInt(CsmCoexMgr.COEX_EXT_FRAME_CONFIG_JITTER);
+                    byte numPeriod =
+                            bundleExt.getByte(CsmCoexMgr.COEX_EXT_FRAME_CONFIG_NUMBER_PERIOD);
+                    int[] periodDuration =
+                            bundleExt.getIntArray
+                            (CsmCoexMgr.COEX_EXT_FRAME_CONFIG_PERIOD_DURATION);
+                    byte[] periodType =
+                            bundleExt.getByteArray(CsmCoexMgr.COEX_EXT_FRAME_CONFIG_PERIOD_TYPE);
+                    if (DBG) {
+                        Log.d(TAG, "COEX_RT : External Frame config parameters:");
+                        Log.d(TAG, "frameDuration = " + frameDuration);
+                        Log.d(TAG, "frameSyncOffset = " + frameSyncOffset);
+                        Log.d(TAG, "frameSyncJitter = " + frameSyncJitter);
+                        Log.d(TAG, "numPeriod = " + numPeriod);
+                        int i;
+                        for (i = 0; i < periodDuration.length; i++) {
+                            Log.d(TAG, "periodDuration[" + i + "]=" + periodDuration[i]);
+                        }
+                        for (i = 0; i < periodType.length; i++) {
+                            Log.d(TAG, "periodType[" + i + "]=" + periodType[i]);
+                        }
+                    }
+                    handleCoexExternalFrameConfig(frameDuration, frameSyncOffset,
+                            frameSyncJitter, numPeriod, periodDuration, periodType);
+                }
+                else {
+                    Log.e(TAG, "Empty information for intent: " + action);
+                }
             }
         }
     };
@@ -349,6 +388,11 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         if (mAdapter != null) {
             int enable = (coexRtState == CsmCoexMgr.COEX_RT_STATE_ON) ? 1 : 0;
 
+            if (DBG) {
+                Log.d(TAG, "handleCoexRtControl : RT state = "
+                        + (coexRtState == CsmCoexMgr.COEX_RT_STATE_ON));
+            }
+
             // To_MWS_Baud_Rate = From_MWS_Baud_Rate = 0x002DC6C0 (3000000) OR 0x001E8480 (2000000)
             int toBaudRate = 0x002DC6C0;
             int fromBaudRate = toBaudRate;
@@ -369,6 +413,27 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     channelType)        // MWS_Channel_Type: 0x00:TDD, 0x01: FDD
                 ) {
                 Log.e(TAG, "COEX_RT : setMWSTransportLayer() failed");
+            }
+        }
+    }
+
+    private void handleCoexExternalFrameConfig(int frameDuration, int frameSyncOffset,
+            int frameSyncJitter, byte numPeriod, int[] periodDuration, byte[] periodType) {
+        if (DBG) {
+            Log.d(TAG, "handleCoexExternalFrameConfig");
+        }
+        if (mAdapter == null) {
+            mAdapter = BluetoothAdapter.getDefaultAdapter();
+        }
+        if (mAdapter != null) {
+            if (false == mAdapter.setExternalFrameConfig(
+                    frameDuration,
+                    frameSyncOffset,
+                    frameSyncJitter,
+                    numPeriod,
+                    periodDuration,
+                    periodType)) {
+                Log.e(TAG, "COEX_RT : setExternalFrameConfig() failed");
             }
         }
     }
@@ -418,6 +483,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         filter.addAction(Intent.ACTION_USER_SWITCHED);
         filter.addAction(CsmCoexMgr.ACTION_COEX_SAFECHANNELS_INFO);
         filter.addAction(CsmCoexMgr.ACTION_COEX_RT_CONTROL);
+        filter.addAction(CsmCoexMgr.ACTION_COEX_EXT_FRAME_CONFIG);
         registerForAirplaneMode(filter);
         mContext.registerReceiver(mReceiver, filter);
         loadStoredNameAndAddress();
