@@ -83,6 +83,13 @@ interface IBluetooth
             in int transportLayer,
             in int toBaudRate,
             in int fromBaudRate);
+    boolean setExternalFrameConfig(
+            in int frameDuration,
+            in int frameSyncOffset,
+            in int frameSyncJitter,
+            in byte numPeriod,
+            in int[] periodDuration,
+            in byte[] periodType);
 
     void sendConnectionStateChange(in BluetoothDevice device, int profile, int state, int prevState);
 
