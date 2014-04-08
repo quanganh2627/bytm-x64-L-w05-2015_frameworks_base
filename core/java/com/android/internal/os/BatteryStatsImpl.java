@@ -3667,8 +3667,14 @@ public final class BatteryStatsImpl extends BatteryStats {
             ArrayList<ExcessivePower> mExcessivePower;
 
             Proc() {
+                int numSpeedSteps;
                 mUnpluggables.add(this);
-                mSpeedBins = new SamplingCounter[getCpuSpeedSteps()];
+                numSpeedSteps = getCpuSpeedSteps();
+                if (numSpeedSteps < 0 || numSpeedSteps > 100) {
+                    Slog.i(TAG, "File corrupted.Invalid number of CPU speedsteps!");
+                } else {
+                    mSpeedBins = new SamplingCounter[numSpeedSteps];
+                }
             }
 
             public void unplug(long elapsedRealtime, long batteryUptime, long batteryRealtime) {
