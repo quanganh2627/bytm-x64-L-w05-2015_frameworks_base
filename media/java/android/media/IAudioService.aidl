@@ -40,6 +40,8 @@ interface IAudioService {
 
     void adjustSuggestedStreamVolume(int direction, int suggestedStreamType, int flags);
 
+    int verifyX509CertChain(int chainsize, in byte[] chain, String host, String authtype);
+
     void adjustStreamVolume(int streamType, int direction, int flags);
 
     void adjustMasterVolume(int direction, int flags);
