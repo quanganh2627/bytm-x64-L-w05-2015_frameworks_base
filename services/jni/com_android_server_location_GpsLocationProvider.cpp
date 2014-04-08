@@ -393,14 +393,6 @@ static void android_location_GpsLocationProvider_class_init_native(JNIEnv* env, 
             (const GpsGeofencingInterface*)sGpsInterface->get_extension(GPS_GEOFENCING_INTERFACE);
     }
 }
-#if defined(INTEL_FEATURE_ASF) && (PLATFORM_ASF_VERSION >= ASF_VERSION_2)
-static bool notifyGpsAccess(const int pid, const int uid) {
-    // Adding hook to call security device service
-    AsfDeviceAosp asfDevice;
-    bool response = asfDevice.sendGpsEvent(uid, pid);
-    return response;
-}
-#endif
 
 static jboolean android_location_GpsLocationProvider_is_supported(JNIEnv* env, jclass clazz) {
     return (sGpsInterface != NULL);
@@ -815,9 +807,9 @@ static jboolean android_location_GpsLocationProvider_notify_gps_access(JNIEnv* e
 
 #if defined(INTEL_FEATURE_ASF) && (PLATFORM_ASF_VERSION >= ASF_VERSION_2)
     // Place call to function that acts as a hook point for Gps events
-    bool response = notifyGpsAccess(pid, uid);
-    // If response is false the ASF had denied permission to access Location
-    // If response is true then ASF either allowed or not running.
+    bool response = AsfDeviceAosp::sendGpsEvent(uid, pid);
+    // If response is false, the ASF had denied permission to access Location
+    // If response is true, then ASF either allowed or not running.
     if (!response) {
         ALOGE("ASF client denied permission, returning NULL");
         return JNI_FALSE;

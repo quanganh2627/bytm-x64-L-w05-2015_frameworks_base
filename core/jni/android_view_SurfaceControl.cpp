@@ -126,44 +126,21 @@ static void nativeDestroy(JNIEnv* env, jclass clazz, jint nativeObject) {
     ctrl->decStrong((void *)nativeCreate);
 }
 
-#if defined(INTEL_FEATURE_ASF) && (PLATFORM_ASF_VERSION >= ASF_VERSION_2)
-static bool notifyScreenCaptureAccess() {
-    // Adding hook to call security device service
-    const int pid = IPCThreadState::self()->getCallingPid();
-    const int uid = IPCThreadState::self()->getCallingUid();
-    bool response = true;
-    AsfDeviceAosp asfDevice;
-    if (uid != AID_SYSTEM) {
-        const char * packageName = asfDevice.getPackageName(pid);
-        if (packageName != NULL) {
-            if (!(strncmp(packageName, "com.android.systemui", strlen(packageName)))) {
-                ALOGD("Home screen Key pressed");
-                // Same part of code get executed when home screen is pressed.
-                // Hence returning "true" to work with default implementation.
-                return response;
-            } else {
-                response = asfDevice.sendScreencaptureEvent(uid, pid);
-            }
-        }
-    }
-    return response;
-}
-#endif
-
 static jobject nativeScreenshotBitmap(JNIEnv* env, jclass clazz, jobject displayTokenObj,
         jint width, jint height, jint minLayer, jint maxLayer, bool allLayers) {
 
 #if defined(INTEL_FEATURE_ASF) && (PLATFORM_ASF_VERSION >= ASF_VERSION_2)
-    // Place call to function that acts as a hook point for camera events
-    bool response = notifyScreenCaptureAccess();
-    // If response is false, deny access to requested application and return NULL.
-    // If response is true, then either ASF allowed access to take screen capture or
-    // ASF Client is not running
-    if (!response) {
-        ALOGE("ASF client denied permission, returning NULL");
-        return NULL;
-    }
-
+        // Place call to function that acts as a hook point for camera events
+        const int pid = IPCThreadState::self()->getCallingPid();
+        const int uid = IPCThreadState::self()->getCallingUid();
+        bool response = AsfDeviceAosp::sendScreencaptureEvent( uid, pid );
+        // If response is false, deny access to requested application and return NULL.
+        // If response is true, then either ASF allowed access to take screen capture or
+        // ASF Client is not running
+        if (!response) {
+            ALOGE("ASF client denied permission, returning NULL");
+            return NULL;
+        }
 #endif
 
     sp<IBinder> displayToken = ibinderForJavaObject(env, displayTokenObj);
