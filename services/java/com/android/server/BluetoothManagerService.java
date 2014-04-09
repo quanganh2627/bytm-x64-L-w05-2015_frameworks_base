@@ -298,6 +298,26 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 else {
                     Log.e(TAG, "Empty information for intent: " + action);
                 }
+            } else if (CsmCoexMgr.ACTION_COEX_MWS_SIGNALING.equals(action)) {
+
+                if (DBG) Log.d(TAG, "COEX_RT : Set MWS signaling intent received");
+                Bundle bundleSignaling =
+                        intent.getBundleExtra(CsmCoexMgr.COEX_MWS_SIGNALING_EXTRA);
+                if (bundleSignaling != null) {
+                    int[] signalingParameters =
+                            bundleSignaling.getIntArray(CsmCoexMgr.COEX_MWS_SIGNALING_PARAMS);
+                    if (DBG) {
+                        Log.d(TAG, "COEX_RT : Set MWS signaling parameters:");
+                        int i;
+                        for (i = 0; i < signalingParameters.length; i++) {
+                            Log.d(TAG, "signalingParameters[" + i + "]=" + signalingParameters[i]);
+                        }
+                    }
+                    handleSetMwsSignaling(signalingParameters);
+                }
+                else {
+                    Log.e(TAG, "Empty information for intent: " + action);
+                }
             }
         }
     };
@@ -438,6 +458,20 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         }
     }
 
+    private void handleSetMwsSignaling(int[] params) {
+        if (DBG) {
+            Log.d(TAG, "handleSetMwsSignaling");
+        }
+        if (mAdapter == null) {
+            mAdapter = BluetoothAdapter.getDefaultAdapter();
+        }
+        if (mAdapter != null) {
+            if (false == mAdapter.setMwsSignaling(params)) {
+                Log.e(TAG, "COEX_RT : handleSetMwsSignaling() failed");
+            }
+        }
+    }
+
     private void handleAirplaneModeStateChange() {
         synchronized(mReceiver) {
             if (isBluetoothPersistedStateOn()) {
@@ -484,6 +518,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         filter.addAction(CsmCoexMgr.ACTION_COEX_SAFECHANNELS_INFO);
         filter.addAction(CsmCoexMgr.ACTION_COEX_RT_CONTROL);
         filter.addAction(CsmCoexMgr.ACTION_COEX_EXT_FRAME_CONFIG);
+        filter.addAction(CsmCoexMgr.ACTION_COEX_MWS_SIGNALING);
         registerForAirplaneMode(filter);
         mContext.registerReceiver(mReceiver, filter);
         loadStoredNameAndAddress();

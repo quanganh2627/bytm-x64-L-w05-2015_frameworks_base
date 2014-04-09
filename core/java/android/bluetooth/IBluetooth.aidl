@@ -90,6 +90,7 @@ interface IBluetooth
             in byte numPeriod,
             in int[] periodDuration,
             in byte[] periodType);
+    boolean setMwsSignaling(in int[] params);
 
     void sendConnectionStateChange(in BluetoothDevice device, int profile, int state, int prevState);
 

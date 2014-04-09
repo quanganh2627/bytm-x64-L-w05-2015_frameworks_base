@@ -377,6 +377,8 @@ public final class BluetoothAdapter {
     private static final int EXT_FRAME_NUM_PERIOD_MIN = 1;
     private static final int EXT_FRAME_NUM_PERIOD_MAX = 32;
 
+    private static final int MWS_SIGNALING_PARAM_NUMBER = 15;
+
     /**
      * Get a handle to the default local Bluetooth adapter.
      * <p>Currently Android only supports one Bluetooth adapter, but the API
@@ -1155,6 +1157,41 @@ public final class BluetoothAdapter {
             }
          } catch (RemoteException e) {
              Log.e(TAG, "setExternalFrameConfig:", e);
+         }
+
+         return false;
+    }
+
+    /**
+     * Set MWS Signaling parameters of the Wireless Coexistence Interface.
+     *
+     * <p> Use this function along with {@link #BluetoothPhoneService}
+     * service to set MWS signaling parameters used for LTE/BT RT coexistence.
+     *
+     * @return true on success, false on error
+     *
+     * @hide
+     */
+    public boolean setMwsSignaling(int[] params) {
+
+        if (DBG) {
+            Log.d(TAG, "setMwsSignaling");
+        }
+
+        if (getState() != STATE_ON) return false;
+        if (params.length != MWS_SIGNALING_PARAM_NUMBER) {
+            Log.e(TAG, "setMwsSignaling: Invalid Parameters - number of params = "
+                    + params.length + " (should be " + MWS_SIGNALING_PARAM_NUMBER + ")");
+            return false;
+        }
+        try {
+            synchronized(mManagerCallback) {
+                if (mService != null) {
+                    return mService.setMwsSignaling(params);
+                }
+            }
+         } catch (RemoteException e) {
+             Log.e(TAG, "setMwsSignaling:", e);
          }
 
          return false;
