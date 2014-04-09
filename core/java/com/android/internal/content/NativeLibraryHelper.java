@@ -17,9 +17,14 @@
 package com.android.internal.content;
 
 import android.content.pm.PackageManager;
+import android.content.pm.PackageParser;
+import android.content.pm.PackageParser.PackageLite;
 import android.os.Build;
 import android.os.SystemProperties;
 import android.util.Slog;
+
+import com.android.internal.os.CheckExt;
+import com.android.internal.os.ICheckExt;
 
 import java.io.File;
 
@@ -48,19 +53,46 @@ public class NativeLibraryHelper {
         final String cpuAbi2 = Build.CPU_ABI2;
 
         if (ENABLE_HOUDINI) {
-            long result = nativeSumNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi2);
-            if (result == 0) {
-                final String abiUpgrade = SystemProperties.get("ro.product.cpu.upgradeabi",
-                        "armeabi");
-                result = nativeSumNativeBinaries(apkFile.getPath(), cpuAbi, abiUpgrade);
+            final String abiUpgrade = SystemProperties.get("ro.product.cpu.upgradeabi",
+                    "armeabi");
+            final int INSTALL_ABI_SUCCEEDED = 99;
+            final int INSTALL_MISMATCH_ABI2_SUCCEEDED = 100;
+            final int INSTALL_MISMATCH_UPGRADEABI_SUCCEEDED = 101;
+            final int INSTALL_UPGRADEABI_SUCCEEDED = 102;
+
+            int result = nativeListNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi2, abiUpgrade);
+            switch(result) {
+                case INSTALL_MISMATCH_ABI2_SUCCEEDED:
+                case INSTALL_MISMATCH_UPGRADEABI_SUCCEEDED:
+                    // workaround to handle lib mismatch cases
+                    ICheckExt check = new CheckExt();
+                    String pkgName = getPackageName(apkFile.getPath());
+                    if (check.doCheck(pkgName, new String("white"))) {
+                        return nativeSumNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi);
+                    } else {
+                        if (result == INSTALL_MISMATCH_ABI2_SUCCEEDED) {
+                            return nativeSumNativeBinaries(apkFile.getPath(), cpuAbi2, cpuAbi2);
+                        } else {
+                            return nativeSumNativeBinaries(apkFile.getPath(), abiUpgrade,
+                                    abiUpgrade);
+                        }
+                    }
+                case PackageManager.INSTALL_ABI2_SUCCEEDED:
+                    return nativeSumNativeBinaries(apkFile.getPath(), cpuAbi2, cpuAbi2);
+                case INSTALL_UPGRADEABI_SUCCEEDED:
+                    return nativeSumNativeBinaries(apkFile.getPath(), abiUpgrade, abiUpgrade);
+                case INSTALL_ABI_SUCCEEDED:
+                    return nativeSumNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi);
+                default:
+                    return nativeSumNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi2);
             }
-            return result;
         } else {
             return nativeSumNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi2);
         }
     }
 
-    private static native int nativeListNativeBinaries(String file, String cpuAbi, String cpuAbi2);
+    private static native int nativeListNativeBinaries(String file, String cpuAbi,
+            String cpuAbi2, String upgradeAbi);
 
     /**
      * List the native binaries info in an APK.
@@ -70,19 +102,43 @@ public class NativeLibraryHelper {
              {@link PackageManager#INSTALL_ABI2_SUCCEEDED}
      *         or another error code from that class if not
      */
-    public static int listNativeBinariesLI(File apkFile) {
+    public static int listNativeBinariesLI(File apkFile, String pkgName) {
         final String cpuAbi = Build.CPU_ABI;
         final String cpuAbi2 = Build.CPU_ABI2;
 
         if (ENABLE_HOUDINI) {
-            int result = nativeListNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi2);
-            if ((result != PackageManager.INSTALL_SUCCEEDED) &&
-                    (result != PackageManager.INSTALL_ABI2_SUCCEEDED)) {
-                final String abiUpgrade = SystemProperties.get("ro.product.cpu.upgradeabi",
-                        "armeabi");
-                result = nativeListNativeBinaries(apkFile.getPath(), cpuAbi, abiUpgrade);
+            final String abiUpgrade = SystemProperties.get("ro.product.cpu.upgradeabi",
+                    "armeabi");
+            final int INSTALL_ABI_SUCCEEDED = 99;
+            final int INSTALL_MISMATCH_ABI2_SUCCEEDED = 100;
+            final int INSTALL_MISMATCH_UPGRADEABI_SUCCEEDED = 101;
+            final int INSTALL_UPGRADEABI_SUCCEEDED = 102;
+            final int INSTALL_IMPLICIT_ABI2_SUCCEEDED = 103;
+            final int INSTALL_IMPLICIT_UPGRADEABI_SUCCEEDED = 104;
+
+
+            int result = nativeListNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi2, abiUpgrade);
+            switch(result) {
+                case INSTALL_MISMATCH_ABI2_SUCCEEDED:
+                case INSTALL_MISMATCH_UPGRADEABI_SUCCEEDED:
+                    // workaround to handle lib mismatch cases
+                    ICheckExt check = new CheckExt();
+                    if (check.doCheck(pkgName, new String("white"))) {
+                        return PackageManager.INSTALL_SUCCEEDED;
+                    } else {
+                        return PackageManager.INSTALL_ABI2_SUCCEEDED;
+                    }
+                case PackageManager.INSTALL_ABI2_SUCCEEDED:
+                case INSTALL_UPGRADEABI_SUCCEEDED:
+                    return PackageManager.INSTALL_ABI2_SUCCEEDED;
+                case INSTALL_ABI_SUCCEEDED:
+                    return PackageManager.INSTALL_ABI2_SUCCEEDED;
+                case INSTALL_IMPLICIT_ABI2_SUCCEEDED:
+                case INSTALL_IMPLICIT_UPGRADEABI_SUCCEEDED:
+                    return PackageManager.INSTALL_IMPLICIT_ABI_SUCCEEDED;
+                default:
+                    return result;
             }
-            return result;
         } else {
             return PackageManager.INSTALL_SUCCEEDED;
         }
@@ -106,16 +162,60 @@ public class NativeLibraryHelper {
         final String cpuAbi2 = Build.CPU_ABI2;
 
         if (ENABLE_HOUDINI) {
-            int result = nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(),
-                    cpuAbi, cpuAbi2);
-            if ((result != PackageManager.INSTALL_SUCCEEDED) &&
-                    (result != PackageManager.INSTALL_ABI2_SUCCEEDED)) {
-                final String abiUpgrade = SystemProperties.get("ro.product.cpu.upgradeabi",
-                        "armeabi");
-                result = nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(),
-                        cpuAbi, abiUpgrade);
+            final String abiUpgrade = SystemProperties.get("ro.product.cpu.upgradeabi",
+                    "armeabi");
+            final int INSTALL_ABI_SUCCEEDED = 99;
+            final int INSTALL_MISMATCH_ABI2_SUCCEEDED = 100;
+            final int INSTALL_MISMATCH_UPGRADEABI_SUCCEEDED = 101;
+            final int INSTALL_UPGRADEABI_SUCCEEDED = 102;
+            final int INSTALL_IMPLICIT_ABI2_SUCCEEDED = 103;
+            final int INSTALL_IMPLICIT_UPGRADEABI_SUCCEEDED = 104;
+
+            int result = nativeListNativeBinaries(apkFile.getPath(), cpuAbi, cpuAbi2, abiUpgrade);
+            switch(result) {
+                case INSTALL_MISMATCH_ABI2_SUCCEEDED:
+                case INSTALL_MISMATCH_UPGRADEABI_SUCCEEDED:
+                    // workaround to handle lib mismatch cases
+                    String pkgName = getPackageName(apkFile.getPath());
+                    ICheckExt check = new CheckExt();
+                    if (check.doCheck(pkgName, new String("white"))) {
+                        nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(),
+                                cpuAbi, cpuAbi);
+                        return PackageManager.INSTALL_SUCCEEDED;
+                    } else {
+                        if (result == INSTALL_MISMATCH_ABI2_SUCCEEDED) {
+                            nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(),
+                                    cpuAbi2, cpuAbi2);
+                        } else {
+                            nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(),
+                                    abiUpgrade, abiUpgrade);
+                        }
+                        return PackageManager.INSTALL_ABI2_SUCCEEDED;
+                    }
+                case PackageManager.INSTALL_ABI2_SUCCEEDED:
+                    nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(),
+                            cpuAbi2, cpuAbi2);
+                    return PackageManager.INSTALL_ABI2_SUCCEEDED;
+                case INSTALL_UPGRADEABI_SUCCEEDED:
+                    nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(),
+                            abiUpgrade, abiUpgrade);
+                    return PackageManager.INSTALL_ABI2_SUCCEEDED;
+                case INSTALL_ABI_SUCCEEDED:
+                    nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(),
+                            cpuAbi, cpuAbi);
+                    return PackageManager.INSTALL_SUCCEEDED;
+                case INSTALL_IMPLICIT_ABI2_SUCCEEDED:
+                    nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(),
+                            cpuAbi2, cpuAbi2);
+                    return PackageManager.INSTALL_ABI2_SUCCEEDED;
+                case INSTALL_IMPLICIT_UPGRADEABI_SUCCEEDED:
+                    nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(),
+                            abiUpgrade, abiUpgrade);
+                    return PackageManager.INSTALL_ABI2_SUCCEEDED;
+                default:
+                    return nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(),
+                            cpuAbi, cpuAbi2);
             }
-            return result;
         } else {
             return nativeCopyNativeBinaries(apkFile.getPath(), sharedLibraryDir.getPath(),
                     cpuAbi, cpuAbi2);
@@ -161,5 +261,12 @@ public class NativeLibraryHelper {
         }
 
         return deletedFiles;
+    }
+
+    private static String getPackageName(String packageFilePath) {
+        PackageLite pkg = PackageParser.parsePackageLite(packageFilePath, 0);
+        if (pkg != null)
+            return pkg.packageName;
+        return null;
     }
 }
