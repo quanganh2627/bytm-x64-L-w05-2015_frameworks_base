@@ -462,7 +462,9 @@ public final class BluetoothSocket implements Closeable {
                     mSocket = null;
                 }
                 if(mPfd != null)
-                    mPfd.detachFd();
+                    /* the file descriptor ownership was acquired with attachFd(),
+                       therefore this socket is responsible for file descriptor closing */
+                    mPfd.close();
            }
         }
     }
