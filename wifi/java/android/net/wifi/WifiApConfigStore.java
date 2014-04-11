@@ -51,7 +51,7 @@ class WifiApConfigStore extends StateMachine {
     private static final String AP_CONFIG_FILE = Environment.getDataDirectory() +
         "/misc/wifi/softap.conf";
 
-    private static final int AP_CONFIG_FILE_VERSION = 3;
+    private static final int AP_CONFIG_FILE_VERSION = 4;
 
     private State mDefaultState = new DefaultState();
     private State mInactiveState = new InactiveState();
@@ -155,6 +155,7 @@ class WifiApConfigStore extends StateMachine {
                 WifiApConfiguration cfg = config.getWifiApConfigurationAdv();
 
                 config.SSID = in.readUTF();
+                config.hiddenSSID = in.readBoolean();
                 int authType = in.readInt();
                 config.allowedKeyManagement.set(authType);
                 if (authType != KeyMgmt.NONE) {
@@ -195,6 +196,7 @@ class WifiApConfigStore extends StateMachine {
 
                 out.writeInt(AP_CONFIG_FILE_VERSION);
                 out.writeUTF(config.SSID);
+                out.writeBoolean(config.hiddenSSID);
                 int authType = config.getAuthType();
                 out.writeInt(authType);
                 if (authType != KeyMgmt.NONE) {
@@ -226,6 +228,7 @@ class WifiApConfigStore extends StateMachine {
         if (config != null) {
 
             config.SSID = mContext.getString(R.string.wifi_tether_configure_ssid_default);
+            config.hiddenSSID = false;
             config.allowedKeyManagement.set(KeyMgmt.WPA2_PSK);
             String randomUUID = UUID.randomUUID().toString();
             //first 12 chars from xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx

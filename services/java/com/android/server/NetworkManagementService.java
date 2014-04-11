@@ -1108,13 +1108,15 @@ public class NetworkManagementService extends INetworkManagementService.Stub
             if (countryCode != null && !countryCode.isEmpty()) {
                 countryCode = countryCode.toUpperCase();
                 mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
-                        "broadcast", channel,
+                        wifiConfig.hiddenSSID ? "hidden" : "broadcast",
+                        channel,
                         getSecurityType(wifiConfig),
                         new SensitiveArg(wifiConfig.preSharedKey),
                         " ", " ", width, countryCode);
             } else {
                 mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
-                        "broadcast", channel,
+                        wifiConfig.hiddenSSID ? "hidden" : "broadcast",
+                        channel,
                         getSecurityType(wifiConfig),
                         new SensitiveArg(wifiConfig.preSharedKey),
                         " ", " ", width);
