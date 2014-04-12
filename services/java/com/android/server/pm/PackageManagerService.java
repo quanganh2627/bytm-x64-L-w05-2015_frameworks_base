@@ -521,9 +521,11 @@ public class PackageManagerService extends IPackageManager.Stub {
     private IMediaContainerService mContainerService = null;
 
     // Packages that have been installed with library matching 2nd ABI.
-    final HashMap<Integer, String> mPackagesMatchABI2 = new HashMap<Integer,String>();
+    final HashMap<Integer, String> mPackagesMatchABI2 = new HashMap<Integer, String>();
+    // Packages that have been installed with x86 lib in the assets folder.
+    final HashMap<Integer, String> mPackagesImplicitABI = new HashMap<Integer, String>();
     // Packages that have been installed with library matching 2nd ABI and matching neon app list
-    final HashMap<Integer, String> mPackagesMatchABI2Neon = new HashMap<Integer,String>();
+    final HashMap<Integer, String> mPackagesMatchABI2Neon = new HashMap<Integer, String>();
 
     static final int SEND_PENDING_BROADCAST = 1;
     static final int MCS_BOUND = 3;
@@ -4071,10 +4073,16 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     private void writeAppwithABI2() {
         writeAppwithABI2Internal(new String("/data/data/.appwithABI2"), mPackagesMatchABI2);
+        writeAppwithABI2Internal(new String("/data/.appwithImplicitABI"), mPackagesImplicitABI);
     }
 
     private void writeAppwithABI2Neon() {
         writeAppwithABI2Internal(new String("/data/data/.appwithABI2neon"), mPackagesMatchABI2Neon);
+    }
+
+    private void rmUidFromABI2List(int uid) {
+        mPackagesMatchABI2.remove(uid);
+        mPackagesImplicitABI.remove(uid);
     }
 
     private File getDataPathForPackage(String packageName, int userId) {
@@ -4427,8 +4435,9 @@ public class PackageManagerService extends IPackageManager.Stub {
                 PackageSetting p = mSettings.mPackages.get(pkg.packageName);
                 if ((p != null) && (!p.codePath.equals(destCodeFile))) {
 
-                   // Already existing package. Make sure not upgrade to black list
-                    int result = NativeLibraryHelper.listNativeBinariesLI(scanFile);
+                    // Already existing package. Make sure not upgrade to black list
+                    int result = NativeLibraryHelper.listNativeBinariesLI(scanFile,
+                            pkg.packageName);
 
                     if (result == PackageManager.INSTALL_ABI2_SUCCEEDED) {
                         ICheckExt check = new CheckExt();
@@ -4824,18 +4833,19 @@ public class PackageManagerService extends IPackageManager.Stub {
                 }
 
                 // Check the apk to see whether it contains ABI2 library.
-                int result = NativeLibraryHelper.listNativeBinariesLI(scanFile);
+                int result = NativeLibraryHelper.listNativeBinariesLI(scanFile, pkg.packageName);
                 if (result == PackageManager.INSTALL_SUCCEEDED) {
                     if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
                         Slog.i(TAG, "Replace package with primary ABI Library");
-                        mPackagesMatchABI2.remove(pkg.applicationInfo.uid);
+                        rmUidFromABI2List(pkg.applicationInfo.uid);
                         writeAppwithABI2();
                         if (mPackagesMatchABI2Neon.containsKey(pkg.applicationInfo.uid)) {
                             mPackagesMatchABI2Neon.remove(pkg.applicationInfo.uid);
                             writeAppwithABI2Neon();
                         }
                     }
-                } else if (ENABLE_HOUDINI && result == PackageManager.INSTALL_ABI2_SUCCEEDED
+                } else if (ENABLE_HOUDINI && (result == PackageManager.INSTALL_ABI2_SUCCEEDED
+                        || result == PackageManager.INSTALL_IMPLICIT_ABI_SUCCEEDED)
                         && !mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
                     ICheckExt check = new CheckExt();
                     if (check.doCheck(pkgName, new String("filter"))) {
@@ -4846,8 +4856,17 @@ public class PackageManagerService extends IPackageManager.Stub {
                     }
                     Slog.i(TAG, "Package installed with second ABI Library: "
                             + pkg.applicationInfo.uid + pkg.applicationInfo.processName);
-                    mPackagesMatchABI2.put(pkg.applicationInfo.uid,
-                            pkg.applicationInfo.processName);
+                    if (result == PackageManager.INSTALL_IMPLICIT_ABI_SUCCEEDED) {
+                        mPackagesImplicitABI.put(pkg.applicationInfo.uid,
+                                pkg.applicationInfo.processName);
+                        mPackagesMatchABI2.put(pkg.applicationInfo.uid,
+                                pkg.applicationInfo.processName);
+                    } else if (result == PackageManager.INSTALL_ABI2_SUCCEEDED) {
+                        mPackagesMatchABI2.put(pkg.applicationInfo.uid,
+                                pkg.applicationInfo.processName);
+                    } else {
+                        Slog.e(TAG, "Shouldn't be here");
+                    }
                     writeAppwithABI2();
                     if (check.doCheck(pkgName, new String("neon"))) {
                         mPackagesMatchABI2Neon.put(pkg.applicationInfo.uid,
@@ -5403,7 +5422,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                 Integer pkgUidInt = new Integer(pkg.applicationInfo.uid);
                 if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(pkgUidInt)) {
                     Slog.i(TAG, "Uninstall package with second ABI Library");
-                    mPackagesMatchABI2.remove(pkgUidInt);
+                    rmUidFromABI2List(pkg.applicationInfo.uid);
                     writeAppwithABI2();
                     if (mPackagesMatchABI2Neon.containsKey(pkgUidInt)) {
                         mPackagesMatchABI2Neon.remove(pkgUidInt);
@@ -5432,7 +5451,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             if (ENABLE_HOUDINI && mPackagesMatchABI2.containsKey(new
                     Integer(pkg.applicationInfo.uid))) {
                 Slog.i(TAG, "Uninstall package with second ABI Library");
-                mPackagesMatchABI2.remove(new Integer(pkg.applicationInfo.uid));
+                rmUidFromABI2List(pkg.applicationInfo.uid);
                 writeAppwithABI2();
                 if (mPackagesMatchABI2Neon.containsKey(new Integer(pkg.applicationInfo.uid))) {
                     mPackagesMatchABI2Neon.remove(new Integer(pkg.applicationInfo.uid));
