@@ -140,5 +140,7 @@ interface IWifiManager
     List<WifiChannel> getWifiAuthorizedChannels();
 
     boolean isSetFrequencyBandAllowed();
+
+    int getWifiSafeChannelBitmap();
 }
 

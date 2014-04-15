@@ -395,6 +395,9 @@ public class WifiService extends IWifiManager.Stub {
 
     private WifiController mWifiController;
 
+    public int getWifiSafeChannelBitmap() {
+        return mWifiCsmClient.getWifiSafeChannelBitmap();
+    }
 
     public void setSafeChannel(int safeChannelBitmap) {
         mWifiStateMachine.setSafeChannel(safeChannelBitmap);
