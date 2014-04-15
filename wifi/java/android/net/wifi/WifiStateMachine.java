@@ -458,6 +458,8 @@ public class WifiStateMachine extends StateMachine {
     static final int CMD_SET_SAFE_CHANNELS                = BASE + 143;
     /* Set RT Coex mode */
     static final int CMD_SET_RT_COEX_MODE                 = BASE + 144;
+    /* Configure RT coex mode */
+    static final int CMD_CONFIG_RT_COEX_MODE              = BASE + 145;
 
     /* Wifi state machine modes of operation */
     /* CONNECT_MODE - connect to any 'known' AP when it becomes available */
@@ -1835,6 +1837,10 @@ public class WifiStateMachine extends StateMachine {
         sendMessage(CMD_SET_RT_COEX_MODE, enable, safeChannelBitmap);
     }
 
+    public void configureWlanRTCoex() {
+        sendMessage(CMD_CONFIG_RT_COEX_MODE);
+    }
+
     /*********************************************************
      * Internal private functions
      ********************************************************/
@@ -2817,6 +2823,7 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_DISABLE_P2P_RSP:
                 case CMD_SET_SAFE_CHANNELS:
                 case CMD_SET_RT_COEX_MODE:
+                case CMD_CONFIG_RT_COEX_MODE:
                     break;
                 case DhcpStateMachine.CMD_ON_QUIT:
                     mDhcpStateMachine = null;
@@ -2991,6 +2998,11 @@ public class WifiStateMachine extends StateMachine {
                             }
                         }
                     }
+                    break;
+                case CMD_CONFIG_RT_COEX_MODE:
+                    // defer RT coex confi messgage for STA->softAP transition
+                    deferMessage(message);
+                    break;
                 default:
                     return NOT_HANDLED;
             }
@@ -3078,6 +3090,7 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_STOP_PACKET_FILTERING:
                 case CMD_SET_SAFE_CHANNELS:
                 case CMD_SET_RT_COEX_MODE:
+                case CMD_CONFIG_RT_COEX_MODE:
                     deferMessage(message);
                     break;
                 default:
@@ -3147,6 +3160,9 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_SET_RT_COEX_MODE:
                     mWifiNative.setRTCoexMode(message.arg1, message.arg2);
                     break;
+                case CMD_CONFIG_RT_COEX_MODE:
+                    mWifiNative.configureWlanRTCoex(0);
+                    break;
                 default:
                     return NOT_HANDLED;
             }
@@ -3206,6 +3222,7 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_SET_FREQUENCY_BAND:
                 case CMD_START_PACKET_FILTERING:
                 case CMD_STOP_PACKET_FILTERING:
+                case CMD_CONFIG_RT_COEX_MODE:
                     deferMessage(message);
                     break;
                 default:
@@ -4547,6 +4564,7 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_TETHER_STATE_CHANGE:
                 case CMD_SET_SAFE_CHANNELS:
                 case CMD_SET_RT_COEX_MODE:
+                case CMD_CONFIG_RT_COEX_MODE:
                     deferMessage(message);
                     break;
                 case WifiStateMachine.CMD_RESPONSE_AP_CONFIG:
@@ -4607,6 +4625,9 @@ public class WifiStateMachine extends StateMachine {
                     break;
                 case CMD_SET_RT_COEX_MODE:
                     mWifiNative.setRTCoexMode(message.arg1, message.arg2);
+                    break;
+                case CMD_CONFIG_RT_COEX_MODE:
+                    mWifiNative.configureWlanRTCoex(1);
                     break;
                 default:
                     return NOT_HANDLED;

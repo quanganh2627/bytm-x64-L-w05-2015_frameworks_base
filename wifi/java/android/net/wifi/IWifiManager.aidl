@@ -135,6 +135,8 @@ interface IWifiManager
 
     void setRTCoexMode(int enable, int safeChannelBitmap);
 
+    void configureWlanRTCoex();
+
     void setSafeChannel(int safeChannelBitmap);
 
     List<WifiChannel> getWifiAuthorizedChannels();

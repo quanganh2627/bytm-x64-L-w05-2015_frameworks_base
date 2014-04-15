@@ -407,6 +407,10 @@ public class WifiService extends IWifiManager.Stub {
         mWifiStateMachine.setRTCoexMode(enable, safeChannelBitmap);
     }
 
+    public void configureWlanRTCoex() {
+        mWifiStateMachine.configureWlanRTCoex();
+    }
+
     /**
      * Check if Wi-Fi needs to be enabled and start
      * if needed
