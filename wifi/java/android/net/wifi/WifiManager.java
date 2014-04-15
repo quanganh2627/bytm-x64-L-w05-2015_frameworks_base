@@ -2273,6 +2273,20 @@ public class WifiManager {
         }
     }
 
+    /** @hide */
+    public boolean configureWlanRTCoex() {
+        if (mService == null) {
+            return false;
+        } else {
+            try {
+                mService.configureWlanRTCoex();
+                return true;
+            } catch (RemoteException e) {
+                return false;
+            }
+        }
+    }
+
     protected void finalize() throws Throwable {
         try {
             synchronized (sThreadRefLock) {

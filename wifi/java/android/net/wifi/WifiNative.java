@@ -77,6 +77,7 @@ public class WifiNative {
 
     /* Wifi_Hotspot */
     public native String getWifiApChannelList();
+    public native String configureApRTcoex(String command);
 
     /**
      * Wait for the supplicant to send an event, returning the event string.
@@ -1076,6 +1077,28 @@ public class WifiNative {
         if (DBG) Log.d(mTAG, "setRTCoexMode: " + cmd);
 
         return doStringCommand(cmd);
+    }
+
+    /*
+     * configureWlanRTCoex
+     *     Send a command to the Wifi driver to configure Real Time (RT)
+     *     This command is proprietary and content depends of WiFi chip vendor
+     *
+     *     mode : set to 0 for STA is 0, 1 for softAP
+     *
+     * */
+    public String configureWlanRTCoex(int mode) {
+        final String sCmd = "DRIVER CONFIG_WLAN_LTE_COEX_RT ";
+        if (mode  == 0) {
+            if (DBG) Log.d(mTAG, "configureWlanRTCoex , STA mode: " + sCmd);
+            return doStringCommand(sCmd);
+        } else if (mode  == 1) {
+            if (DBG) Log.d(mTAG, "configureWlanRTCoex , softAP mode: " + sCmd);
+            return configureApRTcoex(sCmd);
+        } else {
+            Log.w(mTAG, "configureWlanRTCoex: mode=" + mode + " not supported");
+            return null;
+        }
     }
 
 }
