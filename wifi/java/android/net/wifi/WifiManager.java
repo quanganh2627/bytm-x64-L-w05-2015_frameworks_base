@@ -2260,6 +2260,18 @@ public class WifiManager {
         }
     }
 
+    /** @hide */
+    public int getWifiSafeChannelBitmap() {
+        if (mService == null) {
+            return 0;
+        } else {
+            try {
+                return mService.getWifiSafeChannelBitmap();
+            } catch (RemoteException e) {
+                return 0;
+            }
+        }
+    }
 
     protected void finalize() throws Throwable {
         try {

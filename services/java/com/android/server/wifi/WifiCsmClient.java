@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import android.content.Context;
+import android.os.RemoteException;
 import android.util.Slog;
 import android.util.Log;
 
@@ -88,5 +89,17 @@ public class WifiCsmClient extends CsmClient {
     public void onSimAbsent() {
         // do wifi stuff
         return;
+    }
+
+    public int getWifiSafeChannelBitmap() {
+        int bitmap = 0;
+        try {
+            bitmap = mCwsServiceMgr.getWifiSafeChannelBitmap();
+        } catch (CsmException e) {
+            Slog.e(TAG, "getWifiSafeChannelBitmap() error " + e);
+        } catch (RemoteException e) {
+            Slog.e(TAG, "getWifiSafeChannelBitmap() error " + e);
+        }
+        return bitmap;
     }
 }
