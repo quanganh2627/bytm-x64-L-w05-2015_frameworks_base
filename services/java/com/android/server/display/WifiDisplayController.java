@@ -111,7 +111,6 @@ final class WifiDisplayController implements DumpUtils.Dump {
     private final WifiP2pManager mWifiP2pManager;
     private final Channel mWifiP2pChannel;
 
-    private boolean mConnectRetryScheduled = false;
     private boolean mWifiP2pEnabled;
     private boolean mWfdEnabled;
     private boolean mWfdEnabling;
@@ -506,6 +505,10 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 boolean tryReconnect = false;
                 if (DEBUG) {
                     Slog.d(TAG, "Received list of peers.");
+                    if (mReconnectDesiredDevice != null) {
+                        Slog.d(TAG, "looking for " + mReconnectDesiredDevice.deviceName
+                                + " to reconnect");
+                    }
                 }
 
                 mAvailableWifiDisplayPeers.clear();
@@ -516,14 +519,21 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
                     if (isWifiDisplay(device) || device.equals(mConnectingDevice)) {
                         mAvailableWifiDisplayPeers.add(device);
-                        if (mReconnectDesiredDevice != null &&
-                            device.deviceAddress.equals(mReconnectDesiredDevice.deviceAddress))
+                        if (device.equals(mReconnectDesiredDevice)) {
                             tryReconnect = true;
+                        }
                     }
                 }
 
                 if (mDiscoverPeersInProgress) {
                     handleScanResults();
+                }
+
+                if (tryReconnect) {
+                    if (DEBUG) {
+                        Slog.d(TAG, "Reconnecting (connection) to " + mReconnectDesiredDevice);
+                    }
+                    connect(mReconnectDesiredDevice);
                 }
             }
         });
@@ -637,12 +647,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
     }
 
     private void retryConnection() {
-        // Cheap hack.  Make a new instance of the device object so that we
-        // can distinguish it from the previous connection attempt.
-        // This will cause us to tear everything down before we try again.
-        mConnectRetryScheduled = true;
-        mDesiredDevice = new WifiP2pDevice(mDesiredDevice);
-        updateConnection();
+        // Wait to find device in scan result before trying to reconnect
+        mReconnectDesiredDevice = mDesiredDevice;
+        disconnect();
     }
 
     /**
@@ -729,10 +736,6 @@ final class WifiDisplayController implements DumpUtils.Dump {
                 @Override
                 public void onSuccess() {
                     Slog.i(TAG, "Canceled connection to Wifi display: " + oldDevice.deviceName);
-                    if (mConnectRetryScheduled) {
-                        mConnectRetryScheduled = false;
-                        mDesiredDevice = new WifiP2pDevice(mCancelingDevice);
-                    }
                     next();
                 }
 
@@ -1236,7 +1239,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
                 if (stopped && mReconnectDesiredDevice != null) {
                     if (DEBUG) {
-                        Slog.d(TAG, "Cannot find device " + mReconnectDesiredDevice + ", abort reconnection" );
+                        Slog.d(TAG, "Cannot find device " + mReconnectDesiredDevice.deviceName
+                                + ", abort reconnection" );
                     }
                     mReconnectDesiredDevice = null;
                 }
