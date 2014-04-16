@@ -478,6 +478,11 @@ com_android_internal_content_NativeLibraryHelper_listNativeBinaries(JNIEnv *env,
 
     ZipFileRO zipFile;
 
+    if (filePath.c_str() == NULL) {
+        ALOGE("APK file patch is NULLI\n");
+        return INSTALL_FAILED_INVALID_APK;
+    }
+
     if (zipFile.open(filePath.c_str()) != NO_ERROR) {
         ALOGI("Couldn't open APK %s\n", filePath.c_str());
         return INSTALL_FAILED_INVALID_APK;
@@ -517,6 +522,10 @@ com_android_internal_content_NativeLibraryHelper_listNativeBinaries(JNIEnv *env,
 
             const char* lastSlash = strrchr(fileName, '/');
             ALOG_ASSERT(lastSlash != NULL, "last slash was null somehow for %s\n", fileName);
+            if (lastSlash == NULL) {
+                ALOGE("last slash was null\n");
+                continue;
+            }
 
             // Make sure it's in the root of assets folder.
             if ((lastSlash - fileName) != (APK_ASSETS_LEN - 1))
