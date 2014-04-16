@@ -119,6 +119,13 @@ public class AudioEffect {
             .fromString("58b4b260-8e06-11e0-aa8e-0002a5d5c51b");
 
     /**
+     * UUID for Beam Forming (BMF)
+     * @hide
+     */
+    public static final UUID EFFECT_TYPE_BMF = UUID
+            .fromString("30927220-bfb0-11e3-b03a-0002a5d5c51b");
+
+    /**
      * UUID for Loudness Enhancer
      */
     public static final UUID EFFECT_TYPE_LOUDNESS_ENHANCER = UUID
