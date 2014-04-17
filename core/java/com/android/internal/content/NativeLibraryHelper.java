@@ -27,7 +27,6 @@ import com.android.internal.os.CheckExt;
 import com.android.internal.os.ICheckExt;
 
 import java.io.File;
-
 /**
  * Native libraries helper.
  *
@@ -132,7 +131,7 @@ public class NativeLibraryHelper {
                 case INSTALL_UPGRADEABI_SUCCEEDED:
                     return PackageManager.INSTALL_ABI2_SUCCEEDED;
                 case INSTALL_ABI_SUCCEEDED:
-                    return PackageManager.INSTALL_ABI2_SUCCEEDED;
+                    return PackageManager.INSTALL_SUCCEEDED;
                 case INSTALL_IMPLICIT_ABI2_SUCCEEDED:
                 case INSTALL_IMPLICIT_UPGRADEABI_SUCCEEDED:
                     return PackageManager.INSTALL_IMPLICIT_ABI_SUCCEEDED;
