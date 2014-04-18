@@ -573,7 +573,8 @@ public class VibratorService extends IVibratorService.Stub
                         // duration is saved for delay() at top of loop
                         duration = pattern[index++];
                         if (duration > 0) {
-                            VibratorService.this.doVibratorOn(duration, uid);
+                            long effectiveVibDuration = Math.max(duration, mVibratorMinTimeout);
+                            VibratorService.this.doVibratorOn(effectiveVibDuration, uid);
                         }
                     } else {
                         if (repeat < 0) {
