@@ -33,14 +33,16 @@ namespace android {
 #define THERMAL_ZONE_PATH "/sys/class/thermal/thermal_zone"
 #define COOLING_DEV_PATH  "/sys/class/thermal/cooling_device"
 
-static int readFromFile(const char *path, char* buf, size_t size)
+static int readFromFile(const char *path, char* buf, size_t size, bool throwError)
 {
     if (!path)
         return -1;
 
     int fd = open(path, O_RDONLY, 0);
     if (fd < 0) {
-        ALOGE("Could not open '%s'", path);
+        if (throwError) {
+            ALOGE("Could not open '%s'", path);
+        }
         return -1;
     }
 
@@ -93,7 +95,7 @@ static int lookup(const char *base_path, const char *name)
         // 'name' of the thermal_zone (or a cooling_device) matches
         // with the value of 'type' sysfs interface of a thermal_zone
         // (or cooling_device).
-        if (readFromFile(full_path, buf, SIZE) < 0) {
+        if (readFromFile(full_path, buf, SIZE, false) < 0) {
             break;
         } else {
             if (!strcmp(name, buf))
@@ -115,7 +117,7 @@ static int lookup_contains(const char *base_path, const char *name)
 
     do {
         snprintf(full_path, SIZE, "%s%d/type", base_path, count);
-        if (readFromFile(full_path, buf, SIZE) < 0) {
+        if (readFromFile(full_path, buf, SIZE, false) < 0) {
             break;
         } else {
             // Check if 'buf' contains 'name'
@@ -240,7 +242,7 @@ static jstring readSysfs(JNIEnv* env, jobject obj, jstring jPath)
         return NULL;
     }
 
-    if (readFromFile(path, buf, SIZE) > 0) {
+    if (readFromFile(path, buf, SIZE, true) > 0) {
         env->ReleaseStringUTFChars(jPath, path);
         return env->NewStringUTF(buf);
     } else {
