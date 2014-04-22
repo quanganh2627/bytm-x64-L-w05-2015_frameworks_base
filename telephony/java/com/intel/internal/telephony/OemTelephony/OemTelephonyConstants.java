@@ -45,6 +45,12 @@ public interface OemTelephonyConstants {
     public static final String MODEM_SENSOR_ID_KEY = "sensorId";
     public static final String MODEM_SENSOR_TEMPERATURE_KEY = "temperature";
 
+    public static final String REG_STATUS_KEY = "regStatus";
+    public static final String BAND_KEY = "band";
+
+    public static final int REG_STATUS_NOT_REGISTERED = 0;
+    public static final int REG_STATUS_REGISTERED = 1;
+
     /* IMS network status */
     public static final int IMS_NW_STATUS_NOT_SUPPORTED = 0;
     public static final int IMS_NW_STATUS_SUPPORTED = 1;
@@ -127,6 +133,27 @@ public interface OemTelephonyConstants {
     public static final String ACTION_COEX_INFO =
                                     "intel.intent.action.ACTION_COEX_INFO";
 
+    /**
+     * Broadcast Action: Registration status and band information.
+     * The intent will have the following extra values:</p>
+     * <ul>
+     *   <li><em>reg status</em> - An int with one of the following values:
+     *          {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#REG_STATUS_NOT_REGISTERED},
+     *          or {@link com.intel.internal.telephony.OemTelephony.
+     *                  OemTelephonyConstants#REG_STATUS_REGISTERED}</li>
+     *   <li><em>band</em> - String containing band information of the serving cell.</li>
+     * </ul>
+     *
+     * <p class="note">
+     * Requires the READ_PHONE_STATE permission.
+     *
+     * <p class="note">This is a protected intent that can only be sent
+     * by the system.
+     */
+    public static final String ACTION_REG_STATUS_AND_BAND_IND =
+            "intel.intent.action.ACTION_REG_STATUS_AND_BAND_IND";
+
     // Ciphering Indication Intents.
     public static final String ACTION_CIPHERING_STATE_CHANGED =
             "intel.intent.action.CIPHERING_STATE_CHANGED";
@@ -204,6 +231,8 @@ public interface OemTelephonyConstants {
     /* OEM hook to set the tripPointNumber and hysteresis using the V2 API */
     public static final int RIL_OEM_HOOK_STRING_ACTIVATE_THERMAL_SENSOR_NOTIFICATION_V2
             = 0x000000BD;
+    /* OEM hook to activate or deactivate the registration status and band information */
+    public static final int RIL_OEM_HOOK_STRING_SET_REG_STATUS_AND_BAND_IND = 0x000000BE;
     /* OEM hook to get the thermal alarm indication */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_THERMAL_ALARM_IND = 0x000000D0;
     /* OEM hook specific to DSDS for catching out of service URC */
@@ -244,4 +273,6 @@ public interface OemTelephonyConstants {
     public static final int RIL_OEM_HOOK_RAW_UNSOL_BEARER_ACT = 0x000000E2;
     /* OEM hook to get the thermal alarm indication with V2 apis */
     public static final int RIL_OEM_HOOK_RAW_UNSOL_THERMAL_ALARM_IND_V2 = 0x000000E3;
+    /* OEM hook to get the registration status and band information indication */
+    public static final int RIL_OEM_HOOK_RAW_UNSOL_REG_STATUS_AND_BAND_IND = 0x000000E4;
 }

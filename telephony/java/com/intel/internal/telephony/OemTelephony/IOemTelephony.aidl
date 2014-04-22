@@ -281,6 +281,19 @@ interface IOemTelephony {
     void setSrvccSyncParams(in List<OemSrvccSyncParam> params, in Message result);
 
     /**
+     * Activates or deactivates the registration state and band information reporting.
+     *
+     * @param reportOn: Activates(true) or deactivates(false) the registration state
+     *                and band information reporting.
+     *
+     * <p class="note">
+     * Requires the WRITE_SETTINGS permission.
+     *
+     * {@hide}
+     */
+    oneway void setRegistrationStatusAndBandInd(boolean reportOn);
+
+    /**
      * Interface to register for new SRVCC listener
      * @param listener listener object
      *
