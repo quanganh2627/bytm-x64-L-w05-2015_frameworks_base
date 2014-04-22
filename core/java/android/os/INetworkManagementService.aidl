@@ -346,6 +346,11 @@ interface INetworkManagementService
     void setFirewallEgressSourceRule(String addr, boolean allow);
     void setFirewallEgressDestRule(String addr, int port, boolean allow);
     void setFirewallUidRule(int uid, boolean allow);
+    void startPppd(String tty, String dial, String user, String password, String apn, String pin);
+    void stopPppd(String tty);
+    void switchUsbMode(int vendorId, int productId);
+    void setUsbAutoSuspendMode(int mode);
+    void switchW32UsbMode(int mode);
 
     /**
      * Set all packets from users [uid_start,uid_end] to go through interface iface

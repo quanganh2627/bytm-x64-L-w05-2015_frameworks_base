@@ -45,6 +45,8 @@ import android.os.Vibrator;
 import android.os.SystemVibrator;
 import android.os.storage.IMountService;
 import android.os.storage.IMountShutdownObserver;
+import android.content.Context;
+import android.net.ConnectivityManager;
 import android.os.BatteryManager;
 import android.os.SystemProperties;
 
@@ -428,6 +430,7 @@ public final class ShutdownThread extends Thread {
                 boolean bluetoothOff;
                 boolean radioOff;
                 boolean wifiOff;
+				boolean isWifiOnly;
 
                 final INfcAdapter nfc =
                         INfcAdapter.Stub.asInterface(ServiceManager.checkService("nfc"));
@@ -436,6 +439,10 @@ public final class ShutdownThread extends Thread {
                 final IBluetoothManager bluetooth =
                         IBluetoothManager.Stub.asInterface(ServiceManager.checkService(
                                 BluetoothAdapter.BLUETOOTH_MANAGER_SERVICE));
+                ConnectivityManager cm = (ConnectivityManager)mContext.getSystemService(
+                         Context.CONNECTIVITY_SERVICE);
+                isWifiOnly = !cm.isNetworkSupported(ConnectivityManager.TYPE_MOBILE);
+				
                 final IWifiManager wifi =
                         IWifiManager.Stub.asInterface(ServiceManager.checkService(
                                 Context.WIFI_SERVICE));
@@ -468,7 +475,7 @@ public final class ShutdownThread extends Thread {
                 } else {
                     // Switch off radio only if device has ril
                     try {
-                        radioOff = phone == null;
+                        radioOff = phone == null || isWifiOnly;
                         if (!radioOff) {
                             Log.w(TAG, "Turning off radio...");
                             phone.setRadio(false);

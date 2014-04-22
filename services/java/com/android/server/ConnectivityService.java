@@ -52,6 +52,7 @@ import android.content.res.Resources;
 import android.database.ContentObserver;
 import android.net.CaptivePortalTracker;
 import android.net.ConnectivityManager;
+import android.net.DongleNetworkStateTracker;
 import android.net.DummyDataStateTracker;
 import android.net.EthernetDataTracker;
 import android.net.IConnectivityManager;
@@ -736,6 +737,8 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                     return makeWimaxStateTracker(mContext, mTrackerHandler);
                 case TYPE_ETHERNET:
                     return EthernetDataTracker.getInstance();
+                case ConnectivityManager.TYPE_DONGLE:
+                    return new DongleNetworkStateTracker(targetNetworkType, config.name);
                 default:
                     throw new IllegalArgumentException(
                             "Trying to create a NetworkStateTracker for an unknown radio type: "

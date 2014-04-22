@@ -109,6 +109,9 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
     private boolean mBluetoothTethered = false;
     private int mBluetoothTetherIconId =
         com.android.internal.R.drawable.stat_sys_tether_bluetooth;
+    
+    // dongle
+    private boolean mDongleNetworkConnected = false;
 
     //wimax
     private boolean mWimaxSupported = false;
@@ -943,19 +946,8 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
             Log.d(TAG, "updateConnectivity: intent=" + intent);
         }
 
-        final ConnectivityManager connManager = (ConnectivityManager) mContext
-                .getSystemService(Context.CONNECTIVITY_SERVICE);
-        final NetworkInfo info = connManager.getActiveNetworkInfo();
-
-        // Are we connected at all, by any interface?
-        mConnected = info != null && info.isConnected();
-        if (mConnected) {
-            mConnectedNetworkType = info.getType();
-            mConnectedNetworkTypeName = info.getTypeName();
-        } else {
-            mConnectedNetworkType = ConnectivityManager.TYPE_NONE;
-            mConnectedNetworkTypeName = null;
-        }
+        NetworkInfo info = (NetworkInfo)(intent.getParcelableExtra(
+                ConnectivityManager.EXTRA_NETWORK_INFO));
 
         int connectionStatus = intent.getIntExtra(ConnectivityManager.EXTRA_INET_CONDITION, 0);
 
@@ -971,7 +963,11 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
         } else {
             mBluetoothTethered = false;
         }
-
+        
+        if (info != null && info.getType() == ConnectivityManager.TYPE_DONGLE) {
+            mDongleNetworkConnected = info.isConnected();
+        }
+        
         // We want to update all the icons, all at once, for any condition change
         updateDataNetType();
         updateWimaxIcons();
@@ -1095,7 +1091,8 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
                 combinedSignalIconId = mDataSignalIconId;
             }
         }
-        else if (!mDataConnected && !mWifiConnected && !mBluetoothTethered && !mWimaxConnected && !ethernetConnected) {
+        else if (!mDataConnected && !mWifiConnected && !mBluetoothTethered && !mWimaxConnected 
+                 && !ethernetConnected && !mDongleNetworkConnected) {
             // pretty much totally disconnected
 
             combinedLabel = context.getString(R.string.status_bar_settings_signal_meter_disconnected);
@@ -1116,6 +1113,15 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
                 mDataTypeIconId = R.drawable.stat_sys_data_fully_connected_roam;
                 mQSDataTypeIconId = TelephonyIcons.QS_DATA_R[mInetCondition];
             }
+        }
+
+        if (mDongleNetworkConnected) {
+            combinedLabel = mContext.getString(R.string.dongle_network);
+            mobileLabel = mContext.getString(R.string.dongle_network);
+            wifiLabel = "";
+            combinedSignalIconId = 0;
+            mContentDescriptionCombinedSignal = mContext.getString(
+                    R.string.accessibility_dongle_network);
         }
 
         if (DEBUG) {

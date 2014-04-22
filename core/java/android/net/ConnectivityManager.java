@@ -365,16 +365,22 @@ public class ConnectivityManager {
     /* The TYPE_XXXXX == 15 is forbidden to WA issues seen during CTS */
 
     /**
+     * An USB modem connection.
+     * {@hide}
+     */
+    public static final int TYPE_DONGLE = 16;	
+	
+    /**
      * It may coexist with default data connections.
      * {@hide}
      */
-    public static final int TYPE_MOBILE_XCAP  = 16;
+    public static final int TYPE_MOBILE_XCAP  = 17;
 
     /**
      * Emergency Call on IP Multimedia Subsystem.
      * {@hide}
      */
-    public static final int TYPE_MOBILE_EMERGENCY  = 17;
+    public static final int TYPE_MOBILE_EMERGENCY  = 18;
     /** {@hide} */
     public static final int MAX_RADIO_TYPE   = TYPE_MOBILE_EMERGENCY;
 
@@ -420,7 +426,7 @@ public class ConnectivityManager {
         if (SystemProperties.getInt("persist.ims_support", 0) == 2) {
             return networkType >= 0 && networkType <= MAX_NETWORK_TYPE;
         } else {
-            return networkType >= 0 && networkType <= TYPE_MOBILE_IA;
+            return networkType >= 0 && networkType <= TYPE_DONGLE;
         }
     }
 
@@ -464,6 +470,8 @@ public class ConnectivityManager {
                 return "WIFI_P2P";
             case TYPE_MOBILE_IA:
                 return "MOBILE_IA";
+            case TYPE_DONGLE:
+                return "DONGLE";
             case TYPE_MOBILE_XCAP:
                 return "MOBILE_XCAP";
             case TYPE_MOBILE_EMERGENCY:

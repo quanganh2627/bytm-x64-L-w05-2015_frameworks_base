@@ -48,6 +48,8 @@ import android.os.BatteryStats;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.INetworkManagementService;
+import android.os.RemoteCallbackList;
+import android.os.RemoteException;
 import android.os.Process;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
@@ -87,6 +89,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.StringTokenizer;
 import java.util.concurrent.CountDownLatch;
+import android.text.TextUtils;
 
 /**
  * @hide
@@ -1078,6 +1081,40 @@ public class NetworkManagementService extends INetworkManagementService.Stub
             throw e.rethrowAsParcelableException();
         }
     }
+    
+    public void startPppd(String tty, String dial, String user, String password, String apn, String pin)
+            throws IllegalStateException {
+        try {
+            mContext.enforceCallingOrSelfPermission(
+                    android.Manifest.permission.CHANGE_NETWORK_STATE, "NetworkManagementService");
+//            mConnector.doCommand(String.format("pppd start %s %s %s %s %s %s", tty, convertParam(dial), 
+//                    convertParam(user), convertParam(password), convertParam(apn), convertParam(pin)));
+            mConnector.execute("pppd", "start", tty, convertParam(dial), convertParam(user), convertParam(password), convertParam(apn), convertParam(pin));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Error resolving addr", e);
+        } catch (NativeDaemonConnectorException e) {
+            throw new IllegalStateException("Error communicating to native daemon to start pppd", e);
+        }
+    }
+
+    private static final String convertParam(String param) {
+        if (TextUtils.isEmpty(param)) {
+            return "*";
+        }
+        return param;
+    }
+
+    public void stopPppd(String tty) throws IllegalStateException {
+        mContext.enforceCallingOrSelfPermission(
+                android.Manifest.permission.CHANGE_NETWORK_STATE, "NetworkManagementService");
+        try {
+//            mConnector.doCommand(String.format("pppd stop %s", tty));
+            mConnector.execute("pppd", "stop", tty);
+        } catch (NativeDaemonConnectorException e) {
+            throw new IllegalStateException("Error communicating to native daemon to stop pppd", e);
+        }
+    }
+
 
     @Override
     public void startAccessPoint(
@@ -1877,5 +1914,40 @@ public class NetworkManagementService extends INetworkManagementService.Stub
         }
 
         pw.print("Firewall enabled: "); pw.println(mFirewallEnabled);
+    }
+    
+    public void switchUsbMode(int vendorId, int productId)  throws IllegalStateException {
+        mContext.enforceCallingOrSelfPermission(
+                android.Manifest.permission.CHANGE_NETWORK_STATE, "NetworkManagementService");
+
+        try {
+            //mConnector.doCommand(String.format("dongle switch %d %sd", vendorId, productId));
+            mConnector.execute("dongle", "switch", vendorId, productId);
+        } catch (NativeDaemonConnectorException e) {
+            throw new IllegalStateException("Error communicating to native daemon to switch usb mode.", e);
+        }
+    }
+    
+    public void setUsbAutoSuspendMode(int mode) throws IllegalStateException{
+        mContext.enforceCallingOrSelfPermission(
+                android.Manifest.permission.CHANGE_NETWORK_STATE, "NetworkManagementService");
+
+        try {
+            //mConnector.doCommand(String.format("dongle suspend %d", mode));
+            mConnector.execute("dongle", "suspend", mode);
+        } catch (NativeDaemonConnectorException e) {
+            throw new IllegalStateException("Error communicating to native daemon to set usb suspend mode.", e);
+        }
+    }
+
+    public void switchW32UsbMode(int mode) throws IllegalStateException{
+        mContext.enforceCallingOrSelfPermission(
+                android.Manifest.permission.CHANGE_NETWORK_STATE, "NetworkManagementService");
+        try {
+            //mConnector.doCommand(String.format("dongle suspendW32 %d", mode));
+            mConnector.execute("dongle", "suspendW32", mode);
+        } catch (NativeDaemonConnectorException e) {
+            throw new IllegalStateException("Error ff communicating to native daemon to set usb suspend mode.", e);
+        }
     }
 }
