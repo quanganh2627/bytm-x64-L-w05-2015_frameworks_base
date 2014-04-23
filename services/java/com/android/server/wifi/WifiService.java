@@ -396,6 +396,10 @@ public class WifiService extends IWifiManager.Stub {
     private WifiController mWifiController;
 
     public int getWifiSafeChannelBitmap() {
+        if (mWifiCsmClient == null) {
+            Slog.e(TAG, "getWifiSafeChannelBitmap: mWifiCsmClient is null");
+            return 0;
+        }
         return mWifiCsmClient.getWifiSafeChannelBitmap();
     }
 

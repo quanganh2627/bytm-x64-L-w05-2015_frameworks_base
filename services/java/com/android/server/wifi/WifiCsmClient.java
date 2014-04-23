@@ -93,12 +93,16 @@ public class WifiCsmClient extends CsmClient {
 
     public int getWifiSafeChannelBitmap() {
         int bitmap = 0;
-        try {
-            bitmap = mCwsServiceMgr.getWifiSafeChannelBitmap();
-        } catch (CsmException e) {
-            Slog.e(TAG, "getWifiSafeChannelBitmap() error " + e);
-        } catch (RemoteException e) {
-            Slog.e(TAG, "getWifiSafeChannelBitmap() error " + e);
+        if (mCwsServiceMgr == null) {
+            Slog.e(TAG, "getWifiSafeChannelBitmap: mCwsServiceMgr is null");
+        } else {
+            try {
+                bitmap = mCwsServiceMgr.getWifiSafeChannelBitmap();
+            } catch (CsmException e) {
+                Slog.e(TAG, "getWifiSafeChannelBitmap() error " + e);
+            } catch (RemoteException e) {
+                Slog.e(TAG, "getWifiSafeChannelBitmap() error " + e);
+            }
         }
         return bitmap;
     }
