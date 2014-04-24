@@ -599,7 +599,7 @@ static void android_os_Parcel_enforceInterface(JNIEnv* env, jclass clazz, jint n
             env->ReleaseStringCritical(name, str);
             if (isValid) {
                 const int32_t newPolicy = threadState->getStrictModePolicy();
-                if (oldPolicy != newPolicy) {
+                //if (oldPolicy != newPolicy) {
                     // Need to keep the Java-level thread-local strict
                     // mode policy in sync for the libcore
                     // enforcements, which involves an upcall back
@@ -608,7 +608,7 @@ static void android_os_Parcel_enforceInterface(JNIEnv* env, jclass clazz, jint n
                     // pseudo-public, and used via AIDL
                     // auto-generation...)
                     set_dalvik_blockguard_policy(env, newPolicy);
-                }
+                //}
                 return;     // everything was correct -> return silently
             }
         }
