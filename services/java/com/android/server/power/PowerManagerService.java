@@ -1293,6 +1293,10 @@ public final class PowerManagerService extends IPowerManager.Stub
             return false;
         }
 
+        if (wasPowered && SystemProperties.get("sys.unplug_turns_on_screen", "0").equals("0")) {
+            return false;
+        }
+
         // Don't wake when undocked from wireless charger.
         // See WirelessChargerDetector for justification.
         if (wasPowered && !mIsPowered
