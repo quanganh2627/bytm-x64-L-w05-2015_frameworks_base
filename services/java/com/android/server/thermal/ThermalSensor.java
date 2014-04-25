@@ -87,16 +87,14 @@ public class ThermalSensor {
     public ThermalSensor() {
         mSensorState = ThermalManager.THERMAL_STATE_OFF;
         mCurrTemp = ThermalManager.INVALID_TEMP;
-        /**
-         * By default set uevent path to invalid. if uevent flag is set for a
-         * sensor, but no uevent path tag is added in sensor, then
-         * mUEventDevPath will be invalid. ueventobserver in ThermalManager will
-         * ignore the sensor
-         */
-        mUEventDevPath = "invalid";
+        mSensorPath = "auto";
+        mInputTempPath = "auto";
+        mHighTempPath = "auto";
+        mLowTempPath = "auto";
+        mUEventDevPath = "auto";
 
-        // Set default value of 'correction temperature' to 0
-        mErrorCorrectionTemp = 0;
+        // Set default value of 'correction temperature' to 1000mC
+        mErrorCorrectionTemp = 1000;
     }
 
     public int getSensorID() {
@@ -162,6 +160,9 @@ public class ThermalSensor {
         if (mSensorPath != null && mSensorPath.equalsIgnoreCase("none")) {
             mIsSensorActive = true;
         } else {
+            if (name != null && name.equalsIgnoreCase("auto")) {
+                name = "temp";
+            }
             mInputTempPath = mSensorPath + name;
             if (!isSensorSysfsValid(mInputTempPath)) {
                 mIsSensorActive = false;
@@ -252,6 +253,36 @@ public class ThermalSensor {
 
     public void setSensorThermalState(int state) {
         mSensorState = state;
+    }
+
+    public void setAutoValues() {
+        if (mSensorName.contains("Modem")) {
+            return;
+        }
+        if (mSensorPath.equalsIgnoreCase("auto")) {
+            setSensorPath(mSensorPath);
+        }
+        if (mInputTempPath.equalsIgnoreCase("auto")) {
+            setInputTempPath(mInputTempPath);
+        }
+        if (mHighTempPath.equalsIgnoreCase("auto")) {
+            setHighTempPath(mHighTempPath);
+        }
+        if (mLowTempPath.equalsIgnoreCase("auto")) {
+            setLowTempPath(mLowTempPath);
+        }
+        if (mUEventDevPath.equalsIgnoreCase("auto")) {
+            // build the sensor UEvent listener path
+            if (mSensorSysfsIndx == -1) {
+                mUEventDevPath = "invalid";
+                Log.i(TAG, "Cannot build UEvent path for sensor:" + mSensorName);
+                return;
+            } else {
+                mUEventDevPath = ThermalManager.sUEventDevPath + mSensorSysfsIndx;
+            }
+        } else if (!mUEventDevPath.contains("DEVPATH=")) {
+            mUEventDevPath = "DEVPATH=" + mUEventDevPath;
+        }
     }
 
     // Modem specific sensor IDs

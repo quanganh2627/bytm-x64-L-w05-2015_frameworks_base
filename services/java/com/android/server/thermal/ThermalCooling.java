@@ -227,14 +227,31 @@ public class ThermalCooling {
                         mDevice.setClassPath(mParser.nextText());
                     } else if (name.equalsIgnoreCase("CDeviceThrottlePath") && mDevice != null) {
                         mDevice.setThrottlePath(mParser.nextText());
-                    } else if ((name.equalsIgnoreCase("ThrottleNormal")
-                            || name.equalsIgnoreCase("ThrottleWarning")
-                            || name.equalsIgnoreCase("ThrottleAlert")
-                            || name.equalsIgnoreCase("ThrottleCritical")) && mDevice != null) {
+                    } else if (name.equalsIgnoreCase("ThrottleNormal") && mDevice != null) {
                         mTempThrottleValuesList = mDevice.getThrottleValuesList();
                         if (mTempThrottleValuesList != null) {
                             mTempThrottleValuesList.add(Integer.parseInt(mParser.nextText()));
                         }
+                    } else if (name.equalsIgnoreCase("ThrottleWarning") && mDevice != null) {
+                        mTempThrottleValuesList = mDevice.getThrottleValuesList();
+                        if (mTempThrottleValuesList != null) {
+                            mTempThrottleValuesList.add(Integer.parseInt(mParser.nextText()));
+                        }
+
+                    } else if (name.equalsIgnoreCase("ThrottleAlert") && mDevice != null) {
+                        mTempThrottleValuesList = mDevice.getThrottleValuesList();
+                        if (mTempThrottleValuesList != null) {
+                            int throttle = Integer.parseInt(mParser.nextText());
+                            mTempThrottleValuesList.add(throttle);
+                            mTempThrottleValuesList.add(throttle);
+                        }
+                    } else if (name.equalsIgnoreCase("ThrottleCritical") && mDevice != null) {
+                        mTempThrottleValuesList = mDevice.getThrottleValuesList();
+                        if (mTempThrottleValuesList != null) {
+                            mTempThrottleValuesList.add(mTempThrottleValuesList.size() - 1,
+                                    Integer.parseInt(mParser.nextText()));
+                        }
+
                     }
                 }
             } catch (XmlPullParserException e) {
@@ -252,6 +269,9 @@ public class ThermalCooling {
             if (name == null)
                 return;
             if (name.equalsIgnoreCase(CDEVINFO) && mDevice != null) {
+                if (mDevice.getThrottlePath().equals("auto")) {
+                    mDevice.setThrottlePath("auto");
+                }
                 if (loadCoolingDevice(mDevice)) {
                     ThermalManager.sCDevMap.put(mDevice.getDeviceId(), mDevice);
                 }
@@ -592,17 +612,6 @@ public class ThermalCooling {
                 if (throttlePath == null) {
                     Log.i(TAG, "throttle path is null");
                     return;
-                }
-
-                if (throttlePath.equalsIgnoreCase("auto")) {
-                    //construct the throttle path
-                    int indx = ThermalUtils.getCoolingDeviceIndexContains(cdev.getDeviceName());
-                    if (indx != -1) {
-                        throttlePath = ThermalManager.sCoolingDeviceBasePath + indx
-                                + ThermalManager.sCoolingDeviceState;
-                    } else {
-                        throttlePath = null;
-                    }
                 }
 
                 if (!ThermalUtils.isFileExists(throttlePath)) {

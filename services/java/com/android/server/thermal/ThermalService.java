@@ -205,6 +205,8 @@ public class ThermalService extends Binder {
             try {
                 if (name.equalsIgnoreCase(PINFO)) {
                     mPlatformInfo = new ThermalManager.PlatformInfo();
+                    // Default Thermal States
+                    mPlatformInfo.mMaxThermalStates = 5;
                 } else if (name.equalsIgnoreCase(SENSOR)) {
                     if (mCurrSensor == null) {
                         mCurrSensor = new ThermalSensor();
@@ -260,16 +262,22 @@ public class ThermalService extends Binder {
                         mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
                     } else if (name.equalsIgnoreCase("ZoneThresholdNormal")
                             && mZoneThresholdList != null) {
+                        if (mZoneThresholdList.isEmpty()) {
+                            mZoneThresholdList.add(0);
+                        }
                         mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
                     } else if (name.equalsIgnoreCase("ZoneThresholdWarning")
                             && mZoneThresholdList != null) {
                         mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
                     } else if (name.equalsIgnoreCase("ZoneThresholdAlert")
                             && mZoneThresholdList != null) {
-                        mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
+                        int threshold = Integer.parseInt(mParser.nextText());
+                        mZoneThresholdList.add(threshold);
+                        mZoneThresholdList.add(threshold + 5000);
                     } else if (name.equalsIgnoreCase("ZoneThresholdCritical")
                             && mZoneThresholdList != null) {
-                        mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
+                        mZoneThresholdList.add(mPlatformInfo.mMaxThermalStates - 1,
+                                Integer.parseInt(mParser.nextText()));
                     }
 
                     // Retrieve Sensor Information
@@ -311,13 +319,20 @@ public class ThermalService extends Binder {
                     else if (name.equalsIgnoreCase("DelayTOff") && mPollDelayList != null) {
                         mPollDelayList.add(Integer.parseInt(mParser.nextText()));
                     } else if (name.equalsIgnoreCase("DelayNormal") && mPollDelayList != null) {
-                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
+                        int delay = Integer.parseInt(mParser.nextText());
+                        if (mPollDelayList.isEmpty()) {
+                            mPollDelayList.add(delay);
+                        }
+                        mPollDelayList.add(delay);
                     } else if (name.equalsIgnoreCase("DelayWarning") && mPollDelayList != null) {
                         mPollDelayList.add(Integer.parseInt(mParser.nextText()));
                     } else if (name.equalsIgnoreCase("DelayAlert") && mPollDelayList != null) {
-                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
+                        int delay = Integer.parseInt(mParser.nextText());
+                        mPollDelayList.add(delay);
+                        mPollDelayList.add(delay);
                     } else if (name.equalsIgnoreCase("DelayCritical") && mPollDelayList != null) {
-                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
+                        mPollDelayList.add(mPlatformInfo.mMaxThermalStates - 1,
+                                Integer.parseInt(mParser.nextText()));
                     }
                     // Moving Average window
                     else if (name.equalsIgnoreCase(MOVINGAVGWINDOW)
@@ -328,16 +343,23 @@ public class ThermalService extends Binder {
                         mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
                     } else if (name.equalsIgnoreCase("WindowNormal")
                             && mMovingAvgWindowList != null) {
-                        mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
+                        int avg = Integer.parseInt(mParser.nextText());
+                        if (mMovingAvgWindowList.isEmpty()) {
+                            mMovingAvgWindowList.add(avg);
+                        }
+                        mMovingAvgWindowList.add(avg);
                     } else if (name.equalsIgnoreCase("WindowWarning")
                             && mMovingAvgWindowList != null) {
                         mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
                     } else if (name.equalsIgnoreCase("WindowAlert")
                             && mMovingAvgWindowList != null) {
-                        mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
+                        int avg = Integer.parseInt(mParser.nextText());
+                        mMovingAvgWindowList.add(avg);
+                        mMovingAvgWindowList.add(avg);
                     } else if (name.equalsIgnoreCase("WindowCritical")
                             && mMovingAvgWindowList != null) {
-                        mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
+                        mMovingAvgWindowList.add(mPlatformInfo.mMaxThermalStates - 1,
+                                Integer.parseInt(mParser.nextText()));
                     }
                 }
             } catch (XmlPullParserException e) {
@@ -355,6 +377,7 @@ public class ThermalService extends Binder {
             if (name.equalsIgnoreCase(SENSOR)) {
                 // insert in map, only if no sensor with same name already in map
                 if (mCurrSensor == null) return;
+                mCurrSensor.setAutoValues();
                 if (ThermalManager.getSensor(mCurrSensor.getSensorName()) == null) {
                     ThermalManager.sSensorMap.put(mCurrSensor.getSensorName(), mCurrSensor);
                     mCurrSensor.printAttrs();

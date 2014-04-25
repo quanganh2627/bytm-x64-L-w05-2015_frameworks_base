@@ -451,18 +451,6 @@ public class ThermalZone {
         if (sensor == null) return;
         String path = sensor.getUEventDevPath();
         if (path.equalsIgnoreCase("invalid")) return;
-        if (path.equals("auto")) {
-            // build the sensor UEvent listener path
-            indx = sensor.getSensorSysfsIndx();
-            if (indx == -1) {
-                Log.i(TAG, "Cannot build UEvent path for sensor:" + sensor.getSensorName());
-                return;
-            } else {
-                devPath = ThermalManager.sUEventDevPath + indx;
-            }
-        } else {
-            devPath = path;
-        }
         // first time update of sensor temp and zone temp
         sensor.updateSensorTemp();
         setZoneTemp(sensor.getCurrTemp());
@@ -470,7 +458,7 @@ public class ThermalZone {
             // first intent after initialization
             sendThermalEvent();
         }
-        mUEventObserver.startObserving(devPath);
+        mUEventObserver.startObserving(path);
         programThresholds(sensor);
     }
 
