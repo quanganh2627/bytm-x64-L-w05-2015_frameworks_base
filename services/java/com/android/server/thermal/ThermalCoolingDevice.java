@@ -16,6 +16,8 @@
 
 package com.android.server.thermal;
 
+import android.util.Log;
+
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 
@@ -26,6 +28,9 @@ import java.util.ArrayList;
  * @hide
  */
 public class ThermalCoolingDevice {
+
+    private static final String TAG = "ThermalCoolingDevice";
+
     private String mDeviceName;
 
     private String mClassPath;
@@ -51,6 +56,8 @@ public class ThermalCoolingDevice {
 
     public ThermalCoolingDevice() {
         mCurrentThermalState = -1;
+        mThrottlePath = "auto";
+        mClassPath = "auto";
     }
 
     public void setDeviceName(String Name) {
@@ -97,8 +104,19 @@ public class ThermalCoolingDevice {
         return mThrottlePath;
     }
 
-    public void setThrottlePath(String Path) {
-        mThrottlePath = Path;
+    public void setThrottlePath(String path) {
+        if (path.equalsIgnoreCase("auto") && !mDeviceName.equalsIgnoreCase("battery")) {
+            //construct the throttle path
+            int indx = ThermalUtils.getCoolingDeviceIndexContains(mDeviceName);
+            if (indx != -1) {
+                mThrottlePath = ThermalManager.sCoolingDeviceBasePath + indx +
+                        ThermalManager.sCoolingDeviceState;
+            } else {
+                mThrottlePath = "invalid";
+            }
+        } else {
+            mThrottlePath = path;
+        }
     }
 
     public ArrayList<Integer> getZoneIdList() {

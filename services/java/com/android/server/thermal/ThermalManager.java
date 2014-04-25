@@ -217,25 +217,12 @@ public class ThermalManager {
 
             private ArrayList<Integer> DeviceDethrottleMask = null;
 
-            public CoolingDeviceInfo() {}
-
-            public void createThrottleStateMask(String mask) {
-                try {
-                    for (String str : mask.split(",")) {
-                        this.DeviceThrottleMask.add(Integer.parseInt(str));
-                    }
-                } catch (NumberFormatException e) {
-                    Log.i(TAG,"exception caught in createThrottleStateMask: " + e.getMessage());
-                }
-            }
-
-            public void createDeThrottleStateMask(String mask) {
-                try {
-                    for (String str : mask.split(",")) {
-                        this.DeviceDethrottleMask.add(Integer.parseInt(str));
-                    }
-                } catch (NumberFormatException e) {
-                    Log.i(TAG,"exception caught in createDeThrottleStateMask: " + e.getMessage());
+            public CoolingDeviceInfo() {
+                DeviceThrottleMask = new ArrayList<Integer>();
+                DeviceDethrottleMask = new ArrayList<Integer>();
+                for (int i = 0; i < NUM_THERMAL_STATES; i++) {
+                    DeviceThrottleMask.add(THROTTLE_MASK_ENABLE);
+                    DeviceDethrottleMask.add(DETHROTTLE_MASK_ENABLE);
                 }
             }
 
