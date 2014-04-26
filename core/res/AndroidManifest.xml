@@ -799,6 +799,11 @@
     <permission android:name="android.permission.MEICLIENT"
         android:protectionLevel="system|signature" />
 
+    <!-- Allows an internal user to access security engine.
+        @hide -->
+    <permission android:name="com.intel.permission.SECURITY_ENGINE"
+        android:protectionLevel="system|signature" />
+
     <!-- Allows an internal user to use privileged ConnectivityManager APIs.
         @hide -->
     <permission android:name="android.permission.CONNECTIVITY_INTERNAL"
