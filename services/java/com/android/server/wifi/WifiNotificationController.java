@@ -79,7 +79,7 @@ final class WifiNotificationController {
      * supplicant in a scanning state. This allows supplicant to associate with
      * remembered networks that are in the scan results.
      */
-    private static final int NUM_SCANS_BEFORE_ACTUALLY_SCANNING = 3;
+    private static final int NUM_SCANS_BEFORE_ACTUALLY_SCANNING = 1;
     /**
      * The number of scans since the last network state change. When this
      * exceeds {@link #NUM_SCANS_BEFORE_ACTUALLY_SCANNING}, we consider the
