@@ -14,6 +14,14 @@
  * limitations under the License.
  */
 
+/*
+ * Copyright (C) 20[14] Intel Corporation.  All rights reserved.
+ * Intel Confidential                                  RS-NDA # RS-8051151
+ * This [file/library] contains Houdini confidential information of Intel Corporation
+ * which is subject to a non-disclosure agreement between Intel Corporation
+ * and you or your company.
+ */
+
 package com.android.server.pm;
 
 import static android.Manifest.permission.GRANT_REVOKE_PERMISSIONS;
@@ -4363,13 +4371,13 @@ public class PackageManagerService extends IPackageManager.Stub {
                 PackageSetting p = mSettings.mPackages.get(pkg.packageName);
                 if ((p != null) && (!p.codePath.equals(destCodeFile))) {
 
-                   // Already existing package. Make sure not upgrade to black list
+                   // Already existing package.
                     int result = NativeLibraryHelper.listNativeBinariesLI(scanFile);
 
                     if (result == PackageManager.INSTALL_ABI2_SUCCEEDED) {
                         ICheckExt check = new CheckExt();
                         if (check.doCheck(pkg.packageName, new String("filter"))) {
-                            Slog.i(TAG, "Reject application in black list::" + pkg.packageName);
+                            Slog.i(TAG, "Do not install application in filter list:" + pkg.packageName);
                             mLastScanError = PackageManager.INSTALL_FAILED_INVALID_APK;
                             return null;
                         }
@@ -4737,7 +4745,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                         && !mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
                     ICheckExt check = new CheckExt();
                     if (check.doCheck(pkgName, new String("filter"))) {
-                        Slog.i(TAG, "Package with second ABI is in black list: "
+                        Slog.i(TAG, "Package with second ABI is in filter list: "
                                 + pkg.applicationInfo.uid + pkg.applicationInfo.processName);
                         mLastScanError = PackageManager.INSTALL_FAILED_INVALID_APK;
                         return null;
