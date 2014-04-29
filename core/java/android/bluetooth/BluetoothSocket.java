@@ -23,6 +23,9 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.util.Log;
 
+import libcore.io.ErrnoException;
+import libcore.io.Libcore;
+
 import java.io.Closeable;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
@@ -456,10 +459,16 @@ public final class BluetoothSocket implements Closeable {
                         ", mSocketOS: " + mSocketOS + "mSocket: " + mSocket);
                  if(mSocket != null) {
                     if (VDBG) Log.d(TAG, "Closing mSocket: " + mSocket);
+                    FileDescriptor fd = mSocket.getFileDescriptor();
                     mSocket.shutdownInput();
                     mSocket.shutdownOutput();
                     mSocket.close();
                     mSocket = null;
+                    try {
+                        Libcore.os.close(fd);
+                    } catch (ErrnoException errnoException) {
+                        throw errnoException.rethrowAsIOException();
+                    }
                 }
                 if(mPfd != null)
                     /* the file descriptor ownership was acquired with attachFd(),
