@@ -31,6 +31,7 @@ import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.net.LocalServerSocket;
 import android.opengl.EGL14;
+import android.os.Build;
 import android.os.Debug;
 import android.os.Process;
 import android.os.SystemClock;
@@ -70,6 +71,8 @@ import java.util.ArrayList;
  */
 public class ZygoteInit {
     private static final String TAG = "Zygote";
+    private static final boolean ENABLE_HOUDINI =
+            Build.CPU_ABI.equals("x86") && !Build.CPU_ABI2.equals(Build.UNKNOWN);
 
     private static final String PROPERTY_DISABLE_OPENGL_PRELOADING = "ro.zygote.disable_gl_preload";
 
@@ -568,6 +571,8 @@ public class ZygoteInit {
         return result;
     }
 
+    static native void preloadHoudini();
+
     public static void main(String argv[]) {
         try {
             // Start profiling the zygote initialization.
@@ -602,6 +607,9 @@ public class ZygoteInit {
             }
 
             Log.i(TAG, "Accepting command socket connections");
+
+            if (ENABLE_HOUDINI)
+                preloadHoudini();
 
             runSelectLoop();
 

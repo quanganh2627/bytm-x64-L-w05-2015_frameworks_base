@@ -56,7 +56,7 @@ import libcore.io.Libcore;
 class ZygoteConnection {
     private static final String TAG = "Zygote";
     private static final boolean ENABLE_HOUDINI =
-            Build.CPU_ABI.equals("x86") && (Build.CPU_ABI2.length()!=0);
+            Build.CPU_ABI.equals("x86") && !Build.CPU_ABI2.equals(Build.UNKNOWN);
 
     /** a prototype instance for a future List.toArray() */
     private static final int[][] intArray2d = new int[0][0];
@@ -88,6 +88,7 @@ class ZygoteConnection {
 
     private native boolean isABI2App(int uid);
     private native void settingHoudiniABI();
+    private native void unloadHoudini();
 
     /**
      * Constructs instance from connected socket.
@@ -253,11 +254,15 @@ class ZygoteConnection {
                 // in child
                 IoUtils.closeQuietly(serverPipeFd);
                 serverPipeFd = null;
-                if (ENABLE_HOUDINI && isABI2App(parsedArgs.uid)) {
-                    ICheckExt check = new CheckExt();
-                    if (!check.doCheck(parsedArgs.niceName, new String("arch"))) {
-                        System.setProperty("os.arch", "armv7");
-                        settingHoudiniABI();
+                if (ENABLE_HOUDINI) {
+                    if (isABI2App(parsedArgs.uid)) {
+                        ICheckExt check = new CheckExt();
+                        if (!check.doCheck(parsedArgs.niceName, new String("arch"))) {
+                            System.setProperty("os.arch", "armv7");
+                            settingHoudiniABI();
+                        }
+                    } else {
+                        unloadHoudini();
                     }
                 }
                 handleChildProc(parsedArgs, descriptors, childPipeFd, newStderr);
