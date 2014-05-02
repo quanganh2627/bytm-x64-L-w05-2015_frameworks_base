@@ -17,10 +17,15 @@
 package com.android.server.thermal;
 
 import android.content.Context;
+import android.os.SystemProperties;
 import android.util.Log;
 
 import java.io.IOException;
 import java.io.File;
+
+/* importing static variables */
+import static com.android.server.thermal.ThermalManager.*;
+
 /**
  * The ThermalUtils class contains all common utility functionality
  * implementations
@@ -105,13 +110,13 @@ public class ThermalUtils {
 
 
     public static int calculateThermalState(int temp, Integer thresholds[]) {
-        if (thresholds == null) return ThermalManager.THERMAL_STATE_OFF;
+        if (thresholds == null) return THERMAL_STATE_OFF;
         // Return OFF state if temperature less than starting of thresholds
         if (temp < thresholds[0])
-            return ThermalManager.THERMAL_STATE_OFF;
+            return THERMAL_STATE_OFF;
 
         if (temp >= thresholds[thresholds.length - 2])
-            return ThermalManager.THERMAL_STATE_CRITICAL;
+            return THERMAL_STATE_CRITICAL;
 
         for (int i = 0; i < thresholds.length - 1; i++) {
             if (temp >= thresholds[i] && temp < thresholds[i + 1]) {
@@ -120,20 +125,20 @@ public class ThermalUtils {
         }
 
         // should never come here
-        return ThermalManager.THERMAL_STATE_OFF;
+        return THERMAL_STATE_OFF;
     }
 
     public static int getLowerThresholdTemp(int index, Integer thresholds[]) {
-        if (thresholds == null) return ThermalManager.INVALID_TEMP;
+        if (thresholds == null) return INVALID_TEMP;
         if (index < 0 || index >= thresholds.length)
-            return ThermalManager.INVALID_TEMP;
+            return INVALID_TEMP;
         return thresholds[index];
     }
 
     public static int getUpperThresholdTemp(int index, Integer thresholds[]) {
-        if (thresholds == null) return ThermalManager.INVALID_TEMP;
+        if (thresholds == null) return INVALID_TEMP;
         if (index < 0 || index >= thresholds.length)
-            return ThermalManager.INVALID_TEMP;
+            return INVALID_TEMP;
         return thresholds[index + 1];
     }
 
@@ -150,22 +155,34 @@ public class ThermalUtils {
         }
     }
 
-    public static boolean configFilesExist(Context context) {
-        if (isFileExists(ThermalManager.SENSOR_FILE_PATH) &&
-                isFileExists(ThermalManager.THROTTLE_FILE_PATH)) {
-            return true;
+    public static void initialiseConfigFiles(Context context) {
+        if ("1".equals(SystemProperties.get("persist.thermal.debug.xml", "0"))) {
+            if (isFileExists(DEBUG_DIR_PATH + SENSOR_FILE_NAME) &&
+                    isFileExists(DEBUG_DIR_PATH + THROTTLE_FILE_NAME)) {
+                sSensorFilePath = DEBUG_DIR_PATH + SENSOR_FILE_NAME;
+                sThrottleFilePath = DEBUG_DIR_PATH + THROTTLE_FILE_NAME;
+                Log.i(TAG, "Reading thermal config files from /data/");
+                sIsConfigFiles = true;
+            } else {
+                Log.i(TAG, "systemProperty set to read config files from /data/, but files absent");
+            }
+        } else if (isFileExists(DEFAULT_DIR_PATH + SENSOR_FILE_NAME) &&
+                isFileExists(DEFAULT_DIR_PATH + THROTTLE_FILE_NAME)) {
+            sSensorFilePath = DEFAULT_DIR_PATH + SENSOR_FILE_NAME;
+            sThrottleFilePath = DEFAULT_DIR_PATH + THROTTLE_FILE_NAME;
+            Log.i(TAG, "Reading thermal config files from /system/etc/");
+            sIsConfigFiles = true;
         } else {
-            ThermalManager.THERMAL_SENSOR_CONFIG_XML_ID = context.getResources().getSystem().
-                    getIdentifier("thermal_sensor_config", "xml", "android");
-            ThermalManager.THERMAL_THROTTLE_CONFIG_XML_ID = context.getResources().getSystem().
-                    getIdentifier("thermal_throttle_config", "xml", "android");
-            if (ThermalManager.THERMAL_SENSOR_CONFIG_XML_ID != 0 &&
-                    ThermalManager.THERMAL_THROTTLE_CONFIG_XML_ID != 0) {
-                Log.i(TAG, "reading thermal config files from overlays");
-                ThermalManager.sIsOverlays = true;
-                return true;
+            sSensorFileXmlId = context.getResources().getSystem().
+                getIdentifier("thermal_sensor_config", "xml", "android");
+            sThrottleFileXmlId = context.getResources().getSystem().
+                getIdentifier("thermal_throttle_config", "xml", "android");
+            if (sSensorFileXmlId != 0 && sThrottleFileXmlId != 0) {
+                Log.i(TAG, "Reading thermal config files from overlays");
+                sIsOverlays = true;
+            } else {
+                Log.i(TAG, "Unable to retrieve config files from overlays");
             }
         }
-        return false;
     }
 }

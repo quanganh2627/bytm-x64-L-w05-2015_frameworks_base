@@ -39,18 +39,23 @@ public class ThermalManager {
     private static final String TAG = "ThermalManager";
     private static String sVersion;
     private static final String ITUX_VERSION_PROPERTY = "ro.thermal.ituxversion";
-    public static final String SENSOR_FILE_PATH = "/system/etc/thermal_sensor_config.xml";
-
-    public static final String THROTTLE_FILE_PATH = "/system/etc/thermal_throttle_config.xml";
-
-    public static int THERMAL_SENSOR_CONFIG_XML_ID = -1;
-
-    public static int THERMAL_THROTTLE_CONFIG_XML_ID = -1;
+    /* Parameter needed for reading configuration files */
+    public static final String SENSOR_FILE_NAME = "thermal_sensor_config.xml";
+    public static final String THROTTLE_FILE_NAME = "thermal_throttle_config.xml";
+    public static final String DEFAULT_DIR_PATH = "/system/etc/";
+    public static final String DEBUG_DIR_PATH = "/data/";
+    public static String sSensorFilePath;
+    public static String sThrottleFilePath;
+    /* *XmlId's are assigned if config files are choosen from overlays */
+    public static int sSensorFileXmlId = -1;
+    public static int sThrottleFileXmlId = -1;
+    /* Set to true if config are available in DEFAULT or DEBUG path */
+    public static boolean sIsConfigFiles = false;
+    /* Whether we are using the config files from overlays directory or from /etc/ */
+    public static boolean sIsOverlays = false;
 
     public static String sUEventDevPath = "DEVPATH=/devices/virtual/thermal/thermal_zone";
 
-    /* Whether we are using the config files from overlays directory or from /etc/ */
-    public static boolean sIsOverlays = false;
 
     /**
      * Thermal Zone State Changed Action: This is broadcast when the state of a
