@@ -4379,7 +4379,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                     if (result == PackageManager.INSTALL_ABI2_SUCCEEDED) {
                         ICheckExt check = new CheckExt();
                         if (check.doCheck(pkg.packageName, new String("filter"))) {
-                            Slog.i(TAG, "Do not install application in filter list:" + pkg.packageName);
+                            Slog.i(TAG, "Installation failed:" + pkg.packageName);
                             mLastScanError = PackageManager.INSTALL_FAILED_INVALID_APK;
                             return null;
                         }
@@ -4747,7 +4747,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                         && !mPackagesMatchABI2.containsKey(pkg.applicationInfo.uid)) {
                     ICheckExt check = new CheckExt();
                     if (check.doCheck(pkgName, new String("filter"))) {
-                        Slog.i(TAG, "Package with second ABI is in filter list: "
+                        Slog.i(TAG, "Installation failed: "
                                 + pkg.applicationInfo.uid + pkg.applicationInfo.processName);
                         mLastScanError = PackageManager.INSTALL_FAILED_INVALID_APK;
                         return null;
