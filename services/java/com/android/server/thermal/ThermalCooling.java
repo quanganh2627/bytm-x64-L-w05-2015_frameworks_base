@@ -119,7 +119,7 @@ public class ThermalCooling {
 
         ThermalParser() {
             mParser = mContext.getResources().
-                    getXml(ThermalManager.THERMAL_THROTTLE_CONFIG_XML_ID);
+                    getXml(ThermalManager.sThrottleFileXmlId);
         }
 
         public boolean parse() {
@@ -314,7 +314,7 @@ public class ThermalCooling {
         mContext = context;
         ThermalParser parser;
         if (!ThermalManager.sIsOverlays) {
-            parser = new ThermalParser(ThermalManager.THROTTLE_FILE_PATH);
+            parser = new ThermalParser(ThermalManager.sThrottleFilePath);
         } else {
             parser = new ThermalParser();
         }

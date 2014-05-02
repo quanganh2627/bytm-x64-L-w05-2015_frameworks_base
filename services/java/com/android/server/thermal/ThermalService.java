@@ -132,7 +132,7 @@ public class ThermalService extends Binder {
 
         ThermalParser() {
             mParser = mContext.getResources().
-                    getXml(ThermalManager.THERMAL_SENSOR_CONFIG_XML_ID);
+                    getXml(ThermalManager.sSensorFileXmlId);
         }
 
         public ThermalManager.PlatformInfo getPlatformInfo() {
@@ -495,7 +495,9 @@ public class ThermalService extends Binder {
         public void onReceive(Context context, Intent intent)
         {
             ThermalManager.loadiTUXVersion();
-            if (!ThermalUtils.configFilesExist(mContext)) {
+            /* Check for exitence of config files */
+            ThermalUtils.initialiseConfigFiles(mContext);
+            if (!ThermalManager.sIsConfigFiles && !ThermalManager.sIsOverlays) {
                 Log.i(TAG, "Thermal config files do not exist. Exiting ThermalService");
                 return;
             }
@@ -516,8 +518,8 @@ public class ThermalService extends Binder {
 
             /* Parse the thermal configuration file to determine zone/sensor information */
             ThermalParser mThermalParser;
-            if (!ThermalManager.sIsOverlays) {
-                mThermalParser = new ThermalParser(ThermalManager.SENSOR_FILE_PATH);
+            if (ThermalManager.sIsConfigFiles) {
+                mThermalParser = new ThermalParser(ThermalManager.sSensorFilePath);
             } else {
                 mThermalParser = new ThermalParser();
             }
