@@ -173,6 +173,7 @@ class ServerThread {
         CwsServiceMgr cwsService = null;
         EthernetService eth = null;
         WakeService wakeservice = null;
+        DptfService dptfservice = null;
 
         // Create a handler thread just for the window manager to enjoy.
         HandlerThread wmHandlerThread = new HandlerThread("WindowManager");
@@ -312,6 +313,12 @@ class ServerThread {
                 Slog.i(TAG, "Wake Service enabled");
                 wakeservice = new WakeService(context);
                 ServiceManager.addService("wakeservice", wakeservice);
+            }
+
+            if (SystemProperties.get("persist.service.dptf").equals("1")) {
+                Slog.i(TAG, "Dptf Service");
+                dptfservice = new DptfService(context);
+                ServiceManager.addService("dptfservice", dptfservice);
             }
 
             Slog.i(TAG, "Battery Service");
