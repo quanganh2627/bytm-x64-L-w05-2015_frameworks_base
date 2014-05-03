@@ -426,6 +426,7 @@ public final class SystemServer {
         ConsumerIrService consumerIr = null;
         AudioService audioService = null;
         MmsServiceBroker mmsService = null;
+        DptfService dptfservice = null;
 
         boolean disableStorage = SystemProperties.getBoolean("config.disable_storage", false);
         boolean disableMedia = SystemProperties.getBoolean("config.disable_media", false);
@@ -468,7 +469,14 @@ public final class SystemServer {
                     mFactoryTestMode == FactoryTest.FACTORY_TEST_LOW_LEVEL);
 
             Slog.i(TAG, "System Content Providers");
+
             mActivityManagerService.installSystemProviders();
+
+            if (SystemProperties.get("persist.service.dptf").equals("1")) {
+                Slog.i(TAG, "Dptf Service");
+                dptfservice = new DptfService(context);
+                ServiceManager.addService("dptfservice", dptfservice);
+            }
 
             Slog.i(TAG, "Vibrator Service");
             vibrator = new VibratorService(context);
