@@ -50,6 +50,9 @@ public class SignalStrength implements Parcelable {
     //Use int max, as -1 is a valid value in signal strength
     public static final int INVALID = 0x7FFFFFFF;
 
+    private static final int RSCP_UNKNOWN = 255;
+    private static final int ECNO_UNKNOWN = 255;
+
     private int mGsmSignalStrength; // Valid values are (0-31, 99) as defined in TS 27.007 8.5
     private int mGsmBitErrorRate;   // bit error rate (0-7, 99) as defined in TS 27.007 8.5
     private int mCdmaDbm;   // This value is the RSSI value
@@ -62,6 +65,8 @@ public class SignalStrength implements Parcelable {
     private int mLteRsrq;
     private int mLteRssnr;
     private int mLteCqi;
+    private int mWcdmaRscp; // Valid values are (0-96, 255) as defined in TS 27.007 8.69
+    private int mWcdmaEcNo; // Valid values are (0-49, 255) as defined in TS 27.007 8.69
 
     private boolean isGsm; // This value is set by the ServiceStateTracker onSignalStrengthResult
 
@@ -101,6 +106,8 @@ public class SignalStrength implements Parcelable {
         mLteRsrq = INVALID;
         mLteRssnr = INVALID;
         mLteCqi = INVALID;
+        mWcdmaRscp = RSCP_UNKNOWN;
+        mWcdmaEcNo = ECNO_UNKNOWN;
         isGsm = true;
     }
 
@@ -125,6 +132,8 @@ public class SignalStrength implements Parcelable {
         mLteRsrq = INVALID;
         mLteRssnr = INVALID;
         mLteCqi = INVALID;
+        mWcdmaRscp = RSCP_UNKNOWN;
+        mWcdmaEcNo = ECNO_UNKNOWN;
         isGsm = gsmFlag;
     }
 
@@ -137,10 +146,11 @@ public class SignalStrength implements Parcelable {
             int cdmaDbm, int cdmaEcio,
             int evdoDbm, int evdoEcio, int evdoSnr,
             int lteSignalStrength, int lteRsrp, int lteRsrq, int lteRssnr, int lteCqi,
+            int wcdmaRscp, int wcdmaEcNo,
             boolean gsmFlag) {
         initialize(gsmSignalStrength, gsmBitErrorRate, cdmaDbm, cdmaEcio,
                 evdoDbm, evdoEcio, evdoSnr, lteSignalStrength, lteRsrp,
-                lteRsrq, lteRssnr, lteCqi, gsmFlag);
+                lteRsrq, lteRssnr, lteCqi, wcdmaRscp, wcdmaEcNo, gsmFlag);
     }
 
     /**
@@ -154,7 +164,7 @@ public class SignalStrength implements Parcelable {
             boolean gsmFlag) {
         initialize(gsmSignalStrength, gsmBitErrorRate, cdmaDbm, cdmaEcio,
                 evdoDbm, evdoEcio, evdoSnr, 99, INVALID,
-                INVALID, INVALID, INVALID, gsmFlag);
+                INVALID, INVALID, INVALID, RSCP_UNKNOWN, ECNO_UNKNOWN, gsmFlag);
     }
 
     /**
@@ -188,7 +198,7 @@ public class SignalStrength implements Parcelable {
             boolean gsm) {
         initialize(gsmSignalStrength, gsmBitErrorRate, cdmaDbm, cdmaEcio,
                 evdoDbm, evdoEcio, evdoSnr, 99, INVALID,
-                INVALID, INVALID, INVALID, gsm);
+                INVALID, INVALID, INVALID, RSCP_UNKNOWN, ECNO_UNKNOWN, gsm);
     }
 
     /**
@@ -206,6 +216,8 @@ public class SignalStrength implements Parcelable {
      * @param lteRsrq
      * @param lteRssnr
      * @param lteCqi
+     * @param wcdmaRscp
+     * @param wcdmaEcNo
      * @param gsm
      *
      * @hide
@@ -214,6 +226,7 @@ public class SignalStrength implements Parcelable {
             int cdmaDbm, int cdmaEcio,
             int evdoDbm, int evdoEcio, int evdoSnr,
             int lteSignalStrength, int lteRsrp, int lteRsrq, int lteRssnr, int lteCqi,
+            int wcdmaRscp, int wcdmaEcNo,
             boolean gsm) {
         mGsmSignalStrength = gsmSignalStrength;
         mGsmBitErrorRate = gsmBitErrorRate;
@@ -227,6 +240,8 @@ public class SignalStrength implements Parcelable {
         mLteRsrq = lteRsrq;
         mLteRssnr = lteRssnr;
         mLteCqi = lteCqi;
+        mWcdmaRscp = wcdmaRscp;
+        mWcdmaEcNo = wcdmaEcNo;
         isGsm = gsm;
         if (DBG) log("initialize: " + toString());
     }
@@ -247,6 +262,8 @@ public class SignalStrength implements Parcelable {
         mLteRsrq = s.mLteRsrq;
         mLteRssnr = s.mLteRssnr;
         mLteCqi = s.mLteCqi;
+        mWcdmaRscp = s.mWcdmaRscp;
+        mWcdmaEcNo = s.mWcdmaEcNo;
         isGsm = s.isGsm;
     }
 
@@ -270,6 +287,8 @@ public class SignalStrength implements Parcelable {
         mLteRsrq = in.readInt();
         mLteRssnr = in.readInt();
         mLteCqi = in.readInt();
+        mWcdmaRscp = in.readInt();
+        mWcdmaEcNo = in.readInt();
         isGsm = (in.readInt() != 0);
     }
 
@@ -296,6 +315,8 @@ public class SignalStrength implements Parcelable {
         ss.mLteRsrq = in.readInt();
         ss.mLteRssnr = in.readInt();
         ss.mLteCqi = in.readInt();
+        ss.mWcdmaRscp = in.readInt();
+        ss.mWcdmaEcNo = in.readInt();
 
         return ss;
     }
@@ -316,6 +337,8 @@ public class SignalStrength implements Parcelable {
         out.writeInt(mLteRsrq);
         out.writeInt(mLteRssnr);
         out.writeInt(mLteCqi);
+        out.writeInt(mWcdmaRscp);
+        out.writeInt(mWcdmaEcNo);
         out.writeInt(isGsm ? 1 : 0);
     }
 
@@ -357,6 +380,11 @@ public class SignalStrength implements Parcelable {
         // TS 27.007 8.5
         mGsmSignalStrength = mGsmSignalStrength >= 0 ? mGsmSignalStrength : 99;
         // BER no change;
+
+        mWcdmaRscp = ((mWcdmaRscp >= 0) && (mWcdmaRscp <= 96)) ? mWcdmaRscp
+                : SignalStrength.RSCP_UNKNOWN;
+        mWcdmaEcNo = ((mWcdmaEcNo >= 0) && (mWcdmaEcNo <= 49)) ? mWcdmaEcNo
+                : SignalStrength.ECNO_UNKNOWN;
 
         mCdmaDbm = mCdmaDbm > 0 ? -mCdmaDbm : -120;
         mCdmaEcio = (mCdmaEcio > 0) ? -mCdmaEcio : -160;
@@ -473,7 +501,10 @@ public class SignalStrength implements Parcelable {
         if (isGsm) {
             level = getLteLevel();
             if (level == SIGNAL_STRENGTH_NONE_OR_UNKNOWN) {
-                level = getGsmLevel();
+                level = getWcdmaLevel();
+                if (level == SIGNAL_STRENGTH_NONE_OR_UNKNOWN) {
+                    level = getGsmLevel();
+                }
             }
         } else {
             int cdmaLevel = getCdmaLevel();
@@ -502,7 +533,11 @@ public class SignalStrength implements Parcelable {
         int asuLevel;
         if (isGsm) {
             if (getLteLevel() == SIGNAL_STRENGTH_NONE_OR_UNKNOWN) {
-                asuLevel = getGsmAsuLevel();
+                if (getWcdmaLevel() == SIGNAL_STRENGTH_NONE_OR_UNKNOWN) {
+                    asuLevel = getGsmAsuLevel();
+                } else {
+                    asuLevel = getWcdmaAsuLevel();
+                }
             } else {
                 asuLevel = getLteAsuLevel();
             }
@@ -534,7 +569,11 @@ public class SignalStrength implements Parcelable {
 
         if(isGsm()) {
             if (getLteLevel() == SIGNAL_STRENGTH_NONE_OR_UNKNOWN) {
-                dBm = getGsmDbm();
+                if (getWcdmaLevel() == SIGNAL_STRENGTH_NONE_OR_UNKNOWN) {
+                    dBm = getGsmDbm();
+                } else {
+                    dBm = getWcdmaDbm();
+                }
             } else {
                 dBm = getLteDbm();
             }
@@ -603,6 +642,54 @@ public class SignalStrength implements Parcelable {
         int level = getGsmSignalStrength();
         if (DBG) log("getGsmAsuLevel=" + level);
         return level;
+    }
+
+    /**
+     * Get WCDMA as dBm
+     *
+     * @hide
+     */
+    public int getWcdmaDbm() {
+        int dBm;
+
+        int asu = (mWcdmaRscp == SignalStrength.RSCP_UNKNOWN) ? -1 : mWcdmaRscp;
+        if (asu != -1) {
+            dBm = -120 + asu;
+        } else {
+            dBm = -1;
+        }
+        if (DBG) log("getWcdmaDbm=" + dBm);
+        return dBm;
+    }
+
+    /**
+     * Get WCDMA as level 0..4
+     *
+     * @hide
+     */
+    public int getWcdmaLevel() {
+        int rscpIconLevel = -1;
+
+        if (mWcdmaRscp >= SignalStrength.RSCP_UNKNOWN) rscpIconLevel = -1;
+        else if (mWcdmaRscp >= 32) rscpIconLevel = SIGNAL_STRENGTH_GREAT;
+        else if (mWcdmaRscp >= 24) rscpIconLevel = SIGNAL_STRENGTH_GOOD;
+        else if (mWcdmaRscp >= 18) rscpIconLevel = SIGNAL_STRENGTH_MODERATE;
+        else if (mWcdmaRscp >= 12) rscpIconLevel = SIGNAL_STRENGTH_POOR;
+        else rscpIconLevel = SIGNAL_STRENGTH_NONE_OR_UNKNOWN;
+
+        if (rscpIconLevel != -1) return rscpIconLevel;
+
+        return SIGNAL_STRENGTH_NONE_OR_UNKNOWN;
+    }
+
+    /**
+     * Get the WCDMA signal level as an asu value between 0..96, 255 is unknown
+     * Asu is calculated based on 3GPP RSCP. Refer to 3GPP 27.007 (Ver 10.3.0) Sec 8.69
+     *
+     * @hide
+     */
+    public int getWcdmaAsuLevel() {
+        return (mWcdmaRscp == SignalStrength.INVALID) ? SignalStrength.RSCP_UNKNOWN : mWcdmaRscp;
     }
 
     /**
@@ -842,6 +929,8 @@ public class SignalStrength implements Parcelable {
                 + (mEvdoDbm * primeNum) + (mEvdoEcio * primeNum) + (mEvdoSnr * primeNum)
                 + (mLteSignalStrength * primeNum) + (mLteRsrp * primeNum)
                 + (mLteRsrq * primeNum) + (mLteRssnr * primeNum) + (mLteCqi * primeNum)
+                + (mWcdmaRscp * primeNum)
+                + (mWcdmaEcNo * primeNum)
                 + (isGsm ? 1 : 0));
     }
 
@@ -874,6 +963,8 @@ public class SignalStrength implements Parcelable {
                 && mLteRsrq == s.mLteRsrq
                 && mLteRssnr == s.mLteRssnr
                 && mLteCqi == s.mLteCqi
+                && mWcdmaRscp == s.mWcdmaRscp
+                && mWcdmaEcNo == s.mWcdmaEcNo
                 && isGsm == s.isGsm);
     }
 
@@ -895,6 +986,8 @@ public class SignalStrength implements Parcelable {
                 + " " + mLteRsrq
                 + " " + mLteRssnr
                 + " " + mLteCqi
+                + " " + mWcdmaRscp
+                + " " + mWcdmaEcNo
                 + " " + (isGsm ? "gsm|lte" : "cdma"));
     }
 
@@ -917,6 +1010,8 @@ public class SignalStrength implements Parcelable {
         mLteRsrq = m.getInt("LteRsrq");
         mLteRssnr = m.getInt("LteRssnr");
         mLteCqi = m.getInt("LteCqi");
+        mWcdmaRscp = m.getInt("WcdmaRscp");
+        mWcdmaEcNo = m.getInt("WcdmaEcNo");
         isGsm = m.getBoolean("isGsm");
     }
 
@@ -939,6 +1034,8 @@ public class SignalStrength implements Parcelable {
         m.putInt("LteRsrq", mLteRsrq);
         m.putInt("LteRssnr", mLteRssnr);
         m.putInt("LteCqi", mLteCqi);
+        m.putInt("WcdmaRscp", mWcdmaRscp);
+        m.putInt("WcdmaEcNo", mWcdmaEcNo);
         m.putBoolean("isGsm", Boolean.valueOf(isGsm));
     }
 
