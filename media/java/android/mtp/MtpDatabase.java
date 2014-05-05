@@ -127,6 +127,8 @@ public class MtpDatabase {
     private static final int MTP_SERVER_IDLE = 0;
     private static final int MTP_SERVER_BUSY = 1;
     private MtpDatabaseHandler mHandler;
+    private HandlerThread mThread;
+    private Looper mThreadLooper;
     private static final int UPDATE_DELAY = 5500;
 
     static {
@@ -186,14 +188,17 @@ public class MtpDatabase {
         initDeviceProperties(context);
 
         //create a thread for our handler
-        HandlerThread thread = new HandlerThread("MtpDatabase",
-            Process.THREAD_PRIORITY_BACKGROUND);
+        if (mThreadLooper == null || mThread == null) {
+            mThread = new HandlerThread("MtpDatabase",
+                Process.THREAD_PRIORITY_BACKGROUND);
 
-        thread.start();
-        mHandler = new MtpDatabaseHandler(thread.getLooper());
-
-        if (mHandler != null)
-            mHandler.updateMtpState(MTP_SERVER_IDLE);
+            mThread.start();
+            mThreadLooper = mThread.getLooper();
+            if (mThreadLooper != null) {
+                mHandler = new MtpDatabaseHandler(mThreadLooper);
+                mHandler.updateMtpState(MTP_SERVER_IDLE);
+            }
+        }
     }
 
 
@@ -236,8 +241,12 @@ public class MtpDatabase {
 
 
     public void release() {
-            mHandler.updateMtpState(MTP_SERVER_IDLE);
-            native_release();
+        mHandler.updateMtpState(MTP_SERVER_IDLE);
+        if (mThread != null) {
+            mThread.quit();
+        }
+
+        native_release();
     }
 
     @Override
