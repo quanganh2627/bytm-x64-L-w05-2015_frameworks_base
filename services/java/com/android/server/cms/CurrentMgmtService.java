@@ -221,7 +221,7 @@ public class CurrentMgmtService extends Binder {
                 Log.e(TAG, "Number format exception while parsing current maximum frequency");
                 return;
             }
-            if (curMax < mMaxFreq) {
+            if (curMax == mCpuAvailFreqs[0]) {
                 mIsCapped = true;
             }
         }
@@ -258,7 +258,7 @@ public class CurrentMgmtService extends Binder {
      * Returns boolean
      */
     private boolean IsDynamicTurboEnabled() {
-        if (SystemProperties.get("persist.thermal.turbo.dynamic", "0").equals("0")) {
+        if (SystemProperties.get("persist.thermal.turbo.dynamic", "1").equals("0")) {
             return false;
         }
         return true;
