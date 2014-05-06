@@ -66,7 +66,7 @@ public class CurrentMgmtService extends Binder {
 
     private static final String DEV_PATH = "SUBSYSTEM=hwmon";
     private static final String CPU_PATH = "/sys/devices/system/cpu/";
-    private final Context mContext;
+    private Context mContext = null;
 
     native static void nativeSubsystemThrottle(int subsystem, int level);
     native static void nativeInit();
@@ -616,6 +616,10 @@ public class CurrentMgmtService extends Binder {
     }
 
     public CurrentMgmtService(Context context) {
+        if (SystemProperties.get("persist.sys.isCMSEnabled", "1").equals("0")) {
+            Log.e(TAG, "CurrentMgmt service is disabled");
+            return;
+        }
         Log.v(TAG, "CurrentMgmtService start");
         mContext = context;
         mPcc = new ParseCmsConfig();
