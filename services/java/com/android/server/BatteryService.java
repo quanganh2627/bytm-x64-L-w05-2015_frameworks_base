@@ -50,6 +50,7 @@ import android.util.Slog;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileDescriptor;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -314,9 +315,18 @@ public final class BatteryService extends Binder {
         try {
             bufferReader = new BufferedReader(new FileReader(path));
             val = bufferReader.readLine();
-            bufferReader.close();
-        } catch(Exception e) {
-            e.printStackTrace();
+        } catch (FileNotFoundException e) {
+            Slog.e(TAG, "Could not open " + path);
+        } catch (IOException e) {
+            Slog.e(TAG, "Could not read " + path);
+        } finally {
+            if (bufferReader != null) {
+                try {
+                    bufferReader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
         }
         return val;
     }
