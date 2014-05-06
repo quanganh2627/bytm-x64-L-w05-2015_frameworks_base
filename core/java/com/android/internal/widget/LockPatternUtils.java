@@ -1670,6 +1670,7 @@ public class LockPatternUtils extends ParentLockPatternUtils {
                         passwordHistory = "";
                     } else {
                         byte[] hash = passwordToHash(password);
+                        if (hash == null) return;
                         passwordHistory = new String(hash) + "," + passwordHistory;
                         // Cut it to contain passwordHistoryLength hashes
                         // and passwordHistoryLength -1 commas.
