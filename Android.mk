@@ -166,6 +166,8 @@ LOCAL_SRC_FILES += \
 	core/java/android/net/INetworkStatsService.aidl \
 	core/java/android/net/INetworkStatsSession.aidl \
 	core/java/android/net/nsd/INsdManager.aidl \
+	core/java/android/net/smartconnectivity/offload/IOffloadService.aidl \
+	core/java/android/net/smartconnectivity/offload/IOffloadEventListener.aidl \
 	core/java/android/nfc/IAppCallback.aidl \
 	core/java/android/nfc/INfcAdapter.aidl \
 	core/java/android/nfc/INfcAdapterExtras.aidl \
