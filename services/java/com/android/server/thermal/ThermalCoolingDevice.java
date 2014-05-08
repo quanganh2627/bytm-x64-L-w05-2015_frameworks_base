@@ -54,10 +54,20 @@ public class ThermalCoolingDevice {
     /* List of values used to throttle this cooling device */
     private ArrayList<Integer> mThrottleValues = null;
 
+    private int mNumThrottleValues = ThermalManager.DEFAULT_NUM_THROTTLE_VALUES;
+
     public ThermalCoolingDevice() {
         mCurrentThermalState = -1;
         mThrottlePath = "auto";
         mClassPath = "auto";
+    }
+
+    public void setNumThrottleValues(int num) {
+        mNumThrottleValues = num;
+    }
+
+    public int getNumThrottleValues() {
+        return mNumThrottleValues;
     }
 
     public void setDeviceName(String Name) {
@@ -131,10 +141,10 @@ public class ThermalCoolingDevice {
         return mThrottleValues;
     }
 
-    public void createNewThrottleValuesList() {
-        mThrottleValues = new ArrayList<Integer>();
+    public void setThrottleValuesList(ArrayList<Integer> list) {
+        mThrottleValues = list;
+        mNumThrottleValues = list.size();
     }
-
     /**
      * Sets the current thermal state of cooling device which will be maximum of
      * all states of zones under which this cooling device falls.

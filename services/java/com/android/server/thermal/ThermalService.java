@@ -65,6 +65,12 @@ public class ThermalService extends Binder {
     private Context mContext;
     private Handler mHandler = new Handler();
     private ThermalCooling mCoolingManager;
+    protected enum MetaTag {
+            ENUM_UNKNOWN,
+            ENUM_ZONETHRESHOLD,
+            ENUM_POLLDELAY,
+            ENUM_MOVINGAVGWINDOW
+    }
 
     public class ThermalParser {
         // Names of the XML Tags
@@ -158,6 +164,7 @@ public class ThermalService extends Binder {
             }
 
             boolean ret = true;
+            MetaTag tag = MetaTag.ENUM_UNKNOWN;
             try {
                 int mEventType = mParser.getEventType();
                 while (mEventType != XmlPullParser.END_DOCUMENT && !mDone) {
@@ -166,7 +173,25 @@ public class ThermalService extends Binder {
                             Log.i(TAG, "StartDocument");
                             break;
                         case XmlPullParser.START_TAG:
-                            if (!processStartElement(mParser.getName())) {
+                            String tagName = mParser.getName();
+                            boolean isMetaTag = false;
+                            if (tagName != null && tagName.equalsIgnoreCase(ZONETHRESHOLD)) {
+                                tag = MetaTag.ENUM_ZONETHRESHOLD;
+                                isMetaTag = true;
+                            } else if (tagName != null && tagName.equalsIgnoreCase(POLLDELAY)) {
+                                tag = MetaTag.ENUM_POLLDELAY;
+                                isMetaTag = true;
+                            } else if (tagName != null
+                                    && tagName.equalsIgnoreCase(MOVINGAVGWINDOW)) {
+                                tag = MetaTag.ENUM_MOVINGAVGWINDOW;
+                                isMetaTag = true;
+                            }
+                            if (isMetaTag) {
+                                ret = processMetaTag(tagName, tag);
+                            } else {
+                                ret = processStartElement(tagName);
+                            }
+                            if (!ret) {
                                 if (mInputStream != null) mInputStream.close();
                                 return false;
                             }
@@ -195,6 +220,62 @@ public class ThermalService extends Binder {
                 }
                 return ret;
             }
+        }
+
+        boolean processMetaTag(String tagName, MetaTag tagId) {
+            if (mParser == null || tagName == null || mCurrZone == null)  return false;
+            ArrayList<Integer> tempList;
+            tempList = new ArrayList<Integer>();
+            // add the dummy value for TOFF now. update it once meta tag parsed
+            tempList.add(0);
+            try {
+                int eventType = mParser.next();
+                while (true) {
+                    if (eventType == XmlPullParser.START_TAG) {
+                        tempList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (eventType == XmlPullParser.END_TAG &&
+                            mParser.getName().equalsIgnoreCase(tagName)) {
+                        break;
+                    }
+                    eventType = mParser.next();
+                }
+            } catch (XmlPullParserException xppe) {
+                Log.e(TAG, "XmlPullParserException:" + xppe.getMessage());
+                return false;
+            } catch (IOException ioe) {
+                Log.e(TAG, "IOException:" + ioe.getMessage());
+                return false;
+            }
+            // now that all state values are parse, copy the value corresponding to <normal>
+            // state to TOFF and last state to CRITICAL state.
+            // now we have reached end of meta tag add this temp list to appropriate list
+            switch(tagId) {
+                case ENUM_POLLDELAY:
+                    // add TOFF
+                    tempList.set(0, tempList.get(1));
+                    // add TCRITICAL
+                    tempList.add(tempList.get(tempList.size() - 1));
+                    mCurrZone.setPollDelay(tempList);
+                    break;
+                case ENUM_ZONETHRESHOLD:
+                    // add TCRITICAL
+                    tempList.add(tempList.get(tempList.size() - 1) + 5000);
+                    mCurrZone.updateMaxStates(tempList.size());
+                    mCurrZone.setZoneTempThreshold(tempList);
+                    break;
+                case ENUM_MOVINGAVGWINDOW:
+                    // add TOFF
+                    tempList.set(0, tempList.get(1));
+                    // add TCRITICAL
+                    tempList.add(tempList.get(tempList.size() - 1));
+                    mCurrZone.setMovingAvgWindow(tempList);
+                    break;
+                case ENUM_UNKNOWN:
+                default:
+                    break;
+            }
+            tempList = null;
+            return true;
         }
 
         boolean processStartElement(String name) {
@@ -255,29 +336,6 @@ public class ThermalService extends Binder {
                         mPollDelayList = new ArrayList<Integer>();
                     } else if (name.equalsIgnoreCase(OFFSET) && mCurrZone != null) {
                         mCurrZone.setOffset(Integer.parseInt(mParser.nextText()));
-                    } else if (name.equalsIgnoreCase(ZONETHRESHOLD) && mCurrZone != null) {
-                        mZoneThresholdList = new ArrayList<Integer>();
-                    } else if (name.equalsIgnoreCase("ZoneThresholdTOff")
-                            && mZoneThresholdList != null) {
-                        mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
-                    } else if (name.equalsIgnoreCase("ZoneThresholdNormal")
-                            && mZoneThresholdList != null) {
-                        if (mZoneThresholdList.isEmpty()) {
-                            mZoneThresholdList.add(0);
-                        }
-                        mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
-                    } else if (name.equalsIgnoreCase("ZoneThresholdWarning")
-                            && mZoneThresholdList != null) {
-                        mZoneThresholdList.add(Integer.parseInt(mParser.nextText()));
-                    } else if (name.equalsIgnoreCase("ZoneThresholdAlert")
-                            && mZoneThresholdList != null) {
-                        int threshold = Integer.parseInt(mParser.nextText());
-                        mZoneThresholdList.add(threshold);
-                        mZoneThresholdList.add(threshold + 5000);
-                    } else if (name.equalsIgnoreCase("ZoneThresholdCritical")
-                            && mZoneThresholdList != null) {
-                        mZoneThresholdList.add(mPlatformInfo.mMaxThermalStates - 1,
-                                Integer.parseInt(mParser.nextText()));
                     }
 
                     // Retrieve Sensor Information
@@ -313,53 +371,6 @@ public class ThermalService extends Binder {
                         if (mOrderList != null) {
                             mOrderList.add(Integer.parseInt(mParser.nextText()));
                         }
-                    }
-
-                    // Poll delay info
-                    else if (name.equalsIgnoreCase("DelayTOff") && mPollDelayList != null) {
-                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
-                    } else if (name.equalsIgnoreCase("DelayNormal") && mPollDelayList != null) {
-                        int delay = Integer.parseInt(mParser.nextText());
-                        if (mPollDelayList.isEmpty()) {
-                            mPollDelayList.add(delay);
-                        }
-                        mPollDelayList.add(delay);
-                    } else if (name.equalsIgnoreCase("DelayWarning") && mPollDelayList != null) {
-                        mPollDelayList.add(Integer.parseInt(mParser.nextText()));
-                    } else if (name.equalsIgnoreCase("DelayAlert") && mPollDelayList != null) {
-                        int delay = Integer.parseInt(mParser.nextText());
-                        mPollDelayList.add(delay);
-                        mPollDelayList.add(delay);
-                    } else if (name.equalsIgnoreCase("DelayCritical") && mPollDelayList != null) {
-                        mPollDelayList.add(mPlatformInfo.mMaxThermalStates - 1,
-                                Integer.parseInt(mParser.nextText()));
-                    }
-                    // Moving Average window
-                    else if (name.equalsIgnoreCase(MOVINGAVGWINDOW)
-                            && mCurrZone != null) {
-                        mMovingAvgWindowList = new ArrayList<Integer>();
-                    } else if (name.equalsIgnoreCase("WindowTOff")
-                            && mMovingAvgWindowList != null) {
-                        mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
-                    } else if (name.equalsIgnoreCase("WindowNormal")
-                            && mMovingAvgWindowList != null) {
-                        int avg = Integer.parseInt(mParser.nextText());
-                        if (mMovingAvgWindowList.isEmpty()) {
-                            mMovingAvgWindowList.add(avg);
-                        }
-                        mMovingAvgWindowList.add(avg);
-                    } else if (name.equalsIgnoreCase("WindowWarning")
-                            && mMovingAvgWindowList != null) {
-                        mMovingAvgWindowList.add(Integer.parseInt(mParser.nextText()));
-                    } else if (name.equalsIgnoreCase("WindowAlert")
-                            && mMovingAvgWindowList != null) {
-                        int avg = Integer.parseInt(mParser.nextText());
-                        mMovingAvgWindowList.add(avg);
-                        mMovingAvgWindowList.add(avg);
-                    } else if (name.equalsIgnoreCase("WindowCritical")
-                            && mMovingAvgWindowList != null) {
-                        mMovingAvgWindowList.add(mPlatformInfo.mMaxThermalStates - 1,
-                                Integer.parseInt(mParser.nextText()));
                     }
                 }
             } catch (XmlPullParserException e) {
@@ -545,6 +556,10 @@ public class ThermalService extends Binder {
             /* print the parsed information */
             for (ThermalZone tz : ThermalManager.sThermalZonesList) {
                 tz.printAttrs();
+            }
+            /* Mapping zone states to cooling device throttle values */
+            for (ThermalZone tz : ThermalManager.sThermalZonesList) {
+                tz.initializeStatesMapping();
             }
 
             /* if no active zone, just exit Thermal manager Service */

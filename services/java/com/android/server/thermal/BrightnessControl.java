@@ -50,23 +50,34 @@ public class BrightnessControl {
 
     private static int sNotificationMask = 0;
 
+    private static int sMaxThrottleValues;
+
+    private static boolean sIsThrottlingPossible = false;
+
     private static void setDefaultBrightnessValues() {
-        sBrightnessValuesPercentage = new int[ThermalManager.NUM_THERMAL_STATES - 1];
+        sBrightnessValuesPercentage = new int[sMaxThrottleValues];
 
         // Use 100% brightness for Normal/Warning and 50% brightness for
         // Alert/Critical
-        sBrightnessValuesPercentage[ThermalManager.THERMAL_STATE_NORMAL] = 100;
-        sBrightnessValuesPercentage[ThermalManager.THERMAL_STATE_WARNING] = 100;
-        sBrightnessValuesPercentage[ThermalManager.THERMAL_STATE_ALERT] = 50;
-        sBrightnessValuesPercentage[ThermalManager.THERMAL_STATE_CRITICAL] = 50;
+        sBrightnessValuesPercentage[0] = 100;
+        sBrightnessValuesPercentage[1] = 100;
+        sBrightnessValuesPercentage[2] = 50;
+        sBrightnessValuesPercentage[3] = 50;
     }
 
     public static void init(Context context, String path, ArrayList<Integer> values) {
         sContext = context;
 
         if (values == null) {
+            sMaxThrottleValues = ThermalManager.DEFAULT_NUM_THROTTLE_VALUES;
             setDefaultBrightnessValues();
         } else {
+            if (values.size() < ThermalManager.DEFAULT_NUM_THROTTLE_VALUES) {
+                Log.i(TAG, "Brightness Plugin throttle values < :"
+                        + ThermalManager.DEFAULT_NUM_THROTTLE_VALUES);
+                return;
+            }
+            sMaxThrottleValues = ThermalManager.DEFAULT_NUM_THROTTLE_VALUES;
             sBrightnessValuesPercentage = new int[values.size()];
             for (int i = 0; i < values.size(); i++)
                 sBrightnessValuesPercentage[i] = values.get(i);
@@ -80,11 +91,15 @@ public class BrightnessControl {
         }
         readDisplayThrottleNotifierProperties();
         initializeNotifierProperties();
+        sIsThrottlingPossible = true;
     }
 
     public static void throttleDevice(int tstate) {
-        if (sPower == null || tstate < 0)
+        if (sIsThrottlingPossible == false || sPower == null || tstate < 0
+                || tstate >= sMaxThrottleValues) {
+            Log.i(TAG, "Brightness throttling rejected due to error");
             return;
+        }
 
         int maxBrightnessAllowed = (sBrightnessValuesPercentage[tstate] * sFullBrightness) / 100;
 
@@ -94,9 +109,10 @@ public class BrightnessControl {
             Log.i(TAG, "remote exception for setThermalBrightnessLimit()");
         }
 
-        // Notify user if we are limiting brightness
-        if (tstate == ThermalManager.THERMAL_STATE_ALERT
-                || tstate == ThermalManager.THERMAL_STATE_CRITICAL)
+        // Notify user if we are limiting brightness. Value '2' works only for default brightness
+        // throttle values. If user changes throttle values then this number has to be revisited.
+        // Needs to be fixed.
+        if (tstate >= 2)
             new ThermalNotifier(sContext, sNotificationMask).triggerNotification();
     }
 

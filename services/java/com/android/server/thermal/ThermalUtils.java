@@ -116,7 +116,7 @@ public class ThermalUtils {
             return THERMAL_STATE_OFF;
 
         if (temp >= thresholds[thresholds.length - 2])
-            return THERMAL_STATE_CRITICAL;
+            return (thresholds.length - 2);
 
         for (int i = 0; i < thresholds.length - 1; i++) {
             if (temp >= thresholds[i] && temp < thresholds[i + 1]) {
