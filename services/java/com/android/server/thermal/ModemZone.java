@@ -189,7 +189,7 @@ public class ModemZone extends ThermalZone {
                     ArrayList<Integer> list = cDeviceInfo.getThrottleMaskList();
                     if (list == null) break;
                     // iterate the list and take highest enabled state
-                    for (int i = 0; i < ThermalManager.NUM_THERMAL_STATES - 1; i++) {
+                    for (int i = 0; i < getMaxStates() - 1; i++) {
                        if (list.get(i) == 1) {
                            finalState = i;
                        }
@@ -924,4 +924,14 @@ public class ModemZone extends ThermalZone {
         }
         Log.i(TAG, "OEM API verison:" + version);
     }
+    // Override method
+    public void setMaxStates(int state) {
+        if (state > ThermalManager.DEFAULT_NUM_ZONE_STATES) {
+        int minNumState = ThermalManager.DEFAULT_NUM_ZONE_STATES - 1;
+            Log.i(TAG, "capping max states for modem zone to :"
+                    + minNumState);
+        }
+        mMaxStates = ThermalManager.DEFAULT_NUM_ZONE_STATES;
+    }
+
 }

@@ -37,6 +37,7 @@ public class ThermalZone {
     protected int mCurrThermalState;     /* Current thermal state of the zone */
     protected int mCurrEventType;        /* specifies thermal event type, HIGH or LOW */
     protected String mZoneName;          /* Name of the Thermal zone */
+    protected int mMaxStates;
     /* List of sensors under this thermal zone */
     protected ArrayList<ThermalSensor> mThermalSensors = null;
     // sensor name - sensorAttrib object hash to improve lookup performace
@@ -60,6 +61,32 @@ public class ThermalZone {
     private ArrayList<Integer> mWindowList = null;
     private boolean mIsMovingAverage = false; /* By default false */
 
+    // override this method in ModemZone to limit num states to default
+    public void setMaxStates(int state) {
+        mMaxStates = state;
+    }
+
+    public void updateMaxStates(int state) {
+        setMaxStates(state);
+        // save this in the zone cooler bind info map also
+        ThermalManager.ZoneCoolerBindingInfo zoneCoolerBindInfo =
+                ThermalManager.sZoneCoolerBindMap.get(mZoneID);
+       if (zoneCoolerBindInfo != null) {
+           zoneCoolerBindInfo.setMaxStates(state);
+       }
+    }
+
+    public int getMaxStates() {
+        return mMaxStates;
+    }
+
+    public void initializeStatesMapping() {
+        ThermalManager.ZoneCoolerBindingInfo zoneCoolerBindInfo =
+                ThermalManager.sZoneCoolerBindMap.get(mZoneID);
+        zoneCoolerBindInfo.setZoneToCoolDevBucketSize(mMaxStates);
+        zoneCoolerBindInfo.setCoolDevToThrottBucketSize();
+        zoneCoolerBindInfo.printMappedAttributes();
+    }
 
     public boolean getMovingAverageFlag() {
         return mIsMovingAverage;
@@ -126,8 +153,23 @@ public class ThermalZone {
         Log.i(TAG, "mZoneTempThresholds[]: " + Arrays.toString(mZoneTempThresholds));
         Log.i(TAG, "mNumberOfInstances[]: " + Arrays.toString(mNumberOfInstances));
         Log.i(TAG, "mEmulTempFlag:" + mSupportsEmulTemp);
+        Log.i(TAG, "MaxStates:" + getMaxStates());
+        printStateThresholdMap();
         printSensors();
         printSensorAttribList();
+    }
+
+    public void printStateThresholdMap() {
+        if (mZoneTempThresholds == null
+                || mZoneTempThresholds.length < ThermalManager.DEFAULT_NUM_ZONE_STATES) return;
+        StringBuilder s = new StringBuilder();
+        s.append("[" + "State0" + "<" + mZoneTempThresholds[1] + "];");
+        for (int index = 2; index < getMaxStates(); index++) {
+            int curstate = index - 1;
+            s.append("[" + mZoneTempThresholds[index - 1] + "<=" + "State"
+                    + curstate + "<" + mZoneTempThresholds[index] + "];");
+        }
+        Log.i(TAG, "states-threshold map:" + s.toString());
     }
 
     private void printSensors() {
@@ -293,7 +335,7 @@ public class ThermalZone {
         // If poll delay is requested for an invalid state, return the delay
         // corresponding to normal state
         if (index < 0 || index >= mPollDelay.length)
-            index = ThermalManager.THERMAL_STATE_NORMAL + 1;
+            index = 1;
 
         return mPollDelay[index];
     }
@@ -322,7 +364,23 @@ public class ThermalZone {
     }
 
     public void computeZoneActiveStatus() {
+        if (mZoneTempThresholds == null) {
+            Log.i(TAG, "deactivate zone:" + getZoneName() + " threshold list is NULL! ");
+            mIsZoneActive = false;
+            return;
+        }
+        // 1. minimum number of states supported must be DEFAULT NUM STATES
+        // 2. if sensor list null disable zone
+        if (mMaxStates < ThermalManager.DEFAULT_NUM_ZONE_STATES) {
+            // substract by 1 since TOFF is transparent to USER
+            int minStateSupport = ThermalManager.DEFAULT_NUM_ZONE_STATES - 1;
+            Log.i(TAG, "deactivate zone:" + getZoneName() + " supports < "
+                    + minStateSupport + " states");
+            mIsZoneActive = false;
+            return;
+        }
         if (mThermalSensors == null) {
+            Log.i(TAG, "deactivate zone:" + getZoneName() + " sensor list null! ");
             mIsZoneActive = false;
             return;
         }
@@ -335,6 +393,18 @@ public class ThermalZone {
                 return;
             }
         } else {
+            if (mPollDelay == null) {
+                Log.i(TAG, "deactivate zone:" + getZoneName()
+                        + " polldelay list null in poll mode! ");
+                mIsZoneActive = false;
+                return;
+            }
+            if (mZoneTempThresholds.length != mPollDelay.length) {
+                Log.i(TAG, "deactivate zone:" + getZoneName()
+                        + " mismatch of polldelay and threshold list in polling mode!");
+                mIsZoneActive = false;
+                return;
+            }
             for (ThermalSensor ts : mThermalSensors) {
                 if (ts != null && ts.getSensorActiveStatus()) {
                     mIsZoneActive = true;

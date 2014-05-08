@@ -49,24 +49,26 @@ public class CPUMaxFreqControl {
 
     private static boolean sIsThrottlingPossible = false;
 
-    // For four states, Normal, Warning, Alert and Critical
-    private static int sMaxScalingFreq[] = new int[ThermalManager.NUM_THERMAL_STATES - 1];
+    // Stores CPU frequencies, length equal to number of cooling states.
+    private static int sMaxScalingFreq[];
 
+    private static int sMaxThrottleValues;
     private static void getDefaultScalingFreqs() {
         // We need a minimum of four frequencies to perform throttling
-        if (sAvailFreqCount < ThermalManager.NUM_THERMAL_STATES - 1) {
-            Log.i(TAG, "Number of frequencies available for throttling is < 4");
+        if (sAvailFreqCount < sMaxThrottleValues - 1) {
+            Log.i(TAG, "Number of frequencies available for throttling is"
+                    + ThermalManager.DEFAULT_NUM_THROTTLE_VALUES);
             return;
         }
 
         // Frequencies are in Descending order. Populate as it is.
         if (sAvailFreq[0] > sAvailFreq[1]) {
-            for (int i = 0; i < ThermalManager.NUM_THERMAL_STATES - 1; i++) {
+            for (int i = 0; i < sMaxThrottleValues; i++) {
                 sMaxScalingFreq[i] = sAvailFreq[i];
             }
         } else {
             // Frequencies are in Ascending order. Pick last four values.
-            for (int i = 0; i < ThermalManager.NUM_THERMAL_STATES - 1; i++) {
+            for (int i = 0; i < sMaxThrottleValues; i++) {
                 sMaxScalingFreq[i] = sAvailFreq[sAvailFreqCount - i - 1];
             }
         }
@@ -107,15 +109,19 @@ public class CPUMaxFreqControl {
         Log.i(TAG, "Number of Processors present: " + sProcessorCount);
         Log.i(TAG, "Number of Available frequencies: " + sAvailFreqCount);
         Log.i(TAG, "Computed Max Scaling Frequency Array:");
-        for (int i = 0; i < ThermalManager.NUM_THERMAL_STATES - 1; i++)
+        for (int i = 0; i < sMaxThrottleValues; i++)
             Log.i(TAG, "ScalingMaxFreq[" + i + "]: " + sMaxScalingFreq[i]);
     }
 
     public static void throttleDevice(int tstate) {
         // Check if scaling frequencies are available
         Log.d(TAG, "throttleDevice called with" + tstate);
-
-        if (!sIsThrottlingPossible || sProcessorCount == 0 || tstate < 0) {
+        // check out of bound condition
+        if (tstate < 0 || tstate > sMaxThrottleValues - 1) {
+            Log.i(TAG, "CPU plugin cannot handle state:" + tstate);
+            return;
+        }
+        if (!sIsThrottlingPossible || sProcessorCount == 0) {
             Log.i(TAG,"Scaling frequencies are not available.CPU Max freq throttle not possible");
             return;
         }
@@ -142,9 +148,18 @@ public class CPUMaxFreqControl {
             // those frequencies for throttling in the order: values(0) for Normal,
             // values(1) for Warning, values(2) for Alert and values(3) for critical.
             if (values == null) {
+                sMaxThrottleValues = ThermalManager.DEFAULT_NUM_THROTTLE_VALUES;
+                sMaxScalingFreq = new int[sMaxThrottleValues];
                 getDefaultScalingFreqs();
             } else {
-                for (int i = 0; i < ThermalManager.NUM_THERMAL_STATES - 1; i++) {
+                if (values.size() < ThermalManager.DEFAULT_NUM_THROTTLE_VALUES) {
+                    Log.i(TAG, "Number of frequencies provided for throttling is < : "
+                            + ThermalManager.DEFAULT_NUM_THROTTLE_VALUES);
+                    return;
+                }
+                sMaxThrottleValues = values.size();
+                sMaxScalingFreq = new int[sMaxThrottleValues];
+                for (int i = 0; i < sMaxThrottleValues; i++) {
                     sMaxScalingFreq[i] = values.get(i);
                 }
                 sIsThrottlingPossible = true;

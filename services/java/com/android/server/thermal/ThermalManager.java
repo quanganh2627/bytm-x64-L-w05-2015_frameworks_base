@@ -143,7 +143,10 @@ public class ThermalManager {
 
     public static final int THERMAL_STATE_CRITICAL = 3;
 
-    public static final int NUM_THERMAL_STATES = 5;
+    public static final int DEFAULT_NUM_THROTTLE_VALUES = 4;
+
+    // 5 including TOFF and TCRITICAL
+    public static final int DEFAULT_NUM_ZONE_STATES = 5;
 
     public static final String STATE_NAMES[] = {
             "OFF", "NORMAL", "WARNING", "ALERT", "CRITICAL"
@@ -195,13 +198,71 @@ public class ThermalManager {
      */
     public static class ZoneCoolerBindingInfo {
         private int mZoneID;
-
+        // max states includes TOFF also.
+        // if user provides k threshold values in XML.
+        // mMaxStates = k + 1(for critical) + 1(for TOFF)
+        // this is same as the max states stored in corresponding zone object
+        protected int mMaxStates;
         private int mIsCriticalActionShutdown;
 
         /* cooler ID mask, 1 - throttle device, 0- no action, -1- dont care */
         private ArrayList<CoolingDeviceInfo> mCoolingDeviceInfoList = null;
 
+        // ManyToOneMapping: ZoneStates >= CoolingDeviceStates
+        private ArrayList<Integer> mZoneToCoolDevBucketSize = null;
+
+        // OneToOneMapping: CoolingDeviceStates >= ThrottleValues
+        private ArrayList<Integer> mCoolDevToThrottBucketSize = null;
+
         private CoolingDeviceInfo lastCoolingDevInfoInstance = null;
+
+        public ZoneCoolerBindingInfo() {
+            mZoneToCoolDevBucketSize = new ArrayList<Integer>();
+            mCoolDevToThrottBucketSize = new ArrayList<Integer>();
+        }
+
+        public int getLastState() {
+            // mMaxStates = k + 1(for critical) + 1(for TOFF)
+            return mMaxStates - 2;
+        }
+
+        public void setMaxStates(int state) {
+            mMaxStates = state;
+        }
+
+        public int getMaxStates() {
+            return mMaxStates;
+        }
+
+        public void setZoneToCoolDevBucketSize(int zoneStates) {
+            int size = 1;
+            for (CoolingDeviceInfo coolDev : mCoolingDeviceInfoList) {
+                size = (zoneStates - 1) / coolDev.getCoolingDeviceStates();
+                mZoneToCoolDevBucketSize.add(size == 0 ? 1 : size);
+            }
+        }
+
+        public int getZoneToCoolDevBucketSizeIndex(int index) {
+            if (mZoneToCoolDevBucketSize.size() > index)
+                return mZoneToCoolDevBucketSize.get(index);
+            else
+                return 1;
+        }
+
+        public int getCoolDevToThrottBucketSizeIndex(int index) {
+            if (mZoneToCoolDevBucketSize.size() > index)
+                return mCoolDevToThrottBucketSize.get(index);
+            else
+                return 1;
+        }
+
+        public void setCoolDevToThrottBucketSize() {
+            int size = 1;
+            for (CoolingDeviceInfo coolDev : mCoolingDeviceInfoList) {
+                size = coolDev.getMaxThrottleStates() / coolDev.getCoolingDeviceStates();
+                mCoolDevToThrottBucketSize.add(size == 0 ? 1 : size);
+            }
+        }
 
         public void printAttributes() {
             if (mCoolingDeviceInfoList == null) return;
@@ -215,49 +276,106 @@ public class ThermalManager {
             Log.i(TAG, "zone id:" + mZoneID + " coolingDevID  mapped:" + s.toString());
         }
 
+        public void printMappedAttributes() {
+            if (mZoneToCoolDevBucketSize == null || mCoolDevToThrottBucketSize == null) return;
+            StringBuilder s = new StringBuilder();
+            for (int bs : mZoneToCoolDevBucketSize) {
+                s.append(bs);
+                s.append(",");
+            }
+            Log.i(TAG, "zone id:" + mZoneID + " ZoneToCoolDevBucketSize:" + s.toString());
+            // clear the string
+            s.delete(0,s.length());
+            for (int bs : mCoolDevToThrottBucketSize) {
+                s.append(bs);
+                s.append(",");
+            }
+            Log.i(TAG, "zone id:" + mZoneID + " CoolDevToThrottBucketSize:" + s.toString());
+        }
+
         public class CoolingDeviceInfo {
-            private int CDeviceID;
+            private int mCDeviceID;
 
-            private ArrayList<Integer> DeviceThrottleMask = null;
+            // mCoolingDeviceState is number of device states exposed under a zone.
+            // this must be less than or equal to its total number of throttle values
+            private int mCoolingDeviceStates = DEFAULT_NUM_THROTTLE_VALUES;
 
-            private ArrayList<Integer> DeviceDethrottleMask = null;
+            // store a copy here for fast lookup during throttling/dethrottling
+            private int mMaxThrottleStates = 0;
+            private ArrayList<Integer> mDeviceThrottleMask = null;
+
+            private ArrayList<Integer> mDeviceDethrottleMask = null;
 
             public CoolingDeviceInfo() {
-                DeviceThrottleMask = new ArrayList<Integer>();
-                DeviceDethrottleMask = new ArrayList<Integer>();
-                for (int i = 0; i < NUM_THERMAL_STATES; i++) {
-                    DeviceThrottleMask.add(THROTTLE_MASK_ENABLE);
-                    DeviceDethrottleMask.add(DETHROTTLE_MASK_ENABLE);
+            }
+
+            public int getMaxThrottleStates() {
+                return mMaxThrottleStates;
+            }
+
+            public boolean checkMaskList(int throttleStates) {
+                boolean ret = true;
+                // if the list is empty this mean, THROTTLE MASK and/or
+                // DETHTOTTLE mask was not provided. Initialize default mask.
+                if (mDeviceThrottleMask ==  null) {
+                    mDeviceThrottleMask = new ArrayList<Integer>();
+                    for (int i = 0; i < mCoolingDeviceStates; i++) {
+                        mDeviceThrottleMask.add(THROTTLE_MASK_ENABLE);
+                    }
+                } else if (mDeviceThrottleMask.size() != mCoolingDeviceStates) {
+                    Log.i(TAG, "cdevid:" + mCDeviceID
+                            + " has mismatch in Cooling device state and mask array!deactivate!");
+                    ret = false;
                 }
+
+                if (mDeviceDethrottleMask ==  null) {
+                    mDeviceDethrottleMask = new ArrayList<Integer>();
+                    for (int i = 0; i < mCoolingDeviceStates; i++) {
+                        mDeviceDethrottleMask.add(DETHROTTLE_MASK_ENABLE);
+                    }
+                } else if (mDeviceDethrottleMask.size() != mCoolingDeviceStates) {
+                    Log.i(TAG, "cdevid:" + mCDeviceID
+                            + " has mismatch in Cooling device state and mask array!deactivate!");
+                    ret = false;
+                }
+                if (ret) {
+                    mMaxThrottleStates = throttleStates;
+                }
+                return ret;
             }
 
             public int getCoolingDeviceId() {
-                return CDeviceID;
+                return mCDeviceID;
             }
 
             public void setCoolingDeviceId(int deviceID) {
-                CDeviceID = deviceID;
+                mCDeviceID = deviceID;
+            }
+
+            public int getCoolingDeviceStates() {
+                return mCoolingDeviceStates;
+            }
+
+            public void setCoolingDeviceStates(int num) {
+                mCoolingDeviceStates = num;
             }
 
             public ArrayList<Integer> getThrottleMaskList() {
-                return DeviceThrottleMask;
+                return mDeviceThrottleMask;
             }
 
             public ArrayList<Integer> getDeThrottleMaskList() {
-                return DeviceDethrottleMask;
+                return mDeviceDethrottleMask;
             }
 
             public void setThrottleMaskList(ArrayList<Integer> list) {
-                this.DeviceThrottleMask = list;
+                this.mDeviceThrottleMask = list;
             }
 
             public void setDeThrottleMaskList(ArrayList<Integer> list) {
-                this.DeviceDethrottleMask = list;
+                this.mDeviceDethrottleMask = list;
             }
 
-        }
-
-        public ZoneCoolerBindingInfo() {
         }
 
         public ArrayList<CoolingDeviceInfo> getCoolingDeviceInfoList() {
@@ -270,10 +388,6 @@ public class ThermalManager {
 
         public CoolingDeviceInfo getLastCoolingDeviceInstance() {
             return lastCoolingDevInfoInstance;
-        }
-
-        public void setCDeviceInfoMaskList(ArrayList<CoolingDeviceInfo> mList) {
-            mCoolingDeviceInfoList = mList;
         }
 
         public void setZoneID(int zoneID) {

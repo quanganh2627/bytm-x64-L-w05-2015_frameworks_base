@@ -57,6 +57,13 @@ public class ThermalCooling {
      * This is the parser class which parses the thermal_throttle_config.xml
      * file.
      */
+    protected enum MetaTag {
+        ENUM_THROTTLEVALUES,
+        ENUM_THROTTLEMASK,
+        ENUM_DETHROTTLEMASK,
+        ENUM_UNKNOWN
+    }
+
     public class ThermalParser {
         private static final String THERMAL_THROTTLE_CONFIG = "thermalthrottleconfig";
 
@@ -72,11 +79,11 @@ public class ThermalCooling {
 
         private static final String THROTTLEVALUES = "ThrottleValues";
 
+        private static final String COOLINGDEVICESTATES = "CoolingDeviceStates";
+
         private ArrayList<Integer> mTempMaskList;
 
         private ArrayList<Integer> mTempThrottleValuesList;;
-
-        private boolean isThrottleMask = false;
 
         private boolean done = false;
 
@@ -137,6 +144,7 @@ public class ThermalCooling {
             }
 
             boolean ret = true;
+            MetaTag tag = MetaTag.ENUM_UNKNOWN;
             try {
                 int mEventType = mParser.getEventType();
                 while (mEventType != XmlPullParser.END_DOCUMENT && !done) {
@@ -145,7 +153,25 @@ public class ThermalCooling {
                             Log.i(TAG, "StartDocument");
                             break;
                         case XmlPullParser.START_TAG:
-                            if (!processStartElement(mParser.getName())) {
+                            String tagName = mParser.getName();
+                            boolean isMetaTag = false;
+                            if (tagName != null && tagName.equalsIgnoreCase(THROTTLEVALUES)) {
+                                tag = MetaTag.ENUM_THROTTLEVALUES;
+                                isMetaTag = true;
+                            } else if (tagName != null && tagName.equalsIgnoreCase(THROTTLEMASK)) {
+                                tag = MetaTag.ENUM_THROTTLEMASK;
+                                isMetaTag = true;
+                            } else if (tagName != null
+                                    && tagName.equalsIgnoreCase(DETHROTTLEMASK)) {
+                                tag = MetaTag.ENUM_DETHROTTLEMASK;
+                                isMetaTag = true;
+                            }
+                            if (isMetaTag) {
+                                ret = processMetaTag(tagName, tag);
+                            } else {
+                                ret = processStartElement(tagName);
+                            }
+                            if (!ret) {
                                 if (mInputStream != null) mInputStream.close();
                                 return false;
                             }
@@ -178,6 +204,57 @@ public class ThermalCooling {
             }
         }
 
+        public boolean processMetaTag(String tagName, MetaTag tagId) {
+            if (mParser == null || tagName == null)  return false;
+            ArrayList<Integer> tempList = new ArrayList<Integer>();
+            try {
+                int eventType = mParser.next();
+                while (true) {
+                    if (eventType == XmlPullParser.START_TAG) {
+                        tempList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (eventType == XmlPullParser.END_TAG &&
+                            mParser.getName().equalsIgnoreCase(tagName)) {
+                        break;
+                    }
+                    eventType = mParser.next();
+                }
+            } catch (XmlPullParserException xppe) {
+                Log.e(TAG, "XmlPullParserException:" + xppe.getMessage());
+                return false;
+            } catch (IOException ioe) {
+                Log.e(TAG, "IOException:" + ioe.getMessage());
+                return false;
+            }
+
+            switch(tagId) {
+                case ENUM_THROTTLEVALUES:
+                    if (mDevice == null) {
+                        return false;
+                    } else {
+                        // add throttle value for TCRITICAL (same as last value)
+                        tempList.add(tempList.get(tempList.size() - 1));
+                        mDevice.setThrottleValuesList(tempList);
+                    }
+                    break;
+                case ENUM_THROTTLEMASK:
+                    if (mZone == null || mZone.getLastCoolingDeviceInstance() ==  null) {
+                        return false;
+                    } else {
+                        mZone.getLastCoolingDeviceInstance().setThrottleMaskList(tempList);
+                    }
+                    break;
+                case ENUM_DETHROTTLEMASK:
+                    if (mZone == null || mZone.getLastCoolingDeviceInstance() ==  null) {
+                        return false;
+                    } else {
+                        mZone.getLastCoolingDeviceInstance().setDeThrottleMaskList(tempList);
+                    }
+                    break;
+                default:
+                    return false;
+            }
+            return true;
+        }
         boolean processStartElement(String name) {
             if (name == null)
                 return false;
@@ -202,21 +279,14 @@ public class ThermalCooling {
                         mZone.setCriticalActionShutdown(Integer.parseInt(mParser.nextText()));
                     } else if (name.equalsIgnoreCase(THROTTLEMASK) && mZone != null) {
                         mTempMaskList = new ArrayList<Integer>();
-                        isThrottleMask = true;
                     } else if (name.equalsIgnoreCase(DETHROTTLEMASK) && mZone != null) {
                         mTempMaskList = new ArrayList<Integer>();
-                        isThrottleMask = false;
                     } else if (name.equalsIgnoreCase("CoolingDevId") && mZone != null) {
                         mZone.getLastCoolingDeviceInstance().setCoolingDeviceId(
                                 Integer.parseInt(mParser.nextText()));
-                    } else if (name.equalsIgnoreCase(THROTTLEVALUES) && mDevice != null) {
-                        mDevice.createNewThrottleValuesList();
-                    }
-                    // device mask
-                    else if ((name.equalsIgnoreCase("Normal") || name.equalsIgnoreCase("Warning")
-                            || name.equalsIgnoreCase("Alert") || name.equalsIgnoreCase("Critical"))
-                            && mTempMaskList != null) {
-                        mTempMaskList.add(Integer.parseInt(mParser.nextText()));
+                    } else if (name.equalsIgnoreCase(COOLINGDEVICESTATES) && mZone != null) {
+                        mZone.getLastCoolingDeviceInstance().setCoolingDeviceStates(
+                                Integer.parseInt(mParser.nextText()));
                     }
                     // Retrieve cooling device information
                     if (name.equalsIgnoreCase("CDeviceName") && mDevice != null) {
@@ -227,31 +297,6 @@ public class ThermalCooling {
                         mDevice.setClassPath(mParser.nextText());
                     } else if (name.equalsIgnoreCase("CDeviceThrottlePath") && mDevice != null) {
                         mDevice.setThrottlePath(mParser.nextText());
-                    } else if (name.equalsIgnoreCase("ThrottleNormal") && mDevice != null) {
-                        mTempThrottleValuesList = mDevice.getThrottleValuesList();
-                        if (mTempThrottleValuesList != null) {
-                            mTempThrottleValuesList.add(Integer.parseInt(mParser.nextText()));
-                        }
-                    } else if (name.equalsIgnoreCase("ThrottleWarning") && mDevice != null) {
-                        mTempThrottleValuesList = mDevice.getThrottleValuesList();
-                        if (mTempThrottleValuesList != null) {
-                            mTempThrottleValuesList.add(Integer.parseInt(mParser.nextText()));
-                        }
-
-                    } else if (name.equalsIgnoreCase("ThrottleAlert") && mDevice != null) {
-                        mTempThrottleValuesList = mDevice.getThrottleValuesList();
-                        if (mTempThrottleValuesList != null) {
-                            int throttle = Integer.parseInt(mParser.nextText());
-                            mTempThrottleValuesList.add(throttle);
-                            mTempThrottleValuesList.add(throttle);
-                        }
-                    } else if (name.equalsIgnoreCase("ThrottleCritical") && mDevice != null) {
-                        mTempThrottleValuesList = mDevice.getThrottleValuesList();
-                        if (mTempThrottleValuesList != null) {
-                            mTempThrottleValuesList.add(mTempThrottleValuesList.size() - 1,
-                                    Integer.parseInt(mParser.nextText()));
-                        }
-
                     }
                 }
             } catch (XmlPullParserException e) {
@@ -269,6 +314,14 @@ public class ThermalCooling {
             if (name == null)
                 return;
             if (name.equalsIgnoreCase(CDEVINFO) && mDevice != null) {
+                // if cooling dev suports less then DEFAULT throttle values donot add to map.
+                if (mDevice.getNumThrottleValues() < ThermalManager.DEFAULT_NUM_THROTTLE_VALUES) {
+                    Log.i(TAG, "cooling dev:" + mDevice.getDeviceName()
+                            + " deactivated! throttle values < "
+                            + ThermalManager.DEFAULT_NUM_THROTTLE_VALUES);
+                    mDevice = null;
+                    return;
+                }
                 if (mDevice.getThrottlePath().equals("auto")) {
                     mDevice.setThrottlePath("auto");
                 }
@@ -280,20 +333,29 @@ public class ThermalCooling {
                 mZone.printAttributes();
                 ThermalManager.sZoneCoolerBindMap.put(mZone.getZoneID(), mZone);
                 mZone = null;
-            } else if ((name.equalsIgnoreCase(THROTTLEMASK) || name
-                    .equalsIgnoreCase(DETHROTTLEMASK)) && mZone != null) {
-                if (isThrottleMask) {
-                    mZone.getLastCoolingDeviceInstance().setThrottleMaskList(mTempMaskList);
-                } else {
-                    mZone.getLastCoolingDeviceInstance().setDeThrottleMaskList(mTempMaskList);
-                }
-                isThrottleMask = false;
-                mTempMaskList = null;
             } else if (name.equalsIgnoreCase(THERMAL_THROTTLE_CONFIG)) {
                 Log.i(TAG, "Parsing Finished..");
                 done = true;
             } else if (name.equalsIgnoreCase(COOLINGDEVICEINFO) && mZone != null) {
-                mZone.addCoolingDeviceToList(mZone.getLastCoolingDeviceInstance());
+                ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo cDevInfo;
+                cDevInfo = mZone.getLastCoolingDeviceInstance();
+                if (cDevInfo != null) {
+                    ThermalCoolingDevice cDev = ThermalManager.sCDevMap
+                            .get(cDevInfo.getCoolingDeviceId());
+                    if (cDev == null) return;
+                    int cds = cDevInfo.getCoolingDeviceStates();
+                    // check the CDS against the number of throttle values exposed.
+                    // If exceeds, cap it.
+                    if (cds > cDev.getNumThrottleValues()) {
+                        cDevInfo.setCoolingDeviceStates(cDev.getNumThrottleValues());
+                        Log.i(TAG, "capping cdevid: " + cDevInfo.getCoolingDeviceId()
+                                + " to " + cDev.getNumThrottleValues() + " states");
+                    }
+                    if (cDevInfo.checkMaskList(cDev.getNumThrottleValues())) {
+                        // add only active cooling devices to list
+                        mZone.addCoolingDeviceToList(cDevInfo);
+                    }
+                }
             }
         }
     }
@@ -374,22 +436,24 @@ public class ThermalCooling {
         public void onReceive(Context context, Intent intent) {
             // Retrieve the type of THERMAL ZONE, STATE and TYPE
             String zoneName = intent.getStringExtra(ThermalManager.EXTRA_NAME);
-            int thermZone = intent.getIntExtra(ThermalManager.EXTRA_ZONE, 0);
+            int thermZone = intent.getIntExtra(ThermalManager.EXTRA_ZONE, -1);
             int thermState = intent.getIntExtra(ThermalManager.EXTRA_STATE, 0);
             int thermEvent = intent.getIntExtra(ThermalManager.EXTRA_EVENT, 0);
             int zoneTemp = intent.getIntExtra(ThermalManager.EXTRA_TEMP, 0);
-            Log.i(TAG, "Received THERMAL INTENT:" +
-                    " of event type " + thermEvent + " with state " + thermState +
-                    " at temperature " + zoneTemp +
-                    " from " + zoneName + " with state " +
-                    ThermalZone.getStateAsString(thermState) +
-                    " for " + ThermalZone.getEventTypeAsString(thermEvent) + " event" +
-                    " at Temperature " + zoneTemp);
-            if (thermState < ThermalManager.THERMAL_STATE_CRITICAL) {
+
+            Log.i(TAG, "Received THERMAL INTENT:(ZoneName, State, EventType, Temp):"
+                    + "(" + zoneName + ", " + thermState + ", "
+                    + ThermalZone.getEventTypeAsString(thermEvent) + ", " + zoneTemp + ")");
+            ThermalManager.ZoneCoolerBindingInfo zoneCoolerBindInfo =
+                    ThermalManager.sZoneCoolerBindMap.get(thermZone);
+            if (zoneCoolerBindInfo == null)
+                return;
+
+            int lastState = zoneCoolerBindInfo.getLastState();
+            if (thermState < lastState) {
                 ThermalManager.updateZoneCriticalPendingMap(thermZone,
                         ThermalManager.CRITICAL_FALSE);
-            } else if ((thermState == ThermalManager.THERMAL_STATE_CRITICAL) &&
-                    (initiateShutdown(thermZone))) {
+            } else if ((thermState == lastState) && (initiateShutdown(thermZone))) {
                 if (!isEmergencyCallOnGoing()) {
                     doShutdown();
                 } else {
@@ -514,6 +578,7 @@ public class ThermalCooling {
         int deviceId;
         int existingState, targetState;
         int currThrottleMask, currDethrottleMask;
+        int index = 0;
 
         ThermalManager.ZoneCoolerBindingInfo zoneCoolerBindInfo =
                 ThermalManager.sZoneCoolerBindMap.get(zoneId);
@@ -523,12 +588,26 @@ public class ThermalCooling {
         if (zoneCoolerBindInfo.getCoolingDeviceInfoList() == null)
             return;
 
-        if (ThermalManager.THERMAL_HIGH_EVENT == eventType) {
-            for (ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo CdeviceInfo :
+        for (ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo CdeviceInfo :
                 zoneCoolerBindInfo.getCoolingDeviceInfoList()) {
+            int coolingDeviceState =  thermalState /
+                    zoneCoolerBindInfo.getZoneToCoolDevBucketSizeIndex(index);
+            // cap it
+            coolingDeviceState = (coolingDeviceState > (CdeviceInfo.getCoolingDeviceStates() - 1))
+                    ? CdeviceInfo.getCoolingDeviceStates() - 1 : coolingDeviceState;
+            int finalThrottleState = coolingDeviceState *
+                    zoneCoolerBindInfo.getCoolDevToThrottBucketSizeIndex(index);
+            // cap it
+            finalThrottleState = (finalThrottleState > (CdeviceInfo.getMaxThrottleStates() - 1))
+                    ? CdeviceInfo.getMaxThrottleStates() - 1 : finalThrottleState;
+            index++;
+            if (ThermalManager.THERMAL_HIGH_EVENT == eventType) {
                 ArrayList<Integer> throttleMaskList = CdeviceInfo.getThrottleMaskList();
                 if (throttleMaskList == null) continue;
-                currThrottleMask = throttleMaskList.get(thermalState);
+                // cap to avoid out of bound exception
+                coolingDeviceState = (coolingDeviceState > throttleMaskList.size() - 1)
+                        ? throttleMaskList.size() - 1 : coolingDeviceState;
+                currThrottleMask = throttleMaskList.get(coolingDeviceState);
                 deviceId = CdeviceInfo.getCoolingDeviceId();
 
                 tDevice = ThermalManager.sCDevMap.get(deviceId);
@@ -537,7 +616,7 @@ public class ThermalCooling {
 
                 if (currThrottleMask == ThermalManager.THROTTLE_MASK_ENABLE) {
                     existingState = tDevice.getThermalState();
-                    tDevice.updateZoneState(zoneId, thermalState);
+                    tDevice.updateZoneState(zoneId, finalThrottleState);
                     targetState = tDevice.getThermalState();
 
                     /* Do not throttle if device is already in desired state.
@@ -549,14 +628,14 @@ public class ThermalCooling {
                      // If throttle mask is not enabled, don't do anything here.
                 }
             }
-        }
 
-        if (ThermalManager.THERMAL_LOW_EVENT == eventType) {
-            for (ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo CdeviceInfo :
-                zoneCoolerBindInfo.getCoolingDeviceInfoList()) {
+            if (ThermalManager.THERMAL_LOW_EVENT == eventType) {
                 ArrayList<Integer> dethrottleMaskList = CdeviceInfo.getDeThrottleMaskList();
                 if (dethrottleMaskList == null) continue;
-                currDethrottleMask = dethrottleMaskList.get(thermalState);
+                // cap to avoid out of bound exception
+                coolingDeviceState = (coolingDeviceState > dethrottleMaskList.size() - 1)
+                        ? dethrottleMaskList.size() - 1 : coolingDeviceState;
+                currDethrottleMask = dethrottleMaskList.get(coolingDeviceState);
                 deviceId = CdeviceInfo.getCoolingDeviceId();
 
                 tDevice = ThermalManager.sCDevMap.get(deviceId);
@@ -564,7 +643,7 @@ public class ThermalCooling {
                     continue;
 
                 existingState = tDevice.getThermalState();
-                tDevice.updateZoneState(zoneId, thermalState);
+                tDevice.updateZoneState(zoneId, finalThrottleState);
                 targetState = tDevice.getThermalState();
 
                 /* Do not dethrottle if device is already in desired state.
@@ -575,6 +654,7 @@ public class ThermalCooling {
                 }
             }
         }
+
     }
 
     /*
@@ -599,7 +679,7 @@ public class ThermalCooling {
 
         if (cdev == null) return;
 
-        if (level < ThermalManager.NUM_THERMAL_STATES - 1) {
+        if (level < cdev.getNumThrottleValues() - 1) {
             try {
                 ArrayList<Integer> values = cdev.getThrottleValuesList();
                 if (values == null || values.size() == 0) {
