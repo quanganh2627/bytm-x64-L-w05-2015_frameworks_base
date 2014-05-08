@@ -74,7 +74,11 @@ public class VirtualThermalZone extends ThermalZone {
     // override fucntion
     public void calibrateThresholds() {
         ThermalSensor ts = getThermalSensorList().get(0);
-        Integer weights[] = (mThermalSensorsAttribMap.get(ts.getSensorName())).getWeights();
+        ThermalSensorAttrib sa = mThermalSensorsAttribMap.get(ts.getSensorName());
+        if (sa == null) {
+            return;
+        }
+        Integer weights[] = sa.getWeights();
         int m = weights[0];
         int c = getOffset();
 
