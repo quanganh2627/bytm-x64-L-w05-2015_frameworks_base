@@ -883,6 +883,10 @@ public class KeyguardHostView extends KeyguardViewBase {
             // enabled because the user has left keyguard.
             KeyguardUpdateMonitor.getInstance(mContext).setAlternateUnlockEnabled(true);
 
+            // Inform AA that keyguard is unlocked
+            if (FeatureConfig.INTEL_FEATURE_ADAPTIVE_AUTHENTICATION) {
+                mLockPatternUtils.keyguardUnlocked();
+            }
             // If there's a pending runnable because the user interacted with a widget
             // and we're leaving keyguard, then run it.
             boolean deferKeyguardDone = false;

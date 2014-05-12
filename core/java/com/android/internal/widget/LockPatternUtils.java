@@ -1733,6 +1733,20 @@ public class LockPatternUtils extends ParentLockPatternUtils {
         return getBoolean(Constants.AA_ON_OFF_KEY, false, getCurrentOrCallingUserId());
     }
 
+    public void keyguardUnlocked() {
+        Log.d(TAG, "keyguardUnlocked");
+        try {
+            ILockSettings lockSettings = getLockSettings();
+            if (lockSettings == null) {
+                Log.e(TAG, "can't get lock setting service");
+                return;
+            }
+            lockSettings.keyguardUnlocked(getCurrentOrCallingUserId());
+        } catch (RemoteException re) {
+            Log.e(TAG, "keyguardUnlocked " + re);
+        }
+    }
+
     private void aaUpdate() {
         Log.d(TAG, "aa update");
         try {

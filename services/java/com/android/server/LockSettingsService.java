@@ -413,7 +413,13 @@ public class LockSettingsService extends ILockSettings.Stub {
     }
 
     public void aaUpdate(int userId) {
+        checkWritePermission(userId);
         mAAhandler.aaUpdate(userId);
+    }
+
+    public void keyguardUnlocked(int userId) {
+        checkWritePermission(userId);
+        mAAhandler.keyguardUnlocked();
     }
 
     private void writeFile(String name, byte[] hash) {
