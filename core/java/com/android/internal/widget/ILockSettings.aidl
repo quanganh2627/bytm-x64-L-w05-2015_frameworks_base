@@ -33,4 +33,5 @@ interface ILockSettings {
     void removeUser(int userId);
     boolean checkSafe(int userId);
     void aaUpdate(int userId);
+    void keyguardUnlocked(int userId);
 }
