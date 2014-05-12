@@ -70,6 +70,10 @@ public class PhoneConstants {
     public static int PRESENTATION_UNKNOWN = 3;    // no specified or unknown by network
     public static int PRESENTATION_PAYPHONE = 4;   // show pay phone info
 
+    // Name presentation type for caller id display
+    public static int NAME_PRESENTATION_ALLOWED = 1;    // normal
+    public static int NAME_PRESENTATION_RESTRICTED = 2; // blocked by user
+    public static int NAME_PRESENTATION_UNKNOWN = 3;    // not specified or unknown by network
 
     public static final String PHONE_NAME_KEY = "phoneName";
     public static final String FAILURE_REASON_KEY = "reason";
