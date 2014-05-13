@@ -38,6 +38,7 @@ import java.util.NoSuchElementException;
 public class ThermalManager {
     private static final String TAG = "ThermalManager";
     private static String sVersion;
+    private static String sCurProfileName;
     private static final String ITUX_VERSION_PROPERTY = "ro.thermal.ituxversion";
     /* Parameter needed for reading configuration files */
     public static final String SENSOR_FILE_NAME = "thermal_sensor_config.xml";
@@ -63,13 +64,27 @@ public class ThermalManager {
      */
     public static final String ACTION_THERMAL_ZONE_STATE_CHANGED =
             "com.android.server.thermal.action.THERMAL_ZONE_STATE_CHANGED";
-    public static PlatformInfo sPlatformInfo;
-    /* List of all Thermal zones in the platform */
-    public static ArrayList<ThermalZone> sThermalZonesList;
 
-    /* Hashtable of (ZoneID and ZoneCoolerBindingInfo object) */
-    public static Hashtable<Integer, ZoneCoolerBindingInfo> sZoneCoolerBindMap =
+    public static PlatformInfo sPlatformInfo;
+    public static ThermalCooling sCoolingManager;
+
+    /* List of Thermal zones for current profile. Access protected by 'sProfileSwitchLock' */
+    private static ArrayList<ThermalZone> sThermalZonesList;
+
+    /* Hashtable of (ProfileName and ListOfZonesUnderThisProfile) */
+    public static Hashtable<String, ArrayList<ThermalZone>> sProfileZoneMap =
+            new Hashtable<String, ArrayList<ThermalZone>>();
+
+    /**
+     * Hashtable of (ZoneID and ZoneCoolerBindingInfo object).
+     * This holds the map for the current profile. Access protected by 'sProfileSwitchLock'.
+     */
+    private static Hashtable<Integer, ZoneCoolerBindingInfo> sZoneCoolerBindMap =
             new Hashtable<Integer, ZoneCoolerBindingInfo>();
+
+    /* Hashtable of (ProfileName and Hashtable(zoneID, ZoneCoolerBindingInfo) object */
+    public static Hashtable<String, Hashtable<Integer, ZoneCoolerBindingInfo>> sProfileBindMap =
+            new Hashtable<String, Hashtable<Integer, ZoneCoolerBindingInfo>>();
 
     /* Hashtable of (Cooling Device ID and ThermalCoolingDevice object) */
     public static Hashtable<Integer, ThermalCoolingDevice> sCDevMap =
@@ -131,6 +146,7 @@ public class ThermalManager {
      * String containing the name of the zone.
      */
     public static final String EXTRA_NAME = "name";
+    public static final String EXTRA_PROFILE = "Profile";
 
     /* values for "STATE" field in the THERMAL_STATE_CHANGED Intent */
     public static final int THERMAL_STATE_OFF = -1;
@@ -192,6 +208,12 @@ public class ThermalManager {
 
     public static boolean sShutdownVibra = false;
 
+    /* Name of default Thermal Profile */
+    public static final String DEFAULT_PROFILE_NAME = "Default";
+
+    /* Lock protecting profile-switch */
+    private static final Object sProfileSwitchLock = new Object();
+
     /**
      * This class stores the zone throttle info. It contains the zoneID,
      * CriticalShutdown flag and CoolingDeviceInfo arraylist.
@@ -234,8 +256,9 @@ public class ThermalManager {
             return mMaxStates;
         }
 
-        public void setZoneToCoolDevBucketSize(int zoneStates) {
+        public void setZoneToCoolDevBucketSize() {
             int size = 1;
+            int zoneStates = getMaxStates();
             for (CoolingDeviceInfo coolDev : mCoolingDeviceInfoList) {
                 size = (zoneStates - 1) / coolDev.getCoolingDeviceStates();
                 mZoneToCoolDevBucketSize.add(size == 0 ? 1 : size);
@@ -245,15 +268,15 @@ public class ThermalManager {
         public int getZoneToCoolDevBucketSizeIndex(int index) {
             if (mZoneToCoolDevBucketSize.size() > index)
                 return mZoneToCoolDevBucketSize.get(index);
-            else
-                return 1;
+
+            return 1;
         }
 
         public int getCoolDevToThrottBucketSizeIndex(int index) {
             if (mZoneToCoolDevBucketSize.size() > index)
                 return mCoolDevToThrottBucketSize.get(index);
-            else
-                return 1;
+
+            return 1;
         }
 
         public void setCoolDevToThrottBucketSize() {
@@ -451,17 +474,129 @@ public class ThermalManager {
         }
     }
 
-    public ArrayList<ThermalZone> getThermalZoneList() {
-        return sThermalZonesList;
+    public static void addThermalEvent(ThermalEvent event) {
+        try {
+            ThermalManager.sEventQueue.put(event);
+        } catch (InterruptedException ex) {
+            Log.i(TAG, "caught InterruptedException in posting to event queue");
+        }
     }
 
-    public static void startMonitoringZones() {
-        if (sThermalZonesList == null) return;
+    public static void setCurBindMap(String profName) {
+        synchronized (sProfileSwitchLock) {
+            sZoneCoolerBindMap = sProfileBindMap.get(profName);
+        }
+    }
+
+    public static Hashtable<Integer, ZoneCoolerBindingInfo> getCurBindMap() {
+        synchronized (sProfileSwitchLock) {
+            return sZoneCoolerBindMap;
+        }
+    }
+
+    public static Hashtable<Integer, ZoneCoolerBindingInfo> getBindMap(String profName) {
+        return sProfileBindMap.get(profName);
+    }
+
+    private static void setCurProfileName(String profName) {
+        sCurProfileName = profName;
+    }
+
+    public static String getCurProfileName() {
+        return sCurProfileName;
+    }
+
+    private static boolean isProfileExists(String profName) {
+        if (sProfileZoneMap.get(profName) == null || sProfileBindMap.get(profName) == null) {
+            return false;
+        }
+        return true;
+    }
+
+    private static void startNewProfile(String profName) {
+        sThermalZonesList = sProfileZoneMap.get(profName);
+        sZoneCoolerBindMap = sProfileBindMap.get(profName);
+        initializeZoneCriticalPendingMap();
+        setCurProfileName(profName);
+        int activeZones = startMonitoringZones();
+        Log.i(TAG, activeZones + " zones found active in profile " + profName);
+    }
+
+    private static void stopCurrentProfile() {
         for (ThermalZone zone : sThermalZonesList) {
+            // Stop Polling threads
+            zone.stopMonitoring();
+            // Unregister UEvent/EmulTemp observers
+            zone.unregisterReceiver();
+            // Reset Parameters:
+            // Zone State: Normal, Event Type: LOW, Temperature: Normal Threshold
+            zone.setZoneState(0);
+            zone.setEventType(ThermalManager.THERMAL_LOW_EVENT);
+            zone.setZoneTemp(zone.getZoneTempThreshold(0));
+            // Send ThermalIntent with above parameters
+            // This will release all throttle controls this zone had.
+            // Since we are in the middle of a profile switch(stop),
+            // set the override parameter as true, so that this
+            // event is actually queued for processing.
+            // TODO: Find a way to take care of zones that are not
+            // present in thermal_sensor_config.xml but present in
+            // thermal_throttle_config.xml (usually from other components)
+            zone.sendThermalEvent();
+            // Reprogram the sensor thresholds if this zone supported interrupts
+            // TODO: We are reprogramming the calibrated thresholds in case the
+            // the sensor was using 'weights' and 'offset'. Hope this is fine.
+            if (zone.isUEventSupported()) {
+                zone.programThresholds((zone.getThermalSensorList()).get(0));
+            }
+        }
+    }
+
+    public static void startDefaultProfile() {
+        if (isProfileExists(DEFAULT_PROFILE_NAME)) {
+            startNewProfile(DEFAULT_PROFILE_NAME);
+        }
+        // register for Thermal Profile Change Intent only after
+        // we have started the default profile
+        sCoolingManager.registerProfChangeListener();
+    }
+
+    public static void changeThermalProfile(String newProfName) {
+        synchronized (sProfileSwitchLock) {
+            if (newProfName.equalsIgnoreCase(sCurProfileName)) {
+                Log.i(TAG, "New Profile same as current profile. Profile change request Ignored");
+                return;
+            }
+            if (!isProfileExists(newProfName)) {
+                Log.i(TAG, "New Profile does not exist in xml. Profile change request Ignored");
+                return;
+            }
+            Log.i(TAG, "ACTION_CHANGE_THERMAL_PROFILE received. New Profile: " + newProfName);
+
+            stopCurrentProfile();
+            startNewProfile(newProfName);
+        }
+    }
+
+    public static int startMonitoringZones() {
+        int activeZonesCount = 0;
+        for (ThermalZone zone : sThermalZonesList) {
+            zone.computeZoneActiveStatus();
             if (zone.getZoneActiveStatus() == false) {
                 Log.i(TAG, "deactivating inactive zone:" + zone.getZoneName());
                 continue;
             }
+
+            // update MaxStates required for 'N' level throttling
+            // caller protects 'sZoneCoolerBindMap'
+            ZoneCoolerBindingInfo bindInfo = sZoneCoolerBindMap.get(zone.getZoneId());
+            if (bindInfo != null) {
+                bindInfo.setMaxStates(zone.getMaxStates());
+                bindInfo.setZoneToCoolDevBucketSize();
+                bindInfo.setCoolDevToThrottBucketSize();
+                // TODO: To be conditioned under debug
+                bindInfo.printMappedAttributes();
+            }
+
             if (zone.isUEventSupported()) {
                 zone.calibrateThresholds();
                 zone.registerUevent();
@@ -469,7 +604,10 @@ public class ThermalManager {
                 // start polling thread for each zone
                 zone.startMonitoring();
             }
+            zone.startEmulTempObserver();
+            activeZonesCount++;
         }
+        return activeZonesCount;
     }
 
     public static void readShutdownNotiferProperties() {
@@ -488,30 +626,7 @@ public class ThermalManager {
         }
     }
 
-    /**
-     * This function scans through all the thermal zones and its associated
-     * sensors to check if at least one sensor is active. If no sensors are
-     * active, the Thermal service exits.
-     */
-    public static boolean isThermalServiceNeeded() {
-        for (ThermalZone z : sThermalZonesList) {
-            if (z != null && z.getZoneActiveStatus()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public static void unregisterZoneReceivers() {
-        if (sThermalZonesList == null) return;
-        for (ThermalZone z : sThermalZonesList) {
-            if (z == null) continue;
-            z.unregisterReceiver();
-        }
-    }
-
-    public static void initializeZoneCriticalPendingMap() {
-        if (sThermalZonesList == null) return;
+    private static void initializeZoneCriticalPendingMap() {
         sZoneCriticalPendingMap = new Hashtable<Integer, Integer>();
         if (sZoneCriticalPendingMap == null) return;
         Enumeration en;
@@ -520,6 +635,7 @@ public class ThermalManager {
             // sThermalZonesList since some non thermal zones may not have entry in
             // sThermalZonesList. This is because such zones only have entry in throttle
             // config file and not in sensor config files.
+            // 'sZoneCoolerBindMap' is protected by caller here.
             en = sZoneCoolerBindMap.keys();
             while (en.hasMoreElements()) {
                 int zone = (Integer) en.nextElement();

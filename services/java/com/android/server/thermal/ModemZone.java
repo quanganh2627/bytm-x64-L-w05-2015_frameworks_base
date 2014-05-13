@@ -35,8 +35,9 @@ import android.telephony.ServiceState;
 import android.util.Log;
 import android.widget.Toast;
 
-import java.util.ArrayList;
 import java.lang.Math;
+import java.util.ArrayList;
+import java.util.Hashtable;
 
 /**
  * ModemZone class
@@ -130,12 +131,6 @@ public class ModemZone extends ThermalZone {
         mNotificationManager = (NotificationManager) mContext.getSystemService(
                 Context.NOTIFICATION_SERVICE);
 
-        mIntentReceiver = new ModemStateBroadcastReceiver();
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(TelephonyIntents.ACTION_SERVICE_STATE_CHANGED);
-        filter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALL_STATUS_CHANGED);
-
-        mContext.registerReceiver(mIntentReceiver, filter);
         // initialize zone attributes
         updateZoneAttributes(-1, ThermalManager.THERMAL_STATE_OFF, ThermalManager.INVALID_TEMP);
 
@@ -143,11 +138,12 @@ public class ModemZone extends ThermalZone {
     }
 
     private void registerModemThresholdIntentReceiver(String intentName) {
-        if (intentName == null) return;
-        mThresholdIntentReceiver = new ModemThresholdIntentBroadcastReceiver();
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(intentName);
-        mContext.registerReceiver(mThresholdIntentReceiver, filter);
+        if (intentName != null && mThresholdIntentReceiver == null) {
+            mThresholdIntentReceiver = new ModemThresholdIntentBroadcastReceiver();
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(intentName);
+            mContext.registerReceiver(mThresholdIntentReceiver, filter);
+        }
     }
 
     private boolean updateModemInfo() {
@@ -213,10 +209,25 @@ public class ModemZone extends ThermalZone {
         if (mContext == null) return;
         if (mIntentReceiver != null) {
             mContext.unregisterReceiver(mIntentReceiver);
+            mIntentReceiver = null;
         }
         if (mThresholdIntentReceiver != null) {
             mContext.unregisterReceiver(mThresholdIntentReceiver);
+            mThresholdIntentReceiver = null;
         }
+
+        for (ThermalSensor t : mThermalSensors) {
+            t.setCurrTemp(0);
+            t.setSensorThermalState(ThermalManager.THERMAL_STATE_OFF);
+        }
+        // reset zone states
+        synchronized (sZoneAttribLock) {
+            mSensorIDwithMaxTemp = -1;
+            mCurrThermalState = ThermalManager.THERMAL_STATE_OFF;
+            mZoneTemp = 0;
+            mLastKnownZoneState = ThermalManager.THERMAL_STATE_OFF;
+        }
+        mIsCriticalShutdownflagUpdated = false;
     }
 
     private boolean isDebounceConditionSatisfied(int temp, int debounceInterval, int oldState) {
@@ -227,7 +238,14 @@ public class ModemZone extends ThermalZone {
     void updateCriticalShutdownFlag() {
         // one time update
         if (mIsCriticalShutdownflagUpdated == false) {
-            mZoneCoolerBindInfo = ThermalManager.sZoneCoolerBindMap.get(getZoneId());
+            Hashtable<Integer, ThermalManager.ZoneCoolerBindingInfo> mBindMap =
+                    ThermalManager.getCurBindMap();
+            if (mBindMap == null) {
+                Log.i(TAG, "mBindMap null in updateCriticalShutdownFlag for ModemZone");
+                return;
+            }
+
+            mZoneCoolerBindInfo = mBindMap.get(getZoneId());
             if (mZoneCoolerBindInfo != null) {
                 mIsCriticalShutdownEnable = mZoneCoolerBindInfo.getCriticalActionShutdown() == 1;
             }
@@ -252,6 +270,15 @@ public class ModemZone extends ThermalZone {
         if (mPhoneService == null) {
             Log.i(TAG, "IOemTelephony interface handle is null");
             return;
+        }
+
+        // register for Modem Intents
+        if (mIntentReceiver == null) {
+            mIntentReceiver = new ModemStateBroadcastReceiver();
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(TelephonyIntents.ACTION_SERVICE_STATE_CHANGED);
+            filter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALL_STATUS_CHANGED);
+            mContext.registerReceiver(mIntentReceiver, filter);
         }
 
         if (getServiceState() == ServiceState.STATE_POWER_OFF) {
@@ -462,13 +489,11 @@ public class ModemZone extends ThermalZone {
         }
     }
 
+    // TODO: Make this API take no arguments like the ones in ThermalZone.java
     private void sendThermalEvent (int eventType, int thermalState, int temp) {
-        ThermalEvent event = new ThermalEvent(mZoneID, eventType, thermalState, temp, mZoneName);
-        try {
-            ThermalManager.sEventQueue.put(event);
-        } catch (InterruptedException ex) {
-            Log.i(TAG, "InterruptedException while sending thermal event");
-        }
+        ThermalEvent event = new ThermalEvent(mZoneID, eventType, thermalState,
+                temp, mZoneName, ThermalManager.getCurProfileName());
+        ThermalManager.addThermalEvent(event);
     }
 
     private void setModemSensorThreshold(boolean flag, ThermalSensor t, int minTemp, int maxTemp) {
@@ -663,7 +688,7 @@ public class ModemZone extends ThermalZone {
         protected void onPostExecute(Integer result){
             super.onPostExecute(result);
             Log.i(TAG, "monitor return status = " + result);
-            if (result == STATUS_SUCCESS) {
+            if (result == STATUS_SUCCESS && mIntentReceiver != null) {
                 synchronized(sMonitorStateLock) {
                     if (getServiceState() != ServiceState.STATE_POWER_OFF &&
                             getZoneMonitorStatus() == false) {
