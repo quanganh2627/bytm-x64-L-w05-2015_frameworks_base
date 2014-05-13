@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Hashtable;
 /**
  * The ThermalCooling class parses the thermal_throttle_config.xml. This class
  * receives Thermal Intents and takes appropriate actions based on the policies
@@ -53,6 +54,8 @@ public class ThermalCooling {
 
     private ThermalZoneReceiver mThermalIntentReceiver = new ThermalZoneReceiver();
     private EmergencyCallReceiver mEmergencyCallReceiver = new EmergencyCallReceiver();
+    private ProfileChangeReceiver mProfChangeReceiver = new ProfileChangeReceiver();
+    private boolean mProfChangeListenerInitialized = false;
     /**
      * This is the parser class which parses the thermal_throttle_config.xml
      * file.
@@ -81,6 +84,8 @@ public class ThermalCooling {
 
         private static final String COOLINGDEVICESTATES = "CoolingDeviceStates";
 
+        private static final String PROFILE = "Profile";
+
         private ArrayList<Integer> mTempMaskList;
 
         private ArrayList<Integer> mTempThrottleValuesList;;
@@ -92,6 +97,11 @@ public class ThermalCooling {
         XmlPullParser mParser;
 
         ThermalCoolingDevice mDevice = null;
+
+        /* Hashtable of (ZoneID and ZoneCoolerBindingInfo object) */
+        Hashtable<Integer, ThermalManager.ZoneCoolerBindingInfo> mZoneCoolerBindMap = null;
+        String mCurProfileName = ThermalManager.DEFAULT_PROFILE_NAME;
+        int mNumProfiles = 0;
 
         ThermalManager.ZoneCoolerBindingInfo mZone = null;
 
@@ -264,8 +274,19 @@ public class ThermalCooling {
                     if (mDevice == null)
                         mDevice = new ThermalCoolingDevice();
                 } else if (name.equalsIgnoreCase(ZONETHROTINFO)) {
-                    if (mZone == null)
+                    if (mZone == null) {
                         mZone = new ThermalManager.ZoneCoolerBindingInfo();
+                    }
+                    if (mZoneCoolerBindMap == null) {
+                        mZoneCoolerBindMap = new Hashtable<Integer,
+                                ThermalManager.ZoneCoolerBindingInfo>();
+                    }
+                } else if (name.equalsIgnoreCase(PROFILE)) {
+                    mNumProfiles++;
+                    if (mZoneCoolerBindMap == null) {
+                        mZoneCoolerBindMap = new Hashtable<Integer,
+                                ThermalManager.ZoneCoolerBindingInfo>();
+                    }
                 } else if (name.equalsIgnoreCase(COOLINGDEVICEINFO) && mZone != null) {
                     if (mZone.getCoolingDeviceInfoList() == null) {
                         mZone.initializeCoolingDeviceInfoList();
@@ -297,6 +318,8 @@ public class ThermalCooling {
                         mDevice.setClassPath(mParser.nextText());
                     } else if (name.equalsIgnoreCase("CDeviceThrottlePath") && mDevice != null) {
                         mDevice.setThrottlePath(mParser.nextText());
+                    } else if (name.equalsIgnoreCase("Name")) {
+                        mCurProfileName = mParser.nextText();
                     }
                 }
             } catch (XmlPullParserException e) {
@@ -331,10 +354,18 @@ public class ThermalCooling {
                 mDevice = null;
             } else if (name.equalsIgnoreCase(ZONETHROTINFO) && mZone != null) {
                 mZone.printAttributes();
-                ThermalManager.sZoneCoolerBindMap.put(mZone.getZoneID(), mZone);
+                mZoneCoolerBindMap.put(mZone.getZoneID(), mZone);
                 mZone = null;
+            } else if (name.equalsIgnoreCase(PROFILE)) {
+                ThermalManager.sProfileBindMap.put(mCurProfileName, mZoneCoolerBindMap);
+                mZoneCoolerBindMap = null;
             } else if (name.equalsIgnoreCase(THERMAL_THROTTLE_CONFIG)) {
                 Log.i(TAG, "Parsing Finished..");
+                // This indicates we have not seen any <Profile> tag.
+                // Consider it as if we have only one 'Default' Profile.
+                if (mNumProfiles == 0) {
+                    ThermalManager.sProfileBindMap.put(mCurProfileName, mZoneCoolerBindMap);
+                }
                 done = true;
             } else if (name.equalsIgnoreCase(COOLINGDEVICEINFO) && mZone != null) {
                 ThermalManager.ZoneCoolerBindingInfo.CoolingDeviceInfo cDevInfo;
@@ -380,9 +411,14 @@ public class ThermalCooling {
         } else {
             parser = new ThermalParser();
         }
-        if (parser == null)
+
+        if (parser == null || !parser.parse()) {
+            Log.i(TAG, "thermal_throttle_config.xml parsing failed");
             return false;
-        if (!parser.parse()) return false;
+        }
+
+        // Set this sZoneCoolerBindMap to the DefaultProfile Map
+        ThermalManager.setCurBindMap(ThermalManager.DEFAULT_PROFILE_NAME);
 
         // Register for thermal zone state changed notifications
         IntentFilter filter = new IntentFilter();
@@ -397,6 +433,19 @@ public class ThermalCooling {
 
         configureDynamicTurbo();
         return true;
+    }
+
+    private final class ProfileChangeReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (action.equals("android.intent.action.CHANGE_THERMAL_PROFILE")) {
+                String profName = intent.getStringExtra(ThermalManager.EXTRA_PROFILE);
+                if (profName != null) {
+                    ThermalManager.changeThermalProfile(profName);
+                }
+            }
+        }
     }
 
     private final class EmergencyCallReceiver extends BroadcastReceiver {
@@ -434,26 +483,42 @@ public class ThermalCooling {
     private final class ThermalZoneReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
-            // Retrieve the type of THERMAL ZONE, STATE and TYPE
             String zoneName = intent.getStringExtra(ThermalManager.EXTRA_NAME);
+            String profName = intent.getStringExtra(ThermalManager.EXTRA_PROFILE);
             int thermZone = intent.getIntExtra(ThermalManager.EXTRA_ZONE, -1);
             int thermState = intent.getIntExtra(ThermalManager.EXTRA_STATE, 0);
             int thermEvent = intent.getIntExtra(ThermalManager.EXTRA_EVENT, 0);
             int zoneTemp = intent.getIntExtra(ThermalManager.EXTRA_TEMP, 0);
 
-            Log.i(TAG, "Received THERMAL INTENT:(ZoneName, State, EventType, Temp):"
-                    + "(" + zoneName + ", " + thermState + ", "
-                    + ThermalZone.getEventTypeAsString(thermEvent) + ", " + zoneTemp + ")");
-            ThermalManager.ZoneCoolerBindingInfo zoneCoolerBindInfo =
-                    ThermalManager.sZoneCoolerBindMap.get(thermZone);
-            if (zoneCoolerBindInfo == null)
-                return;
+            // Assume 'Default' profile if there is no profile parameter
+            // as part of the intent.
+            if (profName == null) {
+                profName = ThermalManager.DEFAULT_PROFILE_NAME;
+            }
 
+            Log.i(TAG, "Received THERMAL INTENT:(ProfileName, ZoneName, State, EventType, Temp):"
+                    + "(" + profName + ", " + zoneName + ", " + thermState + ", "
+                    + ThermalZone.getEventTypeAsString(thermEvent) + ", " + zoneTemp + ")");
+
+            Hashtable<Integer, ThermalManager.ZoneCoolerBindingInfo> mBindMap =
+                    ThermalManager.getBindMap(profName);
+            if (mBindMap == null) {
+                Log.i(TAG, "mBindMap null inside ThermalZoneReceiver");
+                return;
+            }
+
+            ThermalManager.ZoneCoolerBindingInfo zoneCoolerBindInfo = mBindMap.get(thermZone);
+            if (zoneCoolerBindInfo == null) {
+                Log.i(TAG, "zoneCoolerBindInfo null for zoneID" + thermZone);
+                return;
+            }
+
+            boolean flag = zoneCoolerBindInfo.getCriticalActionShutdown() == 1;
             int lastState = zoneCoolerBindInfo.getLastState();
             if (thermState < lastState) {
                 ThermalManager.updateZoneCriticalPendingMap(thermZone,
                         ThermalManager.CRITICAL_FALSE);
-            } else if ((thermState == lastState) && (initiateShutdown(thermZone))) {
+            } else if (thermState == lastState && flag) {
                 if (!isEmergencyCallOnGoing()) {
                     doShutdown();
                 } else {
@@ -469,7 +534,7 @@ public class ThermalCooling {
             if (thermState == ThermalManager.THERMAL_STATE_OFF) {
                 thermState = ThermalManager.THERMAL_STATE_NORMAL;
             }
-            handleThermalEvent(thermZone, thermEvent, thermState);
+            handleThermalEvent(thermZone, thermEvent, thermState, zoneCoolerBindInfo);
         }
     }
 
@@ -564,26 +629,22 @@ public class ThermalCooling {
         new ThermalNotifier(mContext, notificationMask).triggerNotification();
     }
 
-    /* Initiate Thermal shutdown due to the zone referred by 'zoneID' */
-    private static boolean initiateShutdown(int zoneID) {
-        ThermalManager.ZoneCoolerBindingInfo zone = ThermalManager.sZoneCoolerBindMap.get(zoneID);
-        if (zone == null)
-            return false;
-        return zone.getCriticalActionShutdown() == 1;
+    public void registerProfChangeListener() {
+        IntentFilter profChangeIntentFilter = new IntentFilter();
+        profChangeIntentFilter.addAction("android.intent.action.CHANGE_THERMAL_PROFILE");
+        // TODO: add some permission (BRICK ??) to protect it from third party apps
+        mContext.registerReceiver(mProfChangeReceiver, profChangeIntentFilter);
+        mProfChangeListenerInitialized = true;
     }
 
     /* Method to handle the thermal event based on HIGH or LOW event */
-    private static void handleThermalEvent(int zoneId, int eventType, int thermalState) {
+    private static void handleThermalEvent(int zoneId, int eventType, int thermalState,
+            ThermalManager.ZoneCoolerBindingInfo zoneCoolerBindInfo) {
         ThermalCoolingDevice tDevice;
         int deviceId;
         int existingState, targetState;
         int currThrottleMask, currDethrottleMask;
         int index = 0;
-
-        ThermalManager.ZoneCoolerBindingInfo zoneCoolerBindInfo =
-                ThermalManager.sZoneCoolerBindMap.get(zoneId);
-        if (zoneCoolerBindInfo == null)
-            return;
 
         if (zoneCoolerBindInfo.getCoolingDeviceInfoList() == null)
             return;
@@ -747,6 +808,13 @@ public class ThermalCooling {
         if (mContext != null) {
             mContext.unregisterReceiver(mThermalIntentReceiver);
             mContext.unregisterReceiver(mEmergencyCallReceiver);
+            // During Thermal Service init, when parsing fails, we
+            // unregister all receivers here. mProfChangeReceiver
+            // might not have been initialized at that time because
+            // we initialize this only after starting the Default profile.
+            if (mProfChangeListenerInitialized) {
+                mContext.unregisterReceiver(mProfChangeReceiver);
+            }
         }
     }
 }

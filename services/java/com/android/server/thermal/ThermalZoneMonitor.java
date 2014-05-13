@@ -28,24 +28,29 @@ public class ThermalZoneMonitor implements Runnable {
     private static final String TAG = "ThermalZoneMonitor";
     private Thread t;
     private ThermalZone zone;
+    private String mThreadName;
 
     public ThermalZoneMonitor(ThermalZone tz) {
         zone = tz;
-        String threadName = "ThermalZone" + zone.getZoneId();
-        t = new Thread(this, threadName);
+        mThreadName = "ThermalZone" + zone.getZoneId();
+        t = new Thread(this, mThreadName);
         t.start();
+    }
+
+    public void stopMonitor() {
+        t.interrupt();
     }
 
     public void run() {
         try {
-            while (true) {
+            while (!t.isInterrupted()) {
                 if (zone.isZoneStateChanged()) {
-                    ThermalUtils.addThermalEvent(zone);
+                    zone.sendThermalEvent();
                 }
                 Thread.sleep(zone.getPollDelay(zone.getZoneState()));
             }
         } catch (InterruptedException iex) {
-            Log.i(TAG, "caught InterruptedException in run()");
+            Log.i(TAG, "Stopping thread " + mThreadName + " [InterruptedException]");
         }
     }
 }

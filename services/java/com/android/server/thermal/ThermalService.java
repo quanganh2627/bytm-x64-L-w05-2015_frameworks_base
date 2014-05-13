@@ -48,6 +48,8 @@ import java.lang.SecurityException;
 import java.util.ArrayList;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * The ThermalService monitors the Thermal zones on the platform.
@@ -64,7 +66,6 @@ public class ThermalService extends Binder {
     private static final String TAG = ThermalService.class.getSimpleName();
     private Context mContext;
     private Handler mHandler = new Handler();
-    private ThermalCooling mCoolingManager;
     protected enum MetaTag {
             ENUM_UNKNOWN,
             ENUM_ZONETHRESHOLD,
@@ -87,6 +88,8 @@ public class ThermalService extends Binder {
         private static final String ORDER = "Order";
         private static final String OFFSET = "Offset";
         private static final String ZONETHRESHOLD = "ZoneThreshold";
+        private static final String PROFILE = "Profile";
+
         private boolean mDone = false;
         private ThermalManager.PlatformInfo mPlatformInfo = null;
         private ThermalSensor mCurrSensor = null;
@@ -103,8 +106,11 @@ public class ThermalService extends Binder {
         XmlPullParserFactory mFactory = null;
         XmlPullParser mParser = null;
         int mTempZoneId = -1;
+        int mNumProfiles = 0;
         String mTempZoneName = null;
+        String mCurProfileName = ThermalManager.DEFAULT_PROFILE_NAME;
         FileReader mInputStream = null;
+
         ThermalParser(String fname) {
             try {
                 mFactory = XmlPullParserFactory.newInstance(System.
@@ -143,10 +149,6 @@ public class ThermalService extends Binder {
 
         public ThermalManager.PlatformInfo getPlatformInfo() {
             return mPlatformInfo;
-        }
-
-        public ArrayList<ThermalZone> getThermalZoneList() {
-            return mThermalZones;
         }
 
         public boolean parse() {
@@ -288,6 +290,8 @@ public class ThermalService extends Binder {
                     mPlatformInfo = new ThermalManager.PlatformInfo();
                     // Default Thermal States
                     mPlatformInfo.mMaxThermalStates = 5;
+                } else if (name.equalsIgnoreCase(PROFILE)) {
+                    mNumProfiles++;
                 } else if (name.equalsIgnoreCase(SENSOR)) {
                     if (mCurrSensor == null) {
                         mCurrSensor = new ThermalSensor();
@@ -308,6 +312,8 @@ public class ThermalService extends Binder {
                     } else if (name.equalsIgnoreCase("ZoneName") && mTempZoneId != -1) {
                         // if modem create a object of type modem and assign to base class
                         mTempZoneName = mParser.nextText();
+                    } else if (name.equalsIgnoreCase("Name")) {
+                        mCurProfileName = mParser.nextText();
                     } else if (name.equalsIgnoreCase(ZONELOGIC) && mTempZoneId != -1
                             && mTempZoneName != null) {
                         String zoneLogic = mParser.nextText();
@@ -391,7 +397,6 @@ public class ThermalService extends Binder {
                 mCurrSensor.setAutoValues();
                 if (ThermalManager.getSensor(mCurrSensor.getSensorName()) == null) {
                     ThermalManager.sSensorMap.put(mCurrSensor.getSensorName(), mCurrSensor);
-                    mCurrSensor.printAttrs();
                 } else {
                     Log.i(TAG, "sensor:" + mCurrSensor.getSensorName() + " already present");
                 }
@@ -414,9 +419,6 @@ public class ThermalService extends Binder {
             } else if (name.equalsIgnoreCase(ZONE) && mCurrZone != null
                     && mThermalZones != null) {
                 mCurrZone.setSensorList(mCurrSensorAttribList);
-                // check to see if zone is active
-                mCurrZone.computeZoneActiveStatus();
-                mCurrZone.startEmulTempObserver();
                 mThermalZones.add(mCurrZone);
                 mCurrZone = null;
                 mTempZoneId = -1;
@@ -429,8 +431,15 @@ public class ThermalService extends Binder {
                 mCurrZone.setMovingAvgWindow(mMovingAvgWindowList);
                 mMovingAvgWindowList = null;
             } else if (name.equalsIgnoreCase(THERMAL_CONFIG)) {
-                Log.i(TAG, "Parsing Finished..");
+                // This indicates we have not seen any <Profile> tag.
+                // Consider it as if we have only one 'Default' Profile.
+                if (mNumProfiles == 0) {
+                    ThermalManager.sProfileZoneMap.put(mCurProfileName, mThermalZones);
+                }
                 mDone = true;
+            } else if (name.equalsIgnoreCase(PROFILE)) {
+                ThermalManager.sProfileZoneMap.put(mCurProfileName, mThermalZones);
+                mThermalZones = null;
             } else if (name.equalsIgnoreCase(ZONETHRESHOLD) && mCurrZone != null) {
                 mCurrZone.setZoneTempThreshold(mZoneThresholdList);
                 mZoneThresholdList = null;
@@ -458,11 +467,12 @@ public class ThermalService extends Binder {
             Intent statusIntent = new Intent();
             statusIntent.setAction(ThermalManager.ACTION_THERMAL_ZONE_STATE_CHANGED);
 
-            statusIntent.putExtra(ThermalManager.EXTRA_NAME, event.zoneName);
-            statusIntent.putExtra(ThermalManager.EXTRA_ZONE, event.zoneID);
-            statusIntent.putExtra(ThermalManager.EXTRA_EVENT, event.eventType);
-            statusIntent.putExtra(ThermalManager.EXTRA_STATE, event.thermalLevel);
-            statusIntent.putExtra(ThermalManager.EXTRA_TEMP, event.zoneTemp);
+            statusIntent.putExtra(ThermalManager.EXTRA_NAME, event.mZoneName);
+            statusIntent.putExtra(ThermalManager.EXTRA_PROFILE, event.mProfName);
+            statusIntent.putExtra(ThermalManager.EXTRA_ZONE, event.mZoneId);
+            statusIntent.putExtra(ThermalManager.EXTRA_EVENT, event.mEventType);
+            statusIntent.putExtra(ThermalManager.EXTRA_STATE, event.mThermalLevel);
+            statusIntent.putExtra(ThermalManager.EXTRA_TEMP, event.mZoneTemp);
 
             /* Send the Thermal Intent */
             mContext.sendBroadcast(statusIntent);
@@ -473,9 +483,8 @@ public class ThermalService extends Binder {
     public ThermalService(Context context) {
         super();
 
-        Log.i(TAG, "Initializing Thermal Manager Service");
+        Log.i(TAG, "Initializing Thermal Service");
         mContext = context;
-        mCoolingManager = new ThermalCooling();
 
         /* Wait for the BOOT Completion */
         IntentFilter filter = new IntentFilter();
@@ -505,6 +514,8 @@ public class ThermalService extends Binder {
         @Override
         public void onReceive(Context context, Intent intent)
         {
+            boolean ret;
+
             ThermalManager.loadiTUXVersion();
             /* Check for exitence of config files */
             ThermalUtils.initialiseConfigFiles(mContext);
@@ -516,15 +527,14 @@ public class ThermalService extends Binder {
             /* Set Dynamic Turbo status based on the property */
             configureTurboProperties();
 
-            /* Start and Initialize the Thermal Cooling Manager */
-            if (mCoolingManager == null) {
-                Log.i(TAG, "mCoolingManager is null. Exiting ThermalService");
-                return;
-            }
-
-            if (!mCoolingManager.init(mContext)) {
-                Log.i(TAG, "mCoolingManager.init() failed. Exiting ThermalService");
-                return;
+            /* Initialize the Thermal Cooling Manager */
+            ThermalManager.sCoolingManager = new ThermalCooling();
+            if (ThermalManager.sCoolingManager != null) {
+                ret = ThermalManager.sCoolingManager.init(mContext);
+                if (!ret) {
+                    Log.i(TAG, "CoolingManager is null. Exiting ThermalService");
+                    return;
+                }
             }
 
             /* Parse the thermal configuration file to determine zone/sensor information */
@@ -534,44 +544,29 @@ public class ThermalService extends Binder {
             } else {
                 mThermalParser = new ThermalParser();
             }
-            if (mThermalParser == null) {
-                Log.i(TAG, "ThermalParser creation failed. Exiting ThermalService");
-                return;
-            }
 
-            if (!mThermalParser.parse()) {
-                mCoolingManager.unregisterReceivers();
-                ThermalManager.unregisterZoneReceivers();
-                Log.i(TAG, "ThermalManagement XML Parsing Failed. Exiting ThermalService");
-                return;
+            if (mThermalParser != null) {
+                ret = mThermalParser.parse();
+                if (!ret) {
+                    ThermalManager.sCoolingManager.unregisterReceivers();
+                    Log.i(TAG, "thermal_sensor_config.xml parsing Failed. Exiting ThermalService");
+                    return;
+                }
             }
 
             /* Retrieve the platform information after parsing */
             ThermalManager.sPlatformInfo = mThermalParser.getPlatformInfo();
-            ThermalManager.sPlatformInfo.printAttrs();
 
-            /* Retrieve the Zone list after parsing */
-            ThermalManager.sThermalZonesList = mThermalParser.getThermalZoneList();
-
-            /* print the parsed information */
-            for (ThermalZone tz : ThermalManager.sThermalZonesList) {
-                tz.printAttrs();
-            }
-            /* Mapping zone states to cooling device throttle values */
-            for (ThermalZone tz : ThermalManager.sThermalZonesList) {
-                tz.initializeStatesMapping();
+            /* Print thermal_sensor_config.xml information */
+            Iterator it = ThermalManager.sProfileZoneMap.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry entry = (Map.Entry) it.next();
+                String key = (String) entry.getKey();
+                ArrayList<ThermalZone> tzList = (ArrayList<ThermalZone>) entry.getValue();
+                Log.i(TAG, "Zones under Profile: " + key);
+                for (ThermalZone tz : tzList) tz.printAttrs();
             }
 
-            /* if no active zone, just exit Thermal manager Service */
-            if (ThermalManager.isThermalServiceNeeded() == false) {
-                Log.i(TAG, "No active thermal zones. Exiting ThermalService");
-                mCoolingManager.unregisterReceivers();
-                ThermalManager.unregisterZoneReceivers();
-                return;
-            }
-
-            /* initialize zone critical pending map */
-            ThermalManager.initializeZoneCriticalPendingMap();
             /* read persistent system properties for shutdown notification */
             ThermalManager.readShutdownNotiferProperties();
 
@@ -579,8 +574,8 @@ public class ThermalService extends Binder {
             Notify notifier = new Notify(ThermalManager.sEventQueue);
             new Thread(notifier, "ThermalNotifier").start();
 
-            /* start monitoring the thermal zones */
-            ThermalManager.startMonitoringZones();
+            /* Start monitoring the zones in Default Thermal Profile */
+            ThermalManager.startDefaultProfile();
         }
     }
 }

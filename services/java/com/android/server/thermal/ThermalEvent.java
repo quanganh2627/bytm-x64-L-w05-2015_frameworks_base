@@ -23,21 +23,15 @@ package com.android.server.thermal;
  * @hide
  */
 public class ThermalEvent {
-    public int zoneID;
+    public int mZoneId, mEventType, mThermalLevel, mZoneTemp;
+    public String mZoneName, mProfName;
 
-    public int eventType;
-
-    public int thermalLevel;
-
-    public int zoneTemp;
-
-    public String zoneName;
-
-    ThermalEvent(int zone, int type, int state, int temp, String name) {
-        zoneID = zone;
-        eventType = type;
-        thermalLevel = state;
-        zoneTemp = temp;
-        zoneName = name;
+    ThermalEvent(int id, int type, int state, int temp, String zoneName, String profName) {
+        mZoneId = id;
+        mEventType = type;
+        mThermalLevel = state;
+        mZoneTemp = temp;
+        mZoneName = zoneName;
+        mProfName = profName;
     }
 }

@@ -33,6 +33,7 @@ public class VirtualThermalZone extends ThermalZone {
 
     private static final String TAG = "VirtualThermalZone";
     private String mEmulTempPath;
+    private ThermalZoneMonitor mTzm = null;
 
     public void setEmulTempPath(String path) {
         mEmulTempPath = path;
@@ -62,13 +63,20 @@ public class VirtualThermalZone extends ThermalZone {
     }
 
     public void unregisterReceiver() {
+        super.unregisterReceiver();
         if (getEmulTempFlag()) {
             mEmulTempObserver.stopObserving();
         }
     }
 
     public void startMonitoring() {
-        new ThermalZoneMonitor(this);
+        mTzm = new ThermalZoneMonitor(this);
+    }
+
+    public void stopMonitoring() {
+        if (mTzm != null) {
+            mTzm.stopMonitor();
+        }
     }
 
     // override fucntion
@@ -83,11 +91,11 @@ public class VirtualThermalZone extends ThermalZone {
         int c = getOffset();
 
         if (m == 0) return;
-        for (int i = 0; i < mZoneTempThresholds.length; i++) {
+        for (int i = 0; i < mZoneTempThresholdsRaw.length; i++) {
             // We do not want to convert '0'. Let it represent 0 C.
-            if (mZoneTempThresholds[i] == 0) continue;
+            if (mZoneTempThresholdsRaw[i] == 0) continue;
             // Get raw systherm temperature: y=mx+c <--> x=(y-c)/m
-            mZoneTempThresholds[i] = ((mZoneTempThresholds[i] - c) * 1000) / m;
+            mZoneTempThresholds[i] = ((mZoneTempThresholdsRaw[i] - c) * 1000) / m;
         }
         Log.i(TAG, "calibrateThresholds[]: " + Arrays.toString(mZoneTempThresholds));
     }

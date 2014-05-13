@@ -33,6 +33,7 @@ import java.util.Arrays;
 public class RawThermalZone extends ThermalZone {
 
     private static final String TAG = "RawThermalZone";
+    private ThermalZoneMonitor mTzm = null;
 
     public RawThermalZone() {
         super();
@@ -51,7 +52,13 @@ public class RawThermalZone extends ThermalZone {
     }
 
     public void startMonitoring() {
-        new ThermalZoneMonitor(this);
+        mTzm = new ThermalZoneMonitor(this);
+    }
+
+    public void stopMonitoring() {
+        if (mTzm != null) {
+            mTzm.stopMonitor();
+        }
     }
 
     // override updateZoneTemp

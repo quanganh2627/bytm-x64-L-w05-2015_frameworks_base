@@ -142,19 +142,6 @@ public class ThermalUtils {
         return thresholds[index + 1];
     }
 
-    public static void addThermalEvent(ThermalZone zone) {
-        ThermalEvent event = new ThermalEvent(zone.getZoneId(),
-                zone.getEventType(),
-                zone.getZoneState(),
-                zone.getZoneTemp(),
-                zone.getZoneName());
-        try {
-            ThermalManager.sEventQueue.put(event);
-        } catch (InterruptedException ex) {
-            Log.i(TAG, "caught InterruptedException in posting to event queue");
-        }
-    }
-
     public static void initialiseConfigFiles(Context context) {
         if ("1".equals(SystemProperties.get("persist.thermal.debug.xml", "0"))) {
             if (isFileExists(DEBUG_DIR_PATH + SENSOR_FILE_NAME) &&

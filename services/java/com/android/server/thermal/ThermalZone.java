@@ -53,6 +53,10 @@ public class ThermalZone {
     private boolean mIsZoneActive = false;
     private int mOffset = 0;
     protected Integer mZoneTempThresholds[];  /* Array containing temperature thresholds */
+    // mZoneTempThresholdsRaw contains the Raw thresholds (as specified in xml).
+    // mZoneTempThresholds contsins the calibrated thresholds that are used
+    // to detect zone state change at runtime.
+    protected Integer mZoneTempThresholdsRaw[];
 
     /* MovingAverage related declarations */
     private int mRecordedValuesHead = -1; /* Index pointing to the head of past values of sensor */
@@ -68,24 +72,10 @@ public class ThermalZone {
 
     public void updateMaxStates(int state) {
         setMaxStates(state);
-        // save this in the zone cooler bind info map also
-        ThermalManager.ZoneCoolerBindingInfo zoneCoolerBindInfo =
-                ThermalManager.sZoneCoolerBindMap.get(mZoneID);
-       if (zoneCoolerBindInfo != null) {
-           zoneCoolerBindInfo.setMaxStates(state);
-       }
     }
 
     public int getMaxStates() {
         return mMaxStates;
-    }
-
-    public void initializeStatesMapping() {
-        ThermalManager.ZoneCoolerBindingInfo zoneCoolerBindInfo =
-                ThermalManager.sZoneCoolerBindMap.get(mZoneID);
-        zoneCoolerBindInfo.setZoneToCoolDevBucketSize(mMaxStates);
-        zoneCoolerBindInfo.setCoolDevToThrottBucketSize();
-        zoneCoolerBindInfo.printMappedAttributes();
     }
 
     public boolean getMovingAverageFlag() {
@@ -343,8 +333,12 @@ public class ThermalZone {
     public void setZoneTempThreshold(ArrayList<Integer> thresholdList) {
         if (thresholdList != null ) {
             mZoneTempThresholds = new Integer[thresholdList.size()];
+            mZoneTempThresholdsRaw = new Integer[thresholdList.size()];
             if (mZoneTempThresholds != null) {
                 mZoneTempThresholds = thresholdList.toArray(mZoneTempThresholds);
+            }
+            if (mZoneTempThresholdsRaw != null) {
+                mZoneTempThresholdsRaw = thresholdList.toArray(mZoneTempThresholdsRaw);
             }
         }
     }
@@ -364,6 +358,8 @@ public class ThermalZone {
     }
 
     public void computeZoneActiveStatus() {
+        // init again. needed because of a profile change
+        mIsZoneActive = false;
         if (mZoneTempThresholds == null) {
             Log.i(TAG, "deactivate zone:" + getZoneName() + " threshold list is NULL! ");
             mIsZoneActive = false;
@@ -426,10 +422,16 @@ public class ThermalZone {
     public void startMonitoring() {
     }
 
+    // override in Specific zone class which inherit ThermalZone
+    public void stopMonitoring() {
+    }
+
     // override in ModemZone to unregister Modem specific intents
     // override in VirtualThermalZone to stop UEvent observers
     public void unregisterReceiver() {
-
+        if (isUEventSupported()) {
+            mUEventObserver.stopObserving();
+        }
     }
 
     // override in VirtualThermalZone class
@@ -511,8 +513,8 @@ public class ThermalZone {
     }
 
     public void registerUevent() {
-        String devPath;
         int indx;
+
         if (mThermalSensors == null) return;
         if (mThermalSensors.size() > 1) {
             Log.i(TAG, "for zone:" + getZoneName() + " in uevent mode only first sensor used!");
@@ -539,6 +541,7 @@ public class ThermalZone {
             int sensorTemp, errorVal, eventType = -1;
             ThermalZone zone;
             if (mThermalSensors ==  null) return;
+
             // Name of the sensor and current temperature are mandatory parameters of an UEvent
             sensorName = event.get("NAME");
             sensorTemp = Integer.parseInt(event.get("TEMP"));
@@ -589,12 +592,9 @@ public class ThermalZone {
     }
 
     public void sendThermalEvent() {
-        ThermalEvent thermalEvent = new ThermalEvent(mZoneID,
-                mCurrEventType, mCurrThermalState, mZoneTemp, mZoneName);
-        try {
-            ThermalManager.sEventQueue.put(thermalEvent);
-        } catch (InterruptedException ex) {
-            Log.i(TAG, "caught InterruptedException in posting to event queue");
-        }
+        ThermalEvent event = new ThermalEvent(mZoneID, mCurrEventType,
+                mCurrThermalState, mZoneTemp, mZoneName,
+                ThermalManager.getCurProfileName());
+        ThermalManager.addThermalEvent(event);
     }
 }
