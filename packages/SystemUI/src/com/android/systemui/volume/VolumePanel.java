@@ -193,6 +193,11 @@ public class VolumePanel extends Handler {
                 IC_AUDIO_VOL,
                 IC_AUDIO_VOL_MUTE,
                 true),
+        FMStream(AudioManager.STREAM_FM,
+                R.string.volume_icon_description_media,
+                R.drawable.ic_audio_vol,
+                R.drawable.ic_audio_vol_mute,
+                true),
         NotificationStream(AudioManager.STREAM_NOTIFICATION,
                 R.string.volume_icon_description_notification,
                 com.android.systemui.R.drawable.ic_ringer_audible,
@@ -232,6 +237,7 @@ public class VolumePanel extends Handler {
         StreamResources.RingerStream,
         StreamResources.VoiceStream,
         StreamResources.MediaStream,
+        StreamResources.FMStream,
         StreamResources.NotificationStream,
         StreamResources.AlarmStream,
         StreamResources.MasterStream,
@@ -989,6 +995,8 @@ public class VolumePanel extends Handler {
                 break;
             }
 
+            case AudioManager.STREAM_FM:
+                // Fall though
             case AudioManager.STREAM_MUSIC: {
                 // Special case for when Bluetooth is active for music
                 if ((mAudioManager.getDevicesForStream(AudioManager.STREAM_MUSIC) &

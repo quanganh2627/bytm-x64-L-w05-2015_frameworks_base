@@ -347,6 +347,10 @@ public class AudioManager {
     public static final int STREAM_DTMF = AudioSystem.STREAM_DTMF;
     /** @hide The audio stream for text to speech (TTS) */
     public static final int STREAM_TTS = AudioSystem.STREAM_TTS;
+
+    /** @hide The audio stream for FM radio*/
+    public static final int STREAM_FM = AudioSystem.STREAM_FM;
+
     /** Number of audio streams */
     /**
      * @deprecated Use AudioSystem.getNumStreamTypes() instead
@@ -365,7 +369,8 @@ public class AudioManager {
         7,  // STREAM_BLUETOOTH_SCO
         7,  // STREAM_SYSTEM_ENFORCED
         11, // STREAM_DTMF
-        11  // STREAM_TTS
+        11, // STREAM_TTS
+        2   // STREAM_FM
     };
 
     /**
@@ -1790,6 +1795,16 @@ public class AudioManager {
         return AudioSystem.isStreamActive(STREAM_MUSIC, 0);
     }
 
+     /**
+     * Checks whether FM is active.
+     *
+     * @return true if FM is active.
+     * @hide
+     */
+    public boolean isFmActive() {
+        return AudioSystem.isStreamActive(STREAM_FM, 0);
+    }
+
     /**
      * @hide
      * Checks whether any music or media is actively playing on a remote device (e.g. wireless
@@ -2998,6 +3013,7 @@ public class AudioManager {
         case STREAM_ALARM:
         case STREAM_NOTIFICATION:
         case STREAM_DTMF:
+        case STREAM_FM:
             return AudioSystem.getDevicesForStream(streamType);
         default:
             return 0;
