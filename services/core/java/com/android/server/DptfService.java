@@ -29,6 +29,8 @@ import android.os.UserHandle;
 import android.app.ActivityManagerNative;
 import android.app.Instrumentation;
 import android.view.KeyEvent;
+import android.os.PowerManager;
+import android.os.SystemClock;
 
 /**
  * DPTF service takes care of thermal management actions like system shutdown,
@@ -80,10 +82,9 @@ public class DptfService extends Binder {
             if (event.get(uEventListen) != null) {
                 action = event.get(uEventListen);
                 if (action.equals("shutdown")) {
-                   triggerShutdown();
+                    triggerShutdown();
                 } else if (action.equals("suspend")) {
-                  // TBI: No action for now
-                  // triggerSuspend();
+                    triggerSuspend();
                 }
             }
         }
@@ -91,13 +92,13 @@ public class DptfService extends Binder {
 
     private void triggerShutdown() {
         try {
-          if (ActivityManagerNative.isSystemReady()) {
-            Log.d(TAG, "Systen shutting down due to critical temperature");
-            Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
-            intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            mContext.startActivityAsUser(intent, UserHandle.CURRENT);
-          }
+            if (ActivityManagerNative.isSystemReady()) {
+                Log.d(TAG, "Systen shutting down due to critical temperature");
+                Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
+                intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                mContext.startActivityAsUser(intent, UserHandle.CURRENT);
+            }
         } catch (Exception e) {
             Log.d(TAG, "Exception in triggering thermal shutdown"+e);
         }
@@ -105,12 +106,13 @@ public class DptfService extends Binder {
 
     private void triggerSuspend() {
         try {
-          if (ActivityManagerNative.isSystemReady()) {
-             Log.d(TAG, "System suspending based on thermal action from dptf");
-             mInstr.sendKeyDownUpSync(KeyEvent.KEYCODE_POWER);
-          }
+            if (ActivityManagerNative.isSystemReady()) {
+                Log.d(TAG, "System suspending based on thermal action from dptf");
+                PowerManager pm = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
+                pm.goToSleep(SystemClock.uptimeMillis());
+            }
         } catch (Exception e) {
-            Log.d(TAG, "Exception in triggering system suspend"+e);
+                Log.d(TAG, "Exception in triggering system suspend"+e);
         }
     }
 
