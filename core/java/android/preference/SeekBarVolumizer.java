@@ -24,6 +24,7 @@ import android.database.ContentObserver;
 import android.media.AudioManager;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
+import android.media.AudioSystem;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -81,8 +82,11 @@ public class SeekBarVolumizer implements OnSeekBarChangeListener, Handler.Callba
         mCallback = callback;
         mOriginalStreamVolume = mAudioManager.getStreamVolume(mStreamType);
         mVolumeObserver = new Observer(mHandler);
+        int settingType = streamTypeToSettingType(mStreamType);
         mContext.getContentResolver().registerContentObserver(
-                System.getUriFor(System.VOLUME_SETTINGS[mStreamType]),
+                //System.getUriFor(System.VOLUME_SETTINGS[mStreamType]),
+                System.getUriFor(System.VOLUME_SETTINGS[settingType]),
+
                 false, mVolumeObserver);
         mReceiver.setListening(true);
         if (defaultUri == null) {
@@ -107,6 +111,15 @@ public class SeekBarVolumizer implements OnSeekBarChangeListener, Handler.Callba
         mSeekBar.setMax(mMaxStreamVolume);
         mSeekBar.setProgress(mLastProgress > -1 ? mLastProgress : mOriginalStreamVolume);
         mSeekBar.setOnSeekBarChangeListener(this);
+    }
+         // Use below function because FM stream is not adjacent with other stream
+    private int streamTypeToSettingType(int streamType) {
+        if (streamType != AudioSystem.STREAM_FM) {
+            return streamType;
+        }
+
+        // VOLUME_FM is next to VOLUME_BLUETOOTH_SCO in Settings
+        return AudioSystem.STREAM_BLUETOOTH_SCO + 1 ;
     }
 
     @Override

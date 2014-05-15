@@ -258,7 +258,8 @@ public class AudioService extends IAudioService.Stub {
         15, // STREAM_BLUETOOTH_SCO
         7,  // STREAM_SYSTEM_ENFORCED
         15, // STREAM_DTMF
-        15  // STREAM_TTS
+        15, // STREAM_TTS
+        7   // STREAM_FM
     };
     /* mStreamVolumeAlias[] indicates for each stream if it uses the volume settings
      * of another stream: This avoids multiplying the volume settings for hidden
@@ -279,7 +280,8 @@ public class AudioService extends IAudioService.Stub {
         AudioSystem.STREAM_BLUETOOTH_SCO,   // STREAM_BLUETOOTH_SCO
         AudioSystem.STREAM_RING,            // STREAM_SYSTEM_ENFORCED
         AudioSystem.STREAM_RING,            // STREAM_DTMF
-        AudioSystem.STREAM_MUSIC            // STREAM_TTS
+        AudioSystem.STREAM_MUSIC,           // STREAM_TTS
+        AudioSystem.STREAM_FM               // STREAM_FM
     };
     private final int[] STREAM_VOLUME_ALIAS_TELEVISION = new int[] {
         AudioSystem.STREAM_MUSIC,       // STREAM_VOICE_CALL
@@ -291,7 +293,8 @@ public class AudioService extends IAudioService.Stub {
         AudioSystem.STREAM_MUSIC,       // STREAM_BLUETOOTH_SCO
         AudioSystem.STREAM_MUSIC,       // STREAM_SYSTEM_ENFORCED
         AudioSystem.STREAM_MUSIC,       // STREAM_DTMF
-        AudioSystem.STREAM_MUSIC        // STREAM_TTS
+        AudioSystem.STREAM_MUSIC,       // STREAM_TTS
+        AudioSystem.STREAM_FM           // STREAM_FM
     };
     private final int[] STREAM_VOLUME_ALIAS_DEFAULT = new int[] {
         AudioSystem.STREAM_VOICE_CALL,      // STREAM_VOICE_CALL
@@ -301,9 +304,16 @@ public class AudioService extends IAudioService.Stub {
         AudioSystem.STREAM_ALARM,           // STREAM_ALARM
         AudioSystem.STREAM_RING,            // STREAM_NOTIFICATION
         AudioSystem.STREAM_BLUETOOTH_SCO,   // STREAM_BLUETOOTH_SCO
+//<<<<<<< HEAD
         AudioSystem.STREAM_RING,            // STREAM_SYSTEM_ENFORCED
         AudioSystem.STREAM_RING,            // STREAM_DTMF
         AudioSystem.STREAM_MUSIC            // STREAM_TTS
+//=======
+//        AudioSystem.STREAM_MUSIC,           // STREAM_SYSTEM_ENFORCED
+//        AudioSystem.STREAM_MUSIC,           // STREAM_DTMF
+//        AudioSystem.STREAM_MUSIC,           // STREAM_TTS
+        AudioSystem.STREAM_FM               // STREAM_FM
+//>>>>>>> [PATCH] Port FMR implemenation from JB to Kitkat
     };
     private int[] mStreamVolumeAlias;
 
@@ -322,6 +332,7 @@ public class AudioService extends IAudioService.Stub {
         AppOpsManager.OP_AUDIO_MEDIA_VOLUME,            // STREAM_SYSTEM_ENFORCED
         AppOpsManager.OP_AUDIO_MEDIA_VOLUME,            // STREAM_DTMF
         AppOpsManager.OP_AUDIO_MEDIA_VOLUME,            // STREAM_TTS
+        AppOpsManager.OP_AUDIO_MEDIA_VOLUME             // STREAM_FM
     };
 
     private final boolean mUseFixedVolume;
@@ -337,8 +348,16 @@ public class AudioService extends IAudioService.Stub {
             "STREAM_BLUETOOTH_SCO",
             "STREAM_SYSTEM_ENFORCED",
             "STREAM_DTMF",
-            "STREAM_TTS"
+            "STREAM_TTS",
+            "STREAM_FM"
     };
+
+    private int streamTypeToSettingType(int streamType) {
+        if (streamType != AudioSystem.STREAM_FM)
+            return streamType;
+
+        return AudioSystem.STREAM_BLUETOOTH_SCO + 1 ;
+    }
 
     private final AudioSystem.ErrorCallback mAudioSystemCallback = new AudioSystem.ErrorCallback() {
         public void onError(int error) {
@@ -745,7 +764,9 @@ public class AudioService extends IAudioService.Stub {
         VolumeStreamState[] streams = mStreamStates = new VolumeStreamState[numStreamTypes];
 
         for (int i = 0; i < numStreamTypes; i++) {
-            streams[i] = new VolumeStreamState(System.VOLUME_SETTINGS[mStreamVolumeAlias[i]], i);
+            //streams[i] = new VolumeStreamState(System.VOLUME_SETTINGS[mStreamVolumeAlias[i]], i);
+            int type = streamTypeToSettingType(mStreamVolumeAlias[i]);
+            streams[i] = new VolumeStreamState(System.VOLUME_SETTINGS[type], i);
         }
 
         checkAllFixedVolumeDevices();
@@ -878,7 +899,8 @@ public class AudioService extends IAudioService.Stub {
                 System.MUTE_STREAMS_AFFECTED,
                 ((1 << AudioSystem.STREAM_MUSIC)|
                  (1 << AudioSystem.STREAM_RING)|
-                 (1 << AudioSystem.STREAM_SYSTEM)),
+                 (1 << AudioSystem.STREAM_SYSTEM) |
+                 (1 << AudioSystem.STREAM_FM)),
                  UserHandle.USER_CURRENT);
 
         boolean masterMute = System.getIntForUser(cr, System.VOLUME_MASTER_MUTE,
