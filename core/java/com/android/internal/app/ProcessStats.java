@@ -2393,6 +2393,7 @@ public final class ProcessStats implements Parcelable {
         boolean mDead;
 
         public long mTmpTotalTime;
+        int mRefCnt;  // Only have significance for common process state
 
         /**
          * Create a new top-level process state, for the initial case where there is only
@@ -2544,12 +2545,34 @@ public final class ProcessStats implements Parcelable {
         }
 
         public void makeActive() {
+            if (mActive) {
+                return;
+            }
             ensureNotDead();
             mActive = true;
+            mCommonProcess.makeActiveAndIncCnt();
         }
 
         public void makeInactive() {
+            if (!mActive) {
+                return;
+            }
             mActive = false;
+            mCommonProcess.makeInactiveAndDecCnt();
+        }
+
+        void makeActiveAndIncCnt () {
+            mRefCnt++;
+            if (!mActive && mRefCnt > 0) {
+                mActive = true;
+            }
+        }
+
+        void makeInactiveAndDecCnt () {
+            mRefCnt--;
+            if (mActive && mRefCnt <= 0) {
+                mActive = false;
+            }
         }
 
         public boolean isInUse() {
