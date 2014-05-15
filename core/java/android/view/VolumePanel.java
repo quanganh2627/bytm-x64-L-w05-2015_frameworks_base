@@ -60,7 +60,8 @@ public class VolumePanel extends Handler implements OnSeekBarChangeListener, Vie
         VolumeController
 {
     private static final String TAG = "VolumePanel";
-    private static boolean LOGD = false;
+//    private static boolean LOGD = false;
+    private static boolean LOGD = true;
 
     /**
      * The delay before playing a sound. This small period exists so the user
@@ -156,6 +157,11 @@ public class VolumePanel extends Handler implements OnSeekBarChangeListener, Vie
                 R.drawable.ic_audio_vol,
                 R.drawable.ic_audio_vol_mute,
                 true),
+        FMStream(AudioManager.STREAM_FM,
+                R.string.volume_icon_description_media,
+                R.drawable.ic_audio_vol,
+                R.drawable.ic_audio_vol_mute,
+                true),
         NotificationStream(AudioManager.STREAM_NOTIFICATION,
                 R.string.volume_icon_description_notification,
                 R.drawable.ic_audio_notification,
@@ -195,6 +201,7 @@ public class VolumePanel extends Handler implements OnSeekBarChangeListener, Vie
         StreamResources.RingerStream,
         StreamResources.VoiceStream,
         StreamResources.MediaStream,
+        StreamResources.FMStream,
         StreamResources.NotificationStream,
         StreamResources.AlarmStream,
         StreamResources.MasterStream,
@@ -657,6 +664,8 @@ public class VolumePanel extends Handler implements OnSeekBarChangeListener, Vie
                 break;
             }
 
+            case AudioManager.STREAM_FM:
+                // Fall though
             case AudioManager.STREAM_MUSIC: {
                 // Special case for when Bluetooth is active for music
                 if ((mAudioManager.getDevicesForStream(AudioManager.STREAM_MUSIC) &

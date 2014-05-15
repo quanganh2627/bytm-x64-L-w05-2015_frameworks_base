@@ -1972,13 +1972,18 @@ public final class Settings {
          * @hide
          */
         public static final String VIBRATE_IN_SILENT = "vibrate_in_silent";
-
+         /**
+         * FM radio volume.
+         * @hide
+         */
+        public static final String VOLUME_FM = "volume_fm";
         /**
          * The mapping of stream type (integer) to its setting.
          */
         public static final String[] VOLUME_SETTINGS = {
             VOLUME_VOICE, VOLUME_SYSTEM, VOLUME_RING, VOLUME_MUSIC,
-            VOLUME_ALARM, VOLUME_NOTIFICATION, VOLUME_BLUETOOTH_SCO
+            VOLUME_ALARM, VOLUME_NOTIFICATION, VOLUME_BLUETOOTH_SCO,
+            VOLUME_FM
         };
 
         /**
@@ -2449,6 +2454,7 @@ public final class Settings {
             VOLUME_ALARM,
             VOLUME_NOTIFICATION,
             VOLUME_BLUETOOTH_SCO,
+            VOLUME_FM,
             VOLUME_VOICE + APPEND_FOR_LAST_AUDIBLE,
             VOLUME_SYSTEM + APPEND_FOR_LAST_AUDIBLE,
             VOLUME_RING + APPEND_FOR_LAST_AUDIBLE,
@@ -2456,6 +2462,7 @@ public final class Settings {
             VOLUME_ALARM + APPEND_FOR_LAST_AUDIBLE,
             VOLUME_NOTIFICATION + APPEND_FOR_LAST_AUDIBLE,
             VOLUME_BLUETOOTH_SCO + APPEND_FOR_LAST_AUDIBLE,
+            VOLUME_FM + APPEND_FOR_LAST_AUDIBLE,
             TEXT_AUTO_REPLACE,
             TEXT_AUTO_CAPS,
             TEXT_AUTO_PUNCTUATE,

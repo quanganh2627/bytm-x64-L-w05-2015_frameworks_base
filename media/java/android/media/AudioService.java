@@ -219,7 +219,8 @@ public class AudioService extends IAudioService.Stub {
         15, // STREAM_BLUETOOTH_SCO
         7,  // STREAM_SYSTEM_ENFORCED
         15, // STREAM_DTMF
-        15  // STREAM_TTS
+        15, // STREAM_TTS
+        7   // STREAM_FM
     };
     /* mStreamVolumeAlias[] indicates for each stream if it uses the volume settings
      * of another stream: This avoids multiplying the volume settings for hidden
@@ -239,7 +240,8 @@ public class AudioService extends IAudioService.Stub {
         AudioSystem.STREAM_BLUETOOTH_SCO,   // STREAM_BLUETOOTH_SCO
         AudioSystem.STREAM_RING,            // STREAM_SYSTEM_ENFORCED
         AudioSystem.STREAM_RING,            // STREAM_DTMF
-        AudioSystem.STREAM_MUSIC            // STREAM_TTS
+        AudioSystem.STREAM_MUSIC,           // STREAM_TTS
+        AudioSystem.STREAM_FM               // STREAM_FM
     };
     private final int[] STREAM_VOLUME_ALIAS_NON_VOICE = new int[] {
         AudioSystem.STREAM_VOICE_CALL,      // STREAM_VOICE_CALL
@@ -251,7 +253,8 @@ public class AudioService extends IAudioService.Stub {
         AudioSystem.STREAM_BLUETOOTH_SCO,   // STREAM_BLUETOOTH_SCO
         AudioSystem.STREAM_MUSIC,           // STREAM_SYSTEM_ENFORCED
         AudioSystem.STREAM_MUSIC,           // STREAM_DTMF
-        AudioSystem.STREAM_MUSIC            // STREAM_TTS
+        AudioSystem.STREAM_MUSIC,           // STREAM_TTS
+        AudioSystem.STREAM_FM               // STREAM_FM
     };
     private int[] mStreamVolumeAlias;
 
@@ -270,6 +273,7 @@ public class AudioService extends IAudioService.Stub {
         AppOpsManager.OP_AUDIO_MEDIA_VOLUME,            // STREAM_SYSTEM_ENFORCED
         AppOpsManager.OP_AUDIO_MEDIA_VOLUME,            // STREAM_DTMF
         AppOpsManager.OP_AUDIO_MEDIA_VOLUME,            // STREAM_TTS
+		AppOpsManager.OP_AUDIO_MEDIA_VOLUME,            // STREAM_FM
     };
 
     private final boolean mUseFixedVolume;
@@ -285,8 +289,16 @@ public class AudioService extends IAudioService.Stub {
             "STREAM_BLUETOOTH_SCO",
             "STREAM_SYSTEM_ENFORCED",
             "STREAM_DTMF",
-            "STREAM_TTS"
+            "STREAM_TTS",
+            "STREAM_FM"
     };
+
+    private int streamTypeToSettingType(int streamType) {
+        if (streamType != AudioSystem.STREAM_FM)
+            return streamType;
+
+        return AudioSystem.STREAM_BLUETOOTH_SCO + 1 ;
+    }
 
     private final AudioSystem.ErrorCallback mAudioSystemCallback = new AudioSystem.ErrorCallback() {
         public void onError(int error) {
@@ -613,7 +625,9 @@ public class AudioService extends IAudioService.Stub {
         VolumeStreamState[] streams = mStreamStates = new VolumeStreamState[numStreamTypes];
 
         for (int i = 0; i < numStreamTypes; i++) {
-            streams[i] = new VolumeStreamState(System.VOLUME_SETTINGS[mStreamVolumeAlias[i]], i);
+//          streams[i] = new VolumeStreamState(System.VOLUME_SETTINGS[mStreamVolumeAlias[i]], i);
+            int type = streamTypeToSettingType(mStreamVolumeAlias[i]);
+            streams[i] = new VolumeStreamState(System.VOLUME_SETTINGS[type], i);
         }
 
         checkAllAliasStreamVolumes();
@@ -726,7 +740,9 @@ public class AudioService extends IAudioService.Stub {
                 System.MUTE_STREAMS_AFFECTED,
                 ((1 << AudioSystem.STREAM_MUSIC)|
                  (1 << AudioSystem.STREAM_RING)|
-                 (1 << AudioSystem.STREAM_SYSTEM)),
+                 (1 << AudioSystem.STREAM_SYSTEM)|
+                 (1 << AudioSystem.STREAM_FM)),
+
                  UserHandle.USER_CURRENT);
 
         boolean masterMute = System.getIntForUser(cr, System.VOLUME_MASTER_MUTE,
@@ -2604,7 +2620,8 @@ public class AudioService extends IAudioService.Stub {
     }
 
     public boolean isStreamAffectedByMute(int streamType) {
-        return (mMuteAffectedStreams & (1 << streamType)) != 0;
+        return (streamType == AudioSystem.STREAM_FM) ||
+            ((mMuteAffectedStreams & (1 << streamType)) != 0);
     }
 
     private void ensureValidDirection(int direction) {
@@ -2676,6 +2693,9 @@ public class AudioService extends IAudioService.Stub {
                         if (DEBUG_VOL)
                             Log.v(TAG, "getActiveStreamType: Forcing STREAM_REMOTE_MUSIC");
                         return STREAM_REMOTE_MUSIC;
+                    } else if (AudioSystem.isStreamActive(AudioSystem.STREAM_FM, 0)) {
+                        if (DEBUG_VOL) Log.v(TAG, "getActiveStreamType: Forcing STREAM_FM...");
+                        return AudioSystem.STREAM_FM;
                     } else {
                         if (DEBUG_VOL)
                             Log.v(TAG, "getActiveStreamType: Forcing STREAM_RING b/c default");
@@ -2685,6 +2705,9 @@ public class AudioService extends IAudioService.Stub {
                 if (DEBUG_VOL)
                     Log.v(TAG, "getActiveStreamType: Forcing STREAM_MUSIC stream active");
                 return AudioSystem.STREAM_MUSIC;
+            } else if (AudioSystem.isStreamActive(AudioSystem.STREAM_FM, 0)) {
+                if (DEBUG_VOL) Log.v(TAG, "getActiveStreamType: Forcing STREAM_FM...");
+                return AudioSystem.STREAM_FM;
             } else {
                 if (DEBUG_VOL) Log.v(TAG, "getActiveStreamType: Returning suggested type "
                         + suggestedStreamType);
@@ -2788,6 +2811,16 @@ public class AudioService extends IAudioService.Stub {
 
     private int getDeviceForStream(int stream) {
         int device = AudioSystem.getDevicesForStream(stream);
+        if (DEBUG_VOL) {
+            Log.d(TAG, "getDevicesForStream() "
+                    + ", stream= " + stream
+                    + ", device= " + device);
+        }
+
+        if (stream == AudioSystem.STREAM_FM) {
+            return device;
+        }
+
         if ((device & (device - 1)) != 0) {
             // Multiple device selection is either:
             //  - speaker + one other device: give priority to speaker in this case.
@@ -2839,19 +2872,41 @@ public class AudioService extends IAudioService.Stub {
         private final int mStreamType;
 
         private String mVolumeIndexSettingName;
+        private String mLastAudibleVolumeIndexSettingName;
         private int mIndexMax;
         private final ConcurrentHashMap<Integer, Integer> mIndex =
                                             new ConcurrentHashMap<Integer, Integer>(8, 0.75f, 4);
         private ArrayList<VolumeDeathHandler> mDeathHandlers; //handles mute/solo clients death
 
+        //  FMR begin: when initializing volume setting, if current stream is FMR,
+        // we should use FMR device number.
+        private int initDeviceNum(int device) {
+            if (mStreamType != AudioSystem.STREAM_FM || 
+                    device == AudioSystem.DEVICE_OUT_DEFAULT) {
+                return device;
+            }
+            return (device | AudioSystem.DEVICE_OUT_FM);
+        }
+        //  FMR end
+
         private VolumeStreamState(String settingName, int streamType) {
 
             mVolumeIndexSettingName = settingName;
+            mLastAudibleVolumeIndexSettingName = settingName + System.APPEND_FOR_LAST_AUDIBLE;
 
             mStreamType = streamType;
             mIndexMax = MAX_STREAM_VOLUME[streamType];
             AudioSystem.initStreamVolume(streamType, 0, mIndexMax);
             mIndexMax *= 10;
+
+            //if (DEBUG_VOL) {
+                Log.d(TAG, "VolumeStreamState(), "
+                        + ", settingName=" + settingName
+                        + ", streamType=" + streamType
+                        + ", mLastAudibleVolumeIndexSettingName=" +
+                        mLastAudibleVolumeIndexSettingName
+                        + ", mIndexMax=" + mIndexMax);
+            //}
 
             // mDeathHandlers must be created before calling readSettings()
             mDeathHandlers = new ArrayList<VolumeDeathHandler>();
@@ -2861,6 +2916,14 @@ public class AudioService extends IAudioService.Stub {
 
         public String getSettingNameForDevice(int device) {
             String name = mVolumeIndexSettingName;
+            //  FMR begin:
+            if (mStreamType == AudioSystem.STREAM_FM) {
+                if (DEBUG_VOL) {
+                    Log.d(TAG, "getSettingNameForDevice(), translate fm device");
+                }
+                device = AudioSystem.DEVICE_OUT_FM;
+            }
+            //  FMR end
             String suffix = AudioSystem.getDeviceName(device);
             if (suffix.isEmpty()) {
                 return name;
@@ -2869,11 +2932,21 @@ public class AudioService extends IAudioService.Stub {
         }
 
         public synchronized void readSettings() {
+        	  int remainingDevices = AudioSystem.DEVICE_OUT_ALL;
             // force maximum volume on all streams if fixed volume property is set
             if (mUseFixedVolume) {
                 mIndex.put(AudioSystem.DEVICE_OUT_DEFAULT, mIndexMax);
                 return;
             }
+            //  FMR begin: FMR could only be output from speaker, headset and headphone.
+            else if (mStreamType == AudioSystem.STREAM_FM) {
+                remainingDevices = (AudioSystem.DEVICE_OUT_DEFAULT |
+                                    AudioSystem.DEVICE_OUT_FM |
+                                    AudioSystem.DEVICE_OUT_SPEAKER |
+                                    AudioSystem.DEVICE_OUT_WIRED_HEADSET |
+                                    AudioSystem.DEVICE_OUT_WIRED_HEADPHONE);
+            }
+            //  FMR end
             // do not read system stream volume from settings: this stream is always aliased
             // to another stream type and its volume is never persisted. Values in settings can
             // only be stale values
@@ -2889,7 +2962,7 @@ public class AudioService extends IAudioService.Stub {
                 return;
             }
 
-            int remainingDevices = AudioSystem.DEVICE_OUT_ALL;
+//            int remainingDevices = AudioSystem.DEVICE_OUT_ALL;
 
             for (int i = 0; remainingDevices != 0; i++) {
                 int device = (1 << i);
@@ -2913,9 +2986,11 @@ public class AudioService extends IAudioService.Stub {
                 // ignore settings for fixed volume devices: volume should always be at max or 0
                 if ((mStreamVolumeAlias[mStreamType] == AudioSystem.STREAM_MUSIC) &&
                         ((device & mFixedVolumeDevices) != 0)) {
-                    mIndex.put(device, (index != 0) ? mIndexMax : 0);
+                    //mIndex.put(device, (index != 0) ? mIndexMax : 0);
+                    mIndex.put(initDeviceNum(device), (index != 0) ? mIndexMax : 0);
                 } else {
-                    mIndex.put(device, getValidIndex(10 * index));
+                    //mIndex.put(device, getValidIndex(10 * index));
+                    mIndex.put(initDeviceNum(device), getValidIndex(10 * index));
                 }
             }
         }
