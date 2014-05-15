@@ -21,6 +21,7 @@
 #include "InputListener.h"
 
 #include <cutils/log.h>
+#include <dlfcn.h>
 
 namespace android {
 
@@ -138,6 +139,8 @@ void NotifyDeviceResetArgs::notify(const sp<InputListenerInterface>& listener) c
 
 QueuedInputListener::QueuedInputListener(const sp<InputListenerInterface>& innerListener) :
         mInnerListener(innerListener) {
+    event_processing_handle = NULL;
+    eventProcessingInitImpl();
 }
 
 QueuedInputListener::~QueuedInputListener() {
@@ -145,6 +148,7 @@ QueuedInputListener::~QueuedInputListener() {
     for (size_t i = 0; i < count; i++) {
         delete mArgsQueue[i];
     }
+    eventProcessingFiniImpl();
 }
 
 void QueuedInputListener::notifyConfigurationChanged(
@@ -157,7 +161,22 @@ void QueuedInputListener::notifyKey(const NotifyKeyArgs* args) {
 }
 
 void QueuedInputListener::notifyMotion(const NotifyMotionArgs* args) {
-    mArgsQueue.push(new NotifyMotionArgs(*args));
+    if (event_processing == NULL) {
+        mArgsQueue.push(new NotifyMotionArgs(*args));
+    } else {
+        NotifyMotionArgs new_args(*args);
+        if (event_processing(new_args.eventTime, new_args.deviceId,
+                             new_args.source, new_args.policyFlags,
+                             new_args.action, new_args.flags,
+                             new_args.metaState, new_args.buttonState,
+                             new_args.edgeFlags, new_args.displayId,
+                             new_args.pointerCount,
+                             new_args.pointerProperties,
+                             new_args.pointerCoords, new_args.xPrecision,
+                             new_args.yPrecision, new_args.downTime)) {
+            mArgsQueue.push(new NotifyMotionArgs(new_args));
+        }
+    }
 }
 
 void QueuedInputListener::notifySwitch(const NotifySwitchArgs* args) {
@@ -176,6 +195,47 @@ void QueuedInputListener::flush() {
         delete args;
     }
     mArgsQueue.clear();
+}
+
+/*  Initializes event processing module. */
+void QueuedInputListener::eventProcessingInitImpl() {
+    const char* so_name = "/system/lib/libeventprocessing.so";
+    event_processing_handle = dlopen(so_name, RTLD_LAZY);
+    if (event_processing_handle == NULL) {
+        ALOGE("Missing module %s required for event processing: %s",
+              so_name, dlerror());
+        return;
+    }
+    // Initialize event processing in the loaded module.
+    EventProcessingInit initialize = reinterpret_cast<EventProcessingInit>(
+            dlsym(event_processing_handle, "event_processing_initialize"));
+    if (initialize == NULL) {
+        ALOGE("Initialization routine is not found in %s\n", so_name);
+        dlclose(event_processing_handle);
+        return;
+    }
+    if (initialize() == -1) {
+        dlclose(event_processing_handle);
+        return;
+    }
+
+    event_processing = reinterpret_cast<EventProcessing>(
+            dlsym(event_processing_handle, "event_processing"));
+    if (event_processing == NULL) {
+        ALOGE("dlsym(\"event_processing\") failed");
+    }
+}
+
+/*  Finalizes event processing module. */
+void QueuedInputListener::eventProcessingFiniImpl() {
+    if (event_processing_handle != NULL) {
+        EventProcessingFini finalize = reinterpret_cast<EventProcessingFini>(
+                dlsym(event_processing_handle, "event_processing_finalize"));
+        if (finalize != NULL) {
+            finalize();
+        }
+        dlclose(event_processing_handle);
+    }
 }
 
 

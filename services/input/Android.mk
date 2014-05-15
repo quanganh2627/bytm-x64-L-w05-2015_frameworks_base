@@ -32,6 +32,7 @@ LOCAL_SHARED_LIBRARIES := \
     liblog \
     libandroidfw \
     libutils \
+    libdl \
     libhardware \
     libhardware_legacy \
     libskia \
