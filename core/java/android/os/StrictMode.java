@@ -1089,7 +1089,6 @@ public final class StrictMode {
 
     private static class AndroidBlockGuardPolicy implements BlockGuard.Policy {
         private int mPolicyMask;
-        private long mThreadId;
 
         // Map from violation stacktrace hashcode -> uptimeMillis of
         // last violation.  No locking needed, as this is only
@@ -1098,7 +1097,6 @@ public final class StrictMode {
 
         public AndroidBlockGuardPolicy(final int policyMask) {
             mPolicyMask = policyMask;
-            mThreadId = Thread.currentThread().getId();
         }
 
         @Override
@@ -1157,7 +1155,6 @@ public final class StrictMode {
             }
             if ((mPolicyMask & PENALTY_DEATH_ON_NETWORK) != 0) {
                 Log.d(TAG, "**BZ183200** onNetwork throw NetworkOnMainThreadException " + mPolicyMask+ " native PolicyMask " +  Binder.getThreadStrictModePolicy());
-                Log.d(TAG, "**BZ183200** onNetwork mThreadId " + mThreadId + " currentThreadId " + Thread.currentThread().getId());
                 throw new NetworkOnMainThreadException();
             }
             if (tooManyViolationsThisLoop()) {
@@ -1169,8 +1166,6 @@ public final class StrictMode {
         }
 
         public void setPolicyMask(int policyMask) {
-            if (mThreadId != Thread.currentThread().getId())
-                Log.e(TAG, "**BZ183200** setPolicyMask ThreadLocal object corrupt!! mThreadId " + mThreadId + " currentThread " + Thread.currentThread().getId());
             mPolicyMask = policyMask;
         }
 
