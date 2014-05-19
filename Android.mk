@@ -40,7 +40,9 @@ include $(CLEAR_VARS)
 # FRAMEWORKS_BASE_SUBDIRS comes from build/core/pathmap.mk
 LOCAL_SRC_FILES := $(call find-other-java-files,$(FRAMEWORKS_BASE_SUBDIRS))
 
+LOCAL_SRC_FILES += $(call all-java-files-under, ../../vendor/intel/PRIVATE/audio_effects/windnoisereduction/java/android/media/audiofx)
 LOCAL_SRC_FILES += $(call all-java-files-under, ../../vendor/intel/PRIVATE/audio_effects/beamforming/java/android/media/audiofx)
+
 # EventLogTags files.
 LOCAL_SRC_FILES += \
        core/java/android/content/EventLogTags.logtags \
@@ -620,6 +622,8 @@ non_base_dirs := \
 	../opt/net/voip/src/java/android/net/rtp \
 	../opt/net/voip/src/java/android/net/sip
 
+non_base_dirs += \
+        ../../vendor/intel/PRIVATE/audio_effects/windnoisereduction/java
 non_base_dirs += \
         ../../vendor/intel/PRIVATE/audio_effects/beamforming/java
 
