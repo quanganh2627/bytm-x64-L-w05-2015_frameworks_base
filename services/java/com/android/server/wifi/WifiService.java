@@ -867,7 +867,7 @@ public class WifiService extends IWifiManager.Stub {
     /**
      * see {@link android.net.wifi.WifiManager#updateIccNetworks(boolean)}
      * @param enable true/false to enable/disable networks configured
-     * with an enterprise security related to SIM/USIM card (EAP-SIM/AKA)
+     * with an enterprise security related to SIM/USIM card (EAP-SIM/AKA/AKA')
      * @return {@code true} if the operation succeeded
      * @hide
      */
