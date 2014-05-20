@@ -1378,6 +1378,36 @@ public final class BluetoothAdapter {
     }
 
     /**
+     * Set Vendor Specific HCI command.
+     *
+     * <p> Use this function along with {@link #BluetoothPhoneService}
+     * service to send Vendor Specific command to the controller.
+     *
+     * @return true on success, false on error
+     *
+     * @hide
+     */
+    public boolean setVendorSpecificCommand(int opcode, byte[] params, byte length) {
+
+        if (DBG) {
+            Log.d(TAG, "setVendorSpecificCommand");
+        }
+
+        if (getState() != STATE_ON) return false;
+        try {
+            synchronized(mManagerCallback) {
+                if (mService != null) {
+                    return mService.setVendorSpecificCommand(opcode, params, length);
+                }
+            }
+         } catch (RemoteException e) {
+             Log.e(TAG, "setVendorSpecificCommand:", e);
+         }
+
+         return false;
+    }
+
+    /**
      * Create a listening, secure RFCOMM Bluetooth socket.
      * <p>A remote device connecting to this socket will be authenticated and
      * communication on this socket will be encrypted.

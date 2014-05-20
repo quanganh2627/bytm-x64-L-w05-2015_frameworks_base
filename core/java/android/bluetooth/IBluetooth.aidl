@@ -91,6 +91,7 @@ interface IBluetooth
             in int[] periodDuration,
             in byte[] periodType);
     boolean setMwsSignaling(in int[] params);
+    boolean setVendorSpecificCommand(in int opcode, in byte[] params, in byte length);
 
     void sendConnectionStateChange(in BluetoothDevice device, int profile, int state, int prevState);
 
