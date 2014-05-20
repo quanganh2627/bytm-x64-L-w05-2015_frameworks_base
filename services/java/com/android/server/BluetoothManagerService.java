@@ -95,6 +95,12 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final int MAX_SAVE_RETRIES=3;
     private static final int MAX_ERROR_RESTART_RETRIES=6;
 
+    public static final String ACTION_VS_COMMAND =
+            "intel.intent.action.ACTION_VS_COMMAND";
+    public static final String ACTION_VS_EXTRA = "VendorSpecificCommand";
+    public static final String ACTION_VS_OPCODE = "VendorSpecificOpcode";
+    public static final String ACTION_VS_PARAMETERS = "VendorSpecificParams";
+
     // Bluetooth persisted setting is off
     private static final int BLUETOOTH_OFF=0;
     // Bluetooth persisted setting is on
@@ -318,6 +324,25 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 else {
                     Log.e(TAG, "Empty information for intent: " + action);
                 }
+            } else if (ACTION_VS_COMMAND.equals(action)) {
+
+                if (DBG) Log.d(TAG, ACTION_VS_COMMAND + " intent received");
+                Bundle bundleVendorSpecific = intent.getBundleExtra(ACTION_VS_EXTRA);
+                if (bundleVendorSpecific != null) {
+                    int opcode = bundleVendorSpecific.getInt(ACTION_VS_OPCODE);
+                    byte[] parameters = bundleVendorSpecific.getByteArray(ACTION_VS_PARAMETERS);
+                    if (DBG) {
+                        Log.d(TAG, "Vendor Specific intent with opcode = " + opcode);
+                        int i;
+                        for (i = 0; i < parameters.length; i++) {
+                            Log.d(TAG, "parameters[" + i + "]=" + parameters[i]);
+                        }
+                    }
+                    handleVendorSpecific(opcode, parameters);
+                }
+                else {
+                    Log.e(TAG, "Empty information for intent: " + action);
+                }
             }
         }
     };
@@ -472,6 +497,20 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         }
     }
 
+    private void handleVendorSpecific(int opcode, byte[] params) {
+        if (DBG) {
+            Log.d(TAG, "handleVendorSpecific command");
+        }
+        if (mAdapter == null) {
+            mAdapter = BluetoothAdapter.getDefaultAdapter();
+        }
+        if (mAdapter != null) {
+            if (false == mAdapter.setVendorSpecificCommand(opcode, params, (byte) params.length)) {
+                Log.e(TAG, "setVendorSpecificCommand() failed");
+            }
+        }
+    }
+
     private void handleAirplaneModeStateChange() {
         synchronized(mReceiver) {
             if (isBluetoothPersistedStateOn()) {
@@ -519,6 +558,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         filter.addAction(CsmCoexMgr.ACTION_COEX_RT_CONTROL);
         filter.addAction(CsmCoexMgr.ACTION_COEX_EXT_FRAME_CONFIG);
         filter.addAction(CsmCoexMgr.ACTION_COEX_MWS_SIGNALING);
+        filter.addAction(ACTION_VS_COMMAND);
         registerForAirplaneMode(filter);
         mContext.registerReceiver(mReceiver, filter);
         loadStoredNameAndAddress();
