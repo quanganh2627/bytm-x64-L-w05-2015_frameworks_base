@@ -1483,9 +1483,9 @@ public class WifiStateMachine extends StateMachine {
     }
 
     /**
-     * Update all ICC related network (which use EAP-SIM/AKA) synchronously
+     * Update all ICC related network (which use EAP-SIM/AKA/AKA') synchronously
      * @param enable ,true/false to enable/disable networks that use security related to SIM/USIM
-     * (EAP-SIM/AKA)
+     * (EAP-SIM/AKA/AKA')
      *
      * @return {@code true} if the operation succeeds, {@code false} otherwise
      * @hide

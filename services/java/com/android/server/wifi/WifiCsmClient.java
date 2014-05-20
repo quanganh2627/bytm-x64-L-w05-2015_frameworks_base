@@ -81,7 +81,7 @@ public class WifiCsmClient extends CsmClient {
 
     @Override
     public void onSimLoaded() {
-        // do wifi stuff (country code, SIM AKA, coex...)
+        // do wifi stuff (country code, SIM AKA AKA', coex...)
         return;
     }
 

@@ -235,11 +235,15 @@ public class WifiEnterpriseConfig implements Parcelable {
         /** EAP-AKA */
         /** @hide */
         public static final int AKA     = 5;
+        /** EAP-AKA' */
+        /** @hide */
+        public static final int AKA_PRIME    = 6;
         /** EAP-Fast */
         /** @hide */
-        public static final int FAST    = 6;
+        public static final int FAST    = 7;
         /** @hide */
-        public static final String[] strings = { "PEAP", "TLS", "TTLS", "PWD", "SIM", "AKA", "FAST" };
+        public static final String[] strings = { "PEAP", "TLS", "TTLS", "PWD",
+                "SIM", "AKA", "AKA'", "FAST" };
         /** Prevent initialization */
         private Eap() {}
     }
@@ -290,6 +294,7 @@ public class WifiEnterpriseConfig implements Parcelable {
             case Eap.TTLS:
             case Eap.SIM:
             case Eap.AKA:
+            case Eap.AKA_PRIME:
             case Eap.FAST:
                 mFields.put(EAP_KEY, Eap.strings[eapMethod]);
                 mFields.put(OPP_KEY_CACHING, "1");
