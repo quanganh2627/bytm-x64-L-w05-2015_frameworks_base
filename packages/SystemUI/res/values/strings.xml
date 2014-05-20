@@ -511,5 +511,5 @@
 
     <!-- Network connection string for Dongle network-->
     <string name="dongle_network">Dongle network</string>
-    <string name="accessibility_dongle_network">Dongle network.</string>
+    <string name="accessibility_dongle_network">Dongle network</string>
 </resources>

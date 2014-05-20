@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2011 Borqs Ltd. All rights reserved.
+ * 
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ public class DongleNetworkStateTracker implements NetworkStateTracker {
     private static final boolean DBG = !android.os.Build.TYPE.equalsIgnoreCase("user");
 
     private static final String NETWORKTYPE = "DONGLE";
-    private static final String ACTION_NETWORK_STATE = "dongle.borqs.com.DONGLE_STATE_CHANGED";
+    private static final String ACTION_NETWORK_STATE = "dongle.intel.com.DONGLE_STATE_CHANGED";
 
     private Handler mCsHandler;
     private Context mContext;
@@ -302,6 +302,9 @@ public class DongleNetworkStateTracker implements NetworkStateTracker {
     @Override
     public String getNetworkInterfaceName() {
         if (mLinkProperties != null) {
+		    if (DBG) {
+                Slog.d(TAG, "name interface are " +  mLinkProperties.getInterfaceName());
+            }
             return mLinkProperties.getInterfaceName();
         } else {
             return null;

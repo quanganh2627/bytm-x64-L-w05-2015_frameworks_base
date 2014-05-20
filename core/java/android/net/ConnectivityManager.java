@@ -219,6 +219,21 @@ public class ConnectivityManager {
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
     public static final String ACTION_TETHER_STATE_CHANGED =
             "android.net.conn.TETHER_STATE_CHANGED";
+	  /**
+     * Broadcast Action: the Dongle pass AT port to NetworkController
+     * @hide
+     */
+	 
+	@SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
+    public static final String ACTION_DONGLE_AT_PORT = 
+	    "com.intel.dongle.ACTION_DONGLE_AT_PORT";
+
+    /**
+     * @hide
+     * give a string for at port
+     */
+
+    public static final String EXTRA_AT_PORT = "at port";
 
     /**
      * @hide
