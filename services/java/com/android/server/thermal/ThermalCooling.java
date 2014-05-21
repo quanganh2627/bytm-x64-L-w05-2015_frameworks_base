@@ -35,6 +35,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Hashtable;
+
 /**
  * The ThermalCooling class parses the thermal_throttle_config.xml. This class
  * receives Thermal Intents and takes appropriate actions based on the policies
@@ -541,28 +542,25 @@ public class ThermalCooling {
     private boolean loadCoolingDevice(ThermalCoolingDevice device) {
         Class cls;
         Method throttleMethod;
+        String classPath = device.getClassPath();
 
-        if (device.getClassPath() == null) {
+        if (classPath == null) {
             Log.i(TAG, "ClassPath not found");
             return false;
         }
 
-        if (device.getClassPath().equalsIgnoreCase("none")) {
-            Log.i(TAG, "ClassPath - <none>");
-            return true;
-        }
-
-        if (device.getClassPath().equalsIgnoreCase("auto")) {
-            Log.i(TAG, "ClassPath- <auto>");
+        if (classPath.equalsIgnoreCase("none") || classPath.equalsIgnoreCase("auto")
+                || classPath.equalsIgnoreCase("AppAgent")) {
+            Log.i(TAG, "ClassPath: none/auto/AppAgent");
             return true;
         }
 
         /* Load the cooling device class */
         try {
-            cls = Class.forName(device.getClassPath());
+            cls = Class.forName(classPath);
             device.setDeviceClass(cls);
         } catch (Throwable e) {
-            Log.i(TAG, "Unable to load class " + device.getClassPath());
+            Log.i(TAG, "Unable to load class " + classPath);
             return false;
         }
 
@@ -579,23 +577,17 @@ public class ThermalCooling {
             arglist[2] = device.getThrottleValuesList();
             init.invoke(cls, arglist);
         } catch (NoSuchMethodException e) {
-            Log.i(TAG, "NoSuchMethodException caught in device class init: " +
-                    device.getClassPath());
+            Log.i(TAG, "NoSuchMethodException caught in device class init: " + classPath);
         } catch (SecurityException e) {
-            Log.i(TAG, "SecurityException caught in device class init: " +
-                    device.getClassPath());
+            Log.i(TAG, "SecurityException caught in device class init: " + classPath);
         } catch (IllegalAccessException e) {
-            Log.i(TAG, "IllegalAccessException caught in device class init: " +
-                    device.getClassPath());
+            Log.i(TAG, "IllegalAccessException caught in device class init: " + classPath);
         } catch (IllegalArgumentException e) {
-            Log.i(TAG,"IllegalArgumentException caught in device class init: " +
-                    device.getClassPath());
+            Log.i(TAG, "IllegalArgumentException caught in device class init: " + classPath);
         } catch (ExceptionInInitializerError e) {
-            Log.i(TAG, "ExceptionInInitializerError caught in device class init: " +
-                    device.getClassPath());
+            Log.i(TAG, "ExceptionInInitializerError caught in device class init: " + classPath);
         } catch (InvocationTargetException e) {
-            Log.i(TAG, "InvocationTargetException caught in device class init: " +
-                    device.getClassPath());
+            Log.i(TAG, "InvocationTargetException caught in device class init: " + classPath);
         }
 
         /* Get the throttleDevice method from cooling device class */
@@ -605,9 +597,9 @@ public class ThermalCooling {
             throttleMethod = cls.getMethod("throttleDevice", partypes);
             device.setThrottleMethod(throttleMethod);
         } catch (NoSuchMethodException e) {
-            Log.i(TAG, "NoSuchMethodException caught initializing throttle funciton ");
+            Log.i(TAG, "NoSuchMethodException caught initializing throttle function");
         } catch (SecurityException e) {
-            Log.i(TAG, "SecurityException caught initializing throttle funciton ");
+            Log.i(TAG, "SecurityException caught initializing throttle function");
         }
 
         return true;
@@ -638,7 +630,7 @@ public class ThermalCooling {
     }
 
     /* Method to handle the thermal event based on HIGH or LOW event */
-    private static void handleThermalEvent(int zoneId, int eventType, int thermalState,
+    private void handleThermalEvent(int zoneId, int eventType, int thermalState,
             ThermalManager.ZoneCoolerBindingInfo zoneCoolerBindInfo) {
         ThermalCoolingDevice tDevice;
         int deviceId;
@@ -734,7 +726,7 @@ public class ThermalCooling {
      * /sys/class/thermal/cooling_deviceX/type inorder to find the right index X
      * 4. CDeviceThrottlePath is null no write operation will be done
      **/
-    private static void defaultThrottleMethod(ThermalCoolingDevice cdev, int level) {
+    private void defaultThrottleMethod(ThermalCoolingDevice cdev, int level) {
         int finalValue;
         String throttlePath = null;
 
@@ -770,12 +762,15 @@ public class ThermalCooling {
     }
 
     /* Method to throttle cooling device */
-    private static void throttleDevice(int coolingDevId, int throttleLevel) {
+    private void throttleDevice(int coolingDevId, int throttleLevel) {
         /* Retrieve the cooling device based on ID */
         ThermalCoolingDevice dev = ThermalManager.sCDevMap.get(coolingDevId);
         if (dev != null) {
             if (dev.getClassPath() != null && dev.getClassPath().equalsIgnoreCase("auto")) {
                 defaultThrottleMethod(dev, throttleLevel);
+            } else if (dev.getClassPath().equalsIgnoreCase("AppAgent")) {
+                ThermalAppAgent.throttleApp(mContext,
+                        dev.getDeviceName(), ThermalManager.ACTION_KILL);
             } else {
                 Class c = dev.getDeviceClass();
                 Method throt = dev.getThrottleMethod();
