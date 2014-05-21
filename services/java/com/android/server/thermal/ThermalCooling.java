@@ -439,7 +439,7 @@ public class ThermalCooling {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            if (action.equals("android.intent.action.CHANGE_THERMAL_PROFILE")) {
+            if (action.equals(ThermalManager.ACTION_CHANGE_THERMAL_PROFILE)) {
                 String profName = intent.getStringExtra(ThermalManager.EXTRA_PROFILE);
                 if (profName != null) {
                     ThermalManager.changeThermalProfile(profName);
@@ -631,7 +631,7 @@ public class ThermalCooling {
 
     public void registerProfChangeListener() {
         IntentFilter profChangeIntentFilter = new IntentFilter();
-        profChangeIntentFilter.addAction("android.intent.action.CHANGE_THERMAL_PROFILE");
+        profChangeIntentFilter.addAction(ThermalManager.ACTION_CHANGE_THERMAL_PROFILE);
         // TODO: add some permission (BRICK ??) to protect it from third party apps
         mContext.registerReceiver(mProfChangeReceiver, profChangeIntentFilter);
         mProfChangeListenerInitialized = true;
