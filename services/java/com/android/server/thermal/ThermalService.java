@@ -485,7 +485,7 @@ public class ThermalService extends Binder {
 
         Log.i(TAG, "Initializing Thermal Service");
         mContext = context;
-
+        ThermalManager.setContext(context);
         /* Wait for the BOOT Completion */
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_BOOT_COMPLETED);
@@ -574,6 +574,8 @@ public class ThermalService extends Binder {
             Notify notifier = new Notify(ThermalManager.sEventQueue);
             new Thread(notifier, "ThermalNotifier").start();
 
+            ThermalManager.buildProfileNameList();
+            ThermalManager.initializeStickyIntent();
             /* Start monitoring the zones in Default Thermal Profile */
             ThermalManager.startDefaultProfile();
         }

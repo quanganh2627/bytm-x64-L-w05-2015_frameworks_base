@@ -16,6 +16,8 @@
 
 package com.android.server.thermal;
 
+import android.content.Context;
+import android.content.Intent;
 import android.os.SystemProperties;
 import android.util.Log;
 
@@ -26,9 +28,11 @@ import java.lang.StringBuilder;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.NoSuchElementException;
 /**
  * The ThermalManager class contains data structures that are common to both
  * Thermal Sensor/Zone and Cooling device parts.
@@ -37,8 +41,11 @@ import java.util.NoSuchElementException;
  */
 public class ThermalManager {
     private static final String TAG = "ThermalManager";
+    private static Context sContext;
     private static String sVersion;
     private static String sCurProfileName;
+    private static String sProfileNameList;
+    private static int sProfileCount;
     private static final String ITUX_VERSION_PROPERTY = "ro.thermal.ituxversion";
     /* Parameter needed for reading configuration files */
     public static final String SENSOR_FILE_NAME = "thermal_sensor_config.xml";
@@ -56,8 +63,6 @@ public class ThermalManager {
     public static boolean sIsOverlays = false;
 
     public static String sUEventDevPath = "DEVPATH=/devices/virtual/thermal/thermal_zone";
-
-
     /**
      * Thermal Zone State Changed Action: This is broadcast when the state of a
      * thermal zone changes.
@@ -67,7 +72,6 @@ public class ThermalManager {
 
     public static PlatformInfo sPlatformInfo;
     public static ThermalCooling sCoolingManager;
-
     /* List of Thermal zones for current profile. Access protected by 'sProfileSwitchLock' */
     private static ArrayList<ThermalZone> sThermalZonesList;
 
@@ -140,13 +144,30 @@ public class ThermalManager {
      * integer containing the temperature of the zone.
      */
     public static final String EXTRA_TEMP = "temp";
-
+    public static final String ACTION_CHANGE_THERMAL_PROFILE =
+            "android.intent.action.CHANGE_THERMAL_PROFILE";
     /**
      * Extra for {@link ACTION_THERMAL_ZONE_STATE_CHANGED}:
      * String containing the name of the zone.
      */
     public static final String EXTRA_NAME = "name";
     public static final String EXTRA_PROFILE = "Profile";
+
+    private static Intent sQueryProfileIntent;
+    public static final String ACTION_QUERY_THERMAL_PROFILE =
+            "com.android.server.thermal.action.QUERY_THERMAL_PROFILE";
+    /**
+     * Integer containing the number of thermal profiles.
+     */
+    public static final String EXTRA_NUM_PROFILE = "NumProfiles";
+    /**
+     * Space separated string containing list of thermal profile names.
+     */
+    public static final String EXTRA_PROFILE_LIST = "ProfileList";
+    /**
+     * String containing current thermal profile name.
+     */
+    public static final String EXTRA_CUR_PROFILE = "CurProfile";
 
     /* values for "STATE" field in the THERMAL_STATE_CHANGED Intent */
     public static final int THERMAL_STATE_OFF = -1;
@@ -461,6 +482,10 @@ public class ThermalManager {
         // empty constructor
     }
 
+    public static void setContext(Context context) {
+        sContext = context;
+    }
+
     public static String getVersion() {
         return sVersion;
     }
@@ -520,6 +545,8 @@ public class ThermalManager {
         setCurProfileName(profName);
         int activeZones = startMonitoringZones();
         Log.i(TAG, activeZones + " zones found active in profile " + profName);
+        // broadcast a sticky intent for the clients
+        sendQueryProfileIntent();
     }
 
     private static void stopCurrentProfile() {
@@ -676,5 +703,41 @@ public class ThermalManager {
     public static ThermalSensor getSensor(String sensorName) {
         if (sensorName == null || sSensorMap == null) return null;
         return sSensorMap.get(sensorName);
+    }
+
+    public static void buildProfileNameList() {
+        int count = 0;
+        StringBuilder s = new StringBuilder();
+        Iterator it = sProfileZoneMap.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry entry = (Map.Entry) it.next();
+            String key = (String) entry.getKey();
+            // create list of only valid profiles
+            if (isProfileExists(key)) {
+                // build a space seperate list of string
+                s.append(key);
+                s.append(" ");
+                count++;
+            }
+        }
+
+        sProfileNameList = s.toString();
+        sProfileCount = count;
+        Log.i(TAG, "profile name list:" + sProfileNameList);
+        Log.i(TAG, "profile count:" + sProfileCount);
+    }
+
+    public static void initializeStickyIntent() {
+        sQueryProfileIntent = new Intent();
+        sQueryProfileIntent.setAction(ACTION_QUERY_THERMAL_PROFILE);
+    }
+
+    private static void sendQueryProfileIntent() {
+        if (sQueryProfileIntent != null && sContext != null) {
+            sQueryProfileIntent.putExtra(ThermalManager.EXTRA_NUM_PROFILE, sProfileCount);
+            sQueryProfileIntent.putExtra(ThermalManager.EXTRA_PROFILE_LIST, sProfileNameList);
+            sQueryProfileIntent.putExtra(ThermalManager.EXTRA_CUR_PROFILE, sCurProfileName);
+            sContext.sendStickyBroadcast(sQueryProfileIntent);
+        }
     }
 }
