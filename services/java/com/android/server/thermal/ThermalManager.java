@@ -156,6 +156,8 @@ public class ThermalManager {
     private static Intent sQueryProfileIntent;
     public static final String ACTION_QUERY_THERMAL_PROFILE =
             "com.android.server.thermal.action.QUERY_THERMAL_PROFILE";
+    public static final String ACTION_KILL = "kill";
+
     /**
      * Integer containing the number of thermal profiles.
      */
