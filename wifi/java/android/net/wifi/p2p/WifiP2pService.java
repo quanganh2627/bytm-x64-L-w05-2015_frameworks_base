@@ -132,7 +132,7 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
     private static int mDisableP2pTimeoutIndex = 0;
 
     /* Set a thirty seconds discover timeout to avoid STA scans from being blocked */
-    private static final int DISCOVER_TIMEOUT_S = 30;
+    private static final int DISCOVER_TIMEOUT_S = 120;
 
     /* Idle time after a peer is gone when the group is torn down */
     private static final int GROUP_IDLE_TIME_S = 10;

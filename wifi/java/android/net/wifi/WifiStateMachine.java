@@ -4385,8 +4385,8 @@ public class WifiStateMachine extends StateMachine {
                     mWifiNative.setScanInterval((int) (scanIntervalMs/1000));
                     /* When P2P Disconnects, launch a scan in order to */
                     /* restart supplicant from a fresh scan interval. */
-                    if (!mP2pConnected.get() && !mP2pConnecting.get())
-                        sendMessage(CMD_START_SCAN);
+//                    if (!mP2pConnected.get() && !mP2pConnecting.get())
+//                        sendMessage(CMD_START_SCAN);
 
                 case CMD_RECONNECT:
                 case CMD_REASSOCIATE:
