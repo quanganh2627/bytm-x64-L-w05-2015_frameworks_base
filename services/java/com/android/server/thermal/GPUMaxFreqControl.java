@@ -20,7 +20,6 @@ import android.content.Context;
 import java.io.File;
 import java.util.ArrayList;
 
-
 /**
  * The GPUMaxFreqControl class caps GPU frequency for various thermal States
  *
@@ -29,6 +28,7 @@ import java.util.ArrayList;
 public class GPUMaxFreqControl {
     private static final String TAG = "Thermal:GPUMaxFreqControl";
     private static String sGPUThrottlePath = null;
+    private static int sThrottleValues[] = null;
 
     private static void setThrottlePath() {
         int indx = ThermalUtils.getCoolingDeviceIndexContains("gpu_burst");
@@ -43,8 +43,14 @@ public class GPUMaxFreqControl {
     }
 
     public static void throttleDevice(int thermalState) {
+        int val = thermalState;
+
+        if (sThrottleValues != null) {
+            val = sThrottleValues[thermalState];
+        }
+
         if (sGPUThrottlePath != null) {
-            ThermalUtils.writeSysfs(sGPUThrottlePath, thermalState);
+            ThermalUtils.writeSysfs(sGPUThrottlePath, val);
         }
     }
 
@@ -58,6 +64,13 @@ public class GPUMaxFreqControl {
         // None of the above cases. Set the throttle path to null
         } else {
             sGPUThrottlePath = null;
+        }
+        // Set throttle values
+        if (values != null) {
+            sThrottleValues = new int[values.size()];
+            for (int i = 0; i < values.size(); i++) {
+                sThrottleValues[i] = values.get(i);
+            }
         }
     }
 }
