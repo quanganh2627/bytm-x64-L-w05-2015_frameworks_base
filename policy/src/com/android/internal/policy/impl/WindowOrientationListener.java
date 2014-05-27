@@ -60,14 +60,14 @@ public abstract class WindowOrientationListener {
 
     /* Using Terminal Sensor to detect rotation first */
     private boolean mEnabledTerminal = false;
-    private final int SENSOR_TYPE_TERMINAL = 103;
-    private final int TERMINAL_FACE_UP = 129;
-    private final int TERMINAL_FACE_DOWN = 130;
-    private final int TERMINAL_PORTRAIT_UP = 131;
-    private final int TERMINAL_PORTRAIT_DOWN = 132;
-    private final int TERMINAL_HORIZONTAL_UP = 133;
-    private final int TERMINAL_HORIZONTAL_DOWN = 134;
-    private final int TERMINAL_UNKNOWN = 135;
+    private final int SENSOR_TYPE_TERMINAL = 0x10004;
+    private final int TERMINAL_FACE_UP = 1;
+    private final int TERMINAL_FACE_DOWN = 2;
+    private final int TERMINAL_PORTRAIT_UP = 3;
+    private final int TERMINAL_PORTRAIT_DOWN = 4;
+    private final int TERMINAL_HORIZONTAL_UP = 5;
+    private final int TERMINAL_HORIZONTAL_DOWN = 6;
+    private final int TERMINAL_UNKNOWN = 7;
     /* 8 seconds, using delay 10ms(100HZ),  8 * 100 = 800 */
     private final int ACCEL_EVENT_MAX = 800;
     private Sensor mTerminal;
