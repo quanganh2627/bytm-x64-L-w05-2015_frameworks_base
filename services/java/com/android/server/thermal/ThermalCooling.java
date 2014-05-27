@@ -281,12 +281,16 @@ public class ThermalCooling {
                     if (mZoneCoolerBindMap == null) {
                         mZoneCoolerBindMap = new Hashtable<Integer,
                                 ThermalManager.ZoneCoolerBindingInfo>();
+                    } else {
+                        mZoneCoolerBindMap.clear();
                     }
                 } else if (name.equalsIgnoreCase(PROFILE)) {
                     mNumProfiles++;
                     if (mZoneCoolerBindMap == null) {
                         mZoneCoolerBindMap = new Hashtable<Integer,
                                 ThermalManager.ZoneCoolerBindingInfo>();
+                    } else {
+                        mZoneCoolerBindMap.clear();
                     }
                 } else if (name.equalsIgnoreCase(COOLINGDEVICEINFO) && mZone != null) {
                     if (mZone.getCoolingDeviceInfoList() == null) {
@@ -355,16 +359,20 @@ public class ThermalCooling {
                 mDevice = null;
             } else if (name.equalsIgnoreCase(ZONETHROTINFO) && mZone != null) {
                 mZone.printAttributes();
-                mZoneCoolerBindMap.put(mZone.getZoneID(), mZone);
+                if (mZoneCoolerBindMap != null) {
+                    mZoneCoolerBindMap.put(mZone.getZoneID(), mZone);
+                }
                 mZone = null;
             } else if (name.equalsIgnoreCase(PROFILE)) {
-                ThermalManager.sProfileBindMap.put(mCurProfileName, mZoneCoolerBindMap);
-                mZoneCoolerBindMap = null;
+                if (mZoneCoolerBindMap != null) {
+                    ThermalManager.sProfileBindMap.put(mCurProfileName, mZoneCoolerBindMap);
+                    mZoneCoolerBindMap.clear();
+                }
             } else if (name.equalsIgnoreCase(THERMAL_THROTTLE_CONFIG)) {
                 Log.i(TAG, "Parsing Finished..");
                 // This indicates we have not seen any <Profile> tag.
                 // Consider it as if we have only one 'Default' Profile.
-                if (mNumProfiles == 0) {
+                if (mNumProfiles == 0 && mZoneCoolerBindMap != null) {
                     ThermalManager.sProfileBindMap.put(mCurProfileName, mZoneCoolerBindMap);
                 }
                 done = true;
