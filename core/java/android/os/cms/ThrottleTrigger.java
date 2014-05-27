@@ -13,10 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.server.cms;
+package android.os.cms;
 
 import java.util.ArrayList;
 
+/**
+ * {@hide}
+ */
 public class ThrottleTrigger {
     private String mName;
     private ArrayList<State> mStates = new ArrayList<State>();
