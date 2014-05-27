@@ -13,10 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.server.cms;
+package android.os.cms;
 
 import java.util.ArrayList;
 
+/**
+ * {@hide}
+ */
 public class State {
     private static final int MAX_DEVICES = 10;
     private static int mStateCnt = 0;

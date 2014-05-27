@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.server.cms;
+package android.os.cms;
 import android.util.Log;
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -24,6 +24,9 @@ import java.util.ArrayList;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserFactory;
 
+/**
+ * {@hide}
+ */
 public class ParseCmsConfig {
     private ArrayList<ThrottleTrigger> mThrottleTriggers = new ArrayList<ThrottleTrigger>();
     private ArrayList<ContributingDevice> mCDevs = new ArrayList<ContributingDevice>();
