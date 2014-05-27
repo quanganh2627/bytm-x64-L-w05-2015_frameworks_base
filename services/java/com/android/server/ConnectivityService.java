@@ -2913,23 +2913,25 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         if (VDBG) log("reassessPidDns for pid " + pid);
         Integer myPid = new Integer(pid);
         for(int i : mPriorityList) {
-            if (mNetConfigs[i].isDefault()) {
-                continue;
-            }
-            NetworkStateTracker nt = mNetTrackers[i];
-            if (nt.getNetworkInfo().isConnected() &&
-                    !nt.isTeardownRequested()) {
-                LinkProperties p = nt.getLinkProperties();
-                if (p == null) continue;
-                if (mNetRequestersPids[i].contains(myPid)) {
-                    try {
-                        mNetd.setDnsInterfaceForPid(p.getInterfaceName(), pid);
-                    } catch (Exception e) {
-                        Slog.e(TAG, "exception reasseses pid dns: " + e);
-                    }
-                    return;
+            if (isNetworkTypeValid(i)) {
+                if (mNetConfigs[i].isDefault()) {
+                    continue;
                 }
-           }
+                NetworkStateTracker nt = mNetTrackers[i];
+                if (nt.getNetworkInfo().isConnected() &&
+                        !nt.isTeardownRequested()) {
+                    LinkProperties p = nt.getLinkProperties();
+                    if (p == null) continue;
+                    if (mNetRequestersPids[i].contains(myPid)) {
+                        try {
+                            mNetd.setDnsInterfaceForPid(p.getInterfaceName(), pid);
+                        } catch (Exception e) {
+                            Slog.e(TAG, "exception reasseses pid dns: " + e);
+                        }
+                        return;
+                    }
+               }
+            }
         }
         // nothing found - delete
         try {
