@@ -334,6 +334,16 @@ public class WifiService extends IWifiManager.Stub {
         // handle coexistence intents
         mContext.registerReceiver(
                 new BroadcastReceiver() {
+                    // This holds the Wifi preferred channel list to be looked
+                    // for
+                    private final int[] mPrefWifiChan = {
+                        6, 1, 11, 10, 9, 8, 7, 5, 4, 3, 2
+                    };
+
+                    private boolean isChannelSafe(int aSafeBitmap, int aChannel) {
+                        return ((aSafeBitmap & (1 << (aChannel - 1))) == 0);
+                    }
+
                     @Override
                     public void onReceive(Context context, Intent intent) {
                         Bundle coexBundle = intent.
@@ -354,18 +364,36 @@ public class WifiService extends IWifiManager.Stub {
                                     int channel = lastWifiApConfig.getWifiApConfigurationAdv().
                                             getChannel();
                                     int newChannel = channel;
-                                    /*  Channel width is the same for all 2.4GHz channels*/
+                                    /*
+                                     * Channel width is the same for all 2.4GHz
+                                     * channels
+                                     */
                                     WifiChannel.ChannelWidth width = lastWifiApConfig.
                                             getWifiApConfigurationAdv().getWifiChannel().
                                             getWidth();
 
-                                    if (( safeChannels & (1 << channel - 1)) != 0) {
-                                        // current channel is not good, we need to find
-                                        // another one from 6 to 1
-                                        for (newChannel = 6; newChannel > 1; newChannel--) {
-                                            if (( safeChannels & (1 << (newChannel - 1))) == 0) {
-                                                // got one.
-                                                break;
+                                    if (!isChannelSafe(safeChannels, channel)) {
+                                        // current channel is not good, we need
+                                        // to find
+                                        // another one...
+
+                                        // This is a corner case: no safe
+                                        // channel
+                                        if (safeChannels == 0x3fff) {
+                                            newChannel = 6;
+                                            Slog.w(TAG,
+                                                    "No safe channel available, "
+                                                    + "softap use channel 6");
+                                        } else {
+                                            // Iterate through the preferred
+                                            // channel list to find
+                                            // a safe one
+                                            for (int i = 0; i < mPrefWifiChan.length; i++) {
+                                                newChannel = mPrefWifiChan[i];
+                                                if (isChannelSafe(safeChannels, newChannel)) {
+                                                    // got one.
+                                                    break;
+                                                }
                                             }
                                         }
                                     }
@@ -375,7 +403,7 @@ public class WifiService extends IWifiManager.Stub {
                                                 + " new channel:" + newChannel);
                                         mWifiStateMachine.setHostApRunning(null, false);
                                         lastWifiApConfig.getWifiApConfigurationAdv().
-                                        setChannel(newChannel, width);
+                                                setChannel(newChannel, width);
                                         mWifiStateMachine.setHostApRunning(lastWifiApConfig, true);
                                     } else {
                                         Slog.i(TAG, "NOT restarting softap old channel: " + channel
