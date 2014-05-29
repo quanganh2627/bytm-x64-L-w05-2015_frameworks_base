@@ -543,10 +543,6 @@ public class ThermalManager {
     private static void startNewProfile(String profName) {
         sThermalZonesList = sProfileZoneMap.get(profName);
         sZoneCoolerBindMap = sProfileBindMap.get(profName);
-        if (sThermalZonesList == null || sZoneCoolerBindMap == null) {
-            Log.i(TAG, "Couldn't shift to profile:" + profName);
-            return;
-        }
         initializeZoneCriticalPendingMap();
         setCurProfileName(profName);
         int activeZones = startMonitoringZones();
