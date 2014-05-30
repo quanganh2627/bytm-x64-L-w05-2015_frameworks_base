@@ -253,6 +253,17 @@ interface IOemTelephony {
      * {@hide}
      */
     void powerOffModem();
+
+    /**
+     * Sends AT command to the modem
+     *
+     * <p class="note">
+     * This API should be used only for testing purpose. Any specific requests should
+     * be addressed using new APIs. Requires the caller to be either running in system
+     * or phone process.
+     *
+     * {@hide}
+     */
     String sendAtCommand(String command);
 
     /*
