@@ -37,6 +37,8 @@ LOCAL_JAVA_LIBRARIES += com.intel.cam.api
 
 LOCAL_STATIC_JAVA_LIBRARIES += com.intel.aa
 
+LOCAL_STATIC_JAVA_LIBRARIES += com.intel.offload.framework
+
 include $(BUILD_JAVA_LIBRARY)
 
 include $(BUILD_DROIDDOC)

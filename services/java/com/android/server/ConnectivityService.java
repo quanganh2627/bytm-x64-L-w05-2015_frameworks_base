@@ -72,6 +72,7 @@ import android.net.NetworkState;
 import android.net.NetworkStateTracker;
 import android.net.NetworkUtils;
 import android.net.Proxy;
+import android.net.ProxyDataStateTracker;
 import android.net.ProxyProperties;
 import android.net.RouteInfo;
 import android.net.SamplingDataTracker;
@@ -127,7 +128,6 @@ import com.android.server.net.BaseNetworkObserver;
 import com.android.server.net.LockdownVpnTracker;
 import com.google.android.collect.Lists;
 import com.google.android.collect.Sets;
-import com.intel.cam.api.CamManager;
 
 import dalvik.system.DexClassLoader;
 
@@ -759,6 +759,9 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 case TYPE_WIFI:
                     return new WifiStateTracker(targetNetworkType, config.name);
                 case TYPE_MOBILE:
+                    if (TelephonyManager.getOffloadSupportedStatic()) {
+                        return new ProxyDataStateTracker(targetNetworkType, config.name);
+                    }
                     return new MobileDataStateTracker(targetNetworkType, config.name);
                 case TYPE_DUMMY:
                     return new DummyDataStateTracker(targetNetworkType, config.name);
@@ -2386,12 +2389,18 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         }
     };
 
-    private boolean isNewNetTypePreferredOverCurrentNetType(int type) {
+    private boolean isNewNetTypePreferredOverCurrentNetType(int type, int subType) {
         if (APP_CONT_DBG) {
             log("APPCONT:isNewNetTypePreferredOverCurrentNetType "
                     + " type: " + type
+                    + " subType: " + subType
                     + " mNetworkPreference: " + mNetworkPreference
                     + " mActiveDefaultNetwork: " + mActiveDefaultNetwork);
+        }
+        if (mActiveDefaultNetwork == ConnectivityManager.TYPE_WIFI
+                && type == ConnectivityManager.TYPE_MOBILE
+                && subType == TelephonyManager.NETWORK_TYPE_S2B) {
+            return false;
         }
         if (((type != mNetworkPreference)
                       && (mNetConfigs[mActiveDefaultNetwork].priority > mNetConfigs[type].priority))
@@ -2403,6 +2412,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
 
     private void handleConnect(NetworkInfo info) {
         final int newNetType = info.getType();
+        final int newNetSubType = info.getSubtype();
 
         setupDataActivityTracking(newNetType);
 
@@ -2430,7 +2440,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 if (APP_CONT_DBG) {
                     log("APPCONT: handleConnect: App continuity is disabled/non-CAM connection");
                 }
-                if (isNewNetTypePreferredOverCurrentNetType(newNetType)) {
+                if (isNewNetTypePreferredOverCurrentNetType(newNetType, newNetSubType)) {
                     // tear down the other
                     NetworkStateTracker otherNet =
                             mNetTrackers[mActiveDefaultNetwork];
@@ -2444,13 +2454,17 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                         return;
                     }
                 } else {
-                       // don't accept this one
-                        if (VDBG) {
-                            log("Not broadcasting CONNECT_ACTION " +
-                                "to torn down network " + info.getTypeName());
-                        }
+                    // don't accept this one
+                    if (VDBG) {
+                        log("Not broadcasting CONNECT_ACTION "
+                                + "to torn down network " + info.getTypeName());
+                    }
+                    // dont teardown, mobile[s2b] and wifi should coexist
+                    if (newNetSubType != TelephonyManager.NETWORK_TYPE_S2B) {
+                        if (VDBG) log("Not tearing down any tracker");
                         teardown(thisNet);
                         return;
+                    }
                 }
             }
             else {
@@ -2498,10 +2512,11 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     private void handleCaptivePortalTrackerCheck(NetworkInfo info) {
         if (DBG) log("Captive portal check " + info);
         int type = info.getType();
+        int subType = info.getSubtype();
         final NetworkStateTracker thisNet = mNetTrackers[type];
         if (mNetConfigs[type].isDefault()) {
             if (mActiveDefaultNetwork != -1 && mActiveDefaultNetwork != type) {
-                if (isNewNetTypePreferredOverCurrentNetType(type)) {
+                if (isNewNetTypePreferredOverCurrentNetType(type, subType)) {
                     if (DBG) log("Captive check on " + info.getTypeName());
                     mCaptivePortalTracker.detectCaptivePortal(new NetworkInfo(info));
                     return;
@@ -3316,10 +3331,12 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 case EVENT_ENABLE_FAIL_FAST_MOBILE_DATA: {
                     int tag = mEnableFailFastMobileDataTag.get();
                     if (msg.arg1 == tag) {
-                        MobileDataStateTracker mobileDst =
-                            (MobileDataStateTracker) mNetTrackers[ConnectivityManager.TYPE_MOBILE];
-                        if (mobileDst != null) {
-                            mobileDst.setEnableFailFastMobileData(msg.arg2);
+                        if (TelephonyManager.getOffloadSupportedStatic()) {
+                            ((ProxyDataStateTracker) mNetTrackers[ConnectivityManager.TYPE_MOBILE])
+                                .setEnableFailFastMobileData(msg.arg2);
+                        } else {
+                            ((MobileDataStateTracker) mNetTrackers[ConnectivityManager.TYPE_MOBILE])
+                                .setEnableFailFastMobileData(msg.arg2);
                         }
                     } else {
                         log("EVENT_ENABLE_FAIL_FAST_MOBILE_DATA: stale arg1:" + msg.arg1
@@ -4147,9 +4164,12 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     }
 
     private boolean isMobileDataStateTrackerReady() {
-        MobileDataStateTracker mdst =
-                (MobileDataStateTracker) mNetTrackers[ConnectivityManager.TYPE_MOBILE_HIPRI];
-        return (mdst != null) && (mdst.isReady());
+        if (TelephonyManager.getOffloadSupportedStatic()) {
+            return ((ProxyDataStateTracker) mNetTrackers[ConnectivityManager.TYPE_MOBILE_HIPRI])
+                .isReady();
+        }
+        return ((MobileDataStateTracker) mNetTrackers[ConnectivityManager.TYPE_MOBILE_HIPRI])
+            .isReady();
     }
 
     /**
@@ -4443,17 +4463,27 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 log("isMobileOk: X is provisioning result=" + result);
                 return result;
             }
+            boolean isDefaultProvisioning = false;
+            boolean isHipriProvisioning = false;
 
             // See if we've already determined we've got a provisioning connection,
             // if so we don't need to do anything active.
-            MobileDataStateTracker mdstDefault = (MobileDataStateTracker)
-                    mCs.mNetTrackers[ConnectivityManager.TYPE_MOBILE];
-            boolean isDefaultProvisioning = mdstDefault.isProvisioningNetwork();
+            if (TelephonyManager.getOffloadSupportedStatic()) {
+                isDefaultProvisioning = ((ProxyDataStateTracker)
+                        mCs.mNetTrackers[ConnectivityManager.TYPE_MOBILE])
+                            .isProvisioningNetwork();
+                isHipriProvisioning = ((ProxyDataStateTracker)
+                        mCs.mNetTrackers[ConnectivityManager.TYPE_MOBILE_HIPRI])
+                            .isProvisioningNetwork();
+            } else {
+                isDefaultProvisioning = ((MobileDataStateTracker)
+                        mCs.mNetTrackers[ConnectivityManager.TYPE_MOBILE])
+                            .isProvisioningNetwork();
+                isHipriProvisioning = ((MobileDataStateTracker)
+                        mCs.mNetTrackers[ConnectivityManager.TYPE_MOBILE_HIPRI])
+                            .isProvisioningNetwork();
+            }
             log("isMobileOk: isDefaultProvisioning=" + isDefaultProvisioning);
-
-            MobileDataStateTracker mdstHipri = (MobileDataStateTracker)
-                    mCs.mNetTrackers[ConnectivityManager.TYPE_MOBILE_HIPRI];
-            boolean isHipriProvisioning = mdstHipri.isProvisioningNetwork();
             log("isMobileOk: isHipriProvisioning=" + isHipriProvisioning);
 
             if (isDefaultProvisioning || isHipriProvisioning) {
@@ -4517,9 +4547,19 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                         }
 
                         // Hipri has started check if this is a provisioning url
-                        MobileDataStateTracker mdst = (MobileDataStateTracker)
-                                mCs.mNetTrackers[ConnectivityManager.TYPE_MOBILE_HIPRI];
-                        if (mdst.isProvisioningNetwork()) {
+                        boolean isProvisioningNetwork = false;
+
+                        if (TelephonyManager.getOffloadSupportedStatic()) {
+                            isProvisioningNetwork = ((ProxyDataStateTracker)
+                                    mCs.mNetTrackers[ConnectivityManager.TYPE_MOBILE_HIPRI])
+                                        .isProvisioningNetwork();
+                        } else {
+                            isProvisioningNetwork = ((MobileDataStateTracker)
+                                    mCs.mNetTrackers[ConnectivityManager.TYPE_MOBILE_HIPRI])
+                                        .isProvisioningNetwork();
+                        }
+
+                        if (isProvisioningNetwork) {
                             result = CMP_RESULT_CODE_PROVISIONING_NETWORK;
                             if (DBG) log("isMobileOk: X isProvisioningNetwork result=" + result);
                             return result;
@@ -4786,10 +4826,17 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         if (mIsProvisioningNetwork.get()) {
             if (DBG) log("handleMobileProvisioningAction: on prov network enable then launch");
             mIsStartingProvisioning.set(true);
-            MobileDataStateTracker mdst = (MobileDataStateTracker)
-                    mNetTrackers[ConnectivityManager.TYPE_MOBILE];
-            mdst.setEnableFailFastMobileData(DctConstants.ENABLED);
-            mdst.enableMobileProvisioning(url);
+            if (TelephonyManager.getOffloadSupportedStatic()) {
+                
+                ProxyDataStateTracker pdst = (ProxyDataStateTracker)
+                        mNetTrackers[ConnectivityManager.TYPE_MOBILE];
+                pdst.enableMobileProvisioning(url);
+            } else {
+                MobileDataStateTracker mdst = (MobileDataStateTracker)
+                        mNetTrackers[ConnectivityManager.TYPE_MOBILE];
+                mdst.setEnableFailFastMobileData(DctConstants.ENABLED);
+                mdst.enableMobileProvisioning(url);
+            }
         } else {
             if (DBG) log("handleMobileProvisioningAction: not prov network, launch browser directly");
             Intent newIntent = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN,

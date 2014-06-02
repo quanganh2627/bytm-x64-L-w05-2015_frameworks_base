@@ -45,6 +45,8 @@ public final class OffloadManager {
             "android.net.smartconnectivity.offload.SERVICE_BOUND";
     public static final String ACTION_SERVICE_UNBOUND =
             "android.net.smartconnectivity.offload.SERVICE_UNBOUND";
+    public static final String ACTION_SERVICE_READY =
+            "android.net.smartconnectivity.offload.SERVICE_READY";
 
     private IOffloadService mService;
     private Context mContext;

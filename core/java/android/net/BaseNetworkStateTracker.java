@@ -206,4 +206,10 @@ public abstract class BaseNetworkStateTracker implements NetworkStateTracker {
     public void stopSampling(SamplingDataTracker.SamplingSnapshot s) {
         // nothing to do
     }
+
+    @Override
+    public boolean reconnect(LinkProperties link) {
+        // not supported on this network
+        return false;
+    }
 }
