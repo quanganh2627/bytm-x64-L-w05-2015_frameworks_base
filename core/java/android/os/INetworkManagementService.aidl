@@ -118,6 +118,11 @@ interface INetworkManagementService
     void removeSecondaryRoute(String iface, in RouteInfo route);
 
     /**
+     * Modify source based routing.
+     */
+    void modifySourceBasedRouting(String iface, String address, String action);
+
+    /**
      * Set the specified MTU size
      */
     void setMtu(String iface, int mtu);

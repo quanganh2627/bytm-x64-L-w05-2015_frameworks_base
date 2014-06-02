@@ -711,6 +711,17 @@ public class NetworkManagementService extends INetworkManagementService.Stub
     }
 
     @Override
+    public void modifySourceBasedRouting(String interfaceName, String ip, String action) {
+        mContext.enforceCallingOrSelfPermission(CONNECTIVITY_INTERNAL, TAG);
+        final Command cmd = new Command("interface", "rule", action, interfaceName, "src", ip);
+        try {
+            mConnector.execute(cmd);
+        } catch (NativeDaemonConnectorException e) {
+            throw e.rethrowAsParcelableException();
+        }
+    }
+
+    @Override
     public void removeSecondaryRoute(String interfaceName, RouteInfo route) {
         mContext.enforceCallingOrSelfPermission(CONNECTIVITY_INTERNAL, TAG);
         modifyRoute(interfaceName, REMOVE, route, SECONDARY);
