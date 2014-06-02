@@ -205,4 +205,9 @@ public interface TelephonyProperties
      * 2: IMS AP Centric supported
      */
     static final String PROPERTY_IMS_MODE = "persist.ims_support";
+
+    /**
+     * This property when set to true, indicates network offload is supported.
+     */
+    static final String PROPERTY_OFFLOAD_SUPPORT = "persist.offload_support";
 }

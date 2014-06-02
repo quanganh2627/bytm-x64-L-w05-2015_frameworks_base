@@ -144,6 +144,13 @@ public interface NetworkStateTracker {
     public boolean reconnect();
 
     /**
+     * Reenable connectivity to a network after a {@link #teardown()}.
+     * @param link Link properties in case of handover
+     * @return {@code true} if we're connected or expect to be connected
+     */
+    public boolean reconnect(LinkProperties link);
+
+    /**
      * Ready to switch on to the network after captive portal check
      */
     public void captivePortalCheckComplete();

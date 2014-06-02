@@ -545,6 +545,14 @@ public class TelephonyManager {
         return (mode == 2);
     }
 
+    /** @hide */
+    public static boolean getOffloadSupportedStatic() {
+        boolean ret = SystemProperties.getBoolean(TelephonyProperties.PROPERTY_OFFLOAD_SUPPORT,
+                false);
+        Rlog.d(TAG, TelephonyProperties.PROPERTY_OFFLOAD_SUPPORT + " is " + ret);
+        return ret;
+    }
+
     //
     //
     // Current Network
