@@ -75,7 +75,6 @@ public class ThermalService extends Binder {
        private static final String THRESHOLD = "Threshold";
        private static final String POLLDELAY = "PollDelay";
        private static final String MOVINGAVGWINDOW = "MovingAverageWindow";
-       private static final String ZONELOGIC = "ZoneLogic";
        private static final String WEIGHT = "Weight";
        private static final String ORDER = "Order";
        private static final String OFFSET = "Offset";
@@ -194,14 +193,9 @@ public class ThermalService extends Binder {
                        mPlatformInfo.mMaxThermalStates = Integer.parseInt(mParser.nextText());
                    // Retrieve Zone Information
                    } else if (name.equalsIgnoreCase("ZoneName") && tempZoneId != -1) {
-                       // if modem create a object of type modem and assign to base class
                        tempZoneName = mParser.nextText();
-                   } else if (name.equalsIgnoreCase(ZONELOGIC) && tempZoneId != -1 &&
-                           tempZoneName != null) {
-                       String zoneLogic = mParser.nextText();
-                       if (zoneLogic.equalsIgnoreCase("Virtual")) {
-                           mCurrZone = new VirtualThermalZone();
-                       } else if (zoneLogic.equalsIgnoreCase("Modem")) {
+                       // if modem create a object of type modem and assign to base class
+                       if (tempZoneName.equalsIgnoreCase("Modem")) {
                            mCurrZone = new ModemZone(mContext);
                        } else {
                            //default zone raw
@@ -210,7 +204,6 @@ public class ThermalService extends Binder {
                        if (mCurrZone != null) {
                            mCurrZone.setZoneName(tempZoneName);
                            mCurrZone.setZoneId(tempZoneId);
-                           mCurrZone.setZoneLogic(zoneLogic);
                        }
                    } else if (name.equalsIgnoreCase("ZoneID")) {
                        tempZoneId = Integer.parseInt(mParser.nextText());

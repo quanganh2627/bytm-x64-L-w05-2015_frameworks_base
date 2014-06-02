@@ -41,7 +41,6 @@ public class ThermalZone {
     private int mDebounceInterval;    /* Debounce value to avoid thrashing of throttling actions */
     private Integer mPollDelay[];     /* Delay between sucessive polls in milli seconds */
     private boolean mSupportsUEvent;  /* Determines if Sensor supports Uevents */
-    private String mZoneLogic;      /* Logic to be used to determine thermal state of zone */
     private boolean mIsZoneActive = false;
     private int mOffset = 0;
     private Integer mZoneTempThresholds[];  /* Array containing temperature thresholds */
@@ -51,7 +50,6 @@ public class ThermalZone {
         Log.i(TAG, "mDBInterval: " + Integer.toString(mDebounceInterval));
         Log.i(TAG, "mZoneName:" + mZoneName);
         Log.i(TAG, "mSupportsUEvent:" + Boolean.toString(mSupportsUEvent));
-        Log.i(TAG, "mZoneLogic:" + mZoneLogic);
         Log.i(TAG, "mOffset:" + mOffset);
         Log.i(TAG, "mPollDelay[]:" + Arrays.toString(mPollDelay));
         Log.i(TAG, "mZoneTempThresholds[]: " + Arrays.toString(mZoneTempThresholds));
@@ -130,14 +128,6 @@ public class ThermalZone {
 
     public boolean isUEventSupported() {
         return mSupportsUEvent;
-    }
-
-    public void setZoneLogic(String type) {
-        mZoneLogic = type;
-    }
-
-    public String getZoneLogic() {
-        return mZoneLogic;
     }
 
     public void setDBInterval(int interval) {
