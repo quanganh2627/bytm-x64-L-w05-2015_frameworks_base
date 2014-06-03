@@ -264,10 +264,12 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
         updateAirplaneMode();
 
         mLastLocale = mContext.getResources().getConfiguration().locale;
-		Log.d(TAG, "NetworkController");
-        mSignalStrengthHandler = new SignalStrengthHandler();
-        mSignalStrengthThread = new SignalStrengthThread();
-        new Thread(mSignalStrengthThread).start();
+	Log.d(TAG, "NetworkController");
+	if(SystemProperties.getBoolean("persist.nomodem_ui", false)) {
+            mSignalStrengthHandler = new SignalStrengthHandler();
+            mSignalStrengthThread = new SignalStrengthThread();
+            new Thread(mSignalStrengthThread).start();
+        }
     }
 
     public boolean hasMobileDataFeature() {
