@@ -256,7 +256,7 @@ class ZygoteConnection {
                         ICheckExt check = new CheckExt();
                         if (!check.doCheck(parsedArgs.niceName, new String("arch"))
                                 && ((ret & APP_IMPLICIT_ABI_FLAG) == 0)) {
-                            System.setProperty("os.arch", "armv7");
+                            System.setProperty("os.arch", "armv7l");
                             Log.d(TAG, "Setting os.arch");
                             settingHoudiniABI();
                         } else {
