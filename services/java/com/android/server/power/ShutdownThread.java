@@ -315,51 +315,55 @@ public final class ShutdownThread extends Thread {
             SystemProperties.set(SHUTDOWN_ACTION_PROPERTY, reason);
         }
 
-        /*
-         * If we are rebooting into safe mode, write a system property
-         * indicating so.
-         */
-        if (mRebootSafeMode) {
-            SystemProperties.set(REBOOT_SAFEMODE_PROPERTY, "1");
-        }
 
-        Log.i(TAG, "Sending shutdown broadcast...");
-        
-        // First send the high-level shut down broadcast.
-        mActionDone = false;
-        Intent intent = new Intent(Intent.ACTION_SHUTDOWN);
-        intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
-        mContext.sendOrderedBroadcastAsUser(intent,
-                UserHandle.ALL, null, br, mHandler, 0, null, null);
-        
-        final long endTime = SystemClock.elapsedRealtime() + MAX_BROADCAST_TIME;
-        synchronized (mActionDoneSync) {
-            while (!mActionDone) {
-                long delay = endTime - SystemClock.elapsedRealtime();
-                if (delay <= 0) {
-                    Log.w(TAG, "Shutdown broadcast timed out");
-                    break;
+        String sForcedShutdown = SystemProperties.get(FORCE_SHUTDOWN_ACTION_PROPERTY);
+        if (!sForcedShutdown.equals("1")) {
+            /*
+             * If we are rebooting into safe mode, write a system property
+             * indicating so.
+             */
+            if (mRebootSafeMode) {
+                SystemProperties.set(REBOOT_SAFEMODE_PROPERTY, "1");
+            }
+
+            Log.i(TAG, "Sending shutdown broadcast...");
+
+            // First send the high-level shut down broadcast.
+            mActionDone = false;
+            Intent intent = new Intent(Intent.ACTION_SHUTDOWN);
+            intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+            mContext.sendOrderedBroadcastAsUser(intent,
+                    UserHandle.ALL, null, br, mHandler, 0, null, null);
+
+            final long endTime = SystemClock.elapsedRealtime() + MAX_BROADCAST_TIME;
+            synchronized (mActionDoneSync) {
+                while (!mActionDone) {
+                    long delay = endTime - SystemClock.elapsedRealtime();
+                    if (delay <= 0) {
+                        Log.w(TAG, "Shutdown broadcast timed out");
+                        break;
+                    }
+                    try {
+                        mActionDoneSync.wait(delay);
+                    } catch (InterruptedException e) {
+                    }
                 }
+            }
+
+            Log.i(TAG, "Shutting down activity manager...");
+
+            final IActivityManager am =
+                ActivityManagerNative.asInterface(ServiceManager.checkService("activity"));
+            if (am != null) {
                 try {
-                    mActionDoneSync.wait(delay);
-                } catch (InterruptedException e) {
+                    am.shutdown(MAX_BROADCAST_TIME);
+                } catch (RemoteException e) {
                 }
             }
-        }
-        
-        Log.i(TAG, "Shutting down activity manager...");
-        
-        final IActivityManager am =
-            ActivityManagerNative.asInterface(ServiceManager.checkService("activity"));
-        if (am != null) {
-            try {
-                am.shutdown(MAX_BROADCAST_TIME);
-            } catch (RemoteException e) {
-            }
-        }
 
-        // Shutdown radios.
-        shutdownRadios(MAX_RADIO_WAIT_TIME);
+            // Shutdown radios.
+            shutdownRadios(MAX_RADIO_WAIT_TIME);
+        }
 
         // Shutdown MountService to ensure media is in a safe state
         IMountShutdownObserver observer = new IMountShutdownObserver.Stub() {
@@ -400,8 +404,6 @@ public final class ShutdownThread extends Thread {
         }
 
         String sRebootCharger = SystemProperties.get(REBOOT_CHARGERMODE_PROPERTY);
-
-        String sForcedShutdown = SystemProperties.get(FORCE_SHUTDOWN_ACTION_PROPERTY);
 
         if (sRebootCharger.equals("true") && (mReboot == false) &&
             (!sForcedShutdown.equals("1")) && PowerManagerService.isPoweredPlugged()) {
