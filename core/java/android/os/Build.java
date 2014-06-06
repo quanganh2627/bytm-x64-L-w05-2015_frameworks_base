@@ -46,8 +46,18 @@ public class Build {
     /** The name of the second instruction set (CPU type + ABI convention) of native code. */
     public static final String CPU_ABI2 = getString("ro.product.cpu.abi2");
 
-    /** The name of instruction set (CPU type + ABI convention) for Houdini app. */
+    /**
+     * The name of instruction set 1 (CPU type + ABI convention) for Houdini app.
+     *
+     * @hide
+     */
     public static final String HOUDINI_ABI = "armeabi-v7a";
+
+    /**
+     * The name of instruction set 2 (CPU type + ABI convention) for Houdini app.
+     *
+     * @hide
+     */
     public static final String HOUDINI_ABI2 = "armeabi";
 
     /** The manufacturer of the product/hardware. */
