@@ -250,7 +250,7 @@ class ZygoteConnection {
                     if (isABI2App(parsedArgs.uid)) {
                         ICheckExt check = new CheckExt();
                         if (!check.doCheck(parsedArgs.niceName, new String("arch"))) {
-                            System.setProperty("os.arch", "armv7");
+                            System.setProperty("os.arch", "armv7l");
                             Log.d(TAG, "Setting os.arch");
                             settingHoudiniABI();
                         } else {
