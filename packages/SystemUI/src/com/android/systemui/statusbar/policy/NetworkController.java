@@ -436,7 +436,8 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
     PhoneStateListener mPhoneStateListener = new PhoneStateListener() {
         @Override
         public void onSignalStrengthsChanged(SignalStrength signalStrength) {
-            if (DEBUG) {
+            //if (DEBUG) 
+            {
                 Log.d(TAG, "onSignalStrengthsChanged signalStrength=" + signalStrength +
                     ((signalStrength == null) ? "" : (" level=" + signalStrength.getLevel())));
             }
