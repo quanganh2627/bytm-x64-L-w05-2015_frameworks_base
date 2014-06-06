@@ -241,7 +241,7 @@ public class MtpDatabase {
 
 
     public void release() {
-        mHandler.updateMtpState(MTP_SERVER_IDLE);
+        sendObjectIntent(false);
         if (mThread != null) {
             mThread.quit();
         }
