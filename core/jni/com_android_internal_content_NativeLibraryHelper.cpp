@@ -470,7 +470,7 @@ static size_t passArchStr (std::string str)
     int j = 0;
     size_t pos = ~0;
 
-    for (j=0; intel_arch[j]; j++) {
+    for (j=0; intel_arch[j] != NULL; j++) {
         size_t i = str.find(intel_arch[j]);
 
         if (i != std::string::npos && i < pos) {
@@ -633,12 +633,12 @@ com_android_internal_content_NativeLibraryHelper_listNativeBinaries(JNIEnv *env,
         }
 
         const char* lastSlash = strrchr(fileName, '/');
-        const char* libName = lastSlash + 1;
         ALOG_ASSERT(lastSlash != NULL, "last slash was null somehow for %s\n", fileName);
 
         // Check to make sure the CPU ABI of this file is one we support.
         const char* cpuAbiOffset = fileName + APK_LIB_LEN;
         const size_t cpuAbiRegionSize = lastSlash - cpuAbiOffset;
+        const char* libName = lastSlash + 1;
 
         ALOGV("Comparing ABIs %s and %s versus %s\n", cpuAbi.c_str(), cpuAbi2.c_str(), cpuAbiOffset);
         if (cpuAbi.size() == cpuAbiRegionSize
@@ -647,7 +647,7 @@ com_android_internal_content_NativeLibraryHelper_listNativeBinaries(JNIEnv *env,
             ALOGV("Finding primary ABI %s\n", cpuAbi.c_str());
             hasPrimaryAbi = true;
             priAbiLib++;
-            for (int j=0; intel_arch[j]; j++) {
+            for (int j=0; intel_arch[j] != NULL; j++) {
                 if (strstr(libName, intel_arch[j])) {
                     cpuAbi_lib.push_back(libName);
                     break;
