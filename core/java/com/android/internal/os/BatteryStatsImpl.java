@@ -3671,7 +3671,8 @@ public final class BatteryStatsImpl extends BatteryStats {
                 mUnpluggables.add(this);
                 numSpeedSteps = getCpuSpeedSteps();
                 if (numSpeedSteps < 0 || numSpeedSteps > 100) {
-                    Slog.i(TAG, "File corrupted.Invalid number of CPU speedsteps!");
+                    Slog.i(TAG, "File corrupted.Invalid number of CPU speedsteps" + numSpeedSteps);
+                    mSpeedBins = new SamplingCounter[0];
                 } else {
                     mSpeedBins = new SamplingCounter[numSpeedSteps];
                 }
@@ -3817,7 +3818,17 @@ public final class BatteryStatsImpl extends BatteryStats {
                 mUnpluggedStarts = in.readInt();
 
                 int bins = in.readInt();
+                if (bins < 0 || bins > 100) {
+                    Slog.i(TAG, "File corrupted. Invalid number of bins: " + bins);
+                    bins = 0;
+                }
+
                 int steps = getCpuSpeedSteps();
+                if (steps < 0 || steps > 100) {
+                    Slog.i(TAG, "File corrupted. Invalid number of CPU speedsteps: " + steps);
+                    steps = 0;
+                }
+
                 mSpeedBins = new SamplingCounter[bins >= steps ? bins : steps];
                 for (int i = 0; i < bins; i++) {
                     if (in.readInt() != 0) {
