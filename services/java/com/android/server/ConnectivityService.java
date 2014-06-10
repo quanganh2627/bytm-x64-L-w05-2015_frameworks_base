@@ -604,15 +604,19 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         // Update mNetworkPreference according to user mannually first then overlay config.xml
         mNetworkPreference = getPersistedNetworkPreference();
         if (mNetworkPreference == -1) {
-            for (int n : mPriorityList) {
-                if (mNetConfigs[n].isDefault() && ConnectivityManager.isNetworkTypeValid(n)) {
-                    mNetworkPreference = n;
-                    break;
+            if (wifiOnly) {
+                mNetworkPreference = ConnectivityManager.TYPE_WIFI;
+            } else {
+                for (int n : mPriorityList) {
+                    if (mNetConfigs[n].isDefault() && ConnectivityManager.isNetworkTypeValid(n)) {
+                        mNetworkPreference = n;
+                        break;
+                    }
                 }
-            }
-            if (mNetworkPreference == -1) {
-                throw new IllegalStateException(
-                        "You should set at least one default Network in config.xml!");
+                if (mNetworkPreference == -1) {
+                    throw new IllegalStateException(
+                            "You should set at least one default Network in config.xml!");
+                }
             }
         }
 
