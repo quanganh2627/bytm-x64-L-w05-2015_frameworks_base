@@ -50,7 +50,7 @@ public class ThermalCoolingDevice {
     private ArrayList<Integer> mThrottleValues = null;
 
     public ThermalCoolingDevice() {
-        mCurrentThermalState = 0;
+        mCurrentThermalState = -1;
     }
 
     public void setDeviceName(String Name) {
