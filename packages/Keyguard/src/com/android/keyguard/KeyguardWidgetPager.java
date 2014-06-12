@@ -818,7 +818,7 @@ public class KeyguardWidgetPager extends PagedView implements PagedView.PageSwit
             mZoomInOutAnim.cancel();
         }
         final View currentPage = getPageAt(getCurrentPage());
-        if (currentPage.getScaleX() < 1f || currentPage.getScaleY() < 1f) {
+        if (currentPage !=null && (currentPage.getScaleX() < 1f || currentPage.getScaleY() < 1f)) {
             mZoomInOutAnim = new AnimatorSet();
             mZoomInOutAnim.playTogether(
                     ObjectAnimator.ofFloat(currentPage, "scaleX", 1f),
@@ -839,24 +839,26 @@ public class KeyguardWidgetPager extends PagedView implements PagedView.PageSwit
         }
         int curPage = getCurrentPage();
         View currentPage = getPageAt(curPage);
-        if (shouldSetTopAlignedPivotForWidget(curPage)) {
-            currentPage.setPivotY(0);
-            // Note: we are working around the issue that setting the x-pivot to the same value as it
-            //       was does not actually work.
-            currentPage.setPivotX(0);
-            currentPage.setPivotX(currentPage.getMeasuredWidth() / 2);
-        }
-        if (!(currentPage.getScaleX() < 1f || currentPage.getScaleY() < 1f)) {
-            mZoomInOutAnim = new AnimatorSet();
-            mZoomInOutAnim.playTogether(
-                    ObjectAnimator.ofFloat(currentPage, "scaleX", BOUNCER_SCALE_FACTOR),
-                    ObjectAnimator.ofFloat(currentPage, "scaleY", BOUNCER_SCALE_FACTOR));
-            mZoomInOutAnim.setDuration(mBouncerZoomInOutDuration);
-            mZoomInOutAnim.setInterpolator(new DecelerateInterpolator(1.5f));
-            mZoomInOutAnim.start();
-        }
-        if (currentPage instanceof KeyguardWidgetFrame) {
-            ((KeyguardWidgetFrame)currentPage).onBouncerShowing(true);
+        if (currentPage != null) {
+            if (shouldSetTopAlignedPivotForWidget(curPage)) {
+                currentPage.setPivotY(0);
+                // Note: we are working around the issue that setting the x-pivot to the same value as it
+                //       was does not actually work.
+                currentPage.setPivotX(0);
+                currentPage.setPivotX(currentPage.getMeasuredWidth() / 2);
+            }
+            if (!(currentPage.getScaleX() < 1f || currentPage.getScaleY() < 1f)) {
+                mZoomInOutAnim = new AnimatorSet();
+                mZoomInOutAnim.playTogether(
+                        ObjectAnimator.ofFloat(currentPage, "scaleX", BOUNCER_SCALE_FACTOR),
+                        ObjectAnimator.ofFloat(currentPage, "scaleY", BOUNCER_SCALE_FACTOR));
+                mZoomInOutAnim.setDuration(mBouncerZoomInOutDuration);
+                mZoomInOutAnim.setInterpolator(new DecelerateInterpolator(1.5f));
+                mZoomInOutAnim.start();
+            }
+            if (currentPage instanceof KeyguardWidgetFrame) {
+                ((KeyguardWidgetFrame)currentPage).onBouncerShowing(true);
+            }
         }
     }
 
