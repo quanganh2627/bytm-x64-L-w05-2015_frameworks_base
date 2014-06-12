@@ -56,10 +56,10 @@ public class GPUMaxFreqControl {
 
     public static void init(Context context, String path, ArrayList<Integer> values) {
         // If 'path' is 'auto' enumerate from Sysfs
-        if (path.equalsIgnoreCase("auto")) {
+        if (path.equalsIgnoreCase("auto") || path.equalsIgnoreCase("none")) {
             setThrottlePath();
         // If 'path' is neither 'auto' nor a null, the given path _is_ the Sysfs path
-        } else if (path != null) {
+        } else if (path != null && !path.equalsIgnoreCase("invalid")) {
             sGPUThrottlePath = path;
         // None of the above cases. Set the throttle path to null
         } else {
