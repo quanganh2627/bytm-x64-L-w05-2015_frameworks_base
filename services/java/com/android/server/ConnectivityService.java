@@ -2361,7 +2361,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         // kill the one not preferred
         if (mNetConfigs[newNetType].isDefault()) {
             if (mActiveDefaultNetwork != -1 && mActiveDefaultNetwork != newNetType) {
-                if (isNewNetTypePreferredOverCurrentNetType(newNetType)) {
+                // overriding ethernet teardown & allow wifi & ethernet co-existence
+                if (thisNet.getNetworkInfo().getTypeName().equals("Ethernet")){
+                    return ;
+                } else if (isNewNetTypePreferredOverCurrentNetType(newNetType)) {
                     // tear down the other
                     NetworkStateTracker otherNet =
                             mNetTrackers[mActiveDefaultNetwork];
