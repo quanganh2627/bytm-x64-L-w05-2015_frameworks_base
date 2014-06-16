@@ -186,10 +186,11 @@ public class ModemZone extends ThermalZone {
                         device.getDeviceName().equalsIgnoreCase("ModemAirplane")) {
                     ArrayList<Integer> list = cDeviceInfo.getThrottleMaskList();
                     if (list == null) break;
-                    // iterate the list and take highest enabled state
+                    // iterate the list and take first enabled state
                     for (int i = 0; i < getMaxStates() - 1; i++) {
                        if (list.get(i) == 1) {
                            finalState = i;
+                           break;
                        }
                     }
                 }

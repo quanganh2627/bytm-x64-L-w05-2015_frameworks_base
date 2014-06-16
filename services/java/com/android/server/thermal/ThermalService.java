@@ -205,10 +205,10 @@ public class ThermalService extends Binder {
                     mEventType = mParser.next();
                 }
             } catch (XmlPullParserException xppe) {
-                Log.i(TAG, "XmlPullParserException caught in parse() function");
+                Log.i(TAG, "XmlPullParserException caught in parse():" + xppe.getMessage());
                 ret = false;
             } catch (IOException e) {
-                Log.i(TAG, "IOException caught in parse() function");
+                Log.i(TAG, "IOException caught in parse():" + e.getMessage());
                 ret = false;
             } finally {
                 try {
@@ -261,7 +261,7 @@ public class ThermalService extends Binder {
                     break;
                 case ENUM_ZONETHRESHOLD:
                     // add TCRITICAL
-                    tempList.add(tempList.get(tempList.size() - 1) + 5000);
+                    tempList.add(tempList.get(tempList.size() - 1));
                     mCurrZone.updateMaxStates(tempList.size());
                     mCurrZone.setZoneTempThreshold(tempList);
                     break;
@@ -576,6 +576,10 @@ public class ThermalService extends Binder {
 
             ThermalManager.buildProfileNameList();
             ThermalManager.initializeStickyIntent();
+
+            /* Building bucket size for all profiles */
+            ThermalManager.setBucketSizeForProfiles();
+
             /* Start monitoring the zones in Default Thermal Profile */
             ThermalManager.startDefaultProfile();
         }

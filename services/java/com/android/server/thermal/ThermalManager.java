@@ -80,8 +80,8 @@ public class ThermalManager {
             new Hashtable<String, ArrayList<ThermalZone>>();
 
     /**
-     * Hashtable of (ZoneID and ZoneCoolerBindingInfo object).
      * This holds the map for the current profile. Access protected by 'sProfileSwitchLock'.
+     * Should be initialized for every profile change.
      */
     private static Hashtable<Integer, ZoneCoolerBindingInfo> sZoneCoolerBindMap =
             new Hashtable<Integer, ZoneCoolerBindingInfo>();
@@ -610,6 +610,30 @@ public class ThermalManager {
         }
     }
 
+    public static void setBucketSizeForProfiles() {
+        Iterator it = ThermalManager.sProfileZoneMap.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry entryProfZone = (Map.Entry) it.next();
+            String keyProfile = (String) entryProfZone.getKey();
+            sThermalZonesList = (ArrayList<ThermalZone>) entryProfZone.getValue();
+            setCurBindMap(keyProfile);
+            for (ThermalZone zone : sThermalZonesList) {
+                ZoneCoolerBindingInfo bindInfo = sZoneCoolerBindMap.get(zone.getZoneId());
+                if (bindInfo == null) {
+                    Log.e(TAG, "CoolerBindingInfo for zoneid:" + zone.getZoneId() + "not mapped");
+                    return;
+                }
+                bindInfo.setMaxStates(zone.getMaxStates());
+                bindInfo.setZoneToCoolDevBucketSize();
+                bindInfo.setCoolDevToThrottBucketSize();
+                if (zone.isUEventSupported()) {
+                    // calibration of thresholds based on weight, order
+                    zone.calibrateThresholds();
+                }
+            }
+        }
+    }
+
     public static int startMonitoringZones() {
         int activeZonesCount = 0;
         for (ThermalZone zone : sThermalZonesList) {
@@ -619,19 +643,12 @@ public class ThermalManager {
                 continue;
             }
 
-            // update MaxStates required for 'N' level throttling
-            // caller protects 'sZoneCoolerBindMap'
             ZoneCoolerBindingInfo bindInfo = sZoneCoolerBindMap.get(zone.getZoneId());
             if (bindInfo != null) {
-                bindInfo.setMaxStates(zone.getMaxStates());
-                bindInfo.setZoneToCoolDevBucketSize();
-                bindInfo.setCoolDevToThrottBucketSize();
                 // TODO: To be conditioned under debug
                 bindInfo.printMappedAttributes();
             }
-
             if (zone.isUEventSupported()) {
-                zone.calibrateThresholds();
                 zone.registerUevent();
             } else {
                 // start polling thread for each zone

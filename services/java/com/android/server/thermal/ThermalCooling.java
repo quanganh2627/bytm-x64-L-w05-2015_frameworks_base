@@ -194,10 +194,10 @@ public class ThermalCooling {
                     mEventType = mParser.next();
                 }
             } catch (XmlPullParserException xppe) {
-                Log.i(TAG, "XmlPullParserException caught in parse() function");
+                Log.i(TAG, "XmlPullParserException caught in parse():" + xppe.getMessage());
                 ret = false;
             } catch (IOException e) {
-                Log.i(TAG, "IOException caught in parse() function");
+                Log.i(TAG, "IOException caught in parse():" + e.getMessage());
                 ret = false;
             } finally {
                 try {
@@ -251,6 +251,8 @@ public class ThermalCooling {
                     if (mZone == null || mZone.getLastCoolingDeviceInstance() ==  null) {
                         return false;
                     } else {
+                        // Always throttle at CRITICAL state (last state)
+                        tempList.add(1);
                         mZone.getLastCoolingDeviceInstance().setThrottleMaskList(tempList);
                     }
                     break;
@@ -258,6 +260,8 @@ public class ThermalCooling {
                     if (mZone == null || mZone.getLastCoolingDeviceInstance() ==  null) {
                         return false;
                     } else {
+                        // Dethrottling at CRITICAL state (last state) is dontcare condition
+                        tempList.add(0);
                         mZone.getLastCoolingDeviceInstance().setDeThrottleMaskList(tempList);
                     }
                     break;
@@ -307,8 +311,9 @@ public class ThermalCooling {
                         mZone.getLastCoolingDeviceInstance().setCoolingDeviceId(
                                 Integer.parseInt(mParser.nextText()));
                     } else if (name.equalsIgnoreCase(COOLINGDEVICESTATES) && mZone != null) {
+                        // Increase cooling device states by 1, required for CRITICAL state
                         mZone.getLastCoolingDeviceInstance().setCoolingDeviceStates(
-                                Integer.parseInt(mParser.nextText()));
+                                Integer.parseInt(mParser.nextText()) + 1);
                     }
                     // Retrieve cooling device information
                     if (name.equalsIgnoreCase("CDeviceName") && mDevice != null) {
@@ -362,7 +367,8 @@ public class ThermalCooling {
             } else if (name.equalsIgnoreCase(PROFILE)) {
                 if (mZoneCoolerBindMap != null) {
                     ThermalManager.sProfileBindMap.put(mCurProfileName, mZoneCoolerBindMap);
-                    mZoneCoolerBindMap.clear();
+                    mZoneCoolerBindMap = new Hashtable<Integer,
+                            ThermalManager.ZoneCoolerBindingInfo>();
                 }
             } else if (name.equalsIgnoreCase(THERMAL_THROTTLE_CONFIG)) {
                 Log.i(TAG, "Parsing Finished..");
