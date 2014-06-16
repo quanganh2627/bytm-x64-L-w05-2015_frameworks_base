@@ -84,6 +84,7 @@ public class ModemZone extends ThermalZone {
     private static final Object sEmergencyCallLock = new Object();
     private static boolean sOnGoingEmergencyCall = false;
     private static boolean sCriticalMonitorPending = false;
+    private static boolean sShutDownInProgress = false;
     // a class variable to ensure only one monitor is active at a time
     private static final int STATUS_MONITOR_RUNNING = -1;
     private static final int STATUS_SUCCESS = 0;
@@ -104,6 +105,7 @@ public class ModemZone extends ThermalZone {
     private boolean mIsModemInfoUpdated = false;
     private ModemStateBroadcastReceiver mIntentReceiver = null;
     private ModemThresholdIntentBroadcastReceiver mThresholdIntentReceiver = null;
+    private ShutDownReceiver mShutDownReceiver = null;
     private int mModemOffState = ThermalManager.THERMAL_STATE_OFF;
     private ThermalManager.ZoneCoolerBindingInfo mZoneCoolerBindInfo = null;
 
@@ -279,6 +281,14 @@ public class ModemZone extends ThermalZone {
             filter.addAction(TelephonyIntents.ACTION_SERVICE_STATE_CHANGED);
             filter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALL_STATUS_CHANGED);
             mContext.registerReceiver(mIntentReceiver, filter);
+        }
+
+        // register for Shutdown intent
+        if (mShutDownReceiver == null) {
+            mShutDownReceiver = new ShutDownReceiver();
+            IntentFilter shutDownFilter = new IntentFilter();
+            shutDownFilter.addAction(Intent.ACTION_SHUTDOWN);
+            mContext.registerReceiver(mShutDownReceiver, shutDownFilter);
         }
 
         if (getServiceState() == ServiceState.STATE_POWER_OFF) {
@@ -616,6 +626,7 @@ public class ModemZone extends ThermalZone {
     }
 
     private void setAirplaneMode(boolean enable) {
+        if (getAirplaneMode() == enable) return;
         int state = enable ? 1 : 0;
 
         // Change the system setting
@@ -669,7 +680,7 @@ public class ModemZone extends ThermalZone {
                         "Switching to Airplane mode for sometime");
             }
             Log.i(TAG, "setting airplaneMode ON...");
-            setAirplaneMode(true);
+            if (!sShutDownInProgress) setAirplaneMode(true);
             sleep(DEFAULT_WAIT_POLL_TIME);
             Log.i(TAG, "setting airplaneMode OFF...");
             setAirplaneMode(false);
@@ -959,4 +970,18 @@ public class ModemZone extends ThermalZone {
         mMaxStates = ThermalManager.DEFAULT_NUM_ZONE_STATES;
     }
 
+    private final class ShutDownReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            // Turn off airplane mode before shutdown if it was on because of thermal condition.
+            // This is to prevent booting with airplane mode against user's wish.
+            // If thermal condition did not improve on next boot, thermal service will
+            // anyway turn on airplane mode again.
+            if (getCriticalMonitorStatus()) {
+                setAirplaneMode(false);
+                sShutDownInProgress = true;
+                Log.i(TAG, "Turning off airplane mode before shutdown...");
+            }
+        }
+    }
 }
