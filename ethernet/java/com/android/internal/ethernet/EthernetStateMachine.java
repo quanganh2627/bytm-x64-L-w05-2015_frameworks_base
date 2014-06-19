@@ -290,14 +290,23 @@ public class EthernetStateMachine extends StateMachine {
     void dhcpSuccess(DhcpResults dr) {
         if (DBG) Slog.d(TAG, mEthernetInfo.getName() + " DHCP successful");
         LinkProperties lp = dr.linkProperties;
-        lp.setHttpProxy(mEthernetInfo.getHttpProxy());
-        lp.setInterfaceName(mEthernetInfo.getName());
-        if (!lp.equals(mEthernetInfo.getLinkProperties())) {
-            Slog.i(TAG, "Link configuration changed for: " + mEthernetInfo.getName()
-                    + " old: " + mEthernetInfo.getLinkProperties() + "new: " + lp);
-            mEthernetInfo.setLinkProperties(lp);
+        try {
+            String ifaceName = mEthernetInfo.getName();
+            InterfaceConfiguration config = mNetd.getInterfaceConfig(ifaceName);
+            lp.setHttpProxy(mEthernetInfo.getHttpProxy());
+            lp.setInterfaceName(mEthernetInfo.getName());
+            if (!lp.equals(mEthernetInfo.getLinkProperties())) {
+                Slog.i(TAG, "Link configuration changed for: " + mEthernetInfo.getName()
+                            + " old: " + mEthernetInfo.getLinkProperties() + "new: " + lp);
+                mEthernetInfo.setLinkProperties(lp);
+                config.setLinkAddress(mEthernetInfo.getLinkAddress());
+                config.setInterfaceUp();
+                mNetd.setInterfaceConfig(ifaceName, config);
+            }
+            setNetworkDetailedState(DetailedState.CONNECTED);
+        } catch (RemoteException re) {
+                Slog.e(TAG, mEthernetInfo.getName()+"DHCP setlinkaddress failed"+re);
         }
-        setNetworkDetailedState(DetailedState.CONNECTED);
     }
 
     class IPConnectedState extends State {
