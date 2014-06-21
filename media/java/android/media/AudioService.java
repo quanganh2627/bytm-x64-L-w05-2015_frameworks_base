@@ -106,6 +106,7 @@ import com.android.internal.util.XmlUtils;
 
 import org.xmlpull.v1.XmlPullParserException;
 
+import java.io.ByteArrayInputStream;
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -1065,7 +1066,7 @@ public class AudioService extends IAudioService.Stub {
                 (flags & AudioManager.FLAG_BLUETOOTH_ABS_VOLUME) == 0) {
                 synchronized (mA2dpAvrcpLock) {
                     if (mA2dp != null && mAvrcpAbsVolSupported) {
-                        mA2dp.setAvrcpAbsoluteVolume(index);
+                        mA2dp.setAvrcpAbsoluteVolume(index / 10);
                     }
                 }
             }
@@ -4743,7 +4744,7 @@ public class AudioService extends IAudioService.Stub {
         if (DEBUG_CERTS) {
             Log.v(TAG, "java side verify for "
                     + numcerts + " certificates (" + chain.length + " bytes"
-                            + ")for " + domain + "/" + authType);
+                            + ")for "+ domain + "/" + authType);
         }
 
         byte[][] certChain = new byte[numcerts][];
@@ -4752,7 +4753,7 @@ public class AudioService extends IAudioService.Stub {
         for (int i = 0; i < numcerts; i++) {
             int certlen = buf.getInt();
             if (DEBUG_CERTS) {
-                Log.i(TAG, "cert " + i + ": " + certlen);
+                Log.i(TAG, "cert " + i +": " + certlen);
             }
             certChain[i] = new byte[certlen];
             buf.get(certChain[i]);

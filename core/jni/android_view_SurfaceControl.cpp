@@ -41,10 +41,13 @@
 
 #include <ScopedUtfChars.h>
 
-#if PLATFORM_ASF_VERSION >= 2
+#ifdef INTEL_FEATURE_ASF
+#include "AsfVersionAosp.h"
+#if PLATFORM_ASF_VERSION >= ASF_VERSION_2
 // The interface file for inserting hooks to communicate with native service securitydevice
 #include "AsfDeviceAosp.h"
 #include <private/android_filesystem_config.h>
+#endif
 #endif
 
 
@@ -68,51 +71,21 @@ static struct {
 
 class ScreenshotPixelRef : public SkPixelRef {
 public:
-    ScreenshotPixelRef(SkColorTable* ctable) {
-        fCTable = ctable;
-        SkSafeRef(ctable);
+    ScreenshotPixelRef(const SkImageInfo& info, ScreenshotClient* screenshot) :
+      SkPixelRef(info),
+      mScreenshot(screenshot) {
         setImmutable();
     }
 
     virtual ~ScreenshotPixelRef() {
-        SkSafeUnref(fCTable);
-    }
-
-    status_t update(const sp<IBinder>& display, int width, int height,
-            int minLayer, int maxLayer, bool allLayers) {
-        status_t res = (width > 0 && height > 0)
-                ? (allLayers
-                        ? mScreenshot.update(display, width, height)
-                        : mScreenshot.update(display, width, height, minLayer, maxLayer))
-                : mScreenshot.update(display);
-        if (res != NO_ERROR) {
-            return res;
-        }
-
-        return NO_ERROR;
-    }
-
-    uint32_t getWidth() const {
-        return mScreenshot.getWidth();
-    }
-
-    uint32_t getHeight() const {
-        return mScreenshot.getHeight();
-    }
-
-    uint32_t getStride() const {
-        return mScreenshot.getStride();
-    }
-
-    uint32_t getFormat() const {
-        return mScreenshot.getFormat();
+        delete mScreenshot;
     }
 
 protected:
     // overrides from SkPixelRef
     virtual void* onLockPixels(SkColorTable** ct) {
-        *ct = fCTable;
-        return (void*)mScreenshot.getPixels();
+        *ct = NULL;
+        return (void*)mScreenshot->getPixels();
     }
 
     virtual void onUnlockPixels() {
@@ -120,8 +93,7 @@ protected:
 
     SK_DECLARE_UNFLATTENABLE_OBJECT()
 private:
-    ScreenshotClient mScreenshot;
-    SkColorTable*    fCTable;
+    ScreenshotClient* mScreenshot;
 
     typedef SkPixelRef INHERITED;
 };
@@ -154,18 +126,29 @@ static void nativeDestroy(JNIEnv* env, jclass clazz, jint nativeObject) {
     ctrl->decStrong((void *)nativeCreate);
 }
 
-static inline SkBitmap::Config convertPixelFormat(PixelFormat format) {
-    /* note: if PIXEL_FORMAT_RGBX_8888 means that all alpha bytes are 0xFF, then
-        we can map to SkBitmap::kARGB_8888_Config, and optionally call
-        bitmap.setIsOpaque(true) on the resulting SkBitmap (as an accelerator)
-    */
-    switch (format) {
-    case PIXEL_FORMAT_RGBX_8888:    return SkBitmap::kARGB_8888_Config;
-    case PIXEL_FORMAT_RGBA_8888:    return SkBitmap::kARGB_8888_Config;
-    case PIXEL_FORMAT_RGB_565:      return SkBitmap::kRGB_565_Config;
-    default:                        return SkBitmap::kNo_Config;
+#if defined(INTEL_FEATURE_ASF) && (PLATFORM_ASF_VERSION >= ASF_VERSION_2)
+static bool notifyScreenCaptureAccess() {
+    // Adding hook to call security device service
+    const int pid = IPCThreadState::self()->getCallingPid();
+    const int uid = IPCThreadState::self()->getCallingUid();
+    bool response = true;
+    AsfDeviceAosp asfDevice;
+    if (uid != AID_SYSTEM) {
+        const char * packageName = asfDevice.getPackageName(pid);
+        if (packageName != NULL) {
+            if (!(strncmp(packageName, "com.android.systemui", strlen(packageName)))) {
+                ALOGD("Home screen Key pressed");
+                // Same part of code get executed when home screen is pressed.
+                // Hence returning "true" to work with default implementation.
+                return response;
+            } else {
+                response = asfDevice.sendScreencaptureEvent(uid, pid);
+            }
+        }
     }
+    return response;
 }
+#endif
 
 #if PLATFORM_ASF_VERSION >= 2
 static bool notifyScreenCaptureAccess() {
@@ -194,7 +177,7 @@ static bool notifyScreenCaptureAccess() {
 static jobject nativeScreenshotBitmap(JNIEnv* env, jclass clazz, jobject displayTokenObj,
         jint width, jint height, jint minLayer, jint maxLayer, bool allLayers) {
 
-#if PLATFORM_ASF_VERSION >= 2
+#if defined(INTEL_FEATURE_ASF) && (PLATFORM_ASF_VERSION >= ASF_VERSION_2)
     // Place call to function that acts as a hook point for camera events
     bool response = notifyScreenCaptureAccess();
     // If response is false, deny access to requested application and return NULL.
@@ -212,26 +195,50 @@ static jobject nativeScreenshotBitmap(JNIEnv* env, jclass clazz, jobject display
         return NULL;
     }
 
-    ScreenshotPixelRef* pixels = new ScreenshotPixelRef(NULL);
-    if (pixels->update(displayToken, width, height,
-            minLayer, maxLayer, allLayers) != NO_ERROR) {
-        delete pixels;
+    ScreenshotClient* screenshot = new ScreenshotClient();
+    status_t res = (width > 0 && height > 0)
+            ? (allLayers
+                    ? screenshot->update(displayToken, width, height)
+                    : screenshot->update(displayToken, width, height, minLayer, maxLayer))
+            : screenshot->update(displayToken);
+    if (res != NO_ERROR) {
+        delete screenshot;
         return NULL;
     }
 
-    uint32_t w = pixels->getWidth();
-    uint32_t h = pixels->getHeight();
-    uint32_t s = pixels->getStride();
-    uint32_t f = pixels->getFormat();
-    ssize_t bpr = s * android::bytesPerPixel(f);
+    SkImageInfo screenshotInfo;
+    screenshotInfo.fWidth = screenshot->getWidth();
+    screenshotInfo.fHeight = screenshot->getHeight();
 
-    SkBitmap* bitmap = new SkBitmap();
-    bitmap->setConfig(convertPixelFormat(f), w, h, bpr);
-    if (f == PIXEL_FORMAT_RGBX_8888) {
-        bitmap->setIsOpaque(true);
+    switch (screenshot->getFormat()) {
+        case PIXEL_FORMAT_RGBX_8888: {
+            screenshotInfo.fColorType = kRGBA_8888_SkColorType;
+            screenshotInfo.fAlphaType = kIgnore_SkAlphaType;
+            break;
+        }
+        case PIXEL_FORMAT_RGBA_8888: {
+            screenshotInfo.fColorType = kRGBA_8888_SkColorType;
+            screenshotInfo.fAlphaType = kPremul_SkAlphaType;
+            break;
+        }
+        case PIXEL_FORMAT_RGB_565: {
+            screenshotInfo.fColorType = kRGB_565_SkColorType;
+            screenshotInfo.fAlphaType = kIgnore_SkAlphaType;
+            break;
+        }
+        default: {
+            delete screenshot;
+            return NULL;
+        }
     }
 
-    if (w > 0 && h > 0) {
+    // takes ownership of ScreenshotClient
+    ScreenshotPixelRef* pixels = new ScreenshotPixelRef(screenshotInfo, screenshot);
+    ssize_t rowBytes = screenshot->getStride() * android::bytesPerPixel(screenshot->getFormat());
+
+    SkBitmap* bitmap = new SkBitmap();
+    bitmap->setConfig(screenshotInfo, rowBytes);
+    if (screenshotInfo.fWidth > 0 && screenshotInfo.fHeight > 0) {
         bitmap->setPixelRef(pixels)->unref();
         bitmap->lockPixels();
     } else {
