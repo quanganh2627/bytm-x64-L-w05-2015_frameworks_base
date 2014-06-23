@@ -445,6 +445,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             INetworkStatsService statsService, INetworkPolicyManager policyManager) {
         // Currently, omitting a NetworkFactory will create one internally
         // TODO: create here when we have cleaner WiMAX support
+
         this(context, netd, statsService, policyManager, null);
     }
 
@@ -452,7 +453,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             INetworkStatsService statsService, INetworkPolicyManager policyManager,
             NetworkFactory netFactory) {
         if (DBG) log("ConnectivityService starting up");
-
+        SystemProperties.set("persist.ims_support","2");
         HandlerThread handlerThread = new HandlerThread("ConnectivityServiceThread");
         handlerThread.start();
         mHandler = new InternalHandler(handlerThread.getLooper());
@@ -703,6 +704,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         mContext.registerReceiver(mProvisioningReceiver, filter);
 
         mAppOpsManager = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
+        SystemProperties.set("persist.ims_support","0");
     }
 
     /**

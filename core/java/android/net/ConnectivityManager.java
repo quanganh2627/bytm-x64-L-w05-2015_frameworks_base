@@ -440,10 +440,8 @@ public class ConnectivityManager {
     public static boolean isNetworkTypeValid(int networkType) {
         if (SystemProperties.getInt("persist.ims_support", 0) == 2) {
             return networkType >= 0 && networkType <= MAX_NETWORK_TYPE;
-        } else if (SystemProperties.getInt("persist.cts_test", 0) == 2) {
-             return networkType >= 0 && networkType <= TYPE_MOBILE_IA;
         } else {
-             return networkType >= 0 && networkType <= TYPE_DONGLE;
+            return networkType >= 0 && networkType <= TYPE_MOBILE_IA;
         }
     }
 
