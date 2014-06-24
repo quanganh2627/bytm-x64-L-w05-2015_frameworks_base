@@ -40,6 +40,8 @@ public class BrightnessControl {
 
     private static final int sFullBrightness = 255;
 
+    private static int sMaxAllowedBrightness = 255;
+
     private static Context sContext;
 
     private static int sBrightnessValuesPercentage[];
@@ -86,18 +88,19 @@ public class BrightnessControl {
         if (sPower == null || tstate < 0)
             return;
 
-        int maxBrightnessAllowed = (sBrightnessValuesPercentage[tstate] * sFullBrightness) / 100;
+        int maxBrightness = (sBrightnessValuesPercentage[tstate] * sFullBrightness) / 100;
 
         try {
-            sPower.setThermalBrightnessLimit(maxBrightnessAllowed, true);
+            sPower.setThermalBrightnessLimit(maxBrightness, true);
+            // Notify user if we are limiting brightness.
+            // Shown every time the brightness is throttled more.
+            if (maxBrightness < sMaxAllowedBrightness) {
+                new ThermalNotifier(sContext, sNotificationMask).triggerNotification();
+            }
+            sMaxAllowedBrightness = maxBrightness;
         } catch (RemoteException e) {
             Log.i(TAG, "remote exception for setThermalBrightnessLimit()");
         }
-
-        // Notify user if we are limiting brightness
-        if (tstate == ThermalManager.THERMAL_STATE_ALERT
-                || tstate == ThermalManager.THERMAL_STATE_CRITICAL)
-            new ThermalNotifier(sContext, sNotificationMask).triggerNotification();
     }
 
     private static void readDisplayThrottleNotifierProperties() {
