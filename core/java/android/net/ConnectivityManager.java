@@ -16,8 +16,9 @@
 
 package android.net;
 
+import java.util.ArrayList;
 import static com.android.internal.util.Preconditions.checkNotNull;
-
+import com.google.android.collect.Lists;
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
 import android.content.Context;
@@ -28,7 +29,7 @@ import android.os.RemoteException;
 import android.os.ResultReceiver;
 import android.os.SystemProperties;
 import android.provider.Settings;
-
+import android.util.Slog;
 import java.net.InetAddress;
 
 /**
@@ -438,7 +439,7 @@ public class ConnectivityManager {
      * @return a boolean.  {@code true} if the type is valid, else {@code false}
      */
     public static boolean isNetworkTypeValid(int networkType) {
-        if (SystemProperties.getInt("persist.ims_support", 0) == 2) {
+        if (SystemProperties.getInt("persist.dongle_support", 0) == 2) {
             return networkType >= 0 && networkType <= MAX_NETWORK_TYPE;
         } else {
             return networkType >= 0 && networkType <= TYPE_MOBILE_IA;

@@ -453,7 +453,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             INetworkStatsService statsService, INetworkPolicyManager policyManager,
             NetworkFactory netFactory) {
         if (DBG) log("ConnectivityService starting up");
-        SystemProperties.set("persist.ims_support","2");
+        SystemProperties.set("persist.dongle_support","2");
         HandlerThread handlerThread = new HandlerThread("ConnectivityServiceThread");
         handlerThread.start();
         mHandler = new InternalHandler(handlerThread.getLooper());
@@ -704,7 +704,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         mContext.registerReceiver(mProvisioningReceiver, filter);
 
         mAppOpsManager = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
-        SystemProperties.set("persist.ims_support","0");
+        SystemProperties.set("persist.dongle_support","0");
     }
 
     /**
@@ -1057,6 +1057,11 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         synchronized (mRulesLock) {
             for (NetworkStateTracker tracker : mNetTrackers) {
                 if (tracker != null) {
+                    //skip dongle type in normal mode
+                    if (SystemProperties.getInt("persist.dongle_support", 0) != 2) {
+                        if(tracker instanceof DongleNetworkStateTracker)
+                            continue;
+                    }                           
                     result.add(getFilteredNetworkInfo(tracker, uid));
                 }
             }
