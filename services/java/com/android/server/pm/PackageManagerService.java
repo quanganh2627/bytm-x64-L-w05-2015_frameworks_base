@@ -10287,6 +10287,9 @@ public class PackageManagerService extends IPackageManager.Stub {
         mContext.enforceCallingOrSelfPermission(
                 android.Manifest.permission.GET_PACKAGE_SIZE, null);
 
+        if (packageName == null) {
+            throw new NullPointerException("packageName == null");
+        }
         PackageStats stats = new PackageStats(packageName, userHandle);
 
         /*
