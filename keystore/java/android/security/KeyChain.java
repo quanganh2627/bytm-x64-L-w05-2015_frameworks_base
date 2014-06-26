@@ -105,7 +105,7 @@ public final class KeyChain {
     /**
      * Package name for the Certificate Installer.
      */
-    private static final String CERT_INSTALLER_PACKAGE = "com.android.certinstaller";
+    private static final String CERT_INSTALLER_PACKAGE = "com.android.keychain";
 
     /**
      * Extra for use with {@link #ACTION_CHOOSER}
