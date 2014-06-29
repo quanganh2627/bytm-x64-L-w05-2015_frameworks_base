@@ -648,7 +648,7 @@ com_android_internal_content_NativeLibraryHelper_listNativeBinaries(JNIEnv *env,
             hasPrimaryAbi = true;
             priAbiLib++;
             for (int j=0; intel_arch[j] != NULL; j++) {
-                if (strstr(libName, intel_arch[j])) {
+                if ((libName != NULL) && (strstr(libName, intel_arch[j]) != NULL)) {
                     cpuAbi_lib.push_back(libName);
                     break;
                 }
