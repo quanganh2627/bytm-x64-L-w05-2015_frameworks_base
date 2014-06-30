@@ -44,7 +44,7 @@ import android.util.Xml;
  */
 public class xmlCheckExt implements ICheckExt {
     final private String TAG = "xmlCheckExt";
-    final private String CHECKXMLPATH = "/system/lib/arm/check.xml";
+    final private String CHECKXMLPATH = "/system/lib/arm/check.knobs";
     private HashMap<String,String > mMap = new  HashMap<String,String >();
 
     public boolean doCheck(String... params) {
