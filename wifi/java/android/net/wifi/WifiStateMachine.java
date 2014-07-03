@@ -176,7 +176,7 @@ public class WifiStateMachine extends StateMachine {
     private boolean mBluetoothConnectionActive = false;
 
     private PowerManager.WakeLock mSuspendWakeLock;
-
+    private PowerManager.WakeLock mHotspotOn;
     /**
      * Interval in milliseconds between polling for RSSI
      * and linkspeed information
@@ -819,6 +819,9 @@ public class WifiStateMachine extends StateMachine {
 
         mSuspendWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WifiSuspend");
         mSuspendWakeLock.setReferenceCounted(false);
+
+        mHotspotOn = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WifiHotspotOn");
+        mHotspotOn.setReferenceCounted(false);
 
         addState(mDefaultState);
             addState(mInitialState, mDefaultState);
@@ -2648,6 +2651,7 @@ public class WifiStateMachine extends StateMachine {
         new Thread(new Runnable() {
             public void run() {
                 try {
+		    mHotspotOn.acquire();
                     mNwService.startAccessPoint(config, mInterfaceName);
                 } catch (Exception e) {
                     loge("Exception in softap start " + e);
@@ -2657,6 +2661,7 @@ public class WifiStateMachine extends StateMachine {
                     } catch (Exception e1) {
                         loge("Exception in softap re-start " + e1);
                         sendMessage(CMD_START_AP_FAILURE);
+			mHotspotOn.release();
                         return;
                     }
                 }
@@ -4594,6 +4599,7 @@ public class WifiStateMachine extends StateMachine {
                     }
                     setWifiApState(WIFI_AP_STATE_DISABLED);
                     transitionTo(mInitialState);
+		    mHotspotOn.release();
                     break;
                 case CMD_START_AP:
                     // Ignore a start on a running access point
