@@ -187,4 +187,29 @@ public interface TelephonyProperties
      * Ignore RIL_UNSOL_NITZ_TIME_RECEIVED completely, used for debugging/testing.
      */
     static final String PROPERTY_IGNORE_NITZ = "telephony.test.ignore.nitz";
+
+    /**
+     * This property when set to true, the platform supports SIM HotSwap.
+     */
+    static final String PROPERTY_HOT_SWAP_SUPPORT = "persist.tel.hot_swap.support";
+
+    /**
+     * Set to true in dymanic data SIM is supported. This value is only for DSDS
+     * simplification and would be either abandoned or set to false always, when
+     * the full dynamic Data SIM support is enabled.
+     */
+    static final String PROPERTY_DYNAMIC_DATASIM_SUPPORT = "persist.dynamic-data-sim";
+
+    /**
+     * The maximum times the user can retry the PIN before blocked
+     */
+    static String PROPERTY_SIM_PIN_RETRY_LEFT = "gsm.sim.pin_retry_left";
+
+    /**
+     *  Note: Used for Data SIM by DSDS
+     *  The MCC+MNC (mobile country code+mobile network code) of the
+     *  provider of the Data SIM. 5 or 6 decimal digits.
+     *  Availability: SIM state must be "READY"
+     */
+    static String PROPERTY_DATA_SIM_ICC_OPERATOR_NUMERIC = "gsm.data_sim.operator.numeric";
 }

@@ -23,6 +23,7 @@ import android.media.IAudioService;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.telephony.TelephonyManager;
+import com.android.internal.telephony.TelephonyConstants;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.Slog;
@@ -99,7 +100,12 @@ public abstract class KeyguardViewBase extends FrameLayout {
         }
         return super.dispatchKeyEvent(event);
     }
-
+    private boolean isPhone2InCall() {
+        if (!TelephonyConstants.IS_DSDS) {
+            return false;
+        }
+        return (TelephonyManager.get2ndTm().getCallState() != TelephonyManager.CALL_STATE_IDLE);
+    }
     /**
      * Allows the media keys to work when the keyguard is showing.
      * The media keys should be of no interest to the actual keyguard view(s),
@@ -123,6 +129,10 @@ public abstract class KeyguardViewBase extends FrameLayout {
                     if (mTelephonyManager != null &&
                             mTelephonyManager.getCallState() != TelephonyManager.CALL_STATE_IDLE) {
                         return true;  // suppress key event
+                    }
+                    //for the 2nd SIM;
+                    if (TelephonyConstants.IS_DSDS && isPhone2InCall()) {
+                        return true;
                     }
                 case KeyEvent.KEYCODE_MUTE:
                 case KeyEvent.KEYCODE_HEADSETHOOK:

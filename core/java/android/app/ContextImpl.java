@@ -17,6 +17,8 @@
 package android.app;
 
 import android.os.Build;
+import static com.android.internal.util.Preconditions.checkNotNull;
+
 import com.android.internal.policy.PolicyManager;
 import com.android.internal.util.Preconditions;
 
@@ -117,6 +119,7 @@ import android.app.admin.DevicePolicyManager;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.app.IAppOpsService;
 import com.android.internal.os.IDropBoxManagerService;
+import com.android.internal.telephony.TelephonyConstants;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -509,6 +512,15 @@ class ContextImpl extends Context {
                 public Object createService(ContextImpl ctx) {
                     return new TelephonyManager(ctx.getOuterContext());
                 }});
+
+        if (TelephonyConstants.IS_DSDS) {
+            registerService(TELEPHONY_SERVICE2, new ServiceFetcher() {
+                    public Object createService(ContextImpl ctx) {
+                        // B/C TelephonyManager 1st instance is created already,
+                        // it is safe to get the 2nd from TelephonyManager
+                        return TelephonyManager.get2ndTm();
+                }});
+        }
 
         registerService(UI_MODE_SERVICE, new ServiceFetcher() {
                 public Object createService(ContextImpl ctx) {

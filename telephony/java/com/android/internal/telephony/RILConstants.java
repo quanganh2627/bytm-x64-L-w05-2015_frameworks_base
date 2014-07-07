@@ -112,6 +112,9 @@ public interface RILConstants {
     int DEACTIVATE_REASON_RADIO_OFF = 1;
     int DEACTIVATE_REASON_PDP_RESET = 2;
 
+    /* RIL_OEM_HOOK_STRING_SWAP_PS Parameters */
+    int SWAP_PS_SWAP_ENABLE = 0x1;
+    int SWAP_PS_RESET_RADIO_STATE = 0x2;
 /*
 cat include/telephony/ril.h | \
    egrep '^#define' | \

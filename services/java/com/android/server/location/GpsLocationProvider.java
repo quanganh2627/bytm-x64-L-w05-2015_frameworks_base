@@ -72,6 +72,7 @@ import com.android.internal.location.ProviderRequest;
 import com.android.internal.location.GpsNetInitiatedHandler.GpsNiNotification;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.TelephonyConstants;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -1680,6 +1681,11 @@ public class GpsLocationProvider implements LocationProviderInterface {
         int    type = AGPS_SETID_TYPE_NONE;
         String data = "";
 
+        if (TelephonyConstants.IS_DSDS && isDataSimSlotB()) {
+            if (DEBUG) Log.d(TAG, "requestSetID is on SLOTB" );
+            phone = (TelephonyManager)
+                    mContext.getSystemService(Context.TELEPHONY_SERVICE2);
+        }
         if ((flags & AGPS_RIL_REQUEST_SETID_IMSI) == AGPS_RIL_REQUEST_SETID_IMSI) {
             String data_temp = phone.getSubscriberId();
             if (data_temp == null) {
@@ -1719,6 +1725,10 @@ public class GpsLocationProvider implements LocationProviderInterface {
         TelephonyManager phone = (TelephonyManager)
                 mContext.getSystemService(Context.TELEPHONY_SERVICE);
         final int phoneType = phone.getPhoneType();
+        if (TelephonyConstants.IS_DSDS && isDataSimSlotB()) {
+            phone = (TelephonyManager)
+                    mContext.getSystemService(Context.TELEPHONY_SERVICE2);
+        }
         if (phoneType == TelephonyManager.PHONE_TYPE_GSM) {
             GsmCellLocation gsm_cell = (GsmCellLocation) phone.getCellLocation();
             if ((gsm_cell != null) && (phone.getNetworkOperator() != null)
@@ -1746,6 +1756,14 @@ public class GpsLocationProvider implements LocationProviderInterface {
         }
     }
 
+    private boolean isDataSimSlotB() {
+        if (mConnMgr.getDataSim()== ConnectivityManager.MOBILE_DATA_NETWORK_SLOT_B) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+	
     private void sendMessage(int message, int arg, Object obj) {
         // hold a wake lock until this message is delivered
         // note that this assumes the message will not be removed from the queue before

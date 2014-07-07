@@ -20,22 +20,28 @@ import android.annotation.PrivateApi;
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
 import android.content.Context;
+import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
+import android.net.ConnectivityManager;
+import android.provider.Settings;
 import android.telephony.Rlog;
 import android.util.Log;
-
 import com.android.internal.telephony.IPhoneSubInfo;
 import com.android.internal.telephony.ITelephony;
 import com.android.internal.telephony.ITelephonyListener;
 import com.android.internal.telephony.ITelephonyRegistry;
+import com.android.internal.telephony.ITelephonyRegistry2;
+
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.RILConstants;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.telephony.TelephonyProperties;
+import com.android.internal.telephony.TelephonyProperties2;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -64,12 +70,11 @@ import java.util.regex.Pattern;
  */
 public class TelephonyManager {
     private static final String TAG = "TelephonyManager";
-
-    private static ITelephonyRegistry sRegistry;
-
     private final HashMap<CallStateListener,Listener> mListeners
             = new HashMap<CallStateListener,Listener>();
-    private final Context mContext;
+    private static ITelephonyRegistry sRegistry= null;
+    private static ITelephonyRegistry2 sRegistry2 = null;
+    private static Context mContext;
 
     private static class Listener extends ITelephonyListener.Stub {
         final CallStateListener mListener;
@@ -122,6 +127,7 @@ public class TelephonyManager {
     }
 
     private static TelephonyManager sInstance = new TelephonyManager();
+    private static TelephonyManager sInstance2 = new TelephonyManager();
 
     /** @hide
     /* @deprecated - use getSystemService as described above */
@@ -132,6 +138,61 @@ public class TelephonyManager {
     /** {@hide} */
     public static TelephonyManager from(Context context) {
         return (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+    }
+   /** @hide
+    /* get the secondary  TelephonyManager */
+    public static TelephonyManager get2ndTm() {
+        return sInstance2;
+    }
+
+    /** @hide
+    /* get TelephonyManager by PhoneID, used in exteranl apps*/
+    public static TelephonyManager getTmByPhoneId(int phoneId, Context context) {
+         if (mContext == null) {
+            Context appContext = context.getApplicationContext();
+            if (appContext != null) {
+                mContext = appContext;
+            } else {
+                mContext = context;
+            }
+        }
+        return phoneId == 0 ? getDefault() : get2ndTm();
+    }
+
+    /** @hide
+    /* get TelephonyManager by slot, used in exteranl apps*/
+    public static TelephonyManager getTmBySlot(int slot, Context context) {
+        if (mContext == null) {
+            Context appContext = context.getApplicationContext();
+            if (appContext != null) {
+                mContext = appContext;
+            } else {
+                mContext = context;
+            }
+        }
+        return getTmBySlot(slot);
+    }
+
+    /** @hide
+    /* get TelephonyManager by slot*/
+    public static TelephonyManager getTmBySlot(int slot) {
+        int dataSim = getPrimarySim();
+        return ((slot == 0 && dataSim == 0) || (slot != 0 && dataSim != 0))
+                ? sInstance : sInstance2;
+    }
+
+    /*
+     * NOTE: Be careful of below logic.
+     *
+     * The standard Android has two TelephonyManagers. One is the static
+     * variable in this file. The other is created in ContextImpl.java.
+     */
+    private boolean isDefaultManager() {
+        if (TelephonyConstants.IS_DSDS) {
+            return !(this == sInstance2);
+        } else {
+            return true;
+        }
     }
 
     //
@@ -582,7 +643,10 @@ public class TelephonyManager {
      * on a CDMA network).
      */
     public String getNetworkOperatorName() {
-        return SystemProperties.get(TelephonyProperties.PROPERTY_OPERATOR_ALPHA);
+        if (isDefaultManager()) {
+            return SystemProperties.get(TelephonyProperties.PROPERTY_OPERATOR_ALPHA);
+        }
+        return SystemProperties.get(TelephonyProperties2.PROPERTY_OPERATOR_ALPHA);
     }
 
     /**
@@ -593,7 +657,10 @@ public class TelephonyManager {
      * on a CDMA network).
      */
     public String getNetworkOperator() {
-        return SystemProperties.get(TelephonyProperties.PROPERTY_OPERATOR_NUMERIC);
+        if (isDefaultManager()) {
+            return SystemProperties.get(TelephonyProperties.PROPERTY_OPERATOR_NUMERIC);
+        }
+        return SystemProperties.get(TelephonyProperties2.PROPERTY_OPERATOR_NUMERIC);
     }
 
     /**
@@ -603,7 +670,10 @@ public class TelephonyManager {
      * Availability: Only when user registered to a network.
      */
     public boolean isNetworkRoaming() {
-        return "true".equals(SystemProperties.get(TelephonyProperties.PROPERTY_OPERATOR_ISROAMING));
+        if (isDefaultManager()) {
+            return "true".equals(SystemProperties.get(TelephonyProperties.PROPERTY_OPERATOR_ISROAMING));
+        }
+        return "true".equals(SystemProperties.get(TelephonyProperties2.PROPERTY_OPERATOR_ISROAMING));
     }
 
     /**
@@ -615,7 +685,10 @@ public class TelephonyManager {
      * on a CDMA network).
      */
     public String getNetworkCountryIso() {
-        return SystemProperties.get(TelephonyProperties.PROPERTY_OPERATOR_ISO_COUNTRY);
+        if (isDefaultManager()) {
+            return SystemProperties.get(TelephonyProperties.PROPERTY_OPERATOR_ISO_COUNTRY);
+        }
+        return SystemProperties.get(TelephonyProperties2.PROPERTY_OPERATOR_ISO_COUNTRY);
     }
 
     /** Network type is unknown */
@@ -861,7 +934,10 @@ public class TelephonyManager {
      * @see #SIM_STATE_READY
      */
     public int getSimState() {
-        String prop = SystemProperties.get(TelephonyProperties.PROPERTY_SIM_STATE);
+        final String simProp = isDefaultManager() ? TelephonyProperties.PROPERTY_SIM_STATE
+                : TelephonyProperties2.PROPERTY_SIM_STATE;
+
+        String prop = SystemProperties.get(simProp);
         if ("ABSENT".equals(prop)) {
             return SIM_STATE_ABSENT;
         }
@@ -883,6 +959,27 @@ public class TelephonyManager {
     }
 
     /**
+     * Return true if the SIM turned off by the user.
+     *
+     * @hide
+     */
+    public boolean isSimOff(int slot) {
+        if (slot == 0) {
+            return SystemProperties.getBoolean(TelephonyConstants.PROP_ON_OFF_SIM1, false);
+        }
+        return SystemProperties.getBoolean(TelephonyConstants.PROP_ON_OFF_SIM2, false);
+    }
+
+    /**
+     * Return true if the SIM turned off by the user.
+     *
+     * @hide
+     */
+    public boolean isSimAbsent() {
+        return (getSimState() == SIM_STATE_ABSENT);
+    }
+	
+    /**
      * Returns the MCC+MNC (mobile country code + mobile network code) of the
      * provider of the SIM. 5 or 6 decimal digits.
      * <p>
@@ -891,7 +988,10 @@ public class TelephonyManager {
      * @see #getSimState
      */
     public String getSimOperator() {
-        return SystemProperties.get(TelephonyProperties.PROPERTY_ICC_OPERATOR_NUMERIC);
+        if (isDefaultManager()) {
+            return SystemProperties.get(TelephonyProperties.PROPERTY_ICC_OPERATOR_NUMERIC);
+        }
+        return SystemProperties.get(TelephonyProperties2.PROPERTY_ICC_OPERATOR_NUMERIC);
     }
 
     /**
@@ -902,14 +1002,20 @@ public class TelephonyManager {
      * @see #getSimState
      */
     public String getSimOperatorName() {
-        return SystemProperties.get(TelephonyProperties.PROPERTY_ICC_OPERATOR_ALPHA);
+        if (isDefaultManager()) {
+            return SystemProperties.get(TelephonyProperties.PROPERTY_ICC_OPERATOR_ALPHA);
+        }
+        return SystemProperties.get(TelephonyProperties2.PROPERTY_ICC_OPERATOR_ALPHA);
     }
 
     /**
      * Returns the ISO country code equivalent for the SIM provider's country code.
      */
     public String getSimCountryIso() {
-        return SystemProperties.get(TelephonyProperties.PROPERTY_ICC_OPERATOR_ISO_COUNTRY);
+        if (isDefaultManager()) {
+            return SystemProperties.get(TelephonyProperties.PROPERTY_ICC_OPERATOR_ISO_COUNTRY);
+        }
+        return SystemProperties.get(TelephonyProperties2.PROPERTY_ICC_OPERATOR_ISO_COUNTRY);
     }
 
     /**
@@ -967,10 +1073,16 @@ public class TelephonyManager {
      */
     public String getSubscriberId() {
         try {
-            return getSubscriberInfo().getSubscriberId();
+            String ret = getSubscriberInfo().getSubscriberId();
+            if (ret == null || "".equals(ret)) {
+                log("OOPS,getSubscriberId returns null IMSI");
+            }
+            return ret;
         } catch (RemoteException ex) {
+            log("getSubscriberId, RemoteException:" + ex);
             return null;
         } catch (NullPointerException ex) {
+            log("getSubscriberId, NullPointerException:" + ex);
             // This could happen before phone restarts due to crashing
             return null;
         }
@@ -1175,7 +1287,8 @@ public class TelephonyManager {
 
     private IPhoneSubInfo getSubscriberInfo() {
         // get it each time because that process crashes a lot
-        return IPhoneSubInfo.Stub.asInterface(ServiceManager.getService("iphonesubinfo"));
+        final String service = isDefaultManager() ? "iphonesubinfo" : "iphonesubinfo2";
+        return IPhoneSubInfo.Stub.asInterface(ServiceManager.getService(service));
     }
 
 
@@ -1275,9 +1388,18 @@ public class TelephonyManager {
             return DATA_DISCONNECTED;
         }
     }
+    private String getLogTag() {
+        return isDefaultManager() ?
+            "[TelephonyManager]" : "[TelephonyManager2]";
+    }
+    private void log(String s) {
+        Rlog.d("GSM",getLogTag() + s);
+    }
 
     private ITelephony getITelephony() {
-        return ITelephony.Stub.asInterface(ServiceManager.getService(Context.TELEPHONY_SERVICE));
+        final String service = isDefaultManager() ? Context.TELEPHONY_SERVICE
+                : Context.TELEPHONY_SERVICE2;
+        return ITelephony.Stub.asInterface(ServiceManager.getService(service));
     }
 
     //
@@ -1310,10 +1432,19 @@ public class TelephonyManager {
      *               LISTEN_ flags.
      */
     public void listen(PhoneStateListener listener, int events) {
+        if (isDefaultManager() == false) {
+            if (sRegistry2 == null) {
+                sRegistry2 = ITelephonyRegistry2.Stub.asInterface(ServiceManager.getService("telephony.registry2"));
+            }
+        }
         String pkgForDebug = mContext != null ? mContext.getPackageName() : "<unknown>";
         try {
             Boolean notifyNow = true;
-            sRegistry.listen(pkgForDebug, listener.callback, events, notifyNow);
+            if (isDefaultManager()) {
+                sRegistry.listen(pkgForDebug, listener.callback, events, notifyNow);
+            } else {
+                sRegistry2.listen(pkgForDebug, listener.callback, events, notifyNow);
+            }
         } catch (RemoteException ex) {
             // system process dead
         } catch (NullPointerException ex) {
@@ -1409,6 +1540,13 @@ public class TelephonyManager {
         return mContext.getResources().getBoolean(
                 com.android.internal.R.bool.config_sms_capable);
     }
+
+    /** @hide */
+    public static final int DYNAMIC_DATA_SIM_DISABLED       = 0;
+    /** @hide */
+    public static final int DYNAMIC_DATA_SIM_ENABLED        = 1;
+    /** @hide */
+    public static final int DYNAMIC_DATA_SIM_ENABLED_REBOOT = 2;
 
     /**
      * Returns all observed cell information from all radios on the
@@ -1870,5 +2008,170 @@ public class TelephonyManager {
         } catch (RemoteException e) {
             Log.e(TAG, "Error calling ITelephony#removeListener", e);
         }
+    }
+    /**
+     * @return the current dynamic DataSIM policy
+     * <p>
+     * If not supported, the return value is DISABLED.
+     * If supported and use non-reboot solution, the return value is ENABLED.
+     * If supported and use reboot solution, the return value is ENABLED_REBOOT.
+     *
+     * @hide pending API review
+     */
+    public int getDynamicDataSimPolicy() {
+         try {
+             return getITelephony().getDynamicDataSimPolicy();
+         } catch (RemoteException ex) {
+             return DYNAMIC_DATA_SIM_DISABLED;
+         } catch (NullPointerException ex) {
+             return DYNAMIC_DATA_SIM_DISABLED;
+         }
+    }
+
+    /**
+     * @return true if the current device supports dynamic DataSIM
+     * <p>
+     * If supported the return value is true
+     *
+     * @hide pending API review
+     */
+    public boolean isDynamicDataSimSupported() {
+        try {
+            int policy = getITelephony().getDynamicDataSimPolicy();
+            if (policy == DYNAMIC_DATA_SIM_DISABLED) {
+                return false;
+            }
+            return true;
+        } catch (RemoteException ex) {
+            return false;
+        } catch (NullPointerException ex) {
+            return false;
+        }
+    }
+
+    /**
+     * Returns the temporary out of service on specified slot.
+     * @hide
+     */
+    public boolean isToosOnSlot(int slotId) {
+        if (getTmBySlot(slotId) == sInstance) {
+            return SystemProperties.getBoolean(TelephonyConstants.PROPERTY_TEMPORARY_OOS
+                    + "." + TelephonyConstants.STRING_PRIMARY_PHONE, false);
+        }
+        return SystemProperties.getBoolean(TelephonyConstants.PROPERTY_TEMPORARY_OOS
+                + "." + TelephonyConstants.STRING_SECONDARY_PHONE, false);
+    }
+
+    /**
+     * Returns the temporary out of service on current manager.
+     * @hide
+     */
+    public boolean isToosOnPhone(String phone) {
+        return SystemProperties.getBoolean(TelephonyConstants.PROPERTY_TEMPORARY_OOS
+                + "." + phone, false);
+    }
+
+    /**
+     * Return true if SIM switching: primary SIM switching SIM ON/OFF, is going on.
+     *
+     * @hide
+     */
+    public boolean isSimSwitching() {
+        int activity = getSimActivity();
+        return isSwitchingActivity(activity);
+    }
+
+    /**
+     * Return true if the given activity is SIM switching: primary switching,ON/OFF
+     *
+     * @hide
+     */
+    public static boolean isSwitchingActivity(int activity) {
+        return (((activity & TelephonyConstants.SIM_ACTIVITY_PRIMARY) != 0)
+                || ((activity & TelephonyConstants.SIM_ACTIVITY_ONOFF) != 0));
+    }
+
+    /**
+     * Return true if SIM busy: ON/OFF switching, primary SIM switching,
+     * or import/export is going on
+     *
+     * @hide
+     */
+    public boolean isSimBusy() {
+         try {
+             return getITelephony().isSimBusy();
+         } catch (RemoteException ex) {
+             log("isSimBusy,exception:" + ex);
+             return false;
+         } catch (NullPointerException ex) {
+             log("isSimBusy,exception:" + ex);
+             return false;
+         }
+    }
+
+    /**
+     * Return the current SIM activity
+     *
+     * @hide
+     */
+    public int getSimActivity() {
+        try {
+            return getITelephony().getSimActivity();
+        } catch (RemoteException ex) {
+            log("getSimActivity,exception:" + ex);
+            return 0;
+        } catch (NullPointerException ex) {
+            log("getSimActivity,exception:" + ex);
+            return 0;
+        }
+    }
+
+    /** @hide */
+    public static final int SIM_REQUEST_SUCCESS             = 0;
+    /** @hide */
+    public static final int SIM_REQUEST_REFUSED_BUSY        = -1;
+
+    /**
+     * Return 0 if the given request is granted
+     *
+     * @hide
+     */
+    public int requestSimActivity(int activity) {
+         try {
+             return getITelephony().requestSimActivity(activity, new Binder());
+         } catch (RemoteException ex) {
+             log("isSimBusy,exception:" + ex);
+         } catch (NullPointerException ex) {
+             log("isSimBusy,exception:" + ex);
+         }
+         return -1;
+    }
+    /**
+     * requrest to finish a SIM activity
+     *
+     * @hide
+     */
+    public int stopSimActivity(int activity) {
+        try {
+            return getITelephony().stopSimActivity(activity);
+        } catch (RemoteException ex) {
+            log("stopSimActivity,exception:" + ex);
+        } catch (NullPointerException ex) {
+            log("stopSimActivity,exception:" + ex);
+        }
+        return -1;
+    }
+
+    /**
+     * Return Primary Data SIM Id
+     *
+     * @hide
+     */
+    public static int getPrimarySim() {
+        return SystemProperties.getBoolean("ro.build.prim_equals_data", false) ?
+                Settings.Global.getInt(mContext.getContentResolver(),
+                Settings.Global.MOBILE_DATA_SIM,
+                ConnectivityManager.MOBILE_DATA_NETWORK_SLOT_A)
+                : 0;
     }
 }

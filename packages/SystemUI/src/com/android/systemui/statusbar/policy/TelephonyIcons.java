@@ -35,6 +35,32 @@ class TelephonyIcons {
           R.drawable.stat_sys_signal_4_fully }
     };
 
+    static final int[][] TELEPHONY_SIGNAL_STRENGTH_SLOT1 = {
+        { R.drawable.stat_sys_signal_slot1_0,
+          R.drawable.stat_sys_signal_slot1_1,
+          R.drawable.stat_sys_signal_slot1_2,
+          R.drawable.stat_sys_signal_slot1_3,
+          R.drawable.stat_sys_signal_slot1_4 },
+        { R.drawable.stat_sys_signal_slot1_0_fully,
+          R.drawable.stat_sys_signal_slot1_1_fully,
+          R.drawable.stat_sys_signal_slot1_2_fully,
+          R.drawable.stat_sys_signal_slot1_3_fully,
+          R.drawable.stat_sys_signal_slot1_4_fully }
+    };
+
+    static final int[][] TELEPHONY_SIGNAL_STRENGTH_SLOT2 = {
+        { R.drawable.stat_sys_signal_slot2_0,
+          R.drawable.stat_sys_signal_slot2_1,
+          R.drawable.stat_sys_signal_slot2_2,
+          R.drawable.stat_sys_signal_slot2_3,
+          R.drawable.stat_sys_signal_slot2_4 },
+        { R.drawable.stat_sys_signal_slot2_0_fully,
+          R.drawable.stat_sys_signal_slot2_1_fully,
+          R.drawable.stat_sys_signal_slot2_2_fully,
+          R.drawable.stat_sys_signal_slot2_3_fully,
+          R.drawable.stat_sys_signal_slot2_4_fully }
+    };
+
     static final int[][] QS_TELEPHONY_SIGNAL_STRENGTH = {
         { R.drawable.ic_qs_signal_0,
           R.drawable.ic_qs_signal_1,
@@ -48,6 +74,32 @@ class TelephonyIcons {
           R.drawable.ic_qs_signal_full_4 }
     };
 
+    static final int[][] QS_TELEPHONY_SIGNAL_STRENGTH_SLOT1 = {
+        { R.drawable.ic_qs_signal_0,
+          R.drawable.ic_qs_signal_1,
+          R.drawable.ic_qs_signal_2,
+          R.drawable.ic_qs_signal_3,
+          R.drawable.ic_qs_signal_4 },
+        { R.drawable.ic_qs_signal_slot1_full_0,
+          R.drawable.ic_qs_signal_slot1_full_1,
+          R.drawable.ic_qs_signal_slot1_full_2,
+          R.drawable.ic_qs_signal_slot1_full_3,
+          R.drawable.ic_qs_signal_slot1_full_4 }
+    };
+
+    static final int[][] QS_TELEPHONY_SIGNAL_STRENGTH_SLOT2 = {
+        { R.drawable.ic_qs_signal_0,
+          R.drawable.ic_qs_signal_1,
+          R.drawable.ic_qs_signal_2,
+          R.drawable.ic_qs_signal_3,
+          R.drawable.ic_qs_signal_4 },
+        { R.drawable.ic_qs_signal_slot2_full_0,
+          R.drawable.ic_qs_signal_slot2_full_1,
+          R.drawable.ic_qs_signal_slot2_full_2,
+          R.drawable.ic_qs_signal_slot2_full_3,
+          R.drawable.ic_qs_signal_slot2_full_4 }
+    };
+
     static final int[][] TELEPHONY_SIGNAL_STRENGTH_ROAMING = {
         { R.drawable.stat_sys_signal_0_fully,
           R.drawable.stat_sys_signal_1_fully,
@@ -59,6 +111,32 @@ class TelephonyIcons {
           R.drawable.stat_sys_signal_2_fully,
           R.drawable.stat_sys_signal_3_fully,
           R.drawable.stat_sys_signal_4_fully }
+    };
+
+    static final int[][] TELEPHONY_SIGNAL_STRENGTH_ROAMING_SLOT1 = {
+        { R.drawable.stat_sys_signal_slot1_0,
+          R.drawable.stat_sys_signal_slot1_1,
+          R.drawable.stat_sys_signal_slot1_2,
+          R.drawable.stat_sys_signal_slot1_3,
+          R.drawable.stat_sys_signal_slot1_4 },
+        { R.drawable.stat_sys_signal_slot1_0_fully,
+          R.drawable.stat_sys_signal_slot1_1_fully,
+          R.drawable.stat_sys_signal_slot1_2_fully,
+          R.drawable.stat_sys_signal_slot1_3_fully,
+          R.drawable.stat_sys_signal_slot1_4_fully }
+    };
+
+    static final int[][] TELEPHONY_SIGNAL_STRENGTH_ROAMING_SLOT2 = {
+        { R.drawable.stat_sys_signal_slot2_0,
+          R.drawable.stat_sys_signal_slot2_1,
+          R.drawable.stat_sys_signal_slot2_2,
+          R.drawable.stat_sys_signal_slot2_3,
+          R.drawable.stat_sys_signal_slot2_4 },
+        { R.drawable.stat_sys_signal_slot2_0_fully,
+          R.drawable.stat_sys_signal_slot2_1_fully,
+          R.drawable.stat_sys_signal_slot2_2_fully,
+          R.drawable.stat_sys_signal_slot2_3_fully,
+          R.drawable.stat_sys_signal_slot2_4_fully }
     };
 
     static final int[] QS_DATA_R = {
@@ -82,6 +160,28 @@ class TelephonyIcons {
               R.drawable.stat_sys_data_fully_connected_g }
         };
 
+    static final int[][] DATA_G_SLOT1 = {
+        { R.drawable.stat_sys_data_connected_slot1_g,
+          R.drawable.stat_sys_data_connected_slot1_g,
+          R.drawable.stat_sys_data_connected_slot1_g,
+          R.drawable.stat_sys_data_connected_slot1_g },
+        { R.drawable.stat_sys_data_fully_connected_slot1_g,
+          R.drawable.stat_sys_data_fully_connected_slot1_g,
+          R.drawable.stat_sys_data_fully_connected_slot1_g,
+          R.drawable.stat_sys_data_fully_connected_slot1_g }
+    };
+
+    static final int[][] DATA_G_SLOT2 = {
+        { R.drawable.stat_sys_data_connected_slot2_g,
+          R.drawable.stat_sys_data_connected_slot2_g,
+          R.drawable.stat_sys_data_connected_slot2_g,
+          R.drawable.stat_sys_data_connected_slot2_g },
+        { R.drawable.stat_sys_data_fully_connected_slot2_g,
+          R.drawable.stat_sys_data_fully_connected_slot2_g,
+          R.drawable.stat_sys_data_fully_connected_slot2_g,
+          R.drawable.stat_sys_data_fully_connected_slot2_g }
+    };
+
     static final int[] QS_DATA_G = {
         R.drawable.ic_qs_signal_g,
         R.drawable.ic_qs_signal_full_g
@@ -97,6 +197,28 @@ class TelephonyIcons {
               R.drawable.stat_sys_data_fully_connected_3g,
               R.drawable.stat_sys_data_fully_connected_3g }
         };
+
+    static final int[][] DATA_3G_SLOT1 = {
+        { R.drawable.stat_sys_data_connected_slot1_3g,
+          R.drawable.stat_sys_data_connected_slot1_3g,
+          R.drawable.stat_sys_data_connected_slot1_3g,
+          R.drawable.stat_sys_data_connected_slot1_3g },
+        { R.drawable.stat_sys_data_fully_connected_slot1_3g,
+          R.drawable.stat_sys_data_fully_connected_slot1_3g,
+          R.drawable.stat_sys_data_fully_connected_slot1_3g,
+          R.drawable.stat_sys_data_fully_connected_slot1_3g }
+    };
+
+    static final int[][] DATA_3G_SLOT2 = {
+        { R.drawable.stat_sys_data_connected_slot2_3g,
+          R.drawable.stat_sys_data_connected_slot2_3g,
+          R.drawable.stat_sys_data_connected_slot2_3g,
+          R.drawable.stat_sys_data_connected_slot2_3g },
+        { R.drawable.stat_sys_data_fully_connected_slot2_3g,
+          R.drawable.stat_sys_data_fully_connected_slot2_3g,
+          R.drawable.stat_sys_data_fully_connected_slot2_3g,
+          R.drawable.stat_sys_data_fully_connected_slot2_3g }
+    };
 
     static final int[] QS_DATA_3G = {
         R.drawable.ic_qs_signal_3g,
@@ -114,6 +236,28 @@ class TelephonyIcons {
               R.drawable.stat_sys_data_fully_connected_e }
         };
 
+    static final int[][] DATA_E_SLOT1 = {
+        { R.drawable.stat_sys_data_connected_slot1_e,
+          R.drawable.stat_sys_data_connected_slot1_e,
+          R.drawable.stat_sys_data_connected_slot1_e,
+          R.drawable.stat_sys_data_connected_slot1_e },
+        { R.drawable.stat_sys_data_fully_connected_slot1_e,
+          R.drawable.stat_sys_data_fully_connected_slot1_e,
+          R.drawable.stat_sys_data_fully_connected_slot1_e,
+          R.drawable.stat_sys_data_fully_connected_slot1_e }
+    };
+
+    static final int[][] DATA_E_SLOT2 = {
+        { R.drawable.stat_sys_data_connected_slot2_e,
+          R.drawable.stat_sys_data_connected_slot2_e,
+          R.drawable.stat_sys_data_connected_slot2_e,
+          R.drawable.stat_sys_data_connected_slot2_e },
+        { R.drawable.stat_sys_data_fully_connected_slot2_e,
+          R.drawable.stat_sys_data_fully_connected_slot2_e,
+          R.drawable.stat_sys_data_fully_connected_slot2_e,
+          R.drawable.stat_sys_data_fully_connected_slot2_e }
+    };
+
     static final int[] QS_DATA_E = {
         R.drawable.ic_qs_signal_e,
         R.drawable.ic_qs_signal_full_e
@@ -129,6 +273,28 @@ class TelephonyIcons {
               R.drawable.stat_sys_data_fully_connected_h,
               R.drawable.stat_sys_data_fully_connected_h,
               R.drawable.stat_sys_data_fully_connected_h }
+    };
+
+    static final int[][] DATA_H_SLOT1 = {
+        { R.drawable.stat_sys_data_connected_slot1_h,
+          R.drawable.stat_sys_data_connected_slot1_h,
+          R.drawable.stat_sys_data_connected_slot1_h,
+          R.drawable.stat_sys_data_connected_slot1_h },
+        { R.drawable.stat_sys_data_fully_connected_slot1_h,
+          R.drawable.stat_sys_data_fully_connected_slot1_h,
+          R.drawable.stat_sys_data_fully_connected_slot1_h,
+          R.drawable.stat_sys_data_fully_connected_slot1_h }
+    };
+
+    static final int[][] DATA_H_SLOT2 = {
+        { R.drawable.stat_sys_data_connected_slot2_h,
+          R.drawable.stat_sys_data_connected_slot2_h,
+          R.drawable.stat_sys_data_connected_slot2_h,
+          R.drawable.stat_sys_data_connected_slot2_h },
+        { R.drawable.stat_sys_data_fully_connected_slot2_h,
+          R.drawable.stat_sys_data_fully_connected_slot2_h,
+          R.drawable.stat_sys_data_fully_connected_slot2_h,
+          R.drawable.stat_sys_data_fully_connected_slot2_h }
     };
 
     static final int[] QS_DATA_H = {

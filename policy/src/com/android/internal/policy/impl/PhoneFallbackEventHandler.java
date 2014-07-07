@@ -34,6 +34,7 @@ import android.view.View;
 import android.view.HapticFeedbackConstants;
 import android.view.FallbackEventHandler;
 import android.view.KeyEvent;
+import com.android.internal.telephony.TelephonyConstants;
 
 public class PhoneFallbackEventHandler implements FallbackEventHandler {
     private static String TAG = "PhoneFallbackEventHandler";
@@ -70,7 +71,14 @@ public class PhoneFallbackEventHandler implements FallbackEventHandler {
             return onKeyUp(keyCode, event);
         }
     }
-    
+	
+    private boolean isPhone2InCall() {
+        if (!TelephonyConstants.IS_DSDS) {
+            return false;
+        }
+        return (TelephonyManager.get2ndTm().getCallState() != TelephonyManager.CALL_STATE_IDLE);
+    }
+
     boolean onKeyDown(int keyCode, KeyEvent event) {
         /* ****************************************************************************
          * HOW TO DECIDE WHERE YOUR KEY HANDLING GOES.
@@ -93,6 +101,10 @@ public class PhoneFallbackEventHandler implements FallbackEventHandler {
                 /* Suppress PLAY/PAUSE toggle when phone is ringing or in-call
                  * to avoid music playback */
                 if (getTelephonyManager().getCallState() != TelephonyManager.CALL_STATE_IDLE) {
+                    return true;  // suppress key event
+                }
+                //for the 2nd SIM;
+                if (isPhone2InCall()) {
                     return true;  // suppress key event
                 }
             case KeyEvent.KEYCODE_MUTE:

@@ -84,7 +84,7 @@ public class PhoneConstants {
     public static final String PHONE_IN_ECM_STATE = "phoneinECMState";
 
     public static final String REASON_LINK_PROPERTIES_CHANGED = "linkPropertiesChanged";
-
+    public static final String REASON_DATA_ATTACHED = "dataAttached";
     /**
      * Return codes for supplyPinReturnResult and
      * supplyPukReturnResult APIs

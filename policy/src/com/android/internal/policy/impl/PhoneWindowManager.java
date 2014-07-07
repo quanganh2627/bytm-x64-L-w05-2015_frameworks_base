@@ -63,6 +63,8 @@ import android.os.UEventObserver;
 import android.os.UserHandle;
 import android.os.Vibrator;
 import android.provider.Settings;
+import android.telephony.TelephonyManager;
+
 import android.service.dreams.DreamService;
 import android.service.dreams.IDreamManager;
 import android.util.DisplayMetrics;
@@ -99,6 +101,7 @@ import com.android.internal.policy.PolicyManager;
 import com.android.internal.policy.impl.keyguard.KeyguardServiceDelegate;
 import com.android.internal.statusbar.IStatusBarService;
 import com.android.internal.telephony.ITelephony;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.widget.PointerLocationView;
 
 import java.io.File;
@@ -1923,6 +1926,25 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 ServiceManager.checkService(Context.TELEPHONY_SERVICE));
     }
 
+    static ITelephony getTelephonyService2() {
+        return ITelephony.Stub.asInterface(
+                ServiceManager.checkService(Context.TELEPHONY_SERVICE2));
+    }
+
+    static ITelephony getActiveTelephonyService() {
+        if (!TelephonyConstants.IS_DSDS) return getTelephonyService();
+        ITelephony telephonyService = getTelephonyService2();
+        try {
+            if (telephonyService != null
+                    && telephonyService.getCallState() != TelephonyManager.CALL_STATE_IDLE) {
+                return telephonyService;
+            }
+        } catch (RemoteException e) {
+            Slog.e(TAG, "RemoteException in getActiveTelephonyService", e);
+        }
+        return getTelephonyService();
+    }
+
     static IAudioService getAudioService() {
         IAudioService audioService = IAudioService.Stub.asInterface(
                 ServiceManager.checkService(Context.AUDIO_SERVICE));
@@ -2004,7 +2026,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 // (The user is already on the InCallScreen at this point,
                 // and his ONLY options are to answer or reject the call.)
                 try {
-                    ITelephony telephonyService = getTelephonyService();
+                    ITelephony telephonyService = getActiveTelephonyService();
                     if (telephonyService != null && telephonyService.isRinging()) {
                         Log.i(TAG, "Ignoring HOME; there's a ringing incoming call.");
                         return -1;
@@ -3900,7 +3922,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     }
                 }
                 if (down) {
-                    ITelephony telephonyService = getTelephonyService();
+                    ITelephony telephonyService = getActiveTelephonyService();
                     if (telephonyService != null) {
                         try {
                             if (telephonyService.isRinging()) {
@@ -3947,7 +3969,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             case KeyEvent.KEYCODE_ENDCALL: {
                 result &= ~ACTION_PASS_TO_USER;
                 if (down) {
-                    ITelephony telephonyService = getTelephonyService();
+                    ITelephony telephonyService = getActiveTelephonyService();
                     boolean hungUp = false;
                     if (telephonyService != null) {
                         try {
@@ -3986,7 +4008,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         interceptScreenshotChord();
                     }
 
-                    ITelephony telephonyService = getTelephonyService();
+                    ITelephony telephonyService = getActiveTelephonyService();
                     boolean hungUp = false;
                     if (telephonyService != null) {
                         try {
@@ -4022,7 +4044,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             case KeyEvent.KEYCODE_MEDIA_PAUSE:
             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
                 if (down) {
-                    ITelephony telephonyService = getTelephonyService();
+                    ITelephony telephonyService = getActiveTelephonyService();
                     if (telephonyService != null) {
                         try {
                             if (!telephonyService.isIdle()) {
@@ -4061,7 +4083,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
             case KeyEvent.KEYCODE_CALL: {
                 if (down) {
-                    ITelephony telephonyService = getTelephonyService();
+                    ITelephony telephonyService = getActiveTelephonyService();
                     if (telephonyService != null) {
                         try {
                             if (telephonyService.isRinging()) {

@@ -17,41 +17,58 @@
 package com.android.keyguard;
 
 import android.content.Context;
+import android.telephony.TelephonyManager;
+import android.text.Html;
 import android.text.method.SingleLineTransformationMethod;
 import android.text.TextUtils;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.telephony.IccCardConstants.State;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.widget.LockPatternUtils;
 
 import java.util.Locale;
 
 public class CarrierText extends TextView {
     private static CharSequence mSeparator;
-
+    public static boolean DEBUG = KeyguardViewMediator.DEBUG;
     private LockPatternUtils mLockPatternUtils;
 
+    private CharSequence mPlmn[] = {null, null};
+    private CharSequence mSpn[] = {null, null};
+    private State mSimState[] = {IccCardConstants.State.NOT_READY,
+            IccCardConstants.State.NOT_READY};
+
+    private static final String mColor1 =
+            Integer.toHexString(TelephonyConstants.DSDS_TEXT_COLOR_SLOT_1 & 0x00FFFFFF);
+    private static final String mColor2 =
+            Integer.toHexString(TelephonyConstants.DSDS_TEXT_COLOR_SLOT_2 & 0x00FFFFFF);
+
     private KeyguardUpdateMonitorCallback mCallback = new KeyguardUpdateMonitorCallback() {
-        private CharSequence mPlmn;
-        private CharSequence mSpn;
-        private State mSimState;
 
         @Override
-        public void onRefreshCarrierInfo(CharSequence plmn, CharSequence spn) {
-            mPlmn = plmn;
-            mSpn = spn;
-            updateCarrierText(mSimState, mPlmn, mSpn);
+        public void onRefreshCarrierInfo(CharSequence plmn, CharSequence spn, int slot)  {
+            mPlmn[slot] = plmn;
+            mSpn[slot] = spn;
+            updateCarrierText();
         }
 
         @Override
         public void onSimStateChanged(IccCardConstants.State simState) {
-            mSimState = simState;
-            updateCarrierText(mSimState, mPlmn, mSpn);
+            mSimState[0] = simState;
+            updateCarrierText();
         }
 
+        @Override
+        public void onSim2StateChanged(IccCardConstants.State simState) {
+            mSimState[1] = simState;
+            updateCarrierText();
+        }
+		
         public void onScreenTurnedOff(int why) {
             setSelected(false);
         };
@@ -85,8 +102,34 @@ public class CarrierText extends TextView {
         setTransformationMethod(new CarrierTextTransformationMethod(mContext, useAllCaps));
     }
 
+    private CharSequence getCarrierTextInHtml(String text1, String text2) {
+        String carrier1 = "<font color=\"#" + mColor1 + "\">" + text1 + "</font>";
+        String carrier2 = "<font color=\"#" + mColor2 + "\">" + text2 + "</font>";
+        return Html.fromHtml(carrier1 + " | " + carrier2);
+    }
+
+    protected void updateCarrierText() {
+        if (!TelephonyConstants.IS_DSDS) {
+            updateCarrierText(mSimState[0], mPlmn[0], mSpn[0]);
+            return;
+        }
+
+        CharSequence text1 = getCarrierTextForSimState(mSimState[0], mPlmn[0], mSpn[0], 0);
+        if (text1 == null) text1 = "";
+        CharSequence text2 = getCarrierTextForSimState(mSimState[1], mPlmn[1], mSpn[1], 1);
+        if (text2 == null) text2 = "";
+
+        Log.d("Keyguard-CarrierText", "carrier:" + text1 + ",carrier2:" + text2);
+
+        if (KeyguardViewManager.USE_UPPER_CASE) {
+            setText(getCarrierTextInHtml(text1.toString().toUpperCase(), text2.toString().toUpperCase()));
+        } else {
+            setText(getCarrierTextInHtml(text1.toString(), text2.toString()));
+        }
+    }
+
     protected void updateCarrierText(State simState, CharSequence plmn, CharSequence spn) {
-        setText(getCarrierTextForSimState(simState, plmn, spn));
+        setText(getCarrierTextForSimState(simState, plmn, spn, 0));
     }
 
     @Override
@@ -119,7 +162,7 @@ public class CarrierText extends TextView {
      * @return
      */
     private CharSequence getCarrierTextForSimState(IccCardConstants.State simState,
-            CharSequence plmn, CharSequence spn) {
+            CharSequence plmn, CharSequence spn, int slot) {
         CharSequence carrierText = null;
         StatusMode status = getStatusForIccState(simState);
         switch (status) {
@@ -141,9 +184,14 @@ public class CarrierText extends TextView {
                 // This depends on mPlmn containing the text "Emergency calls only" when the radio
                 // has some connectivity. Otherwise, it should be null or empty and just show
                 // "No SIM card"
-                carrierText =  makeCarrierStringOnEmergencyCapable(
-                        getContext().getText(R.string.keyguard_missing_sim_message_short),
-                        plmn);
+                final boolean isSimOff = TelephonyManager.getDefault().isSimOff(slot);
+                if (isSimOff) {
+                    carrierText =  getContext().getText(R.string.card_off);
+                } else {
+                    carrierText =  makeCarrierStringOnEmergencyCapable(
+                            getContext().getText(R.string.keyguard_missing_sim_message_short),
+                            plmn);
+                }
                 break;
 
             case SimPermDisabled:

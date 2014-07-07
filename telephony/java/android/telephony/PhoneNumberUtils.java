@@ -39,6 +39,7 @@ import android.util.SparseIntArray;
 import static com.android.internal.telephony.TelephonyProperties.PROPERTY_ICC_OPERATOR_ISO_COUNTRY;
 import static com.android.internal.telephony.TelephonyProperties.PROPERTY_IDP_STRING;
 import static com.android.internal.telephony.TelephonyProperties.PROPERTY_OPERATOR_ISO_COUNTRY;
+import com.android.internal.telephony.TelephonyConstants;
 
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -166,7 +167,32 @@ public class PhoneNumberUtils
         // TODO: We don't check for SecurityException here (requires
         // CALL_PRIVILEGED permission).
         if (scheme.equals("voicemail")) {
-            return TelephonyManager.getDefault().getCompleteVoiceMailNumber();
+            if (TelephonyConstants.IS_DSDS) {
+                boolean primaryOnSim1 = TelephonyManager.getPrimarySim()
+                        == TelephonyConstants.DSDS_SLOT_1_ID;
+
+                if (intent.hasExtra(TelephonyConstants.EXTRA_DSDS_CALL_POLICY)) {
+                    int policy = intent.getIntExtra(TelephonyConstants.EXTRA_DSDS_CALL_POLICY, 0);
+                    switch (policy) {
+                        case TelephonyConstants.EXTRA_DCALL_SLOT_1:
+                            return primaryOnSim1
+                                      ? TelephonyManager.getDefault().getCompleteVoiceMailNumber()
+                                      : TelephonyManager.get2ndTm().getCompleteVoiceMailNumber();
+                        case TelephonyConstants.EXTRA_DCALL_SLOT_2:
+                            return primaryOnSim1
+                                      ? TelephonyManager.get2ndTm().getCompleteVoiceMailNumber()
+                                      : TelephonyManager.getDefault().getCompleteVoiceMailNumber();
+                        case TelephonyConstants.EXTRA_DCALL_PRIMARY_PHONE:
+                            return TelephonyManager.getDefault().getCompleteVoiceMailNumber();
+                        case TelephonyConstants.EXTRA_DCALL_SECONDARY_PHONE:
+                            return TelephonyManager.get2ndTm().getCompleteVoiceMailNumber();
+                    }
+                }
+
+                return TelephonyManager.getDefault().getCompleteVoiceMailNumber();
+            } else {
+                return TelephonyManager.getDefault().getCompleteVoiceMailNumber();
+            }
         }
 
         if (context == null) {
@@ -1558,7 +1584,15 @@ public class PhoneNumberUtils
     public static boolean isEmergencyNumber(String number) {
         // Return true only if the specified number *exactly* matches
         // one of the emergency numbers listed by the RIL / SIM.
-        return isEmergencyNumberInternal(number, true /* useExactMatch */);
+		return isEmergencyNumberInternal(number, true /* primary card */, true /* useExactMatch */);
+    }
+
+   /**
+     * same as above, but for SIM 2
+     * @hide
+     */
+    public static boolean isEmergencyNumber2(String number) {
+        return isEmergencyNumberInternal(number, false /* secondary card */, true /* useExactMatch */);
     }
 
     /**
@@ -1584,7 +1618,15 @@ public class PhoneNumberUtils
     public static boolean isPotentialEmergencyNumber(String number) {
         // Check against the emergency numbers listed by the RIL / SIM,
         // and *don't* require an exact match.
-        return isEmergencyNumberInternal(number, false /* useExactMatch */);
+		return isEmergencyNumberInternal(number, true /* primary card */, false /* useExactMatch */);
+    }
+
+    /**
+     * same as above, but for SIM 2
+     * @hide
+     */
+    public static boolean isPotentialEmergencyNumber2(String number) {
+        return isEmergencyNumberInternal(number, false /* secondary card */, false /* useExactMatch */);
     }
 
     /**
@@ -1606,8 +1648,9 @@ public class PhoneNumberUtils
      * @return true if the number is in the list of emergency numbers
      *         listed in the RIL / sim, otherwise return false.
      */
-    private static boolean isEmergencyNumberInternal(String number, boolean useExactMatch) {
-        return isEmergencyNumberInternal(number, null, useExactMatch);
+    private static boolean isEmergencyNumberInternal(String number, boolean useSlot1,
+            boolean useExactMatch) {
+        return isEmergencyNumberInternal(number, null, useSlot1, useExactMatch);
     }
 
     /**
@@ -1623,6 +1666,18 @@ public class PhoneNumberUtils
     public static boolean isEmergencyNumber(String number, String defaultCountryIso) {
         return isEmergencyNumberInternal(number,
                                          defaultCountryIso,
+                                         true /* primary card */,
+                                         true /* useExactMatch */);
+    }
+
+    /**
+     * same as above, but for SIM 2
+     * @hide
+     */
+    public static boolean isEmergencyNumber2(String number, String defaultCountryIso) {
+        return isEmergencyNumberInternal(number,
+                                         defaultCountryIso,
+                                         false /* secondary card */,
                                          true /* useExactMatch */);
     }
 
@@ -1650,9 +1705,19 @@ public class PhoneNumberUtils
     public static boolean isPotentialEmergencyNumber(String number, String defaultCountryIso) {
         return isEmergencyNumberInternal(number,
                                          defaultCountryIso,
+                                         true /* primary card */,
                                          false /* useExactMatch */);
     }
-
+    /**
+     * same as above, but for SIM 2
+     * @hide
+     */
+    public static boolean isPotentialEmergencyNumber2(String number, String defaultCountryIso) {
+        return isEmergencyNumberInternal(number,
+                                         defaultCountryIso,
+                                         false /* secondary card */,
+                                         false /* useExactMatch */);
+    }
     /**
      * Helper function for isEmergencyNumber(String, String) and
      * isPotentialEmergencyNumber(String, String).
@@ -1669,6 +1734,7 @@ public class PhoneNumberUtils
      */
     private static boolean isEmergencyNumberInternal(String number,
                                                      String defaultCountryIso,
+                                                     boolean useSlot1,
                                                      boolean useExactMatch) {
         // If the number passed in is null, just return false:
         if (number == null) return false;
@@ -1690,10 +1756,12 @@ public class PhoneNumberUtils
 
         // retrieve the list of emergency numbers
         // check read-write ecclist property first
-        String numbers = SystemProperties.get("ril.ecclist");
+        String numbers = useSlot1 ? SystemProperties.get("ril.ecclist")
+                        : SystemProperties.get("ril.ecclist1");
         if (TextUtils.isEmpty(numbers)) {
             // then read-only ecclist property since old RIL only uses this
-            numbers = SystemProperties.get("ro.ril.ecclist");
+            numbers = useSlot1 ? SystemProperties.get("ro.ril.ecclist")
+                        : SystemProperties.get("ro.ril.ecclist1");
         }
 
         if (!TextUtils.isEmpty(numbers)) {
@@ -1751,9 +1819,19 @@ public class PhoneNumberUtils
     public static boolean isLocalEmergencyNumber(String number, Context context) {
         return isLocalEmergencyNumberInternal(number,
                                               context,
+                                              true /* primary card */,
                                               true /* useExactMatch */);
     }
-
+    /**
+     * same as above, but for SIM 2
+     * @hide
+     */
+    public static boolean isLocalEmergencyNumber2(String number, Context context) {
+        return isLocalEmergencyNumberInternal(number,
+                                              context,
+                                              false /* secondary card */,
+                                              true /* useExactMatch */);
+    }
     /**
      * Checks if a given number might *potentially* result in a call to an
      * emergency service, for the country that the user is in. The current
@@ -1779,9 +1857,19 @@ public class PhoneNumberUtils
     public static boolean isPotentialLocalEmergencyNumber(String number, Context context) {
         return isLocalEmergencyNumberInternal(number,
                                               context,
+                                              true /* primary card */,
                                               false /* useExactMatch */);
     }
-
+    /**
+     * same as above, but for SIM 2
+     * @hide
+     */
+    public static boolean isPotentialLocalEmergencyNumber2(String number, Context context) {
+        return isLocalEmergencyNumberInternal(number,
+                                              context,
+                                              false /* secondary card */,
+                                              false /* useExactMatch */);
+    }
     /**
      * Helper function for isLocalEmergencyNumber() and
      * isPotentialLocalEmergencyNumber().
@@ -1801,6 +1889,7 @@ public class PhoneNumberUtils
      */
     private static boolean isLocalEmergencyNumberInternal(String number,
                                                           Context context,
+                                                          boolean usePrimaryCard,
                                                           boolean useExactMatch) {
         String countryIso;
         CountryDetector detector = (CountryDetector) context.getSystemService(
@@ -1813,7 +1902,7 @@ public class PhoneNumberUtils
             Rlog.w(LOG_TAG, "No CountryDetector; falling back to countryIso based on locale: "
                     + countryIso);
         }
-        return isEmergencyNumberInternal(number, countryIso, useExactMatch);
+        return isEmergencyNumberInternal(number, countryIso, usePrimaryCard, useExactMatch);
     }
 
     /**
@@ -1832,6 +1921,27 @@ public class PhoneNumberUtils
 
         try {
             vmNumber = TelephonyManager.getDefault().getVoiceMailNumber();
+        } catch (SecurityException ex) {
+            return false;
+        }
+        // Strip the separators from the number before comparing it
+        // to the list.
+        number = extractNetworkPortionAlt(number);
+
+        // compare tolerates null so we need to make sure that we
+        // don't return true when both are null.
+        return !TextUtils.isEmpty(number) && compare(number, vmNumber);
+    }
+
+    /**
+     *   Voice mail number for secondary phone.
+     * @hide
+     */
+    public static boolean isVoiceMailNumber2(String number) {
+        String vmNumber;
+
+        try {
+            vmNumber = TelephonyManager.get2ndTm().getVoiceMailNumber();
         } catch (SecurityException ex) {
             return false;
         }

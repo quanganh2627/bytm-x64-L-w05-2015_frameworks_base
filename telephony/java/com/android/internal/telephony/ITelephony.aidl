@@ -17,6 +17,9 @@
 package com.android.internal.telephony;
 
 import android.os.Bundle;
+import android.os.IBinder;
+import java.util.List;
+import android.telephony.NeighboringCellInfo;
 import android.telephony.CellInfo;
 import android.telephony.NeighboringCellInfo;
 
@@ -253,6 +256,15 @@ interface ITelephony {
      int getDataState();
 
     /**
+     * Returns current Dynamic DataSIM policy according to
+     * property of "persist.dynamic-data-sim".
+     * Returns TelephonyManager.DYNAMIC_DATA_SIM_DISABLED if "false",
+     * TelephonyManager.DYNAMIC_DATA_SIM_ENABLED if "true", and
+     * TelephonyManager.DYNAMIC_DATA_SIM_ENABLED_REBOOT if "reboot".
+     */
+    int getDynamicDataSimPolicy();
+
+    /**
      * Returns the current active phone type as integer.
      * Returns TelephonyManager.PHONE_TYPE_CDMA if RILConstants.CDMA_PHONE
      * and TelephonyManager.PHONE_TYPE_GSM if RILConstants.GSM_PHONE
@@ -370,5 +382,24 @@ interface ITelephony {
        * Unregister a callback.
        */
       void removeListener(ITelephonyListener listener);
+    /**      
+     * Return true if the SIM is busy:switching, import or export
+     */
+    boolean isSimBusy();
+
+    /**
+     * Return the current SIM activity
+     */
+    int getSimActivity();
+
+    /**
+     * requrest to start a SIM activity
+     */
+    int requestSimActivity(int activity, in IBinder binder);
+
+    /**
+     * requrest to finish a SIM activity
+     */
+    int stopSimActivity(int activity);
 }
 

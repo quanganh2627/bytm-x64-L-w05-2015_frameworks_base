@@ -1,0 +1,415 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+**
+** Copyright 2012, The Android Open Source Project
+**
+** Licensed under the Apache License, Version 2.0 (the "License")
+** you may not use this file except in compliance with the License.
+** You may obtain a copy of the License at
+**
+**     http://www.apache.org/licenses/LICENSE-2.0
+**
+** Unless required by applicable law or agreed to in writing, software
+** distributed under the License is distributed on an "AS IS" BASIS,
+** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+** See the License for the specific language governing permissions and
+** limitations under the License.
+*/
+-->
+
+<!-- This is the screen that shows the 9 circle unlock widget and instructs
+     the user how to unlock their device, or make an emergency call.  This
+     is the portrait layout.  -->
+<com.android.keyguard.KeyguardDualSimUnlockView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:androidprv="http://schemas.android.com/apk/res/com.android.keyguard"
+    android:id="@+id/keyguard_dual_sim_unlock_view"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    androidprv:layout_maxWidth="@dimen/keyguard_security_width"
+    androidprv:layout_maxHeight="@dimen/keyguard_security_height"
+    android:gravity="center_horizontal"
+    android:contentDescription="@string/dual_sim_settings_title"
+    android:orientation="vertical" >
+
+    <LinearLayout
+        android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:orientation="vertical"
+        android:background="@android:color/transparent"
+        android:layout_gravity="center">
+
+        <include layout="@layout/keyguard_message_area"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            />
+
+        <!-- two card state and unlock keypad -->
+        <LinearLayout
+            android:id="@+id/keyguard_bouncer_frame"
+            android:background="@drawable/kg_bouncer_bg_white"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" >
+
+            <!-- show two card state -->
+            <LinearLayout
+                android:id="@+id/slots_layout"
+                android:layout_width="match_parent"
+                android:layout_height="140dip"
+                android:paddingTop="4dip"
+                android:paddingBottom="4dip"
+                android:gravity="center_horizontal"
+                android:orientation="horizontal">
+
+                <!-- slot1 setting  -->
+                <RelativeLayout
+                    android:id="@+id/slot1_layout"
+                    android:layout_width="120dip"
+                    android:layout_height="match_parent"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:focusable="true"
+                    android:addStatesFromChildren="true" >
+
+                    <ImageView
+                        android:id="@+id/sim_background_1"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:layout_alignParentTop="true"
+                        android:layout_centerHorizontal="true"
+                        android:layout_marginLeft="8dip"
+                        android:layout_marginTop="4dip"
+                        android:layout_marginRight="8dip"
+                        android:layout_marginBottom="4dip"
+                        android:background="@drawable/dual_sim_card_background_1" />
+
+                    <TextView
+                        android:id="@+id/slot1_name"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingLeft="20dip"
+                        android:paddingTop="12dip"
+                        android:text="@string/slot1"
+                        android:textColor="#FFDDDDDD"
+                        android:textAppearance="?android:attr/textAppearanceLarge" />
+
+                    <TextView
+                        android:id="@+id/slot1_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/slot1_name"
+                        android:paddingLeft="20dip"
+                        android:paddingTop="4dip"
+                        android:textSize="14dip"
+                        android:textColor="#FFDDDDDD" />
+
+                    <TextView
+                        android:id="@+id/secure1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignBottom="@id/sim_background_1"
+                        android:layout_alignParentRight="true"
+                        android:paddingRight="20dip"
+                        android:paddingBottom="16dip"
+                        android:textColor="#FFDDDDDD"
+                        android:visibility="invisible"
+                        android:drawableLeft="@android:drawable/ic_secure" />
+
+                </RelativeLayout>
+
+                <!-- slot2 setting  -->
+                <RelativeLayout
+                    android:id="@+id/slot2_layout"
+                    android:layout_width="120dip"
+                    android:layout_height="match_parent"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:focusable="true"
+                    android:addStatesFromChildren="true" >
+
+                    <ImageView
+                        android:id="@+id/sim_background_2"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:layout_alignParentTop="true"
+                        android:layout_centerHorizontal="true"
+                        android:layout_marginLeft="8dip"
+                        android:layout_marginTop="4dip"
+                        android:layout_marginRight="8dip"
+                        android:layout_marginBottom="4dip"
+                        android:background="@drawable/dual_sim_card_background_2"/>
+
+                    <TextView
+                        android:id="@+id/slot2_name"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingLeft="20dip"
+                        android:paddingTop="12dip"
+                        android:text="@string/slot2"
+                        android:textColor="#FFDDDDDD"
+                        android:textAppearance="?android:attr/textAppearanceLarge" />
+
+                    <TextView
+                        android:id="@+id/slot2_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/slot2_name"
+                        android:paddingLeft="20dip"
+                        android:paddingTop="4dip"
+                        android:textSize="14dip"
+                        android:textColor="#FFDDDDDD" />
+
+                    <TextView
+                        android:id="@+id/secure2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignBottom="@id/sim_background_2"
+                        android:layout_alignParentRight="true"
+                        android:paddingRight="20dip"
+                        android:paddingBottom="16dip"
+                        android:textColor="#FFDDDDDD"
+                        android:visibility="invisible"
+                        android:drawableLeft="@android:drawable/ic_secure" />
+
+                </RelativeLayout>
+
+            </LinearLayout> <!-- end show two card state -->
+
+            <!-- show unlock keypad -->
+            <LinearLayout
+                android:id="@+id/keypad_layout"
+                android:layout_width="match_parent"
+                android:layout_height="280dip"
+                android:layout_marginLeft="6dip"
+                android:layout_marginTop="4dip"
+                android:layout_marginRight="6dip"
+                android:orientation="vertical"
+                android:visibility="gone"
+                >
+                <TextView
+                    android:id="@+id/headerText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="?android:attr/textAppearance"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="@dimen/kg_status_line_font_size"
+                    />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:orientation="horizontal"
+                    android:layout_weight="1"
+                    >
+                    <TextView android:id="@+id/dsdsPinEntry"
+                        android:editable="true"
+                        android:layout_width="0dip"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:layout_marginStart="@*android:dimen/keyguard_lockscreen_pin_margin_left"
+                        android:singleLine="true"
+                        android:cursorVisible="false"
+                        android:background="@null"
+                        android:textAppearance="@style/TextAppearance.NumPadKey"
+                        android:imeOptions="flagForceAscii|actionDone"
+                    />
+                    <ImageButton android:id="@+id/delete_button"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:gravity="center_vertical"
+                        android:src="@*android:drawable/ic_input_delete"
+                        android:clickable="true"
+                        android:paddingTop="8dip"
+                        android:paddingBottom="8dip"
+                        android:paddingLeft="24dp"
+                        android:paddingRight="24dp"
+                        android:background="?android:attr/selectableItemBackground"
+                        android:contentDescription="@string/keyboardview_keycode_delete"
+                    />
+                </LinearLayout>
+                <View
+                    android:layout_width="wrap_content"
+                    android:layout_height="1dp"
+                    android:background="#55FFFFFF"
+                />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:orientation="horizontal"
+                    >
+                    <view class="com.android.keyguard.NumPadKey"
+                        android:id="@+id/key1"
+                        style="@style/Widget.Button.NumPadKey"
+                        android:layout_width="0px"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        androidprv:textView="@+id/dsdsPinEntry"
+                        androidprv:digit="1"
+                    />
+                    <view class="com.android.keyguard.NumPadKey"
+                        android:id="@+id/key2"
+                        style="@style/Widget.Button.NumPadKey"
+                        android:layout_width="0px"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        androidprv:textView="@+id/dsdsPinEntry"
+                        androidprv:digit="2"
+                    />
+                    <view class="com.android.keyguard.NumPadKey"
+                        android:id="@+id/key3"
+                        style="@style/Widget.Button.NumPadKey"
+                        android:layout_width="0px"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        androidprv:textView="@+id/dsdsPinEntry"
+                        androidprv:digit="3"
+                    />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:orientation="horizontal"
+                    >
+                    <view class="com.android.keyguard.NumPadKey"
+                        android:id="@+id/key4"
+                        style="@style/Widget.Button.NumPadKey"
+                        android:layout_width="0px"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        androidprv:textView="@+id/dsdsPinEntry"
+                        androidprv:digit="4"
+                    />
+                    <view class="com.android.keyguard.NumPadKey"
+                        android:id="@+id/key5"
+                        style="@style/Widget.Button.NumPadKey"
+                        android:layout_width="0px"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        androidprv:textView="@+id/dsdsPinEntry"
+                        androidprv:digit="5"
+                    />
+                    <view class="com.android.keyguard.NumPadKey"
+                        android:id="@+id/key6"
+                        style="@style/Widget.Button.NumPadKey"
+                        android:layout_width="0px"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        androidprv:textView="@+id/dsdsPinEntry"
+                        androidprv:digit="6"
+                    />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:orientation="horizontal"
+                    android:layout_weight="1"
+                    >
+                    <view class="com.android.keyguard.NumPadKey"
+                        android:id="@+id/key7"
+                        style="@style/Widget.Button.NumPadKey"
+                        android:layout_width="0px"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        androidprv:textView="@+id/dsdsPinEntry"
+                        androidprv:digit="7"
+                    />
+                    <view class="com.android.keyguard.NumPadKey"
+                        android:id="@+id/key8"
+                        style="@style/Widget.Button.NumPadKey"
+                        android:layout_width="0px"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        androidprv:textView="@+id/dsdsPinEntry"
+                        androidprv:digit="8"
+                    />
+                    <view class="com.android.keyguard.NumPadKey"
+                        android:id="@+id/key9"
+                        style="@style/Widget.Button.NumPadKey"
+                        android:layout_width="0px"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        androidprv:textView="@+id/dsdsPinEntry"
+                        androidprv:digit="9"
+                    />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:orientation="horizontal"
+                    >
+                    <Button
+                        android:id="@+id/key_cancel"
+                        style="@style/Widget.Button.NumPadKey"
+                        android:layout_width="0px"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:textSize="14dp"
+                        android:text="@android:string/cancel"
+                    />
+                    <view class="com.android.keyguard.NumPadKey"
+                        android:id="@+id/key0"
+                        style="@style/Widget.Button.NumPadKey"
+                        android:layout_width="0px"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        androidprv:textView="@+id/dsdsPinEntry"
+                        androidprv:digit="0"
+                    />
+                    <ImageButton
+                        android:id="@+id/key_enter"
+                        style="@style/Widget.Button.NumPadKey"
+                        android:layout_width="0px"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:paddingRight="30dp"
+                        android:src="@drawable/sym_keyboard_return_holo"
+                        android:contentDescription="@string/keyboardview_keycode_enter"
+                    />
+                </LinearLayout>
+            </LinearLayout> <!-- end show unlock keypad -->
+
+            <LinearLayout
+                android:id="@+id/info"
+                android:layout_width="match_parent"
+                android:layout_height="120dip"
+                android:orientation="vertical" >
+
+                <Button
+                    android:id="@+id/cont"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_centerHorizontal="true"
+                    android:drawablePadding="2dip"
+                    android:paddingLeft="10dip"
+                    android:paddingRight="10dip"
+                    android:paddingTop="6dip"
+                    android:paddingBottom="6dip"
+                    style="?android:attr/buttonBarButtonStyle"
+                    android:text="@string/lock_continue"
+                    android:textSize="14dip"
+                    android:textColor="#FFDDDDDD"
+                    />
+
+                <View
+                    android:layout_width="wrap_content"
+                    android:layout_height="1dp"
+                    android:background="#55FFFFFF"
+                />
+
+                <include layout="@layout/keyguard_eca"
+                    android:id="@+id/keyguard_selector_fade_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_centerHorizontal="true"
+                    android:layout_marginTop="8dip"
+                    android:orientation="vertical"
+                    />
+
+            </LinearLayout>
+
+        </LinearLayout> <!-- end two card state and unlock keypad -->
+
+    </LinearLayout>
+</com.android.keyguard.KeyguardDualSimUnlockView>

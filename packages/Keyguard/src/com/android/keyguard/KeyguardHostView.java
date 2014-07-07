@@ -30,6 +30,7 @@ import android.appwidget.AppWidgetHost;
 import android.appwidget.AppWidgetHostView;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProviderInfo;
+import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -789,6 +790,9 @@ public class KeyguardHostView extends KeyguardViewBase {
 
                 case SimPin:
                 case SimPuk:
+                case DualSimLock:
+                case UserPinActivity:
+                case UserPukActivity:
                     // Shortcut for SIM PIN/PUK to go to directly to user's security screen or home
                     SecurityMode securityMode = mSecurityModel.getSecurityMode();
                     if (securityMode != SecurityMode.None) {
@@ -979,6 +983,9 @@ public class KeyguardHostView extends KeyguardViewBase {
         boolean fullScreenEnabled = getResources().getBoolean(R.bool.kg_sim_puk_account_full_screen);
         boolean isSimOrAccount = securityMode == SecurityMode.SimPin
                 || securityMode == SecurityMode.SimPuk
+                || securityMode == SecurityMode.DualSimLock
+                || securityMode == SecurityMode.UserPinActivity
+                || securityMode == SecurityMode.UserPukActivity
                 || securityMode == SecurityMode.Account;
         mAppWidgetContainer.setVisibility(
                 isSimOrAccount && fullScreenEnabled ? View.GONE : View.VISIBLE);
@@ -1109,6 +1116,9 @@ public class KeyguardHostView extends KeyguardViewBase {
             case Account: return R.id.keyguard_account_view;
             case SimPin: return R.id.keyguard_sim_pin_view;
             case SimPuk: return R.id.keyguard_sim_puk_view;
+            case DualSimLock: return R.id.keyguard_dual_sim_unlock_view;
+            case UserPinActivity: return R.id.keyguard_user_pin_view;
+            case UserPukActivity: return R.id.keyguard_user_puk_view;
         }
         return 0;
     }
@@ -1123,6 +1133,9 @@ public class KeyguardHostView extends KeyguardViewBase {
             case Account: return R.layout.keyguard_account_view;
             case SimPin: return R.layout.keyguard_sim_pin_view;
             case SimPuk: return R.layout.keyguard_sim_puk_view;
+            case DualSimLock: return R.layout.keyguard_dual_sim_unlock_view;
+            case UserPinActivity: return R.layout.keyguard_user_pin_view;
+            case UserPukActivity: return R.layout.keyguard_user_puk_view;
             default:
                 return 0;
         }

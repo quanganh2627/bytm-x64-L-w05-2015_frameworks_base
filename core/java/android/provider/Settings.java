@@ -2766,6 +2766,9 @@ public final class Settings {
             MOVED_TO_GLOBAL.add(Settings.Global.DOWNLOAD_RECOMMENDED_MAX_BYTES_OVER_MOBILE);
             MOVED_TO_GLOBAL.add(Settings.Global.INSTALL_NON_MARKET_APPS);
             MOVED_TO_GLOBAL.add(Settings.Global.MOBILE_DATA);
+            MOVED_TO_GLOBAL.add(Settings.Global.MOBILE_DATA_SIM);
+            MOVED_TO_GLOBAL.add(Settings.Global.DUAL_SLOT_1_ENABLED);
+            MOVED_TO_GLOBAL.add(Settings.Global.DUAL_SLOT_2_ENABLED);
             MOVED_TO_GLOBAL.add(Settings.Global.NETSTATS_DEV_BUCKET_DURATION);
             MOVED_TO_GLOBAL.add(Settings.Global.NETSTATS_DEV_DELETE_AGE);
             MOVED_TO_GLOBAL.add(Settings.Global.NETSTATS_DEV_PERSIST_BYTES);
@@ -2860,6 +2863,8 @@ public final class Settings {
             MOVED_TO_GLOBAL.add(Settings.Global.SET_GLOBAL_HTTP_PROXY);
             MOVED_TO_GLOBAL.add(Settings.Global.DEFAULT_DNS_SERVER);
             MOVED_TO_GLOBAL.add(Settings.Global.PREFERRED_NETWORK_MODE);
+            MOVED_TO_GLOBAL.add(Settings.Global.PREFERRED_NETWORK2_MODE);
+            MOVED_TO_GLOBAL.add(Settings.Global.GSM_3G_SELECTION_MODE);
         }
 
         /** @hide */
@@ -4915,6 +4920,27 @@ public final class Settings {
         */
        public static final String MOBILE_DATA = "mobile_data";
 
+       /**
+        * Primary Data SIM : SIM_A or SIM_B.  See
+        * ConnectivityManager for more info.
+        * @hide
+        */
+       public static final String MOBILE_DATA_SIM = "mobile_data_sim";
+
+       /**
+        * For dual sim device, slot 1 mode 0 = disabled
+        *                                  1 = enabled
+        * @hide
+        */
+       public static final String DUAL_SLOT_1_ENABLED = "dual_slot_1_eanbled";
+       /**
+        * For dual sim device, slot 2 mode 0 = disabled
+        *                                  1 = enabled
+        * @hide
+        */
+       public static final String DUAL_SLOT_2_ENABLED = "dual_slot_2_eanbled";
+
+
        /** {@hide} */
        public static final String NETSTATS_ENABLED = "netstats_enabled";
        /** {@hide} */
@@ -5714,6 +5740,9 @@ public final class Settings {
         public static final String
                 BLUETOOTH_MAP_PRIORITY_PREFIX = "bluetooth_map_priority_";
 
+        /** {@hide} */
+        public static final String DATA_FOLLOW_SINGLE_SIM = "data_follows_single_sim";
+
         /**
          * Get the key that retrieves a bluetooth headset's priority.
          * @hide
@@ -5812,6 +5841,23 @@ public final class Settings {
                 "preferred_network_mode";
 
         /**
+         * The preferred network mode   7 = Global
+         *                              6 = EvDo only
+         *                              5 = CDMA w/o EvDo
+         *                              4 = CDMA / EvDo auto
+         *                              3 = GSM / WCDMA auto
+         *                              2 = WCDMA only
+         *                              1 = GSM only
+         *                              0 = GSM / WCDMA preferred
+         *
+         * Note: This mode is for the second sim.
+         *
+         * @hide
+         */
+        public static final String PREFERRED_NETWORK2_MODE =
+            "preferred_network2_mode";
+
+        /**
          * Name of an application package to be debugged.
          */
         public static final String DEBUG_APP = "debug_app";
@@ -5842,6 +5888,13 @@ public final class Settings {
          * @hide
          */
         public static final String DOCK_AUDIO_MEDIA_ENABLED = "dock_audio_media_enabled";
+
+        /**
+         * 3g selection mode for dual sim device.
+         * When this mode is enabled, 3g selection will be performed automatically.
+         * @hide
+         */
+        public static final String GSM_3G_SELECTION_MODE = "gsm_3g_selection_mode";
 
         /**
          * Persisted safe headphone volume management state by AudioService

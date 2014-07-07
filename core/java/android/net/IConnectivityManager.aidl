@@ -152,4 +152,10 @@ interface IConnectivityManager
     void setProvisioningNotificationVisible(boolean visible, int networkType, in String extraInfo, in String url);
 
     void setAirplaneMode(boolean enable);
+
+    void enableSimData(boolean enable);
+
+    int getDataSim();
+
+    void setDataSim(int slot);
 }

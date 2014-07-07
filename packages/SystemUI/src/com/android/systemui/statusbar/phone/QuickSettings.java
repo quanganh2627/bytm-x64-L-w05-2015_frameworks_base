@@ -15,7 +15,7 @@
  */
 
 package com.android.systemui.statusbar.phone;
-
+import com.android.internal.telephony.TelephonyConstants;
 import android.animation.ValueAnimator;
 import android.app.ActivityManagerNative;
 import android.app.AlertDialog;
@@ -73,6 +73,7 @@ import com.android.systemui.statusbar.policy.BatteryController;
 import com.android.systemui.statusbar.policy.BluetoothController;
 import com.android.systemui.statusbar.policy.LocationController;
 import com.android.systemui.statusbar.policy.NetworkController;
+import com.android.systemui.statusbar.policy.NetworkControllerDualSIM;
 import com.android.systemui.statusbar.policy.RotationLockController;
 
 import java.util.ArrayList;
@@ -175,6 +176,26 @@ class QuickSettings {
         batteryController.addStateChangedCallback(mModel);
         locationController.addSettingsChangedCallback(mModel);
         rotationLockController.addRotationLockControllerCallback(mModel);
+    }
+
+    void setup(NetworkControllerDualSIM networkController, BluetoothController bluetoothController,
+            BatteryController batteryController, LocationController locationController,
+            RotationLockController rotationLockController) {
+        mBluetoothController = bluetoothController;
+        mRotationLockController = rotationLockController;
+        mLocationController = locationController;
+
+        setupQuickSettings();
+        updateResources();
+        applyLocationEnabledStatus();
+
+        networkController.addNetworkSignalChangedCallback(mModel);
+        networkController.addNetworkSignalChangedCallbackExt(mModel);
+        bluetoothController.addStateChangedCallback(mModel);
+        batteryController.addStateChangedCallback(mModel);
+        locationController.addSettingsChangedCallback(mModel);
+		rotationLockController.addRotationLockControllerCallback(mModel);
+
     }
 
     private void queryForSslCaCerts() {
@@ -443,7 +464,7 @@ class QuickSettings {
                     startSettingsActivity(intent);
                 }
             });
-            mModel.addRSSITile(rssiTile, new NetworkActivityCallback() {
+            mModel.addRSSITile(0, rssiTile, new NetworkActivityCallback() {
                 @Override
                 public void refreshView(QuickSettingsTileView view, State state) {
                     RSSIState rssiState = (RSSIState) state;
@@ -469,6 +490,46 @@ class QuickSettings {
                 }
             });
             parent.addView(rssiTile);
+            if (TelephonyConstants.IS_DSDS) {
+                // 2nd SIM RSSI
+                rssiTile = (QuickSettingsTileView)
+                    inflater.inflate(R.layout.quick_settings_tile, parent, false);
+                rssiTile.setContent(R.layout.quick_settings_tile_rssi_slot2, inflater);
+                rssiTile.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        Intent intent = new Intent();
+                        intent.setComponent(new ComponentName(
+                                "com.android.settings",
+                                "com.android.settings.Settings$DataUsageSummaryActivity"));
+                        intent.putExtra(TelephonyConstants.EXTRA_SLOT,
+                                TelephonyConstants.DSDS_SLOT_2_ID);
+                        startSettingsActivity(intent);
+                    }
+                });
+                mModel.addRSSITile(1, rssiTile, new QuickSettingsModel.RefreshCallback() {
+                    @Override
+                    public void refreshView(QuickSettingsTileView view, State state) {
+                        RSSIState rssiState = (RSSIState) state;
+                        ImageView iv = (ImageView) view.findViewById(R.id.rssi_image2);
+                        ImageView iov = (ImageView) view.findViewById(R.id.rssi_overlay_image2);
+                        TextView tv = (TextView) view.findViewById(R.id.rssi_textview2);
+                        iv.setImageResource(rssiState.signalIconId);
+
+                        if (rssiState.dataTypeIconId > 0) {
+                            iov.setImageResource(rssiState.dataTypeIconId);
+                        } else {
+                            iov.setImageDrawable(null);
+                        }
+                        tv.setText(state.label);
+                        view.setContentDescription(mContext.getResources().getString(
+                                R.string.accessibility_quick_settings_mobile,
+                                rssiState.signalContentDescription, rssiState.dataContentDescription,
+                                state.label));
+                    }
+                });
+                parent.addView(rssiTile);
+            }
         }
 
         // Rotation Lock

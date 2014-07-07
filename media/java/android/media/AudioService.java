@@ -79,6 +79,7 @@ import android.view.VolumePanel;
 import android.view.WindowManager;
 
 import com.android.internal.telephony.ITelephony;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.util.XmlUtils;
 
 import org.xmlpull.v1.XmlPullParserException;
@@ -2631,6 +2632,10 @@ public class AudioService extends IAudioService.Stub {
             try {
                 ITelephony phone = ITelephony.Stub.asInterface(ServiceManager.checkService("phone"));
                 if (phone != null) isOffhook = phone.isOffhook();
+                if (TelephonyConstants.IS_DSDS && !isOffhook) {
+                    ITelephony phone2 = ITelephony.Stub.asInterface(ServiceManager.checkService("phone2"));
+                    if (phone2 != null) isOffhook = phone2.isOffhook();
+                }
             } catch (RemoteException e) {
                 Log.w(TAG, "Couldn't connect to phone service", e);
             }

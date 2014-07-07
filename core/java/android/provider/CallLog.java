@@ -29,6 +29,7 @@ import android.text.TextUtils;
 
 import com.android.internal.telephony.CallerInfo;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.TelephonyConstants;
 
 /**
  * The CallLog provider contains information about placed and received calls.
@@ -129,6 +130,27 @@ public class CallLog {
          * @hide
          */
         public static final int VOICEMAIL_TYPE = 4;
+
+        /**
+         * Call log type for SIM B incoming calls.
+         * @hide
+         */
+        public static final int INCOMING_TYPE_2 = 5;
+        /**
+         *Call log type for SIM B outgoing calls.
+         * @hide
+         */
+        public static final int OUTGOING_TYPE_2 = 6;
+        /**
+         * Call log type for SIM B missed calls.
+         * @hide
+         */
+        public static final int MISSED_TYPE_2 = 7;
+        /**
+         * Call log type for SIM B voicemails.
+         * @hide
+         */
+        public static final int VOICEMAIL_TYPE_2 = 8;
 
         /**
          * The phone number as the user entered it.
@@ -287,6 +309,14 @@ public class CallLog {
         public static final String CACHED_FORMATTED_NUMBER = "formatted_number";
 
         /**
+         * The imsi of the sim card.
+         * This value is guaranteed to be present.
+         * <P>Type: TEXT</P>
+         * @hide
+         */
+        public static final String IMSI = "imsi";
+
+        /**
          * Adds a call to the call log.
          *
          * @param ci the CallerInfo object to get the target contact from.  Can be null
@@ -304,6 +334,17 @@ public class CallLog {
          */
         public static Uri addCall(CallerInfo ci, Context context, String number,
                 int presentation, int callType, long start, int duration) {
+            return addCall(ci, context, number, presentation, callType, start, duration, null);
+        }
+
+        /**
+         * Adds a call to the call log with imsi number.
+         * This is for DSDS case only but keep in single sim too
+         *
+         * {@hide}
+         */
+         public static Uri addCall(CallerInfo ci, Context context, String number,
+                 int presentation, int callType, long start, int duration, String imsi) {
             final ContentResolver resolver = context.getContentResolver();
             int numberPresentation = PRESENTATION_ALLOWED;
 
@@ -385,6 +426,10 @@ public class CallLog {
                         cursor.close();
                     }
                 }
+            }
+
+            if (TelephonyConstants.IS_DSDS) {
+                if (!TextUtils.isEmpty(imsi)) values.put(IMSI, imsi);
             }
 
             Uri result = resolver.insert(CONTENT_URI, values);

@@ -53,7 +53,10 @@ class KeyguardUpdateMonitorCallback {
      *   be displayed.
      * @param spn The service provider name.  May be null if it shouldn't be displayed.
      */
-    void onRefreshCarrierInfo(CharSequence plmn, CharSequence spn) { }
+    void onRefreshCarrierInfo(CharSequence plmn, CharSequence spn) {
+        onRefreshCarrierInfo(plmn, spn, 0);
+    }
+    void onRefreshCarrierInfo(CharSequence plmn, CharSequence spn, int slot) { }
 
     /**
      * Called when the ringer mode changes.
@@ -117,7 +120,11 @@ class KeyguardUpdateMonitorCallback {
      * @param simState
      */
     void onSimStateChanged(IccCardConstants.State simState) { }
-
+    /**
+     * Called when the SIM state changes on SIM 2.
+     * @param simState
+     */
+    void onSim2StateChanged(IccCardConstants.State simState) { }
     /**
      * Called when a user is removed.
      */

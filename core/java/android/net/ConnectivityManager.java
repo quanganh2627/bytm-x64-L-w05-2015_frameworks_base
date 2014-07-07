@@ -28,6 +28,8 @@ import android.os.RemoteException;
 import android.os.ResultReceiver;
 import android.provider.Settings;
 
+import com.android.internal.telephony.TelephonyConstants;
+
 import java.net.InetAddress;
 
 /**
@@ -361,11 +363,21 @@ public class ConnectivityManager {
      */
     public static final int TYPE_MOBILE_IA = 14;
 
+    /**
+     * TYPE_MOBILE2_MMS: MMS-specific Mobile data connection on non-data sim.  This connection
+     * is dedicated to use on non-primary data sim. This is used
+     * by applications needing to talk to the carrier's Multimedia Messaging
+     * Service servers.
+     * {@hide}
+     */
+    public static final int TYPE_MOBILE2_MMS = 15;
     /** {@hide} */
-    public static final int MAX_RADIO_TYPE   = TYPE_MOBILE_IA;
+    public static final int MAX_RADIO_TYPE   = TelephonyConstants.IS_DSDS
+                                                  ? TYPE_MOBILE2_MMS : TYPE_MOBILE_IA;
 
     /** {@hide} */
-    public static final int MAX_NETWORK_TYPE = TYPE_MOBILE_IA;
+    public static final int MAX_NETWORK_TYPE = TelephonyConstants.IS_DSDS
+                                                  ? TYPE_MOBILE2_MMS : TYPE_MOBILE_IA;
 
     /**
      * If you want to set the default network preference,you can directly
@@ -380,6 +392,19 @@ public class ConnectivityManager {
      */
     @Deprecated
     public static final int DEFAULT_NETWORK_PREFERENCE = TYPE_WIFI;
+
+
+    /**
+     * Mobile data network using slot A
+     * {@hide}
+     */
+    public static final int MOBILE_DATA_NETWORK_SLOT_A = 0;
+
+    /**
+     * Mobile data network using slot B
+     * {@hide}
+     */
+    public static final int MOBILE_DATA_NETWORK_SLOT_B = 1;
 
     /**
      * Default value for {@link Settings.Global#CONNECTIVITY_CHANGE_DELAY} in
@@ -446,6 +471,8 @@ public class ConnectivityManager {
                 return "WIFI_P2P";
             case TYPE_MOBILE_IA:
                 return "MOBILE_IA";
+            case TYPE_MOBILE2_MMS:
+                return "MOBILE2_MMS";
             default:
                 return Integer.toString(type);
         }
@@ -469,6 +496,27 @@ public class ConnectivityManager {
             case TYPE_MOBILE_IMS:
             case TYPE_MOBILE_CBS:
             case TYPE_MOBILE_IA:
+            case TYPE_MOBILE2_MMS:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /** {@hide} */
+    public static boolean isNetworkTypeOnSim2(int networkType) {
+        switch (networkType) {
+            case TYPE_MOBILE2_MMS:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /** {@hide} */
+    public static boolean isNetworkTypeOnNonDataSim(int networkType) {
+        switch (networkType) {
+            case TYPE_MOBILE2_MMS:
                 return true;
             default:
                 return false;
@@ -1494,5 +1542,44 @@ public class ConnectivityManager {
             mService.setAirplaneMode(enable);
         } catch (RemoteException e) {
         }
+    }
+    /**
+     * Switch data functionality on two SIM.  This function is mainly
+     * used for MMS on non-data SIM.
+     *
+     * @param enabled Boolean - true enable data on data SIM, false enable
+     * data on non-data SIM
+     * @hide
+     */
+    public void enableSimData(boolean enabled) {
+        try {
+            mService.enableSimData(enabled);
+        } catch (RemoteException e) {}
+    }
+
+
+    /**
+     * Get the Data SIM ID
+     *
+     * @return Data SIM ID index
+     * @hide
+     */
+    public int getDataSim() {
+        try {
+            return mService.getDataSim();
+        } catch (RemoteException e) {
+            return MOBILE_DATA_NETWORK_SLOT_A;
+        }
+    }
+
+    /**
+     * Set the Data SIM ID
+     *
+     * {@hide}
+     */
+    public void setDataSim(int slot) {
+        try {
+            mService.setDataSim(slot);
+        } catch (RemoteException e) {}
     }
 }

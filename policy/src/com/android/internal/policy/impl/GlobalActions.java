@@ -21,7 +21,7 @@ import com.android.internal.app.AlertController.AlertParams;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.telephony.TelephonyProperties;
 import com.android.internal.R;
-
+import com.android.internal.telephony.TelephonyConstants;
 import android.app.ActivityManagerNative;
 import android.app.AlertDialog;
 import android.app.Dialog;
@@ -125,6 +125,11 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
         TelephonyManager telephonyManager =
                 (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
         telephonyManager.listen(mPhoneStateListener, PhoneStateListener.LISTEN_SERVICE_STATE);
+        if (TelephonyConstants.IS_DSDS) {
+            TelephonyManager tm2 =
+                (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE2);
+            tm2.listen(mPhoneStateListener, PhoneStateListener.LISTEN_SERVICE_STATE);
+        }		
         ConnectivityManager cm = (ConnectivityManager)
                 context.getSystemService(Context.CONNECTIVITY_SERVICE);
         mHasTelephony = cm.isNetworkSupported(ConnectivityManager.TYPE_MOBILE);
@@ -397,8 +402,20 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
         }
     }
 
+    private void updateAirplaneState() {
+        if (!TelephonyConstants.IS_DSDS) {
+            return;
+        }
+        // FOR DSDS's SIM OFF, Service state changed may not be triggered when SIM is
+        // OFF, we always update it from settings.
+        final boolean inAirplaneMode = isAirplaneModeOn(null);
+        mAirplaneState = inAirplaneMode ?
+            ToggleAction.State.On : ToggleAction.State.Off;
+    }
+
     private void prepareDialog() {
         refreshSilentMode();
+		updateAirplaneState();
         mAirplaneModeOn.updateState(mAirplaneState);
         mAdapter.notifyDataSetChanged();
         mDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG);
@@ -849,11 +866,20 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
         }
     };
 
+    boolean isAirplaneModeOn(ServiceState serviceState) {
+        if (!TelephonyConstants.IS_DSDS) {
+            return serviceState.getState() == ServiceState.STATE_POWER_OFF;
+        }
+        return (Settings.Global.getInt(mContext.getContentResolver(),
+                Settings.Global.AIRPLANE_MODE_ON, 0) > 0);
+    }
+
+
     PhoneStateListener mPhoneStateListener = new PhoneStateListener() {
         @Override
         public void onServiceStateChanged(ServiceState serviceState) {
             if (!mHasTelephony) return;
-            final boolean inAirplaneMode = serviceState.getState() == ServiceState.STATE_POWER_OFF;
+            final boolean inAirplaneMode = isAirplaneModeOn(serviceState);
             mAirplaneState = inAirplaneMode ? ToggleAction.State.On : ToggleAction.State.Off;
             mAirplaneModeOn.updateState(mAirplaneState);
             mAdapter.notifyDataSetChanged();
@@ -879,7 +905,9 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
     private static final int MESSAGE_DISMISS = 0;
     private static final int MESSAGE_REFRESH = 1;
     private static final int MESSAGE_SHOW = 2;
+    private static final int MESSAGE_REFRESH_FLIGHT_MODE = 3;
     private static final int DIALOG_DISMISS_DELAY = 300; // ms
+    private static final int REFRESH_FLIGHT_MODE_DELAY = 300; // ms
 
     private Handler mHandler = new Handler() {
         public void handleMessage(Message msg) {
@@ -895,6 +923,12 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
                 break;
             case MESSAGE_SHOW:
                 handleShow();
+                break;
+            case MESSAGE_REFRESH_FLIGHT_MODE:
+                final boolean inAirplaneMode = isAirplaneModeOn(null);
+                mAirplaneState = inAirplaneMode ? ToggleAction.State.On : ToggleAction.State.Off;
+                mAirplaneModeOn.updateState(mAirplaneState);
+                mAdapter.notifyDataSetChanged();
                 break;
             }
         }
@@ -926,6 +960,10 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
         mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
         if (!mHasTelephony) {
             mAirplaneState = on ? ToggleAction.State.On : ToggleAction.State.Off;
+        }
+        // IN DSDS, service state changed may not be triggered when "SIM OFF"
+        if (TelephonyConstants.IS_DSDS) {
+            mHandler.sendEmptyMessageDelayed(MESSAGE_REFRESH_FLIGHT_MODE, REFRESH_FLIGHT_MODE_DELAY);
         }
     }
 

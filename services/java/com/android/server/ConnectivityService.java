@@ -115,6 +115,7 @@ import com.android.internal.net.VpnProfile;
 import com.android.internal.telephony.DctConstants;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.util.IndentingPrintWriter;
 import com.android.internal.util.XmlUtils;
 import com.android.server.am.BatteryStatsService;
@@ -367,6 +368,20 @@ public class ConnectivityService extends IConnectivityManager.Stub {
      */
     private static final int EVENT_PROXY_HAS_CHANGED = 16;
 
+
+    /**
+     * Used internally to set PDP on non-data sim
+     * arg1 = NetworkType current only support mms
+     * arg2 = force3G
+     */
+    private static final int EVENT_CREATE_PDP_ON_NON_DATA_SIM = 17;
+
+    /**
+     * used internally to set primary data sim
+     * arg1 = slot id
+     */
+    private static final int EVENT_SET_DATA_SIM = 19;
+	
     /** Handler used for internal events. */
     private InternalHandler mHandler;
     /** Handler used for incoming {@link NetworkStateTracker} events. */
@@ -430,7 +445,8 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         }
     }
     RadioAttributes[] mRadioAttributes;
-
+    // used to check whether data on data SIM is enabled or not
+    boolean mSimDataEnabled = true;
     // the set of network types that can only be enabled by system/sig apps
     List mProtectedNetworks;
 
@@ -532,6 +548,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         boolean wifiOnly = SystemProperties.getBoolean("ro.radio.noril", false);
         log("wifiOnly=" + wifiOnly);
         String[] naStrings = context.getResources().getStringArray(
+                TelephonyConstants.IS_DSDS ? com.android.internal.R.array.networkAttributes_dsds :
                 com.android.internal.R.array.networkAttributes);
         for (String naString : naStrings) {
             try {
@@ -642,6 +659,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             if (config.isDefault()) {
                 tracker.reconnect();
             }
+        }
+
+        if (TelephonyConstants.IS_DSDS) {
+            updateDataSim();
         }
 
         mTethering = new Tethering(mContext, mNetd, statsService, this, mHandler.getLooper());
@@ -1289,6 +1310,11 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 enforceConnectivityInternalPermission();
             }
 
+            if (ConnectivityManager.isNetworkTypeOnNonDataSim(usedNetworkType) == mSimDataEnabled) {
+                if (DBG) log("Data on requested type is disabled.");
+                return PhoneConstants.APN_TYPE_NOT_AVAILABLE;
+            }
+
             // if UID is restricted, don't allow them to bring up metered APNs
             final boolean networkMetered = isNetworkMeteredUnchecked(usedNetworkType);
             final int uidRules;
@@ -1366,16 +1392,33 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                     // check if the radio in play can make another contact
                     // assume if cannot for now
 
-                    if (DBG) {
-                        log("startUsingNetworkFeature reconnecting to " + networkType + ": " +
-                                feature);
+                    boolean delay = false;
+                    boolean requestOnNonDataSim = ConnectivityManager.isNetworkTypeOnNonDataSim(usedNetworkType);
+                    int dataSimId = getDataSim();
+                    if (requestOnNonDataSim && hasConnectedNetworkOnSimSlot(dataSimId)) {
+                        delay = true;
+                    } else if (!requestOnNonDataSim && hasConnectedNetworkOnSimSlot(1 - dataSimId)) {
+                        delay = true;
                     }
-                    if (network.reconnect()) {
-                        if (DBG) log("startUsingNetworkFeature X: return APN_REQUEST_STARTED");
-                        return PhoneConstants.APN_REQUEST_STARTED;
-                    } else {
-                        if (DBG) log("startUsingNetworkFeature X: return APN_REQUEST_FAILED");
-                        return PhoneConstants.APN_REQUEST_FAILED;
+                    if (!delay) {
+						if (DBG) {
+							log("startUsingNetworkFeature reconnecting to " + networkType + ": " +
+									feature);
+						}
+						if (network.reconnect()) {
+							if (DBG) log("startUsingNetworkFeature X: return APN_REQUEST_STARTED");
+							return PhoneConstants.APN_REQUEST_STARTED;
+						} else {
+							if (DBG) log("startUsingNetworkFeature X: return APN_REQUEST_FAILED");
+							return PhoneConstants.APN_REQUEST_FAILED;
+						}
+					}else {
+                        if (DBG) {
+                            log("delay startUsingNetworkFeature as usedNetworkType:" + usedNetworkType);
+                        }
+                        mHandler.sendMessageDelayed(
+                                mHandler.obtainMessage(EVENT_CREATE_PDP_ON_NON_DATA_SIM, network), 1000);
+						return PhoneConstants.APN_REQUEST_STARTED;
                     }
                 } else {
                     // need to remember this unsupported request so we respond appropriately on stop
@@ -1527,6 +1570,13 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 log("stopUsingNetworkFeature: teardown net " + networkType + ": " + feature);
             }
             tracker.teardown();
+
+            int usedNetworkType = convertFeatureToNetworkType(networkType, feature);
+            if (TelephonyConstants.IS_DSDS && !mSimDataEnabled &&
+                    usedNetworkType == ConnectivityManager.TYPE_MOBILE2_MMS) {
+                enableSimData(true);
+            }
+
             return 1;
         } else {
             return -1;
@@ -1898,6 +1948,14 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             }
             mNetTrackers[ConnectivityManager.TYPE_MOBILE].setUserDataEnable(enabled);
         }
+
+        if (TelephonyConstants.IS_DSDS && mNetTrackers[ConnectivityManager.TYPE_MOBILE2_MMS] != null) {
+            if (VDBG) {
+                log(mNetTrackers[ConnectivityManager.TYPE_MOBILE2_MMS].toString() + enabled);
+            }
+            mNetTrackers[ConnectivityManager.TYPE_MOBILE2_MMS].setUserDataEnable(enabled);
+        }
+
         if (mNetTrackers[ConnectivityManager.TYPE_WIMAX] != null) {
             if (VDBG) {
                 log(mNetTrackers[ConnectivityManager.TYPE_WIMAX].toString() + enabled);
@@ -1963,6 +2021,39 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         mContext.enforceCallingOrSelfPermission(
                 android.Manifest.permission.MARK_NETWORK_SOCKET,
                 "ConnectivityService");
+    }
+
+    /**
+     * Handle a {@code SUSPENDED} event. Send out the broadcast
+     * of connection state change.
+     * @param info the {@code NetworkInfo} for the network
+     */
+    private void handleSuspended(NetworkInfo info) {
+        if (info == null)
+            return;
+
+        int netType = info.getType();
+
+        Intent intent = new Intent(ConnectivityManager.CONNECTIVITY_ACTION);
+        if (intent != null) {
+            intent.putExtra(ConnectivityManager.EXTRA_NETWORK_INFO, info);
+
+            if (info.getReason() != null) {
+                intent.putExtra(ConnectivityManager.EXTRA_REASON, info.getReason());
+            }
+
+            if (info.getExtraInfo() != null) {
+                intent.putExtra(ConnectivityManager.EXTRA_EXTRA_INFO,
+                        info.getExtraInfo());
+            }
+            sendStickyBroadcastDelayed(intent, getConnectivityChangeDelay());
+
+            final Intent immediateIntent = new Intent(intent);
+            if (immediateIntent != null) {
+                immediateIntent.setAction(CONNECTIVITY_ACTION_IMMEDIATE);
+                sendStickyBroadcast(immediateIntent);
+            }
+        }
     }
 
     /**
@@ -3081,14 +3172,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                     } else if (state == NetworkInfo.State.DISCONNECTED) {
                         handleDisconnect(info);
                     } else if (state == NetworkInfo.State.SUSPENDED) {
-                        // TODO: need to think this over.
-                        // the logic here is, handle SUSPENDED the same as
-                        // DISCONNECTED. The only difference being we are
-                        // broadcasting an intent with NetworkInfo that's
-                        // suspended. This allows the applications an
-                        // opportunity to handle DISCONNECTED and SUSPENDED
-                        // differently, or not.
-                        handleDisconnect(info);
+                        handleSuspended(info);
                     } else if (state == NetworkInfo.State.CONNECTED) {
                         handleConnect(info);
                     }
@@ -3211,6 +3295,17 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 }
                 case EVENT_PROXY_HAS_CHANGED: {
                     handleApplyDefaultProxy((ProxyProperties)msg.obj);
+                    break;
+                }
+                case EVENT_CREATE_PDP_ON_NON_DATA_SIM: {
+                    NetworkStateTracker network = (NetworkStateTracker)msg.obj;
+                    handleCreatePdpOnNonDataSim(network);
+                    break;
+                }
+                case EVENT_SET_DATA_SIM:
+                {
+                    int slot = msg.arg1;
+                    handleSetDataSim(slot);
                     break;
                 }
             }
@@ -3631,7 +3726,9 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 usedNetworkType = ConnectivityManager.TYPE_MOBILE_IMS;
             } else if (TextUtils.equals(feature, Phone.FEATURE_ENABLE_CBS)) {
                 usedNetworkType = ConnectivityManager.TYPE_MOBILE_CBS;
-            } else {
+            }  else if (TextUtils.equals(feature, Phone.FEATURE_ENABLE_MMS2)) {
+                usedNetworkType = ConnectivityManager.TYPE_MOBILE2_MMS;
+            }else {
                 Slog.e(TAG, "Can't match any mobile netTracker!");
             }
         } else if (networkType == ConnectivityManager.TYPE_WIFI) {
@@ -5025,5 +5122,116 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     void setAlarm(int timeoutInMilliseconds, PendingIntent intent) {
         long wakeupTime = SystemClock.elapsedRealtime() + timeoutInMilliseconds;
         mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, wakeupTime, intent);
+    }
+    /*
+     * We handle this request directly.
+     */
+    public void enableSimData(boolean enabled) {
+        if (mSimDataEnabled == enabled) {
+            return;
+        }
+
+        if (DBG) Slog.d(TAG, "mSimDataEnabled changed to: " + enabled);
+        mSimDataEnabled = enabled;
+        int dataSimId = getDataSim();
+        if (mNetTrackers[ConnectivityManager.TYPE_MOBILE] != null) {
+            if (VDBG) {
+                log(mNetTrackers[ConnectivityManager.TYPE_MOBILE].toString() + enabled);
+            }
+            MobileDataStateTracker mdst = (MobileDataStateTracker) mNetTrackers[ConnectivityManager.TYPE_MOBILE];
+            mdst.setSimDataEnabled(dataSimId, enabled);
+        }
+
+        if (mNetTrackers[ConnectivityManager.TYPE_MOBILE2_MMS] != null) {
+            if (VDBG) {
+                log(mNetTrackers[ConnectivityManager.TYPE_MOBILE2_MMS].toString() + !enabled);
+            }
+            MobileDataStateTracker mdst = (MobileDataStateTracker) mNetTrackers[ConnectivityManager.TYPE_MOBILE2_MMS];
+            mdst.setSimDataEnabled(1 - dataSimId, !enabled);
+        }
+    }
+
+    private boolean hasConnectedNetworkOnSimSlot(int slot) {
+        int dataSimId = getDataSim();
+        for (NetworkStateTracker nst : mNetTrackers) {
+            if (nst != null) {
+                NetworkInfo nif = nst.getNetworkInfo();
+                if (ConnectivityManager.isNetworkTypeMobile(nif.getType()) &&
+                        nif.isConnected() &&
+                        ((slot == dataSimId &&
+                        !ConnectivityManager.isNetworkTypeOnNonDataSim(nif.getType())) ||
+                        (slot != dataSimId &&
+                        ConnectivityManager.isNetworkTypeOnNonDataSim(nif.getType())))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void handleCreatePdpOnNonDataSim(NetworkStateTracker network) {
+        boolean delay = false;
+        int dataSimId = getDataSim();
+        NetworkInfo nif = network.getNetworkInfo();
+        boolean requestOnNonDataSim = ConnectivityManager.isNetworkTypeOnNonDataSim(nif.getType());
+        if (requestOnNonDataSim && hasConnectedNetworkOnSimSlot(dataSimId)) {
+            delay = true;
+        } else if (!requestOnNonDataSim && hasConnectedNetworkOnSimSlot(1 - dataSimId)) {
+            delay = true;
+        }
+
+        if (!delay) {
+            network.reconnect();
+        } else {
+            mHandler.sendMessageDelayed(
+                mHandler.obtainMessage(EVENT_CREATE_PDP_ON_NON_DATA_SIM, network), 1000);
+        }
+    }
+
+    /*
+    * @see ConnectivityManager#getDataSim()
+    **/
+    public int getDataSim() {
+        enforceAccessPermission();
+
+        int retVal = Settings.Global.getInt(mContext.getContentResolver(),
+                Settings.Global.MOBILE_DATA_SIM, 0);
+
+        return retVal;
+    }
+
+    /*
+    * @see ConnectivityManager#getDataSim()
+    **/
+    public void setDataSim(int slot) {
+        enforceAccessPermission();
+
+        if (slot == getDataSim()) {
+            if (DBG) Slog.d(TAG, "setDataSim: No Data Sim changed, just return");
+            return;
+        }
+
+        if (DBG) Slog.d(TAG, "setDataSim: Reset mSimDataEnabled");
+        mSimDataEnabled = true;
+
+        mHandler.sendMessage(mHandler.obtainMessage(EVENT_SET_DATA_SIM,
+                slot, 0));
+    }
+
+    private void handleSetDataSim(int slot) {
+        for (int i = 0; i < mNetTrackers.length; i++) {
+            if (mNetTrackers[i] != null && mNetConfigs[i].radio == ConnectivityManager.TYPE_MOBILE) {
+                ((MobileDataStateTracker)mNetTrackers[i]).setDataSim(slot);
+            }
+        }
+
+    }
+
+    private void updateDataSim() {
+        for (int i = 0; i < mNetTrackers.length; i++) {
+            if (mNetTrackers[i] != null && mNetConfigs[i].radio == ConnectivityManager.TYPE_MOBILE) {
+                ((MobileDataStateTracker)mNetTrackers[i]).updateDataSim(getDataSim());
+            }
+        }
     }
 }

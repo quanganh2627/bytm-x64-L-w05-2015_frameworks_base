@@ -97,7 +97,9 @@ public class DctConstants {
     public static final int CMD_ENABLE_MOBILE_PROVISIONING = BASE + 37;
     public static final int CMD_IS_PROVISIONING_APN = BASE + 38;
     public static final int EVENT_PROVISIONING_APN_ALARM = BASE + 39;
-
+    public static final int CMD_SET_SIM_DATA_ENABLED  = BASE + 41;
+    public static final int CMD_SET_DATA_SIM  = BASE + 42;
+    public static final int EVENT_PEER_DISCONNECTED  = BASE + 43;
     /***** Constants *****/
 
     public static final int APN_INVALID_ID = -1;

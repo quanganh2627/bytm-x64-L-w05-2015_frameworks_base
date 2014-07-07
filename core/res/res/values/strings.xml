@@ -2369,7 +2369,8 @@
     <string name="lockscreen_sim_puk_locked_message">SIM card is PUK-locked.</string>
     <!-- Shown in the lock screen when the SIM has become PUK locked and the user must call customer care to unlock it. -->
     <string name="lockscreen_sim_puk_locked_instructions">See the User Guide or contact Customer Care.</string>
-
+    <string name="invalid_sim_puk_hint">PUK code should be 8 numbers or more.</string>
+	
     <!-- Shown in the lock screen to tell the user that their SIM is locked and they must unlock it. -->
     <string name="lockscreen_sim_locked_message">SIM card is locked.</string>
 
@@ -3985,6 +3986,8 @@
 
     <!-- Notification title when data usage has exceeded warning threshold. [CHAR LIMIT=32] -->
     <string name="data_usage_warning_title">Data usage warning</string>
+    <string name="data_usage_warning_title_sim1">Data usage warning on SIM 1</string>
+    <string name="data_usage_warning_title_sim2">Data usage warning on SIM 2</string>
     <!-- Notification body when data usage has exceeded warning threshold. [CHAR LIMIT=32] -->
     <string name="data_usage_warning_body">Touch to view usage and settings.</string>
 
@@ -3994,6 +3997,8 @@
     <string name="data_usage_4g_limit_title">4G data disabled</string>
     <!-- Notification title when mobile data usage has exceeded limit threshold, and has been disabled. [CHAR LIMIT=32] -->
     <string name="data_usage_mobile_limit_title">Mobile data disabled</string>
+    <string name="data_usage_mobile_limit_title_sim1">Mobile data disabled on SIM 1</string>
+    <string name="data_usage_mobile_limit_title_sim2">Mobile data disabled on SIM 2</string>
     <!-- Notification title when Wi-Fi data usage has exceeded limit threshold, and has been disabled. [CHAR LIMIT=32] -->
     <string name="data_usage_wifi_limit_title">Wi-Fi data disabled</string>
     <!-- Notification body when data usage has exceeded limit threshold, and has been disabled. [CHAR LIMIT=32] -->
@@ -4005,6 +4010,8 @@
     <string name="data_usage_4g_limit_snoozed_title">4G data limit exceeded</string>
     <!-- Notification title when mobile data usage has exceeded limit threshold. [CHAR LIMIT=32] -->
     <string name="data_usage_mobile_limit_snoozed_title">Mobile data limit exceeded</string>
+    <string name="data_usage_mobile_limit_snoozed_title_sim1">SIM 1 mobile data limit exceeded</string>
+    <string name="data_usage_mobile_limit_snoozed_title_sim2">SIM 2 mobile data limit exceeded</string>
     <!-- Notification title when Wi-Fi data usage has exceeded limit threshold. [CHAR LIMIT=32] -->
     <string name="data_usage_wifi_limit_snoozed_title">Wi-Fi data limit exceeded</string>
     <!-- Notification body when data usage has exceeded limit threshold. [CHAR LIMIT=32] -->
@@ -4495,6 +4502,26 @@
     <!-- Message for the notification that a print service was installed. [CHAR LIMIT=50] -->
     <string name="print_service_installed_message">Tap to enable</string>
 
+    <!-- Dual SIM unlock screen -->
+    <string name="slot1">SIM 1</string>
+    <string name="slot2">SIM 2</string>
+    <string name="lock_continue">Continue</string>
+    <string name="unlock_cards">Unlock SIM</string>
+    <string name="card_off">SIM off</string>
+    <string name="card_absent">No SIM</string>
+    <string name="card_available">Available</string>
+    <string name="card_pin_locked">PIN locked</string>
+    <string name="card_puk_locked">PUK locked</string>
+    <string name="card_net_locked">Network locked</string>
+    <string name="card_unknown">Unknown</string>
+    <string name="no_card_or_invalid_card">No card</string>
+    <string name="gsm_available">GSM available</string>
+    <string name="lockscreen_no_card">(No SIM)</string>
+    <string name="lockscreen_pin_locked">SIM is locked</string>
+    <string name="lockscreen_puk_locked">SIM is PUK-locked</string>
+    <string name="lockscreen_perm_locked">SIM is permanently locked</string>
+    <string name="pin_puk_retry_left">"(%d times left)"</string>
+
     <!-- PIN entry dialog title for entering the administrator PIN [CHAR LIMIT=none] -->
     <string name="restr_pin_enter_admin_pin">Enter administrator PIN</string>
     <!-- PIN entry dialog label/hint for PIN [CHAR LIMIT=none] -->
@@ -4524,5 +4551,6 @@
 
     <!-- Cling help message when hiding the navigation bar entering immersive mode [CHAR LIMIT=none] -->
     <string name="immersive_mode_confirmation" msgid="8554991488096662508">Swipe down from the top to exit full screen.</string>
-
+    <string name="dual_sim_settings_title">"Dual SIM Selector"</string>
+    <string name="config_during_poweron_title">"Select SIMs on boot"</string>
 </resources>

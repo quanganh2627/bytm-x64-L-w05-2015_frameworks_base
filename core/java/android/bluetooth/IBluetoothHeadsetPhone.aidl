@@ -36,4 +36,6 @@ interface IBluetoothHeadsetPhone {
   void updateBtHandsfreeAfterRadioTechnologyChange();
   void cdmaSwapSecondCallState();
   void cdmaSetSecondCallState(boolean state);
+  //add for dsds
+  int getActivePhoneId();
 }

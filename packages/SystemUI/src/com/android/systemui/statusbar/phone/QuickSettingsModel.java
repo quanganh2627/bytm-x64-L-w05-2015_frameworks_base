@@ -41,12 +41,14 @@ import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.view.inputmethod.InputMethodSubtype;
 
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.systemui.R;
 import com.android.systemui.settings.BrightnessController.BrightnessStateChangeCallback;
 import com.android.systemui.settings.CurrentUserTracker;
 import com.android.systemui.statusbar.policy.BatteryController.BatteryStateChangeCallback;
 import com.android.systemui.statusbar.policy.LocationController.LocationSettingsChangeCallback;
 import com.android.systemui.statusbar.policy.NetworkController.NetworkSignalChangedCallback;
+import com.android.systemui.statusbar.policy.NetworkControllerDualSIM.NetworkSignalChangedCallbackExt;
 import com.android.systemui.statusbar.policy.RotationLockController;
 import com.android.systemui.statusbar.policy.RotationLockController.RotationLockControllerCallback;
 
@@ -54,6 +56,7 @@ import java.util.List;
 
 class QuickSettingsModel implements BluetoothStateChangeCallback,
         NetworkSignalChangedCallback,
+		NetworkSignalChangedCallbackExt,
         BatteryStateChangeCallback,
         BrightnessStateChangeCallback,
         RotationLockControllerCallback,
@@ -263,6 +266,11 @@ class QuickSettingsModel implements BluetoothStateChangeCallback,
     private RefreshCallback mRSSICallback;
     private RSSIState mRSSIState = new RSSIState();
 
+    // for second SIM
+    private QuickSettingsTileView mRSSITile2;
+    private RefreshCallback mRSSICallback2;
+    private RSSIState mRSSIState2 = new RSSIState();
+	
     private QuickSettingsTileView mBluetoothTile;
     private RefreshCallback mBluetoothCallback;
     private BluetoothState mBluetoothState = new BluetoothState();
@@ -503,10 +511,18 @@ class QuickSettingsModel implements BluetoothStateChangeCallback,
     }
 
     // RSSI
-    void addRSSITile(QuickSettingsTileView view, RefreshCallback cb) {
-        mRSSITile = view;
-        mRSSICallback = cb;
-        mRSSICallback.refreshView(mRSSITile, mRSSIState);
+    void addRSSITile(int slot, QuickSettingsTileView view, RefreshCallback cb) {
+
+        if (slot == 0) {
+            mRSSITile = view;
+            mRSSICallback = cb;
+            mRSSICallback.refreshView(mRSSITile, mRSSIState);
+        } else {
+            // caller should make sure this function is called only for DSDS
+            mRSSITile2 = view;
+            mRSSICallback2 = cb;
+            mRSSICallback2.refreshView(mRSSITile2, mRSSIState2);
+        }
     }
     // NetworkSignalChanged callback
     @Override
@@ -514,27 +530,50 @@ class QuickSettingsModel implements BluetoothStateChangeCallback,
             boolean enabled, int mobileSignalIconId, String signalContentDescription,
             int dataTypeIconId, boolean activityIn, boolean activityOut,
             String dataContentDescription,String enabledDesc) {
+				updateMobileDataSignal(TelephonyConstants.DSDS_SLOT_1_ID, enabled, mobileSignalIconId, activityIn, activityOut, 
+                signalContentDescription, dataTypeIconId, dataContentDescription, enabledDesc);
+    }
+
+    // NetworkSignalChangedExt callback
+    @Override
+    public void onMobileDataSignalChanged2(
+            boolean enabled, int mobileSignalIconId, String signalContentDescription,
+            int dataTypeIconId, boolean activityIn, boolean activityOut, 
+            String dataContentDescription, String enabledDesc) {
+        updateMobileDataSignal(TelephonyConstants.DSDS_SLOT_2_ID, enabled, mobileSignalIconId, activityIn, activityOut, 
+                signalContentDescription, dataTypeIconId, dataContentDescription, enabledDesc);
+    }
+
+    void updateMobileDataSignal(int slot, boolean enabled, int mobileSignalIconId,
+            boolean activityIn, boolean activityOut,
+            String signalContentDescription, int dataTypeIconId, String dataContentDescription,
+            String enabledDesc) {
         if (deviceHasMobileData()) {
             // TODO: If view is in awaiting state, disable
+            RSSIState tmpRSSIState = slot == 0 ? mRSSIState : mRSSIState2;
+            RefreshCallback tmpCallback = slot == 0 ? mRSSICallback : mRSSICallback2;
+            QuickSettingsTileView tmpRSSITile = slot == 0 ? mRSSITile : mRSSITile2;
+
             Resources r = mContext.getResources();
-            mRSSIState.signalIconId = enabled && (mobileSignalIconId > 0)
+            tmpRSSIState.signalIconId = enabled && (mobileSignalIconId > 0)
                     ? mobileSignalIconId
                     : R.drawable.ic_qs_signal_no_signal;
-            mRSSIState.signalContentDescription = enabled && (mobileSignalIconId > 0)
+            tmpRSSIState.signalContentDescription = enabled && (mobileSignalIconId > 0)
                     ? signalContentDescription
                     : r.getString(R.string.accessibility_no_signal);
-            mRSSIState.dataTypeIconId = enabled && (dataTypeIconId > 0) && !mWifiState.enabled
+            tmpRSSIState.dataTypeIconId = enabled && (dataTypeIconId > 0) && !mWifiState.enabled
                     ? dataTypeIconId
                     : 0;
-            mRSSIState.activityIn = enabled && activityIn;
-            mRSSIState.activityOut = enabled && activityOut;
-            mRSSIState.dataContentDescription = enabled && (dataTypeIconId > 0) && !mWifiState.enabled
+            tmpRSSIState.activityIn = enabled && activityIn;
+            tmpRSSIState.activityOut = enabled && activityOut;
+
+            tmpRSSIState.dataContentDescription = enabled && (dataTypeIconId > 0) && !mWifiState.enabled
                     ? dataContentDescription
                     : r.getString(R.string.accessibility_no_data);
-            mRSSIState.label = enabled
+            tmpRSSIState.label = enabled
                     ? removeTrailingPeriod(enabledDesc)
                     : r.getString(R.string.quick_settings_rssi_emergency_only);
-            mRSSICallback.refreshView(mRSSITile, mRSSIState);
+            tmpCallback.refreshView(tmpRSSITile, tmpRSSIState);
         }
     }
 

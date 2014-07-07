@@ -32,11 +32,12 @@ import android.net.NetworkTemplate;
 import android.os.Bundle;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.WindowManager;
 
 import com.android.systemui.R;
-
+import com.android.internal.telephony.TelephonyConstants;
 /**
  * Notify user that a {@link NetworkTemplate} is over its
  * {@link NetworkPolicy#limitBytes}, giving them the choice of acknowledging or
@@ -90,7 +91,16 @@ public class NetworkOverLimitActivity extends Activity {
             case MATCH_MOBILE_4G:
                 return R.string.data_usage_disabled_dialog_4g_title;
             case MATCH_MOBILE_ALL:
-                return R.string.data_usage_disabled_dialog_mobile_title;
+                int rid = R.string.data_usage_disabled_dialog_mobile_title;
+                if (TelephonyConstants.IS_DSDS) {
+                    final TelephonyManager tele = TelephonyManager.getTmBySlot(0);
+                    if (template.getSubscriberId().equals(tele.getSubscriberId())) {
+                        rid = R.string.data_usage_disabled_dialog_mobile_title_sim1;
+                    } else {
+                        rid = R.string.data_usage_disabled_dialog_mobile_title_sim2;
+                    }
+                }
+                return rid;
             default:
                 return R.string.data_usage_disabled_dialog_title;
         }

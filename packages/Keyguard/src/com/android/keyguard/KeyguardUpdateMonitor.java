@@ -44,10 +44,13 @@ import android.os.Message;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.provider.Settings;
+import android.os.SystemProperties;
+import android.net.ConnectivityManager;
 
 import com.android.internal.telephony.IccCardConstants;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.telephony.TelephonyIntents;
-
+import com.android.internal.telephony.TelephonyIntents2;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import com.google.android.collect.Lists;
@@ -68,7 +71,7 @@ import java.util.ArrayList;
 public class KeyguardUpdateMonitor {
 
     private static final String TAG = "KeyguardUpdateMonitor";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
     private static final boolean DEBUG_SIM_STATES = DEBUG || false;
     private static final int FAILED_BIOMETRIC_UNLOCK_ATTEMPTS_BEFORE_BACKUP = 3;
     private static final int LOW_BATTERY_THRESHOLD = 20;
@@ -100,14 +103,17 @@ public class KeyguardUpdateMonitor {
     private final Context mContext;
 
     // Telephony state
-    private IccCardConstants.State mSimState = IccCardConstants.State.READY;
-    private CharSequence mTelephonyPlmn;
-    private CharSequence mTelephonySpn;
+    private IccCardConstants.State mSimState[] = {
+            IccCardConstants.State.READY, IccCardConstants.State.READY};
+    private CharSequence mTelephonyPlmn[] = {null, null};
+    private CharSequence mTelephonySpn[] = {null, null};
     private int mRingMode;
-    private int mPhoneState;
+    private int mPhoneState[] = {0, 0};
     private boolean mKeyguardIsVisible;
     private boolean mBootCompleted;
-
+    private boolean mPoweOnPinCheckDone = false;
+    private int mUserPinAcitivity = 0;
+    private boolean mSimInited[] = {false, false};
     // Device provisioning state
     private boolean mDeviceProvisioned;
 
@@ -141,7 +147,7 @@ public class KeyguardUpdateMonitor {
                     handleBatteryUpdate((BatteryStatus) msg.obj);
                     break;
                 case MSG_CARRIER_INFO_UPDATE:
-                    handleCarrierInfoUpdate();
+                    handleCarrierInfoUpdate(msg.arg1);
                     break;
                 case MSG_SIM_STATE_CHANGE:
                     handleSimStateChange((SimArgs) msg.obj);
@@ -150,7 +156,7 @@ public class KeyguardUpdateMonitor {
                     handleRingerModeChange(msg.arg1);
                     break;
                 case MSG_PHONE_STATE_CHANGED:
-                    handlePhoneStateChanged((String)msg.obj);
+                    handlePhoneStateChanged((String)msg.obj, msg.arg1);
                     break;
                 case MSG_CLOCK_VISIBILITY_CHANGED:
                     handleClockVisibilityChanged();
@@ -263,10 +269,13 @@ public class KeyguardUpdateMonitor {
                     || Intent.ACTION_TIME_CHANGED.equals(action)
                     || Intent.ACTION_TIMEZONE_CHANGED.equals(action)) {
                 mHandler.sendEmptyMessage(MSG_TIME_UPDATE);
-            } else if (TelephonyIntents.SPN_STRINGS_UPDATED_ACTION.equals(action)) {
-                mTelephonyPlmn = getTelephonyPlmnFrom(intent);
-                mTelephonySpn = getTelephonySpnFrom(intent);
-                mHandler.sendEmptyMessage(MSG_CARRIER_INFO_UPDATE);
+            } else if (TelephonyIntents.SPN_STRINGS_UPDATED_ACTION.equals(action)
+                        ||TelephonyIntents2.SPN_STRINGS_UPDATED_ACTION.equals(action)) {
+                int slot = intent.getIntExtra(TelephonyConstants.EXTRA_SLOT, 0);
+                if (DEBUG) Log.d(TAG, "received SPN_STRINGS_UPDATED_ACTION on slot:" + slot);
+                mTelephonyPlmn[slot] = getTelephonyPlmnFrom(intent);
+                mTelephonySpn[slot] = getTelephonySpnFrom(intent);
+	            mHandler.sendMessage(mHandler.obtainMessage(MSG_CARRIER_INFO_UPDATE, slot, 0));
             } else if (Intent.ACTION_BATTERY_CHANGED.equals(action)) {
                 final int status = intent.getIntExtra(EXTRA_STATUS, BATTERY_STATUS_UNKNOWN);
                 final int plugged = intent.getIntExtra(EXTRA_PLUGGED, 0);
@@ -275,9 +284,10 @@ public class KeyguardUpdateMonitor {
                 final Message msg = mHandler.obtainMessage(
                         MSG_BATTERY_UPDATE, new BatteryStatus(status, level, plugged, health));
                 mHandler.sendMessage(msg);
-            } else if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(action)) {
+            } else if (TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(action)
+                   || TelephonyIntents2.ACTION_SIM_STATE_CHANGED.equals(action)) {
                 if (DEBUG_SIM_STATES) {
-                    Log.v(TAG, "action " + action + " state" +
+                    Log.v(TAG, "ACTION_SIM_STATE_CHANGED " + action + " state" +
                         intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE));
                 }
                 mHandler.sendMessage(mHandler.obtainMessage(
@@ -286,8 +296,9 @@ public class KeyguardUpdateMonitor {
                 mHandler.sendMessage(mHandler.obtainMessage(MSG_RINGER_MODE_CHANGED,
                         intent.getIntExtra(AudioManager.EXTRA_RINGER_MODE, -1), 0));
             } else if (TelephonyManager.ACTION_PHONE_STATE_CHANGED.equals(action)) {
+                int slot = intent.getIntExtra(TelephonyConstants.EXTRA_SLOT, 0);
                 String state = intent.getStringExtra(TelephonyManager.EXTRA_STATE);
-                mHandler.sendMessage(mHandler.obtainMessage(MSG_PHONE_STATE_CHANGED, state));
+                mHandler.sendMessage(mHandler.obtainMessage(MSG_PHONE_STATE_CHANGED, slot, 0, state));
             } else if (DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED
                     .equals(action)) {
                 mHandler.sendEmptyMessage(MSG_DPM_STATE_CHANGED);
@@ -320,17 +331,24 @@ public class KeyguardUpdateMonitor {
      */
     private static class SimArgs {
         public final IccCardConstants.State simState;
-
-        SimArgs(IccCardConstants.State state) {
+        public final int slot;
+        SimArgs(IccCardConstants.State state, int n) {
             simState = state;
+			slot = n;
         }
 
         static SimArgs fromIntent(Intent intent) {
             IccCardConstants.State state;
-            if (!TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(intent.getAction())) {
+
+            if (!TelephonyIntents.ACTION_SIM_STATE_CHANGED.equals(intent.getAction()) &&
+                    !TelephonyIntents2.ACTION_SIM_STATE_CHANGED.equals(intent.getAction())) {
+                Log.d(TAG, "action = " + intent.getAction());
                 throw new IllegalArgumentException("only handles intent ACTION_SIM_STATE_CHANGED");
             }
             String stateExtra = intent.getStringExtra(IccCardConstants.INTENT_KEY_ICC_STATE);
+            final int slotId = intent.getIntExtra(TelephonyConstants.EXTRA_SLOT, 0);
+            Log.d(TAG, "sim slot:" + slotId);
+			
             if (IccCardConstants.INTENT_VALUE_ICC_ABSENT.equals(stateExtra)) {
                 final String absentReason = intent
                     .getStringExtra(IccCardConstants.INTENT_KEY_LOCKED_REASON);
@@ -363,7 +381,7 @@ public class KeyguardUpdateMonitor {
             } else {
                 state = IccCardConstants.State.UNKNOWN;
             }
-            return new SimArgs(state);
+            return new SimArgs(state, slotId);
         }
 
         public String toString() {
@@ -506,9 +524,9 @@ public class KeyguardUpdateMonitor {
         }
 
         // Take a guess at initial SIM state, battery status and PLMN until we get an update
-        mSimState = IccCardConstants.State.NOT_READY;
+        mSimState[0] = mSimState[1] = IccCardConstants.State.NOT_READY;
         mBatteryStatus = new BatteryStatus(BATTERY_STATUS_UNKNOWN, 100, 0, 0);
-        mTelephonyPlmn = getDefaultPlmn();
+        mTelephonyPlmn[0] = mTelephonyPlmn[1] = getDefaultPlmn();
 
         // Watch for interesting updates
         final IntentFilter filter = new IntentFilter();
@@ -522,6 +540,10 @@ public class KeyguardUpdateMonitor {
         filter.addAction(AudioManager.RINGER_MODE_CHANGED_ACTION);
         filter.addAction(DevicePolicyManager.ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED);
         filter.addAction(Intent.ACTION_USER_REMOVED);
+        if (TelephonyConstants.IS_DSDS) {
+            filter.addAction(TelephonyIntents2.ACTION_SIM_STATE_CHANGED);
+            filter.addAction(TelephonyIntents2.SPN_STRINGS_UPDATED_ACTION);
+        }
         context.registerReceiver(mBroadcastReceiver, filter);
 
         final IntentFilter bootCompleteFilter = new IntentFilter();
@@ -690,23 +712,38 @@ public class KeyguardUpdateMonitor {
             mDeviceProvisionedObserver = null;
         }
     }
+    int getDataSimId() {
+        int dataSimId = Settings.Global.getInt(
+                mContext.getContentResolver(), Settings.Global.MOBILE_DATA_SIM,
+                ConnectivityManager.MOBILE_DATA_NETWORK_SLOT_A);
+        if (DEBUG) Log.d(TAG, "dataSimId: " + dataSimId);
+        return dataSimId;
+    }
 
+    private int getDualPhoneState() {
+        if (!TelephonyConstants.IS_DSDS) {
+            return mPhoneState[0];
+        }
+        return mPhoneState[0] == TelephonyManager.CALL_STATE_IDLE ?
+                mPhoneState[1] : mPhoneState[0];
+    }
+	
     /**
      * Handle {@link #MSG_PHONE_STATE_CHANGED}
      */
-    protected void handlePhoneStateChanged(String newState) {
-        if (DEBUG) Log.d(TAG, "handlePhoneStateChanged(" + newState + ")");
+    protected void handlePhoneStateChanged(String newState, int slot) {
+        if (DEBUG) Log.d(TAG, "handlePhoneStateChanged(" + newState + ")" + " slot= " + slot);
         if (TelephonyManager.EXTRA_STATE_IDLE.equals(newState)) {
-            mPhoneState = TelephonyManager.CALL_STATE_IDLE;
+            mPhoneState[slot] = TelephonyManager.CALL_STATE_IDLE;
         } else if (TelephonyManager.EXTRA_STATE_OFFHOOK.equals(newState)) {
-            mPhoneState = TelephonyManager.CALL_STATE_OFFHOOK;
+            mPhoneState[slot] = TelephonyManager.CALL_STATE_OFFHOOK;
         } else if (TelephonyManager.EXTRA_STATE_RINGING.equals(newState)) {
-            mPhoneState = TelephonyManager.CALL_STATE_RINGING;
+            mPhoneState[slot] = TelephonyManager.CALL_STATE_RINGING;
         }
         for (int i = 0; i < mCallbacks.size(); i++) {
             KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
             if (cb != null) {
-                cb.onPhoneStateChanged(mPhoneState);
+                cb.onPhoneStateChanged(getDualPhoneState());
             }
         }
     }
@@ -758,14 +795,14 @@ public class KeyguardUpdateMonitor {
     /**
      * Handle {@link #MSG_CARRIER_INFO_UPDATE}
      */
-    private void handleCarrierInfoUpdate() {
-        if (DEBUG) Log.d(TAG, "handleCarrierInfoUpdate: plmn = " + mTelephonyPlmn
-            + ", spn = " + mTelephonySpn);
+    private void handleCarrierInfoUpdate(int slot) {
+        if (DEBUG) Log.d(TAG, "handleCarrierInfoUpdate: plmn = " + mTelephonyPlmn[slot]
+            + ", spn = " + mTelephonySpn[slot]);
 
         for (int i = 0; i < mCallbacks.size(); i++) {
             KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
             if (cb != null) {
-                cb.onRefreshCarrierInfo(mTelephonyPlmn, mTelephonySpn);
+                cb.onRefreshCarrierInfo(mTelephonyPlmn[slot], mTelephonySpn[slot], slot);
             }
         }
     }
@@ -775,20 +812,28 @@ public class KeyguardUpdateMonitor {
      */
     private void handleSimStateChange(SimArgs simArgs) {
         final IccCardConstants.State state = simArgs.simState;
-
+        final int slot = simArgs.slot;
+		
         if (DEBUG) {
             Log.d(TAG, "handleSimStateChange: intentValue = " + simArgs + " "
-                    + "state resolved to " + state.toString());
+                    + "state resolved to " + state.toString() + " slot = " + slot);
         }
-
-        if (state != IccCardConstants.State.UNKNOWN && state != mSimState) {
-            mSimState = state;
+        mUserPinAcitivity = SystemProperties.getInt(
+                TelephonyConstants.PROPERTY_USER_PIN_ACTIVITY, 0 );
+       // workaround for airplane mode PIN/state, force a refresh even actually no change.
+        if (state != IccCardConstants.State.UNKNOWN /*&& state != mSimState*/) {
+            mSimState[slot] = state;
             for (int i = 0; i < mCallbacks.size(); i++) {
                 KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
                 if (cb != null) {
-                    cb.onSimStateChanged(state);
+                    if (slot == 0) {
+                        cb.onSimStateChanged(state);
+                    } else {
+                        cb.onSim2StateChanged(state);
+                    }
                 }
             }
+			setAndCheckPowerOnLocked(slot);
         }
     }
 
@@ -936,10 +981,12 @@ public class KeyguardUpdateMonitor {
         callback.onRefreshBatteryInfo(mBatteryStatus);
         callback.onTimeChanged();
         callback.onRingerModeChanged(mRingMode);
-        callback.onPhoneStateChanged(mPhoneState);
-        callback.onRefreshCarrierInfo(mTelephonyPlmn, mTelephonySpn);
+        callback.onPhoneStateChanged(getDualPhoneState());
+        callback.onRefreshCarrierInfo(mTelephonyPlmn[0], mTelephonySpn[0], 0);
+        callback.onRefreshCarrierInfo(mTelephonyPlmn[1], mTelephonySpn[1], 1);
         callback.onClockVisibilityChanged();
-        callback.onSimStateChanged(mSimState);
+        callback.onSimStateChanged(mSimState[0]);
+        callback.onSim2StateChanged(mSimState[1]);
         callback.onMusicClientIdChanged(
                 mDisplayClientState.clientGeneration,
                 mDisplayClientState.clearing,
@@ -961,9 +1008,15 @@ public class KeyguardUpdateMonitor {
     }
 
     public IccCardConstants.State getSimState() {
-        return mSimState;
+        return mSimState[0];
+    }
+    public IccCardConstants.State getSim2State() {
+        return mSimState[1];
     }
 
+    public IccCardConstants.State getSimState(int slot) {
+        return mSimState[slot];
+    }
     /**
      * Report that the user successfully entered the SIM PIN or PUK/SIM PIN so we
      * have the information earlier than waiting for the intent
@@ -973,7 +1026,18 @@ public class KeyguardUpdateMonitor {
      * through mHandler, this *must* be called from the UI thread.
      */
     public void reportSimUnlocked() {
-        handleSimStateChange(new SimArgs(IccCardConstants.State.READY));
+        handleSimStateChange(new SimArgs(IccCardConstants.State.READY, 0));
+    }
+    public void reportSimUnlocked(int slot) {
+        handleSimStateChange(new SimArgs(IccCardConstants.State.READY, slot));
+    }
+
+    public boolean reportDualSimUnlocked(int slot) {
+        boolean ret = mSimState[1 - slot].isPinLocked() ? false : true;
+        if (ret) {
+            reportIccPinCheckDone();
+        }
+        return ret;
     }
 
     /**
@@ -993,11 +1057,19 @@ public class KeyguardUpdateMonitor {
     }
 
     public CharSequence getTelephonyPlmn() {
-        return mTelephonyPlmn;
+        return getTelephonyPlmn(0);
+    }
+
+    public CharSequence getTelephonyPlmn(int slot) {
+        return mTelephonyPlmn[slot];
     }
 
     public CharSequence getTelephonySpn() {
-        return mTelephonySpn;
+        return getTelephonySpn(0);
+    }
+
+    public CharSequence getTelephonySpn(int slot) {
+        return mTelephonySpn[slot];
     }
 
     /**
@@ -1026,7 +1098,7 @@ public class KeyguardUpdateMonitor {
     }
 
     public int getPhoneState() {
-        return mPhoneState;
+        return getDualPhoneState();
     }
 
     public void reportFailedBiometricUnlockAttempt() {
@@ -1046,7 +1118,22 @@ public class KeyguardUpdateMonitor {
     }
 
     public boolean isSimLocked() {
-        return isSimLocked(mSimState);
+        if (TelephonyConstants.IS_DSDS) {
+            return (isSimSecure() || isDsdsSecure());
+        }
+        return isSimLocked(mSimState[0]);
+    }
+
+    public boolean isDualSimLocked() {
+        if (TelephonyConstants.IS_DSDS) {
+            return isDualSimLocked(0) || isDualSimLocked(1);
+        }
+        return isSimLocked(mSimState[0]);
+    }
+
+    private boolean isDualSimLocked(int slot) {
+        return (isSimLocked(mSimState[slot]) && (isSimLocked(mSimState[1 - slot])
+                || mSimState[1 - slot] == IccCardConstants.State.ABSENT));
     }
 
     public static boolean isSimLocked(IccCardConstants.State state) {
@@ -1056,7 +1143,10 @@ public class KeyguardUpdateMonitor {
     }
 
     public boolean isSimPinSecure() {
-        return isSimPinSecure(mSimState);
+        if (TelephonyConstants.IS_DSDS) {
+            return isDsdsSecure();
+        }
+        return isSimPinSecure(mSimState[0]);
     }
 
     public static boolean isSimPinSecure(IccCardConstants.State state) {
@@ -1089,4 +1179,97 @@ public class KeyguardUpdateMonitor {
     public boolean isScreenOn() {
         return mScreenOn;
     }
+    boolean hasPoweronPinCheckDone() {
+        return mPoweOnPinCheckDone;
+    }
+
+    void reportIccPinCheckDone() {
+        if (!hasPoweronPinCheckDone()) {
+            if (DEBUG) Log.d(TAG, "reportIccPinCheckDone");
+            mPoweOnPinCheckDone = true;
+        }
+    }
+
+    private boolean isPowerOnSimSecure() {
+        if (hasPoweronPinCheckDone()) return false;
+        final boolean sim1Secure = mSimState[0].isPinLocked();
+        final boolean sim2Secure = mSimState[1].isPinLocked();
+        final boolean ret = (sim1Secure || sim2Secure);
+        if (ret) {
+            Log.d(TAG, "SimPin secure,SIM 0:" + mSimState[0]
+                    + ",SIM 1:" + mSimState[1] + ",mPoweOnPinCheckDone:" + mPoweOnPinCheckDone);
+        }
+        return ret;
+    }
+
+    public boolean isSimSecure() {
+        return isPowerOnSimSecure();
+    }
+
+    public boolean isDsdsSecure() {
+        return isSimSecure() || isUserPinSecure() || isUserPukSecure();
+    }
+
+    public int getUserPinActivity() {
+        return ((mUserPinAcitivity & 1) != 0) ? 0 : 1;
+    }
+
+    public boolean isUserPinSecure() {
+        if (mUserPinAcitivity == 0) return false;
+        if (DEBUG) Log.d(TAG, "mUserPinAcitivity:" + mUserPinAcitivity);
+        final int slot = getUserPinActivity();
+        final boolean simSecure = (mSimState[slot] == IccCardConstants.State.PIN_REQUIRED);
+        if (simSecure) {
+            if (DEBUG) Log.d(TAG, "SimPin secure,SIM " + slot + ": " + mSimState[slot]);
+        }
+        return simSecure;
+    }
+
+    public boolean isUserPukSecure() {
+        if (mUserPinAcitivity == 0) return false;
+        if (DEBUG) Log.d(TAG, "mUserPinAcitivity:" + mUserPinAcitivity);
+        final int slot = getUserPinActivity();
+        final boolean simSecure = (mSimState[slot] == IccCardConstants.State.PUK_REQUIRED);
+        if (simSecure) {
+            if (DEBUG) Log.d(TAG, "SimPuk secure,SIM " + slot + ": " + mSimState[slot]);
+        }
+        return simSecure;
+    }
+
+    public boolean reportUserPinUnlocked(int slot) {
+        mUserPinAcitivity &= (slot == 0 ? ~1 : ~2);
+        if (DEBUG) Log.d(TAG, "reportUserPinUnlocked,result:" + mUserPinAcitivity);
+        return mUserPinAcitivity == 0;
+    }
+
+    public boolean dismissSimPinActivity(int slot) {
+        if (DEBUG) Log.d(TAG, "dismissSimPinActivity, slot:" + slot);
+        Intent intent = new Intent(TelephonyConstants.INTENT_PHONE_DISMISS_USER_PIN);
+        intent.putExtra(TelephonyConstants.EXTRA_SLOT, slot);
+        mContext.sendBroadcast(intent);
+        reportDualSimUnlocked(slot);
+        return reportUserPinUnlocked(slot);
+    }
+
+    private void setAndCheckPowerOnLocked(int slot) {
+        if (!TelephonyConstants.IS_DSDS) {
+            return;
+        }
+        if (!mSimInited[slot]) {
+            mSimInited[slot] = true;
+        }
+        if (!mSimInited[1 - slot]) return;
+        // Both SIMs are initialized, report PIN check complete.
+        setPowerOnPinCheckComplete();
+    }
+
+    private void setPowerOnPinCheckComplete() {
+        if (DEBUG) Log.d(TAG, "setPowerOnPinCheckComplete,SIM 0:"
+                + mSimState[0] + ",SIM 1:" + mSimState[1]);
+        if ((!mSimState[0].isPinLocked()) && (!mSimState[1].isPinLocked())) {
+            if (DEBUG) Log.d(TAG, "Both SIM are not locked during power on");
+            reportIccPinCheckDone();
+        }
+    }
+
 }

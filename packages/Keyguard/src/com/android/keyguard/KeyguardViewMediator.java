@@ -55,6 +55,7 @@ import android.view.WindowManager;
 import android.view.WindowManagerPolicy;
 
 import com.android.internal.telephony.IccCardConstants;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.widget.LockPatternUtils;
 
 
@@ -101,7 +102,7 @@ import com.android.internal.widget.LockPatternUtils;
  */
 public class KeyguardViewMediator {
     private static final int KEYGUARD_DISPLAY_TIMEOUT_DELAY_DEFAULT = 30000;
-    final static boolean DEBUG = false;
+    final static boolean DEBUG = true;
     private final static boolean DBG_WAKE = false;
 
     private final static String TAG = "KeyguardViewMediator";
@@ -427,13 +428,21 @@ public class KeyguardViewMediator {
                 case READY:
                     synchronized (this) {
                         if (isShowing()) {
+                            if (TelephonyConstants.IS_DSDS && mUpdateMonitor.isDsdsSecure()) {
+                                if (DEBUG) Log.d(TAG, "Do not reset since DSDS lock");
+                                break;
+                            }
                             resetStateLocked(null);
                         }
                     }
                     break;
             }
         }
-
+        @Override
+        public void onSim2StateChanged(IccCardConstants.State simState) {
+            if (DEBUG) Log.d(TAG, "onSim2StateChanged,simState:" + simState);
+            onSimStateChanged(simState);
+        }
     };
 
     ViewMediatorCallback mViewMediatorCallback = new ViewMediatorCallback() {
@@ -875,7 +884,15 @@ public class KeyguardViewMediator {
     public boolean isInputRestricted() {
         return mShowing || mNeedToReshowWhenReenabled || !mUpdateMonitor.isDeviceProvisioned();
     }
-
+    private boolean isSimLockedOrMissing() {
+            if (TelephonyConstants.IS_DSDS) {
+                return mUpdateMonitor.isDsdsSecure();
+            } else {
+                final IccCardConstants.State state = mUpdateMonitor.getSimState();
+                return (state.isPinLocked() || state == IccCardConstants.State.ABSENT
+                        || state == IccCardConstants.State.PERM_DISABLED);
+            }
+    }
     /**
      * Enable the keyguard if the settings are appropriate.
      */
@@ -906,11 +923,7 @@ public class KeyguardViewMediator {
         final boolean requireSim = !SystemProperties.getBoolean("keyguard.no_require_sim",
                 false);
         final boolean provisioned = mUpdateMonitor.isDeviceProvisioned();
-        final IccCardConstants.State state = mUpdateMonitor.getSimState();
-        final boolean lockedOrMissing = state.isPinLocked()
-                || ((state == IccCardConstants.State.ABSENT
-                || state == IccCardConstants.State.PERM_DISABLED)
-                && requireSim);
+        final boolean lockedOrMissing = isSimLockedOrMissing() && requireSim;
 
         if (!lockedOrMissing && !provisioned) {
             if (DEBUG) Log.d(TAG, "doKeyguard: not showing because device isn't provisioned"

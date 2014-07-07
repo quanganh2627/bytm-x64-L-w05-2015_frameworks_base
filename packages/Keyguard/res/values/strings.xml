@@ -94,6 +94,8 @@
          progress dialog in the meantime.  this is the emssage. -->
     <string name="keyguard_sim_unlock_progress_dialog_message">Unlocking SIM card\u2026</string>
 
+    <string name="bad_Puk">The PUK you typed isn\'t correct.</string>
+	
     <!-- Time format strings for fall-back clock widget -->
     <string name="keyguard_widget_12_hours_format" translatable="false">h&#58;mm</string>
     <!-- Time format strings for fall-back clock widget -->
@@ -243,12 +245,17 @@
     <string name="kg_password_instructions">Enter Password</string>
     <!-- Hint shown in the PUK screen that asks the user to enter the PUK code given to them by their provider -->
     <string name="kg_puk_enter_puk_hint">SIM is now disabled. Enter PUK code to continue. Contact carrier for details.</string>
+    <!-- When the phone is network PUK locked -->
+    <string name="lockscreen_network_puk_locked_message">Network PUK locked, Please contact Customer Care</string>
+    <string name="lockscreen_network_puk_locked_instructions">Please contact Customer Care.</string>
     <!-- Hint shown in the PUK unlock screen PIN TextView -->
     <string name="kg_puk_enter_pin_hint">Enter desired PIN code</string>
     <!-- Message shown when the user needs to confirm the PIN they just entered in the PUK screen -->
     <string name="kg_enter_confirm_pin_hint">Confirm desired PIN code</string>
     <!-- Message shown in dialog while the device is unlocking the SIM card -->
     <string name="kg_sim_unlock_progress_dialog_message">Unlocking SIM card\u2026</string>
+    <!-- Message shown when the user enters the wrong PIN code -->
+    <string name="kg_password_wrong_pin_code">Incorrect PIN code.</string>
     <!-- Message shown when the user enters an invalid SIM pin password in PUK screen -->
     <string name="kg_invalid_sim_pin_hint">Type a PIN that is 4 to 8 numbers.</string>
     <!-- Message shown when the user enters an invalid PUK code in the PUK screen -->
@@ -374,5 +381,44 @@
     <!-- On the keyguard screen, it shows the carrier the phone is connected to.
         This is displayed if the phone is not connected to a carrier.-->
     <string name="keyguard_carrier_default">No service.</string>
+
+    <!-- Dual SIM unlock scrren -->
+    <string name="slot1">SIM 1</string>
+    <string name="slot2">SIM 2</string>
+    <string name="lock_continue">Continue</string>
+
+    <string name="unlock_cards">Unlock SIM</string>
+    <string name="card_off">SIM off</string>
+    <string name="card_absent">No SIM</string>
+    <string name="card_available">Available</string>
+    <string name="card_pin_locked">PIN locked</string>
+    <string name="card_puk_locked">PUK locked</string>
+    <string name="card_net_locked">Network locked</string>
+    <string name="card_unknown">Unknown</string>
+    <string name="no_card_or_invalid_card">No card</string>
+    <string name="gsm_available">GSM available</string>
+    <string name="lockscreen_no_card">(No SIM)</string>
+    <string name="lockscreen_pin_locked">SIM is locked</string>
+    <string name="lockscreen_puk_locked">SIM is PUK-locked</string>
+    <string name="lockscreen_perm_locked">SIM is permanently locked</string>
+    <string name="pin_puk_retry_left">"(%d times left)"</string>
+
+    <string name="keyguard_sim_puk_new_pin_prompt">Enter new PIN of 4~8 digits</string>
+    <string name="keyguard_sim_puk_confirm_prompt">Confirm new PIN</string>
+    <string name="keyguard_sim_puk_new_pin_not_confirm">PIN not confirmed! Re-enter new PIN.</string>
+    <string name="keyguard_sim_puk_invalid_puk_input">PUK shall be 8 digits! Enter new PUK</string>
+
+    <string name="keyguard_sim_puk_enter_puk_code">Enter PUK code to unlock phone</string>
+    <string name="keyguard_sim_puk_wrong_puk_code">Incorrect PUK code!</string>
+    <!-- Instructions telling the user that they entered the wrong pin while trying
+         to unlock the keyguard.  Displayed in one line in a large font.  -->
+    <string name="keyguard_sim_wrong_pin_code">Incorrect PIN code.</string>
+
+    <!-- Instructions telling the user to enter their PIN password to unlock the keyguard.
+         Displayed in one line in a large font.  -->
+    <string name="keyguard_sim_enter_pin_password_code">Type PIN to unlock</string>
+	
+    <string name="dual_sim_settings_title">"Dual SIM Selector"</string>
+    <string name="config_during_poweron_title">"Select SIMs on boot"</string>
 
 </resources>

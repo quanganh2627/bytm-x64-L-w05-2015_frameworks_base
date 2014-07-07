@@ -29,6 +29,7 @@ import android.provider.ContactsContract.CommonDataKinds.SipAddress;
 import android.provider.ContactsContract.Data;
 import android.provider.ContactsContract.PhoneLookup;
 import android.telephony.PhoneNumberUtils;
+import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.telephony.Rlog;
 
@@ -335,6 +336,11 @@ public class CallerInfoAsyncQuery {
      */
     public static CallerInfoAsyncQuery startQuery(int token, Context context, String number,
             OnQueryCompleteListener listener, Object cookie) {
+        return startQuery(token, context, number, TelephonyConstants.DSDS_INVALID_SLOT_ID,
+                listener, cookie);
+    }
+    public static CallerInfoAsyncQuery startQuery(int token, Context context, String number, int simIndex,
+            OnQueryCompleteListener listener, Object cookie) {
         if (DBG) {
             Rlog.d(LOG_TAG, "##### CallerInfoAsyncQuery startQuery()... #####");
             Rlog.d(LOG_TAG, "- number: " + /*number*/ "xxxxxxx");
@@ -398,11 +404,42 @@ public class CallerInfoAsyncQuery {
         cw.listener = listener;
         cw.cookie = cookie;
         cw.number = number;
+        boolean usingPrimary = true;
+        if (TelephonyConstants.IS_DSDS) {
+            int primaryDataSim = TelephonyConstants.DSDS_INVALID_SLOT_ID;
+            primaryDataSim = TelephonyManager.getPrimarySim();
+            switch (primaryDataSim) {
+                case TelephonyConstants.DSDS_SLOT_1_ID:
+                    usingPrimary = simIndex != TelephonyConstants.DSDS_SLOT_2_ID;
+                    break;
+                case TelephonyConstants.DSDS_SLOT_2_ID:
+                    usingPrimary = simIndex != TelephonyConstants.DSDS_SLOT_1_ID;
+                    break;
+                default:
+                    usingPrimary = true;
+                    break;
+            }
+        }
 
+        boolean isVoiceMailNumber = false;
+        if (usingPrimary) {
+            isVoiceMailNumber = PhoneNumberUtils.isVoiceMailNumber(number);
+        } else {
+            isVoiceMailNumber = PhoneNumberUtils.isVoiceMailNumber2(number);
+        }
+
+        boolean isLocalEmergencyNumber = false;
+        if (usingPrimary) {
+            isLocalEmergencyNumber = PhoneNumberUtils.isLocalEmergencyNumber(number, context);
+        } else {
+            isLocalEmergencyNumber = PhoneNumberUtils.isLocalEmergencyNumber2(number, context);
+        }
+
+        if (DBG) Rlog.d(LOG_TAG, "isECCN " + isLocalEmergencyNumber + " isVMN " + isVoiceMailNumber);
         // check to see if these are recognized numbers, and use shortcuts if we can.
-        if (PhoneNumberUtils.isLocalEmergencyNumber(number, context)) {
+        if (isLocalEmergencyNumber) {
             cw.event = EVENT_EMERGENCY_NUMBER;
-        } else if (PhoneNumberUtils.isVoiceMailNumber(number)) {
+        } else if (isVoiceMailNumber) {
             cw.event = EVENT_VOICEMAIL_NUMBER;
         } else {
             cw.event = EVENT_NEW_QUERY;

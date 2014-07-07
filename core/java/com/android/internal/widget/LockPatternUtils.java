@@ -41,6 +41,7 @@ import android.widget.Button;
 
 import com.android.internal.R;
 import com.android.internal.telephony.ITelephony;
+import com.android.internal.telephony.TelephonyConstants;
 import com.google.android.collect.Lists;
 
 import java.security.MessageDigest;
@@ -1290,8 +1291,15 @@ public class LockPatternUtils {
      */
     public boolean resumeCall() {
         ITelephony phone = ITelephony.Stub.asInterface(ServiceManager.checkService("phone"));
+        ITelephony phone2 = null;
+        if (TelephonyConstants.IS_DSDS) {
+            phone2 = ITelephony.Stub.asInterface(ServiceManager.checkService("phone2"));
+        }
         try {
             if (phone != null && phone.showCallScreen()) {
+                return true;
+            }
+            if (phone2 != null && phone2.showCallScreen()) {
                 return true;
             }
         } catch (RemoteException e) {

@@ -844,6 +844,29 @@
   <java-symbol type="string" name="media_route_status_not_available" />
   <java-symbol type="string" name="media_route_status_in_use" />
   <java-symbol type="string" name="owner_name" />
+
+  <java-symbol type="string" name="slot1" />
+  <java-symbol type="string" name="slot2" />
+  <java-symbol type="string" name="lock_continue" />
+  <java-symbol type="string" name="unlock_cards" />
+  <java-symbol type="string" name="card_off" />
+  <java-symbol type="string" name="card_absent" />
+  <java-symbol type="string" name="card_available" />
+  <java-symbol type="string" name="card_pin_locked" />
+  <java-symbol type="string" name="card_puk_locked" />
+  <java-symbol type="string" name="card_net_locked" />
+  <java-symbol type="string" name="card_unknown" />
+  <java-symbol type="string" name="no_card_or_invalid_card" />
+  <java-symbol type="string" name="gsm_available" />
+  <java-symbol type="string" name="lockscreen_no_card" />
+  <java-symbol type="string" name="lockscreen_pin_locked" />
+  <java-symbol type="string" name="lockscreen_puk_locked" />
+  <java-symbol type="string" name="lockscreen_perm_locked" />
+  <java-symbol type="string" name="pin_puk_retry_left" />
+
+  <java-symbol type="string" name="dual_sim_settings_title" />
+  <java-symbol type="string" name="config_during_poweron_title" />
+
   <java-symbol type="string" name="config_chooseAccountActivity" />
   <java-symbol type="string" name="config_chooseTypeAndAccountActivity" />
   <java-symbol type="string" name="config_customResolverActivity" />
@@ -977,6 +1000,7 @@
   <java-symbol type="array" name="config_sms_enabled_single_shift_tables" />
   <java-symbol type="array" name="config_twoDigitNumberPattern" />
   <java-symbol type="array" name="networkAttributes" />
+  <java-symbol type="array" name="networkAttributes_dsds" />
   <java-symbol type="array" name="preloaded_color_state_lists" />
   <java-symbol type="array" name="preloaded_drawables" />
   <java-symbol type="array" name="special_locale_codes" />
@@ -1549,11 +1573,17 @@
   <java-symbol type="string" name="data_usage_limit_body" />
   <java-symbol type="string" name="data_usage_limit_snoozed_body" />
   <java-symbol type="string" name="data_usage_mobile_limit_snoozed_title" />
+  <java-symbol type="string" name="data_usage_mobile_limit_snoozed_title_sim1" />
+  <java-symbol type="string" name="data_usage_mobile_limit_snoozed_title_sim2" />
   <java-symbol type="string" name="data_usage_mobile_limit_title" />
+  <java-symbol type="string" name="data_usage_mobile_limit_title_sim1" />
+  <java-symbol type="string" name="data_usage_mobile_limit_title_sim2" />
   <java-symbol type="string" name="data_usage_restricted_body" />
   <java-symbol type="string" name="data_usage_restricted_title" />
   <java-symbol type="string" name="data_usage_warning_body" />
   <java-symbol type="string" name="data_usage_warning_title" />
+  <java-symbol type="string" name="data_usage_warning_title_sim1" />
+  <java-symbol type="string" name="data_usage_warning_title_sim2" />
   <java-symbol type="string" name="data_usage_wifi_limit_snoozed_title" />
   <java-symbol type="string" name="data_usage_wifi_limit_title" />
   <java-symbol type="string" name="default_wallpaper_component" />

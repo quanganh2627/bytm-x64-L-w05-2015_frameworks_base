@@ -30,6 +30,7 @@ import static android.content.Intent.EXTRA_UID;
 import static android.net.ConnectivityManager.CONNECTIVITY_ACTION_IMMEDIATE;
 import static android.net.ConnectivityManager.TYPE_ETHERNET;
 import static android.net.ConnectivityManager.TYPE_MOBILE;
+import static android.net.ConnectivityManager.TYPE_MOBILE2_MMS;
 import static android.net.ConnectivityManager.TYPE_WIFI;
 import static android.net.ConnectivityManager.TYPE_WIMAX;
 import static android.net.ConnectivityManager.isNetworkTypeMobile;
@@ -100,6 +101,7 @@ import android.net.NetworkPolicy;
 import android.net.NetworkQuotaInfo;
 import android.net.NetworkState;
 import android.net.NetworkTemplate;
+import android.net.Uri;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -130,6 +132,7 @@ import android.util.TrustedTime;
 import android.util.Xml;
 
 import com.android.internal.R;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.FastXmlSerializer;
 import com.android.internal.util.IndentingPrintWriter;
@@ -685,13 +688,20 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
             case MATCH_MOBILE_3G_LOWER:
             case MATCH_MOBILE_4G:
             case MATCH_MOBILE_ALL:
+			    boolean ret = false;
                 // mobile templates are relevant when SIM is ready and
                 // subscriberId matches.
                 if (tele.getSimState() == SIM_STATE_READY) {
-                    return Objects.equal(tele.getSubscriberId(), template.getSubscriberId());
-                } else {
-                    return false;
+                    ret = Objects.equal(tele.getSubscriberId(), template.getSubscriberId());
                 }
+                if (TelephonyConstants.IS_DSDS && !ret) {
+                    final TelephonyManager tele2 = TelephonyManager.get2ndTm();
+                    if (tele2.getSimState() == SIM_STATE_READY) {
+                        ret = Objects.equal(tele2.getSubscriberId(), template.getSubscriberId());
+                    }
+                }
+
+                return ret;
         }
         return true;
     }
@@ -732,7 +742,16 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
         final Resources res = mContext.getResources();
         switch (type) {
             case TYPE_WARNING: {
-                final CharSequence title = res.getText(R.string.data_usage_warning_title);
+                int rid = R.string.data_usage_warning_title;
+                if (TelephonyConstants.IS_DSDS) {
+                    final TelephonyManager tele = TelephonyManager.getTmBySlot(0);
+                    if (Objects.equal(tele.getSubscriberId(), policy.template.getSubscriberId())) {
+                        rid = R.string.data_usage_warning_title_sim1;
+                    } else {
+                        rid = R.string.data_usage_warning_title_sim2;
+                    }
+                }
+                final CharSequence title = res.getText(rid);
                 final CharSequence body = res.getString(R.string.data_usage_warning_body);
 
                 builder.setSmallIcon(R.drawable.stat_notify_error);
@@ -762,7 +781,16 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
                         title = res.getText(R.string.data_usage_4g_limit_title);
                         break;
                     case MATCH_MOBILE_ALL:
-                        title = res.getText(R.string.data_usage_mobile_limit_title);
+                        int rid = R.string.data_usage_mobile_limit_title;
+                        if (TelephonyConstants.IS_DSDS) {
+                            final TelephonyManager tele = TelephonyManager.getTmBySlot(0);
+                            if (Objects.equal(tele.getSubscriberId(), policy.template.getSubscriberId())) {
+                                rid = R.string.data_usage_mobile_limit_title_sim1;
+                            } else {
+                                rid = R.string.data_usage_mobile_limit_title_sim2;
+                            }
+                        }
+                        title = res.getText(rid);
                         break;
                     case MATCH_WIFI:
                         title = res.getText(R.string.data_usage_wifi_limit_title);
@@ -797,7 +825,16 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
                         title = res.getText(R.string.data_usage_4g_limit_snoozed_title);
                         break;
                     case MATCH_MOBILE_ALL:
-                        title = res.getText(R.string.data_usage_mobile_limit_snoozed_title);
+                        int rid = R.string.data_usage_mobile_limit_snoozed_title;
+                        if (TelephonyConstants.IS_DSDS) {
+                            final TelephonyManager tele = TelephonyManager.getTmBySlot(0);
+                            if (Objects.equal(tele.getSubscriberId(), policy.template.getSubscriberId())) {
+                                rid = R.string.data_usage_mobile_limit_snoozed_title_sim1;
+                            } else {
+                                rid = R.string.data_usage_mobile_limit_snoozed_title_sim2;
+                            }
+                        }
+                        title = res.getText(rid);
                         break;
                     case MATCH_WIFI:
                         title = res.getText(R.string.data_usage_wifi_limit_snoozed_title);
@@ -949,6 +986,13 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
                         && Objects.equal(tele.getSubscriberId(), template.getSubscriberId())) {
                     setPolicyDataEnable(TYPE_MOBILE, enabled);
                     setPolicyDataEnable(TYPE_WIMAX, enabled);
+                }else if (TelephonyConstants.IS_DSDS) {
+                    final TelephonyManager tele2 = TelephonyManager.get2ndTm();
+                    if (tele2.getSimState() == SIM_STATE_READY
+                            && Objects.equal(tele2.getSubscriberId(), template.getSubscriberId())) {
+                        setPolicyDataEnable(TYPE_MOBILE2_MMS, enabled);
+                        setPolicyDataEnable(TYPE_WIMAX, enabled);
+                    }
                 }
                 break;
             case MATCH_WIFI:
@@ -1097,8 +1141,20 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
         if (LOGV) Slog.v(TAG, "ensureActiveMobilePolicyLocked()");
         if (mSuppressDefaultPolicy) return;
 
-        final TelephonyManager tele = TelephonyManager.from(mContext);
+        ensureActiveMobilePolicyLockedInternal(true);
+        if (TelephonyConstants.IS_DSDS) {
+            ensureActiveMobilePolicyLockedInternal(false);
+        }
+    }
 
+    private void ensureActiveMobilePolicyLockedInternal(boolean dataSim) {
+        final TelephonyManager tele;
+
+        if (dataSim) {
+            tele = TelephonyManager.from(mContext);
+        } else {
+            tele = TelephonyManager.get2ndTm();
+        }
         // avoid creating policy when SIM isn't ready
         if (tele.getSimState() != SIM_STATE_READY) return;
 
@@ -2037,6 +2093,7 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
     private static Intent buildSnoozeWarningIntent(NetworkTemplate template) {
         final Intent intent = new Intent(ACTION_SNOOZE_WARNING);
         intent.putExtra(EXTRA_NETWORK_TEMPLATE, template);
+		intent.setData(Uri.parse("content://" + template.getSubscriberId()));
         return intent;
     }
 
@@ -2046,6 +2103,7 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
                 "com.android.systemui", "com.android.systemui.net.NetworkOverLimitActivity"));
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.putExtra(EXTRA_NETWORK_TEMPLATE, template);
+		intent.setData(Uri.parse("content://" + template.getSubscriberId()));
         return intent;
     }
 
@@ -2055,6 +2113,7 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
                 "com.android.settings", "com.android.settings.Settings$DataUsageSummaryActivity"));
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.putExtra(EXTRA_NETWORK_TEMPLATE, template);
+		intent.setData(Uri.parse("content://" + template.getSubscriberId()));
         return intent;
     }
 

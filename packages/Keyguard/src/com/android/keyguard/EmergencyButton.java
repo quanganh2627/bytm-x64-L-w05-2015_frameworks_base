@@ -44,8 +44,12 @@ public class EmergencyButton extends Button {
 
         @Override
         public void onSimStateChanged(State simState) {
-            int phoneState = KeyguardUpdateMonitor.getInstance(mContext).getPhoneState();
-            updateEmergencyCallButton(simState, phoneState);
+            updateEmergencyCallButton(simState);
+        }
+
+        @Override
+        public void onSim2StateChanged(State simState) {
+            onSimStateChanged(simState);
         }
 
         void onPhoneStateChanged(int phoneState) {
@@ -86,9 +90,8 @@ public class EmergencyButton extends Button {
                 takeEmergencyCallAction();
             }
         });
-        int phoneState = KeyguardUpdateMonitor.getInstance(mContext).getPhoneState();
         State simState = KeyguardUpdateMonitor.getInstance(mContext).getSimState();
-        updateEmergencyCallButton(simState, phoneState);
+        updateEmergencyCallButton(simState);
     }
 
     /**
@@ -98,8 +101,10 @@ public class EmergencyButton extends Button {
         // TODO: implement a shorter timeout once new PowerManager API is ready.
         // should be the equivalent to the old userActivity(EMERGENCY_CALL_TIMEOUT)
         mPowerManager.userActivity(SystemClock.uptimeMillis(), true);
-        if (TelephonyManager.getDefault().getCallState()
-                == TelephonyManager.CALL_STATE_OFFHOOK) {
+        if ((TelephonyManager.getDefault().getCallState()
+                == TelephonyManager.CALL_STATE_OFFHOOK) ||
+                (TelephonyManager.get2ndTm().getCallState()
+                == TelephonyManager.CALL_STATE_OFFHOOK)) {
             mLockPatternUtils.resumeCall();
         } else {
             final boolean bypassHandler = true;
@@ -112,6 +117,11 @@ public class EmergencyButton extends Button {
         }
     }
 
+    private void updateEmergencyCallButton(State simState) {
+        int phoneState = KeyguardUpdateMonitor.getInstance(mContext).getPhoneState();
+        updateEmergencyCallButton(simState, phoneState);
+    }
+	
     private void updateEmergencyCallButton(State simState, int phoneState) {
         boolean enabled = false;
         if (phoneState == TelephonyManager.CALL_STATE_OFFHOOK) {

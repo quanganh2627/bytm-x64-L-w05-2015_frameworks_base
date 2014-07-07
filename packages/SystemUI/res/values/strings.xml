@@ -393,6 +393,8 @@
     <string name="data_usage_disabled_dialog_4g_title">4G data disabled</string>
     <!-- Title of dialog shown when mobile data usage has exceeded limit and has been disabled. [CHAR LIMIT=48] -->
     <string name="data_usage_disabled_dialog_mobile_title">Mobile data disabled</string>
+    <string name="data_usage_disabled_dialog_mobile_title_sim1">SIM 1 mobile data disabled</string>
+    <string name="data_usage_disabled_dialog_mobile_title_sim2">SIM 2 mobile data disabled</string>
     <!-- Title of dialog shown when data usage has exceeded limit and has been disabled. [CHAR LIMIT=48] -->
     <string name="data_usage_disabled_dialog_title">Data disabled</string>
     <!-- Body of dialog shown when data usage has exceeded limit and has been disabled. [CHAR LIMIT=NONE] -->

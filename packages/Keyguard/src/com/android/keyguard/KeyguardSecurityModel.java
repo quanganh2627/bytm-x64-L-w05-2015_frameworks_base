@@ -20,6 +20,7 @@ import android.content.Context;
 import android.telephony.TelephonyManager;
 
 import com.android.internal.telephony.IccCardConstants;
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.widget.LockPatternUtils;
 
 public class KeyguardSecurityModel {
@@ -36,7 +37,10 @@ public class KeyguardSecurityModel {
         Biometric, // Unlock with a biometric key (e.g. finger print or face unlock)
         Account, // Unlock by entering an account's login and password.
         SimPin, // Unlock by entering a sim pin.
-        SimPuk // Unlock by entering a sim puk
+        SimPuk, // Unlock by entering a sim puk
+        DualSimLock, // Power On Dual Sim Lock to unlock a PIN/PUK locked SIM
+        UserPinActivity, // User Unlock by entering sim PIN
+        UserPukActivity, // User Unlock by entering sim PUK
     }
 
     private Context mContext;
@@ -77,10 +81,22 @@ public class KeyguardSecurityModel {
         KeyguardUpdateMonitor updateMonitor = KeyguardUpdateMonitor.getInstance(mContext);
         final IccCardConstants.State simState = updateMonitor.getSimState();
         SecurityMode mode = SecurityMode.None;
-        if (simState == IccCardConstants.State.PIN_REQUIRED) {
+        if (TelephonyConstants.IS_DSDS) {
+            if (updateMonitor.isSimSecure()) {
+                mode = SecurityMode.DualSimLock;
+                return mode;
+            } else if (updateMonitor.isUserPinSecure()) {
+                mode = SecurityMode.UserPinActivity;
+                return mode;
+            } else if (updateMonitor.isUserPukSecure()) {
+                mode = SecurityMode.UserPukActivity;
+                return mode;
+            }
+        }		
+        if (simState == IccCardConstants.State.PIN_REQUIRED && !TelephonyConstants.IS_DSDS) {
             mode = SecurityMode.SimPin;
         } else if (simState == IccCardConstants.State.PUK_REQUIRED
-                && mLockPatternUtils.isPukUnlockScreenEnable()) {
+                && mLockPatternUtils.isPukUnlockScreenEnable() && !TelephonyConstants.IS_DSDS) {
             mode = SecurityMode.SimPuk;
         } else {
             final int security = mLockPatternUtils.getKeyguardStoredPasswordQuality();

@@ -120,6 +120,11 @@ public class KeyguardSelectorView extends LinearLayout implements KeyguardSecuri
         public void onSimStateChanged(State simState) {
             updateTargets();
         }
+		
+        @Override
+        public void onSim2StateChanged(State simState) {
+            updateTargets();
+        }
     };
 
     private final KeyguardActivityLauncher mActivityLauncher = new KeyguardActivityLauncher() {

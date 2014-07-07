@@ -69,6 +69,7 @@ import com.android.server.search.SearchManagerService;
 import com.android.server.usb.UsbService;
 import com.android.server.wifi.WifiService;
 import com.android.server.wm.WindowManagerService;
+import com.android.internal.telephony.TelephonyConstants;
 
 import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
@@ -216,6 +217,11 @@ class ServerThread {
             Slog.i(TAG, "Telephony Registry");
             telephonyRegistry = new TelephonyRegistry(context);
             ServiceManager.addService("telephony.registry", telephonyRegistry);
+
+            if (TelephonyConstants.IS_DSDS) {
+                Slog.i(TAG, "Telephony Registry2");
+                ServiceManager.addService("telephony.registry2", new TelephonyRegistry2(context));
+            }
 
             Slog.i(TAG, "Scheduling Policy");
             ServiceManager.addService("scheduling_policy", new SchedulingPolicyService());

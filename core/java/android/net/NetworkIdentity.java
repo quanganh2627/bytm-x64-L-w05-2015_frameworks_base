@@ -19,6 +19,7 @@ package android.net;
 import static android.net.ConnectivityManager.TYPE_WIFI;
 import static android.net.ConnectivityManager.getNetworkTypeName;
 import static android.net.ConnectivityManager.isNetworkTypeMobile;
+import static android.net.ConnectivityManager.isNetworkTypeOnNonDataSim;
 
 import android.content.Context;
 import android.net.wifi.WifiInfo;
@@ -26,6 +27,7 @@ import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.telephony.TelephonyManager;
 
+import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.util.Objects;
 
 /**
@@ -82,6 +84,13 @@ public class NetworkIdentity {
         if (COMBINE_SUBTYPE_ENABLED) {
             builder.append("COMBINED");
         } else if (ConnectivityManager.isNetworkTypeMobile(mType)) {
+            if (TelephonyConstants.IS_DSDS) {
+                if (ConnectivityManager.isNetworkTypeOnNonDataSim(mType)) {
+                    builder.append("NON_Data SIM:");
+                } else {
+                    builder.append("Data SIM:");
+                }
+            }
             builder.append(TelephonyManager.getNetworkTypeName(mSubType));
         } else {
             builder.append(mSubType);
@@ -148,8 +157,14 @@ public class NetworkIdentity {
         boolean roaming = false;
 
         if (isNetworkTypeMobile(type)) {
-            final TelephonyManager telephony = (TelephonyManager) context.getSystemService(
+            final TelephonyManager telephony;
+            if (TelephonyConstants.IS_DSDS && isNetworkTypeOnNonDataSim(type)) {
+                telephony = (TelephonyManager) context.getSystemService(
+                    Context.TELEPHONY_SERVICE2);
+            } else {
+                telephony = (TelephonyManager) context.getSystemService(
                     Context.TELEPHONY_SERVICE);
+            }
             roaming = telephony.isNetworkRoaming();
             if (state.subscriberId != null) {
                 subscriberId = state.subscriberId;
