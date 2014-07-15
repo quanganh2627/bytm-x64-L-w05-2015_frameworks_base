@@ -196,7 +196,10 @@ final class WifiDisplayController implements DumpUtils.Dump {
         mWifiP2pChannel = mWifiP2pManager.initialize(context, handler.getLooper(), null);
 
         IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
+        if (mContext.getResources().getBoolean(
+                com.android.internal.R.bool.config_wifi_multirole_multichannel_support)) {
+            intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
+        }
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
