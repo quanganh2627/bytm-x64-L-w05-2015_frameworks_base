@@ -626,6 +626,15 @@ public final class PowerManagerService extends IPowerManager.Stub
         }
         PowerManager.validateWakeLockParameters(flags, tag);
 
+	//just do nothing if we do not support the wakelock
+	if ( (flags & PowerManager.WAKE_LOCK_LEVEL_MASK)
+			== PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK ) {
+		if (isWakeLockLevelSupportedInternal(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK) == false) {
+			Slog.d(TAG, "acquireWakeLock: lock with " + flags + " is not supported.");
+			return;
+		}
+	}
+
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.WAKE_LOCK, null);
         if (ws != null && ws.size() != 0) {
             mContext.enforceCallingOrSelfPermission(
@@ -711,6 +720,15 @@ public final class PowerManagerService extends IPowerManager.Stub
         if (lock == null) {
             throw new IllegalArgumentException("lock must not be null");
         }
+
+	//just do nothing if we do not support the wakelock
+	if ( (flags & PowerManager.WAKE_LOCK_LEVEL_MASK)
+			== PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK ) {
+		if (isWakeLockLevelSupportedInternal(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK) == false) {
+			Slog.d(TAG, "releaseWakeLock: lock with " + flags + " is not supported.");
+			return;
+		}
+	}
 
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.WAKE_LOCK, null);
 
