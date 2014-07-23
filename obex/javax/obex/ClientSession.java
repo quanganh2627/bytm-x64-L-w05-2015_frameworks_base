@@ -1,4 +1,6 @@
 /*
+ *  Copyright (C) 2012-2013 Intel Mobile Communications GmbH
+ *
  * Copyright (c) 2008-2009, Motorola, Inc.
  *
  * All rights reserved.
@@ -36,12 +38,15 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import android.util.Log;
 
 /**
  * This class in an implementation of the OBEX ClientSession.
  * @hide
  */
 public final class ClientSession extends ObexSession {
+   private static final String TAG = "ClientSession";
+
 
     private boolean mOpen;
 
@@ -447,11 +452,12 @@ public final class ClientSession extends ObexSession {
                 @SuppressWarnings("unused")
                 int flags = mInput.read();
                 maxPacketSize = (mInput.read() << 8) + mInput.read();
+                Log.v(TAG, "Client session sendRequest maxPacketSize " +maxPacketSize);
 
                 //check with local max size
-                if (maxPacketSize > ObexHelper.MAX_CLIENT_PACKET_SIZE) {
+               /* if (maxPacketSize > ObexHelper.MAX_CLIENT_PACKET_SIZE) {
                     maxPacketSize = ObexHelper.MAX_CLIENT_PACKET_SIZE;
-                }
+                }*/
 
                 if (length > 7) {
                     data = new byte[length - 7];

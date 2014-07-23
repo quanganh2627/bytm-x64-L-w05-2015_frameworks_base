@@ -1,4 +1,5 @@
 /*
+ *  Copyright (C) 2012-2013 Intel Mobile Communications GmbH
  * Copyright (c) 2008-2009, Motorola, Inc.
  *
  * All rights reserved.
@@ -38,6 +39,7 @@ import java.io.OutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.ByteArrayOutputStream;
+import android.util.Log;
 
 /**
  * This class implements the <code>Operation</code> interface. It will read and
@@ -45,6 +47,8 @@ import java.io.ByteArrayOutputStream;
  * @hide
  */
 public final class ClientOperation implements Operation, BaseStream {
+    private static final String TAG = "ClientOperation";
+
 
     private ClientSession mParent;
 
@@ -418,6 +422,7 @@ public final class ClientOperation implements Operation, BaseStream {
          * length, but it is a waste of resources if we can't send much of
          * the body.
          */
+
         if ((ObexHelper.BASE_PACKET_LENGTH + headerArray.length) > mMaxPacketSize) {
             int end = 0;
             int start = 0;
@@ -465,6 +470,7 @@ public final class ClientOperation implements Operation, BaseStream {
         } else {
             out.write(headerArray);
         }
+        Log.v(TAG, " Client sendRequest bodyLength" +bodyLength);
 
         if (bodyLength > 0) {
             /*

@@ -1,4 +1,6 @@
 /*
+ *  Copyright (C) 2012-2013 Intel Mobile Communications GmbH
+ *
  * Copyright (c) 2008-2009, Motorola, Inc.
  *
  * All rights reserved.
@@ -38,6 +40,7 @@ import java.io.DataInputStream;
 import java.io.OutputStream;
 import java.io.DataOutputStream;
 import java.io.ByteArrayOutputStream;
+import android.util.Log;
 
 /**
  * This class implements the Operation interface for server side connections.
@@ -53,6 +56,7 @@ import java.io.ByteArrayOutputStream;
  * @hide
  */
 public final class ServerOperation implements Operation, BaseStream {
+    private static final String TAG = "Obex ServerOperation";
 
     public boolean isAborted;
 
@@ -85,6 +89,8 @@ public final class ServerOperation implements Operation, BaseStream {
     private ServerRequestHandler mListener;
 
     private boolean mRequestFinished;
+
+    private boolean firstacksent = false;
 
     private boolean mHasBody;
 
@@ -338,7 +344,11 @@ public final class ServerOperation implements Operation, BaseStream {
             }
 
         } else {
-            out.write(headerArray);
+               if (firstacksent == false)
+               {
+               out.write(headerArray);
+               Log.v(TAG, "sendReply firstacksent" +firstacksent);
+               }
         }
 
         // For Get operation: if response code is OBEX_HTTP_OK, then this is the
@@ -395,9 +405,12 @@ public final class ServerOperation implements Operation, BaseStream {
             }
         }
 
-        mResponseSize = 3;
-        mParent.sendResponse(type, out.toByteArray());
-
+        if (firstacksent == false){
+            mResponseSize = 3;
+            mParent.sendResponse(type, out.toByteArray());
+            firstacksent = true;
+            Log.v(TAG, "sendReply firstacksent resp" +firstacksent);
+        }
         if (type == ResponseCodes.OBEX_HTTP_CONTINUE) {
             int headerID = mInput.read();
             int length = mInput.read();
@@ -497,6 +510,32 @@ public final class ServerOperation implements Operation, BaseStream {
                     }
                 }
             }
+          if (firstacksent == true){
+              int end = 0;
+              int start = 0;
+              while (end != headerArray.length) {
+              end = ObexHelper.findHeaderEnd(headerArray, start, mMaxPacketLength
+                                           - ObexHelper.BASE_PACKET_LENGTH);
+              if (end == -1) {
+                  mClosed = true;
+                  if (mPrivateInput != null) {
+                      mPrivateInput.close();
+                  }
+                  if (mPrivateOutput != null) {
+                     mPrivateOutput.close();
+                  }
+                  mParent.sendResponse(ResponseCodes.OBEX_HTTP_INTERNAL_ERROR, null);
+                  throw new IOException("OBEX Packet exceeds max packet size");
+              }
+              byte[] sendHeader = new byte[end - start];
+              System.arraycopy(headerArray, start, sendHeader, 0, sendHeader.length);
+              if (finalBitSet == true)
+                  mParent.sendResponse(ResponseCodes.OBEX_HTTP_OK, sendHeader);
+              else
+                  mParent.sendResponse(ResponseCodes.OBEX_HTTP_CONTINUE, sendHeader);
+              start = end;
+             }
+             }
             return true;
         } else {
             return false;

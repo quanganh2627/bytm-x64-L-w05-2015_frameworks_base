@@ -46,7 +46,7 @@ import android.provider.Settings;
 import android.util.Log;
 class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final String TAG = "BluetoothManagerService";
-    private static final boolean DBG = true;
+    private static final boolean DBG = false;
 
     private static final String BLUETOOTH_ADMIN_PERM = android.Manifest.permission.BLUETOOTH_ADMIN;
     private static final String BLUETOOTH_PERM = android.Manifest.permission.BLUETOOTH;
@@ -496,7 +496,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         if (!mConnection.isGetNameAddressOnly()) {
             if (DBG) Log.d(TAG,"Calling onBluetoothServiceUp callbacks");
             int n = mCallbacks.beginBroadcast();
-            Log.d(TAG,"Broadcasting onBluetoothServiceUp() to " + n + " receivers.");
+            if (DBG) Log.d(TAG,"Broadcasting onBluetoothServiceUp() to " + n + " receivers.");
             for (int i=0; i <n;i++) {
                 try {
                     mCallbacks.getBroadcastItem(i).onBluetoothServiceUp(mBluetooth);
@@ -514,7 +514,7 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         if (!mConnection.isGetNameAddressOnly()) {
             if (DBG) Log.d(TAG,"Calling onBluetoothServiceDown callbacks");
             int n = mCallbacks.beginBroadcast();
-            Log.d(TAG,"Broadcasting onBluetoothServiceDown() to " + n + " receivers.");
+            if (DBG) Log.d(TAG,"Broadcasting onBluetoothServiceDown() to " + n + " receivers.");
             for (int i=0; i <n;i++) {
                 try {
                     mCallbacks.getBroadcastItem(i).onBluetoothServiceDown();
@@ -753,14 +753,14 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 {
                     IBluetoothManagerCallback callback = (IBluetoothManagerCallback) msg.obj;
                     boolean added = mCallbacks.register(callback);
-                    Log.d(TAG,"Added callback: " +  (callback == null? "null": callback)  +":" +added );
+                    if (DBG) Log.d(TAG,"Added callback: " +  (callback == null? "null": callback)  +":" +added );
                 }
                     break;
                 case MESSAGE_UNREGISTER_ADAPTER:
                 {
                     IBluetoothManagerCallback callback = (IBluetoothManagerCallback) msg.obj;
                     boolean removed = mCallbacks.unregister(callback);
-                    Log.d(TAG,"Removed callback: " +  (callback == null? "null": callback)  +":" + removed);
+                    if (DBG) Log.d(TAG,"Removed callback: " +  (callback == null? "null": callback)  +":" + removed);
                     break;
                 }
                 case MESSAGE_REGISTER_STATE_CHANGE_CALLBACK:
@@ -927,8 +927,10 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 }
                 case MESSAGE_RESTART_BLUETOOTH_SERVICE:
                 {
-                    Log.d(TAG, "MESSAGE_RESTART_BLUETOOTH_SERVICE:"
-                        +" Restart IBluetooth service");
+                    if (DBG) {
+                        Log.d(TAG, "MESSAGE_RESTART_BLUETOOTH_SERVICE:"
+                            +" Restart IBluetooth service");
+                    }
                     /* Enable without persisting the setting as
                      it doesnt change when IBluetooth
                      service restarts */

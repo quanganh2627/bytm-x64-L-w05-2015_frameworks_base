@@ -1,4 +1,6 @@
 /*
+ *  Copyright (C) 2012-2013 Intel Mobile Communications GmbH
+ *
  * Copyright (c) 2008-2009, Motorola, Inc.
  *
  * All rights reserved.
@@ -261,6 +263,7 @@ public final class ServerSession extends ObexSession implements Runnable {
             return;
         }
 
+        Log.v(TAG, "sendResponse - code" + code);
         if (header != null) {
             totalLength += header.length;
             data = new byte[totalLength];
@@ -542,6 +545,7 @@ public final class ServerSession extends ObexSession implements Runnable {
         mMaxPacketLength = mInput.read();
         mMaxPacketLength = (mMaxPacketLength << 8) + mInput.read();
 
+        Log.v(TAG, "SErversession HandleCOnnect req - mMaxPacketLength " +mMaxPacketLength);
         // should we check it?
         if (mMaxPacketLength > ObexHelper.MAX_PACKET_SIZE_INT) {
             mMaxPacketLength = ObexHelper.MAX_PACKET_SIZE_INT;
