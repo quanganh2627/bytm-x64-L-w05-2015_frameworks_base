@@ -666,6 +666,7 @@ public class WallpaperCropActivity extends Activity {
                         mCropBounds.right /= scaleDownSampleSize;
                         mCropBounds.roundOut(roundedTrueCrop);
 
+                        /*  //google sulution to fix wallpaper cropping bugs
                         // Adjust values to account for issues related to rounding
                         if (roundedTrueCrop.width() > fullSize.getWidth()) {
                             // Adjust the width
@@ -688,6 +689,26 @@ public class WallpaperCropActivity extends Activity {
                                     Math.max(0, roundedTrueCrop.bottom - roundedTrueCrop.height());
                             roundedTrueCrop.top -= adjustment;
                             roundedTrueCrop.bottom -= adjustment;
+                        }
+                    */
+
+                        //another solution to fix crash when editing bmp & gif
+                        if (roundedTrueCrop.left + roundedTrueCrop.width() > fullSize.getWidth()) {
+                            roundedTrueCrop.right = fullSize.getWidth() - roundedTrueCrop.left;
+                        }
+                        
+                        if (roundedTrueCrop.top + roundedTrueCrop.height() > fullSize.getHeight()) {
+                            roundedTrueCrop.bottom = fullSize.getHeight() - roundedTrueCrop.top;
+                        }
+
+                        if (roundedTrueCrop.left < 0) {
+                            roundedTrueCrop.left = 0;
+                            roundedTrueCrop.right = fullSize.getWidth() - roundedTrueCrop.left;
+                        }
+
+                        if (roundedTrueCrop.top < 0) {
+                            roundedTrueCrop.top = 0;
+                             roundedTrueCrop.bottom = fullSize.getHeight() - roundedTrueCrop.top;
                         }
 
                         crop = Bitmap.createBitmap(fullSize, roundedTrueCrop.left,

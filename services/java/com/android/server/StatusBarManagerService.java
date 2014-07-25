@@ -331,18 +331,29 @@ public class StatusBarManagerService extends IStatusBarService.Stub
     private void updateUiVisibilityLocked(final int vis, final int mask) {
         if (mSystemUiVisibility != vis) {
             mSystemUiVisibility = vis;
-            mHandler.post(new Runnable() {
-                    public void run() {
-                        if (mBar != null) {
-                            try {
-                                mBar.setSystemUiVisibility(vis, mask);
-                            } catch (RemoteException ex) {
-                            }
-                        }
-                    }
-                });
+            //when power on, main thread is blooded with msg and blocked sometimes, so use binder 
+            //thread to make statusbar and navigation bar shown ASAP
+            if (mBar != null) {
+                try {
+                    mBar.setSystemUiVisibility(vis, mask);
+                    } catch (RemoteException ex) {
+                }
+            }
+            /*
+        mHandler.post(new Runnable() {
+        public void run() {
+        if (mBar != null) {
+            try {
+                mBar.setSystemUiVisibility(vis, mask);
+            } catch (RemoteException ex) {
+            }
+        }
+        }
+        });
+        */
         }
     }
+
 
     public void setHardKeyboardEnabled(final boolean enabled) {
         mHandler.post(new Runnable() {
