@@ -340,15 +340,23 @@ public class CurrentMgmtService extends Binder {
                 for (i = mLevels.size() - 1; i >= 0; i--) {
                     if (battLevel < mLevels.get(i)) {
                         sCurLevelState = i + 1;
+                        if (sCurLevelState == mLevels.size()) {
+                            sCurLevelState = i;
+                        }
                         break;
                     }
                     sCurLevelState = 0;
                 }
                 for (i = mTemps.size() - 1; i >= 0; i--) {
-                    if (battTemp < mTemps.get(i) && ((i < mTemps.size() - 1)
-                            && battLevel < mLevelsTemp.get(i + 1)
-                            || mLevelsTemp.get(i + 1) == 0)) {
-                        sCurTempState = i + 1;
+                    if (battTemp < mTemps.get(i)) {
+                        if ((i < mTemps.size() - 1)
+                                && battLevel < mLevelsTemp.get(i + 1)) {
+                            sCurTempState = i + 1;
+                        } else if (i == mTemps.size() - 1) {
+                            // If temperature is critical, no need to check for
+                            // battery level. Assign state as critical.
+                            sCurTempState = i;
+                        }
                         break;
                     }
                     sCurTempState = 0;
