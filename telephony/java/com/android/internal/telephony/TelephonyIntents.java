@@ -26,6 +26,27 @@ package com.android.internal.telephony;
 public class TelephonyIntents {
 
     /**
+     * Broadcast Action: Emergency call status change(ongoing or ended)
+     * This is a sticky broadcast.
+     * The intent will have the following extra value:</p>
+     *
+     * <ul>
+     *   <li><em>emergencyCallOngoing</em> - A boolean value indicating whether the phone
+     *                                       is in emergency call or not.</li>
+     * </ul>
+     *
+     * <p class="note">
+     * Ongoing means that the call is in dialing, alerting, active or disconnecting state.
+     *
+     * <p class="note">
+     * Requires the READ_PHONE_STATE permission.
+     *
+     * <p class="note">
+     * This is a protected intent that can only be sent by the system.
+     */
+    public static final String ACTION_EMERGENCY_CALL_STATUS_CHANGED =
+            "android.intent.action.EMERGENCY_CALL_STATUS";
+    /**
      * Broadcast Action: The phone service state has changed. The intent will have the following
      * extra values:</p>
      * <ul>

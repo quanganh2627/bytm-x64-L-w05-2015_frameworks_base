@@ -44,6 +44,7 @@ public class EmergencyButton extends Button {
 
         @Override
         public void onSimStateChanged(State simState) {
+            int phoneState = KeyguardUpdateMonitor.getInstance(mContext).getPhoneState();
             updateEmergencyCallButton(simState);
         }
 
@@ -53,8 +54,11 @@ public class EmergencyButton extends Button {
         }
 
         void onPhoneStateChanged(int phoneState) {
-            State simState = KeyguardUpdateMonitor.getInstance(mContext).getSimState();
-            updateEmergencyCallButton(simState, phoneState);
+            onPhoneStateChanged(phoneState, 0);
+        };
+        void onPhoneStateChanged(int phoneState, int slot) {
+            State simState = KeyguardUpdateMonitor.getInstance(mContext).getSimState(slot);
+            updateEmergencyCallButton(simState);
         };
     };
     private LockPatternUtils mLockPatternUtils;

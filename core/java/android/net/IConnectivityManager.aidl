@@ -155,7 +155,7 @@ interface IConnectivityManager
 
     void enableSimData(boolean enable);
 
+    int getPrimaryDataSim();
+    
     int getDataSim();
-
-    void setDataSim(int slot);
 }

@@ -25,6 +25,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.LinkCapabilities;
 import android.net.LinkProperties;
+import android.net.ConnectivityManager;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
@@ -695,7 +696,9 @@ class TelephonyRegistry2 extends ITelephonyRegistry2.Stub {
         Intent intent = new Intent(TelephonyManager.ACTION_PHONE_STATE_CHANGED);
         intent.putExtra(PhoneConstants.STATE_KEY,
                 DefaultPhoneNotifier.convertCallState(state).toString());
-        int slot = 1 - TelephonyManager.getPrimarySim();
+        ConnectivityManager cm = (ConnectivityManager)
+            mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        int slot = 1 - cm.getPrimaryDataSim();
         intent.putExtra(TelephonyConstants.EXTRA_SLOT, slot);
         if (!TextUtils.isEmpty(incomingNumber)) {
             intent.putExtra(TelephonyManager.EXTRA_INCOMING_NUMBER, incomingNumber);

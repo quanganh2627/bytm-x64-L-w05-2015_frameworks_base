@@ -59,6 +59,7 @@
                android:layout_height="match_parent"
                android:layout_weight="1"
                android:gravity="center"
+               android:maxLength="8"
                android:layout_marginStart="@dimen/keyguard_lockscreen_pin_margin_left"
                android:singleLine="true"
                android:cursorVisible="false"

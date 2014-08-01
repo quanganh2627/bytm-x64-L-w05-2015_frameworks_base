@@ -380,7 +380,13 @@ public class KeyguardViewMediator {
 
         @Override
         public void onSimStateChanged(IccCardConstants.State simState) {
-            if (DEBUG) Log.d(TAG, "onSimStateChanged: " + simState);
+            onSimStateChanged(simState, 0);
+        }
+        private boolean isSimAbsent(int slot) {
+            return mUpdateMonitor.getSimState(slot) == IccCardConstants.State.ABSENT;
+        }
+        public void onSimStateChanged(IccCardConstants.State simState, int slot) {
+            if (DEBUG) Log.d(TAG, "onSimStateChanged: " + simState + " slot:" + slot);
 
             switch (simState) {
                 case NOT_READY:
@@ -397,6 +403,24 @@ public class KeyguardViewMediator {
                             } else {
                                 resetStateLocked(null);
                             }
+                        } else {
+                            if (isShowing()) {
+                                if (simState == IccCardConstants.State.ABSENT) {
+                                    boolean isOtherSimAbsent = (!TelephonyConstants.IS_DSDS)
+                                            || isSimAbsent(1 - slot);
+                                    if (!isOtherSimAbsent) {
+                                        if (DEBUG) Log.d(TAG, "Other SIM is not absent,continue");
+                                        break;
+                                    }
+                                }
+                                if (mLockPatternUtils.isLockScreenDisabled()) {
+                                    if (DEBUG) Log.d(TAG, "Lock screen will be hidden because,"
+                                            + " the user has set the preference to None.");
+                                    hideLocked();
+                                } else {
+                                    resetStateLocked(null);
+                                }
+                            }
                         }
                     }
                     break;
@@ -404,6 +428,10 @@ public class KeyguardViewMediator {
                 case PUK_REQUIRED:
                     synchronized (this) {
                         if (!isShowing()) {
+                            if (TelephonyConstants.IS_DSDS && !mUpdateMonitor.isDsdsSecure()) {
+                                if (DEBUG) Log.d(TAG, "SIM locked but not DSDS locked");
+                                break;
+                            }
                             if (DEBUG) Log.d(TAG, "INTENT_VALUE_ICC_LOCKED and keygaurd isn't "
                                     + "showing; need to show keyguard so user can enter sim pin");
                             doKeyguardLocked(null);
@@ -441,7 +469,7 @@ public class KeyguardViewMediator {
         @Override
         public void onSim2StateChanged(IccCardConstants.State simState) {
             if (DEBUG) Log.d(TAG, "onSim2StateChanged,simState:" + simState);
-            onSimStateChanged(simState);
+            onSimStateChanged(simState, 1);
         }
     };
 
@@ -884,13 +912,29 @@ public class KeyguardViewMediator {
     public boolean isInputRestricted() {
         return mShowing || mNeedToReshowWhenReenabled || !mUpdateMonitor.isDeviceProvisioned();
     }
-    private boolean isSimLockedOrMissing() {
+    private boolean isSimLocked() {
             if (TelephonyConstants.IS_DSDS) {
                 return mUpdateMonitor.isDsdsSecure();
             } else {
                 final IccCardConstants.State state = mUpdateMonitor.getSimState();
-                return (state.isPinLocked() || state == IccCardConstants.State.ABSENT
-                        || state == IccCardConstants.State.PERM_DISABLED);
+            return state.isPinLocked();
+        }
+    }
+    private boolean isSimMissing() {
+        final boolean requireSim = !SystemProperties.getBoolean("keyguard.no_require_sim",
+            false);
+        final IccCardConstants.State state = mUpdateMonitor.getSimState();
+        if (TelephonyConstants.IS_DSDS) {
+            final IccCardConstants.State state2 = mUpdateMonitor.getSim2State();
+            return ((state == IccCardConstants.State.ABSENT
+                    || state == IccCardConstants.State.PERM_DISABLED)
+                    && (state2 == IccCardConstants.State.ABSENT
+                    || state2 == IccCardConstants.State.PERM_DISABLED))
+                    && requireSim;
+         } else {
+            return (state == IccCardConstants.State.ABSENT
+                    || state == IccCardConstants.State.PERM_DISABLED)
+                    && requireSim;
             }
     }
     /**
@@ -920,10 +964,8 @@ public class KeyguardViewMediator {
         }
 
         // if the setup wizard hasn't run yet, don't show
-        final boolean requireSim = !SystemProperties.getBoolean("keyguard.no_require_sim",
-                false);
         final boolean provisioned = mUpdateMonitor.isDeviceProvisioned();
-        final boolean lockedOrMissing = isSimLockedOrMissing() && requireSim;
+        final boolean lockedOrMissing = isSimLocked() || isSimMissing();
 
         if (!lockedOrMissing && !provisioned) {
             if (DEBUG) Log.d(TAG, "doKeyguard: not showing because device isn't provisioned"
@@ -1293,7 +1335,7 @@ public class KeyguardViewMediator {
                 // (like recents). Temporary enable/disable (e.g. the "back" button) are
                 // done in KeyguardHostView.
                 flags |= StatusBarManager.DISABLE_RECENT;
-                if (isSecure() || !ENABLE_INSECURE_STATUS_BAR_EXPAND) {
+                if (isSecure() && !ENABLE_INSECURE_STATUS_BAR_EXPAND) {
                     // showing secure lockscreen; disable expanding.
                     flags |= StatusBarManager.DISABLE_EXPAND;
                 }

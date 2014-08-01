@@ -20,8 +20,9 @@ import com.android.internal.app.AlertController;
 import com.android.internal.app.AlertController.AlertParams;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.telephony.TelephonyProperties;
-import com.android.internal.R;
 import com.android.internal.telephony.TelephonyConstants;
+import com.android.internal.R;
+
 import android.app.ActivityManagerNative;
 import android.app.AlertDialog;
 import android.app.Dialog;
@@ -248,10 +249,12 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
 
                 public void onPress() {
                     // shutdown by making sure radio and power are handled accordingly.
+                    Log.i(TAG, "[SHTDWN] onPress, request a clean shutdown");
                     mWindowManagerFuncs.shutdown(true);
                 }
 
                 public boolean onLongPress() {
+                    Log.i(TAG, "[SHTDWN] onLongPress, request a reboot safe mode");
                     mWindowManagerFuncs.rebootSafeMode(true);
                     return true;
                 }

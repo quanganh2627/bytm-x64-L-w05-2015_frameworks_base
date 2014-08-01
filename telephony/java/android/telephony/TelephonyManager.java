@@ -20,17 +20,17 @@ import android.annotation.PrivateApi;
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
 import android.content.Context;
-import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
-import android.net.ConnectivityManager;
 import android.provider.Settings;
 import android.telephony.Rlog;
 import android.util.Log;
+import android.os.Binder;
+import android.net.ConnectivityManager;
 import com.android.internal.telephony.IPhoneSubInfo;
 import com.android.internal.telephony.ITelephony;
 import com.android.internal.telephony.ITelephonyListener;
@@ -70,11 +70,12 @@ import java.util.regex.Pattern;
  */
 public class TelephonyManager {
     private static final String TAG = "TelephonyManager";
-    private final HashMap<CallStateListener,Listener> mListeners
-            = new HashMap<CallStateListener,Listener>();
-    private static ITelephonyRegistry sRegistry= null;
+
+    private static ITelephonyRegistry sRegistry;
     private static ITelephonyRegistry2 sRegistry2 = null;
     private static Context mContext;
+    private final HashMap<CallStateListener,Listener> mListeners
+            = new HashMap<CallStateListener,Listener>();
 
     private static class Listener extends ITelephonyListener.Stub {
         final CallStateListener mListener;
@@ -176,9 +177,11 @@ public class TelephonyManager {
     /** @hide
     /* get TelephonyManager by slot*/
     public static TelephonyManager getTmBySlot(int slot) {
-        int dataSim = getPrimarySim();
-        return ((slot == 0 && dataSim == 0) || (slot != 0 && dataSim != 0))
-                ? sInstance : sInstance2;
+        ConnectivityManager cm = (ConnectivityManager)
+            mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        return ( (slot == 0 && cm.getPrimaryDataSim() == 0)
+        || (slot != 0 && cm.getPrimaryDataSim() != 0)) ?
+        sInstance : sInstance2;
     }
 
     /*
@@ -1600,8 +1603,158 @@ public class TelephonyManager {
     }
 
     /**
-     * Returns the MMS user agent.
+     * @return the current dynamic DataSIM policy
+     * <p>
+     * If not supported, the return value is DISABLED.
+     * If supported and use non-reboot solution, the return value is ENABLED.
+     * If supported and use reboot solution, the return value is ENABLED_REBOOT.
+     *
+     * @hide pending API review
      */
+    public int getDynamicDataSimPolicy() {
+         try {
+             return getITelephony().getDynamicDataSimPolicy();
+         } catch (RemoteException ex) {
+             return DYNAMIC_DATA_SIM_DISABLED;
+         } catch (NullPointerException ex) {
+             return DYNAMIC_DATA_SIM_DISABLED;
+         }
+    }
+
+    /**
+     * @return true if the current device supports dynamic DataSIM
+     * <p>
+     * If supported the return value is true
+     *
+     * @hide pending API review
+     */
+    public boolean isDynamicDataSimSupported() {
+        try {
+            int policy = getITelephony().getDynamicDataSimPolicy();
+            if (policy == DYNAMIC_DATA_SIM_DISABLED) {
+                return false;
+            }
+            return true;
+        } catch (RemoteException ex) {
+            return false;
+        } catch (NullPointerException ex) {
+            return false;
+        }
+    }
+
+    /**
+     * Returns the temporary out of service on specified slot.
+     * @hide
+     */
+    public boolean isToosOnSlot(int slotId) {
+        if (getTmBySlot(slotId) == sInstance) {
+            return SystemProperties.getBoolean(TelephonyConstants.PROPERTY_TEMPORARY_OOS
+                    + "." + TelephonyConstants.STRING_PRIMARY_PHONE, false);
+        }
+        return SystemProperties.getBoolean(TelephonyConstants.PROPERTY_TEMPORARY_OOS
+                + "." + TelephonyConstants.STRING_SECONDARY_PHONE, false);
+    }
+
+    /**
+     * Returns the temporary out of service on current manager.
+     * @hide
+     */
+    public boolean isToosOnPhone(String phone) {
+        return SystemProperties.getBoolean(TelephonyConstants.PROPERTY_TEMPORARY_OOS
+                + "." + phone, false);
+    }
+
+    /**
+     * Return true if SIM switching: primary SIM switching SIM ON/OFF, is going on.
+     *
+     * @hide
+     */
+    public boolean isSimSwitching() {
+        int activity = getSimActivity();
+        return isSwitchingActivity(activity);
+    }
+
+    /**
+     * Return true if the given activity is SIM switching: primary switching,ON/OFF
+     *
+     * @hide
+     */
+    public static boolean isSwitchingActivity(int activity) {
+        return (((activity & TelephonyConstants.SIM_ACTIVITY_ONOFF) != 0)
+                || ((activity & TelephonyConstants.SIM_ACTIVITY_ONOFF) != 0));
+    }
+
+    /**
+     * Return true if SIM busy: ON/OFF switching, primary SIM switching,
+     * or import/export is going on
+     *
+     * @hide
+     */
+    public boolean isSimBusy() {
+         try {
+             return getITelephony().isSimBusy();
+         } catch (RemoteException ex) {
+             log("isSimBusy,exception:" + ex);
+             return false;
+         } catch (NullPointerException ex) {
+             log("isSimBusy,exception:" + ex);
+             return false;
+         }
+    }
+
+    /**
+     * Return the current SIM activity
+     *
+     * @hide
+     */
+    public int getSimActivity() {
+        try {
+            return getITelephony().getSimActivity();
+        } catch (RemoteException ex) {
+            log("getSimActivity,exception:" + ex);
+            return 0;
+        } catch (NullPointerException ex) {
+            log("getSimActivity,exception:" + ex);
+            return 0;
+        }
+    }
+
+    /** @hide */
+    public static final int SIM_REQUEST_SUCCESS             = 0;
+    /** @hide */
+    public static final int SIM_REQUEST_REFUSED_BUSY        = -1;
+
+    /**
+     * Return 0 if the given request is granted
+     *
+     * @hide
+     */
+    public int requestSimActivity(int activity) {
+         try {
+             return getITelephony().requestSimActivity(activity, new Binder());
+         } catch (RemoteException ex) {
+             log("isSimBusy,exception:" + ex);
+         } catch (NullPointerException ex) {
+             log("isSimBusy,exception:" + ex);
+         }
+         return -1;
+    }
+
+    /**
+     * requrest to finish a SIM activity
+     *
+     * @hide
+     */
+    public int stopSimActivity(int activity) {
+        try {
+            return getITelephony().stopSimActivity(activity);
+        } catch (RemoteException ex) {
+            log("stopSimActivity,exception:" + ex);
+        } catch (NullPointerException ex) {
+            log("stopSimActivity,exception:" + ex);
+        }
+        return -1;
+    }
     public String getMmsUserAgent() {
         if (mContext == null) return null;
         return mContext.getResources().getString(
@@ -2009,159 +2162,6 @@ public class TelephonyManager {
             Log.e(TAG, "Error calling ITelephony#removeListener", e);
         }
     }
-    /**
-     * @return the current dynamic DataSIM policy
-     * <p>
-     * If not supported, the return value is DISABLED.
-     * If supported and use non-reboot solution, the return value is ENABLED.
-     * If supported and use reboot solution, the return value is ENABLED_REBOOT.
-     *
-     * @hide pending API review
-     */
-    public int getDynamicDataSimPolicy() {
-         try {
-             return getITelephony().getDynamicDataSimPolicy();
-         } catch (RemoteException ex) {
-             return DYNAMIC_DATA_SIM_DISABLED;
-         } catch (NullPointerException ex) {
-             return DYNAMIC_DATA_SIM_DISABLED;
-         }
-    }
-
-    /**
-     * @return true if the current device supports dynamic DataSIM
-     * <p>
-     * If supported the return value is true
-     *
-     * @hide pending API review
-     */
-    public boolean isDynamicDataSimSupported() {
-        try {
-            int policy = getITelephony().getDynamicDataSimPolicy();
-            if (policy == DYNAMIC_DATA_SIM_DISABLED) {
-                return false;
-            }
-            return true;
-        } catch (RemoteException ex) {
-            return false;
-        } catch (NullPointerException ex) {
-            return false;
-        }
-    }
-
-    /**
-     * Returns the temporary out of service on specified slot.
-     * @hide
-     */
-    public boolean isToosOnSlot(int slotId) {
-        if (getTmBySlot(slotId) == sInstance) {
-            return SystemProperties.getBoolean(TelephonyConstants.PROPERTY_TEMPORARY_OOS
-                    + "." + TelephonyConstants.STRING_PRIMARY_PHONE, false);
-        }
-        return SystemProperties.getBoolean(TelephonyConstants.PROPERTY_TEMPORARY_OOS
-                + "." + TelephonyConstants.STRING_SECONDARY_PHONE, false);
-    }
-
-    /**
-     * Returns the temporary out of service on current manager.
-     * @hide
-     */
-    public boolean isToosOnPhone(String phone) {
-        return SystemProperties.getBoolean(TelephonyConstants.PROPERTY_TEMPORARY_OOS
-                + "." + phone, false);
-    }
-
-    /**
-     * Return true if SIM switching: primary SIM switching SIM ON/OFF, is going on.
-     *
-     * @hide
-     */
-    public boolean isSimSwitching() {
-        int activity = getSimActivity();
-        return isSwitchingActivity(activity);
-    }
-
-    /**
-     * Return true if the given activity is SIM switching: primary switching,ON/OFF
-     *
-     * @hide
-     */
-    public static boolean isSwitchingActivity(int activity) {
-        return (((activity & TelephonyConstants.SIM_ACTIVITY_PRIMARY) != 0)
-                || ((activity & TelephonyConstants.SIM_ACTIVITY_ONOFF) != 0));
-    }
-
-    /**
-     * Return true if SIM busy: ON/OFF switching, primary SIM switching,
-     * or import/export is going on
-     *
-     * @hide
-     */
-    public boolean isSimBusy() {
-         try {
-             return getITelephony().isSimBusy();
-         } catch (RemoteException ex) {
-             log("isSimBusy,exception:" + ex);
-             return false;
-         } catch (NullPointerException ex) {
-             log("isSimBusy,exception:" + ex);
-             return false;
-         }
-    }
-
-    /**
-     * Return the current SIM activity
-     *
-     * @hide
-     */
-    public int getSimActivity() {
-        try {
-            return getITelephony().getSimActivity();
-        } catch (RemoteException ex) {
-            log("getSimActivity,exception:" + ex);
-            return 0;
-        } catch (NullPointerException ex) {
-            log("getSimActivity,exception:" + ex);
-            return 0;
-        }
-    }
-
-    /** @hide */
-    public static final int SIM_REQUEST_SUCCESS             = 0;
-    /** @hide */
-    public static final int SIM_REQUEST_REFUSED_BUSY        = -1;
-
-    /**
-     * Return 0 if the given request is granted
-     *
-     * @hide
-     */
-    public int requestSimActivity(int activity) {
-         try {
-             return getITelephony().requestSimActivity(activity, new Binder());
-         } catch (RemoteException ex) {
-             log("isSimBusy,exception:" + ex);
-         } catch (NullPointerException ex) {
-             log("isSimBusy,exception:" + ex);
-         }
-         return -1;
-    }
-    /**
-     * requrest to finish a SIM activity
-     *
-     * @hide
-     */
-    public int stopSimActivity(int activity) {
-        try {
-            return getITelephony().stopSimActivity(activity);
-        } catch (RemoteException ex) {
-            log("stopSimActivity,exception:" + ex);
-        } catch (NullPointerException ex) {
-            log("stopSimActivity,exception:" + ex);
-        }
-        return -1;
-    }
-
     /**
      * Return Primary Data SIM Id
      *

@@ -26,6 +26,7 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.telephony.TelephonyManager;
+import android.net.ConnectivityManager;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
@@ -64,9 +65,9 @@ import com.android.internal.telephony.TelephonyProperties;
 import com.android.internal.telephony.TelephonyProperties2;
 import com.android.internal.widget.LockPatternUtils;
 
-public class KeyguardDualSimUnlockView extends LinearLayout implements KeyguardSecurityView,
+public class DualSimUnlockScreen extends LinearLayout implements KeyguardSecurityView,
         View.OnClickListener, View.OnLongClickListener {
-    private static final String TAG = "KeyguardDualSimUnlockView";
+    private static final String TAG = "DualSimUnlockScreen";
     private static final boolean DBG = true;
 
     private View mSlotView[] = { null, null};
@@ -269,12 +270,13 @@ public class KeyguardDualSimUnlockView extends LinearLayout implements KeyguardS
         }
     }
 
-    public KeyguardDualSimUnlockView(Context context) {
+    public DualSimUnlockScreen(Context context) {
         this(context, null);
     }
 
-    public KeyguardDualSimUnlockView(Context context, AttributeSet attrs) {
+    public DualSimUnlockScreen(Context context, AttributeSet attrs) {
         super(context, attrs);
+        Log.d(TAG, "start construct");
         mUpdateMonitor = KeyguardUpdateMonitor.getInstance(context);
     }
 
@@ -837,7 +839,9 @@ public class KeyguardDualSimUnlockView extends LinearLayout implements KeyguardS
     }
 
     boolean isPrimaryPhone() {
-         return (mSlotId == TelephonyManager.getPrimarySim());
+        ConnectivityManager cm = (ConnectivityManager) mContext.getSystemService(
+                Context.CONNECTIVITY_SERVICE);
+        return (mSlotId == cm.getPrimaryDataSim());
     }
 
     private void showKeypad(final int slotId, final boolean visible) {

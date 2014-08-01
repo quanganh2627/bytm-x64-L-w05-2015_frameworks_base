@@ -19,7 +19,7 @@ package android.net;
 import static android.net.ConnectivityManager.TYPE_WIFI;
 import static android.net.ConnectivityManager.getNetworkTypeName;
 import static android.net.ConnectivityManager.isNetworkTypeMobile;
-import static android.net.ConnectivityManager.isNetworkTypeOnNonDataSim;
+import static android.net.ConnectivityManager.isNetworkTypeOnSim2;
 
 import android.content.Context;
 import android.net.wifi.WifiInfo;
@@ -85,7 +85,7 @@ public class NetworkIdentity {
             builder.append("COMBINED");
         } else if (ConnectivityManager.isNetworkTypeMobile(mType)) {
             if (TelephonyConstants.IS_DSDS) {
-                if (ConnectivityManager.isNetworkTypeOnNonDataSim(mType)) {
+                if (ConnectivityManager.isNetworkTypeOnSim2(mType)) {
                     builder.append("NON_Data SIM:");
                 } else {
                     builder.append("Data SIM:");
@@ -158,7 +158,7 @@ public class NetworkIdentity {
 
         if (isNetworkTypeMobile(type)) {
             final TelephonyManager telephony;
-            if (TelephonyConstants.IS_DSDS && isNetworkTypeOnNonDataSim(type)) {
+            if (TelephonyConstants.IS_DSDS && isNetworkTypeOnSim2(type)) {
                 telephony = (TelephonyManager) context.getSystemService(
                     Context.TELEPHONY_SERVICE2);
             } else {

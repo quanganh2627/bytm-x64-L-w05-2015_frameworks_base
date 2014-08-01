@@ -26,6 +26,7 @@ import android.os.Build.VERSION_CODES;
 import android.os.Messenger;
 import android.os.RemoteException;
 import android.os.ResultReceiver;
+import android.os.SystemProperties;
 import android.provider.Settings;
 
 import com.android.internal.telephony.TelephonyConstants;
@@ -505,16 +506,8 @@ public class ConnectivityManager {
 
     /** {@hide} */
     public static boolean isNetworkTypeOnSim2(int networkType) {
-        switch (networkType) {
-            case TYPE_MOBILE2_MMS:
-                return true;
-            default:
-                return false;
-        }
-    }
 
     /** {@hide} */
-    public static boolean isNetworkTypeOnNonDataSim(int networkType) {
         switch (networkType) {
             case TYPE_MOBILE2_MMS:
                 return true;
@@ -1564,22 +1557,29 @@ public class ConnectivityManager {
      * @return Data SIM ID index
      * @hide
      */
-    public int getDataSim() {
+    public int getPrimaryDataSim() {
         try {
-            return mService.getDataSim();
+            return mService.getPrimaryDataSim();
         } catch (RemoteException e) {
             return MOBILE_DATA_NETWORK_SLOT_A;
         }
     }
-
+    /**
+     * Get the Data SIM ID
+     *
+     * @return Data SIM ID index
+     * @hide
+     */
+    public int getDataSim() {
+        try {
+            return mService.getPrimaryDataSim();
+        } catch (RemoteException e) {
+            return MOBILE_DATA_NETWORK_SLOT_A;
+        }
+    }
     /**
      * Set the Data SIM ID
      *
      * {@hide}
      */
-    public void setDataSim(int slot) {
-        try {
-            mService.setDataSim(slot);
-        } catch (RemoteException e) {}
-    }
 }

@@ -377,10 +377,6 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     private static final int EVENT_CREATE_PDP_ON_NON_DATA_SIM = 17;
 
     /**
-     * used internally to set primary data sim
-     * arg1 = slot id
-     */
-    private static final int EVENT_SET_DATA_SIM = 19;
 	
     /** Handler used for internal events. */
     private InternalHandler mHandler;
@@ -661,9 +657,6 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             }
         }
 
-        if (TelephonyConstants.IS_DSDS) {
-            updateDataSim();
-        }
 
         mTethering = new Tethering(mContext, mNetd, statsService, this, mHandler.getLooper());
 
@@ -1310,7 +1303,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 enforceConnectivityInternalPermission();
             }
 
-            if (ConnectivityManager.isNetworkTypeOnNonDataSim(usedNetworkType) == mSimDataEnabled) {
+            if (ConnectivityManager.isNetworkTypeOnSim2(usedNetworkType) == mSimDataEnabled) {
                 if (DBG) log("Data on requested type is disabled.");
                 return PhoneConstants.APN_TYPE_NOT_AVAILABLE;
             }
@@ -1393,11 +1386,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                     // assume if cannot for now
 
                     boolean delay = false;
-                    boolean requestOnNonDataSim = ConnectivityManager.isNetworkTypeOnNonDataSim(usedNetworkType);
-                    int dataSimId = getDataSim();
-                    if (requestOnNonDataSim && hasConnectedNetworkOnSimSlot(dataSimId)) {
+                    boolean requestOnSim2 = ConnectivityManager.isNetworkTypeOnSim2(usedNetworkType);
+                    if (requestOnSim2 && hasConnectedNetworkOnSimSlot(0)) {
                         delay = true;
-                    } else if (!requestOnNonDataSim && hasConnectedNetworkOnSimSlot(1 - dataSimId)) {
+                    } else if (!requestOnSim2 && hasConnectedNetworkOnSimSlot(1)) {
                         delay = true;
                     }
                     if (!delay) {
@@ -3302,15 +3294,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                     handleCreatePdpOnNonDataSim(network);
                     break;
                 }
-                case EVENT_SET_DATA_SIM:
-                {
-                    int slot = msg.arg1;
-                    handleSetDataSim(slot);
-                    break;
                 }
             }
         }
-    }
+
 
     // javadoc from interface
     public int tether(String iface) {
@@ -5133,13 +5120,12 @@ public class ConnectivityService extends IConnectivityManager.Stub {
 
         if (DBG) Slog.d(TAG, "mSimDataEnabled changed to: " + enabled);
         mSimDataEnabled = enabled;
-        int dataSimId = getDataSim();
         if (mNetTrackers[ConnectivityManager.TYPE_MOBILE] != null) {
             if (VDBG) {
                 log(mNetTrackers[ConnectivityManager.TYPE_MOBILE].toString() + enabled);
             }
             MobileDataStateTracker mdst = (MobileDataStateTracker) mNetTrackers[ConnectivityManager.TYPE_MOBILE];
-            mdst.setSimDataEnabled(dataSimId, enabled);
+            mdst.setSimDataEnabled(enabled);
         }
 
         if (mNetTrackers[ConnectivityManager.TYPE_MOBILE2_MMS] != null) {
@@ -5147,21 +5133,30 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 log(mNetTrackers[ConnectivityManager.TYPE_MOBILE2_MMS].toString() + !enabled);
             }
             MobileDataStateTracker mdst = (MobileDataStateTracker) mNetTrackers[ConnectivityManager.TYPE_MOBILE2_MMS];
-            mdst.setSimDataEnabled(1 - dataSimId, !enabled);
+            mdst.setSimDataEnabled(!enabled);
         }
     }
 
+    /*
+    * @see ConnectivityManager#getPrimaryDataSim()
+    **/
+    public int getPrimaryDataSim() {
+        enforceAccessPermission();
+
+        int retVal = Settings.Global.getInt(mContext.getContentResolver(),
+                Settings.Global.MOBILE_DATA_SIM, 0);
+
+        if (DBG) Slog.d(TAG, "getPrimaryDataSim returning: " + retVal);
+        return retVal;
+    }
     private boolean hasConnectedNetworkOnSimSlot(int slot) {
-        int dataSimId = getDataSim();
         for (NetworkStateTracker nst : mNetTrackers) {
             if (nst != null) {
                 NetworkInfo nif = nst.getNetworkInfo();
                 if (ConnectivityManager.isNetworkTypeMobile(nif.getType()) &&
                         nif.isConnected() &&
-                        ((slot == dataSimId &&
-                        !ConnectivityManager.isNetworkTypeOnNonDataSim(nif.getType())) ||
-                        (slot != dataSimId &&
-                        ConnectivityManager.isNetworkTypeOnNonDataSim(nif.getType())))) {
+                        ((slot == 0 && !ConnectivityManager.isNetworkTypeOnSim2(nif.getType())) ||
+                        (slot == 1 && ConnectivityManager.isNetworkTypeOnSim2(nif.getType())))) {
                     return true;
                 }
             }
@@ -5171,12 +5166,11 @@ public class ConnectivityService extends IConnectivityManager.Stub {
 
     private void handleCreatePdpOnNonDataSim(NetworkStateTracker network) {
         boolean delay = false;
-        int dataSimId = getDataSim();
         NetworkInfo nif = network.getNetworkInfo();
-        boolean requestOnNonDataSim = ConnectivityManager.isNetworkTypeOnNonDataSim(nif.getType());
-        if (requestOnNonDataSim && hasConnectedNetworkOnSimSlot(dataSimId)) {
+        boolean requestOnSim2 = ConnectivityManager.isNetworkTypeOnSim2(nif.getType());
+        if (requestOnSim2 && hasConnectedNetworkOnSimSlot(0)) {
             delay = true;
-        } else if (!requestOnNonDataSim && hasConnectedNetworkOnSimSlot(1 - dataSimId)) {
+        } else if (!requestOnSim2 && hasConnectedNetworkOnSimSlot(1)) {
             delay = true;
         }
 
@@ -5198,40 +5192,5 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 Settings.Global.MOBILE_DATA_SIM, 0);
 
         return retVal;
-    }
-
-    /*
-    * @see ConnectivityManager#getDataSim()
-    **/
-    public void setDataSim(int slot) {
-        enforceAccessPermission();
-
-        if (slot == getDataSim()) {
-            if (DBG) Slog.d(TAG, "setDataSim: No Data Sim changed, just return");
-            return;
-        }
-
-        if (DBG) Slog.d(TAG, "setDataSim: Reset mSimDataEnabled");
-        mSimDataEnabled = true;
-
-        mHandler.sendMessage(mHandler.obtainMessage(EVENT_SET_DATA_SIM,
-                slot, 0));
-    }
-
-    private void handleSetDataSim(int slot) {
-        for (int i = 0; i < mNetTrackers.length; i++) {
-            if (mNetTrackers[i] != null && mNetConfigs[i].radio == ConnectivityManager.TYPE_MOBILE) {
-                ((MobileDataStateTracker)mNetTrackers[i]).setDataSim(slot);
-            }
-        }
-
-    }
-
-    private void updateDataSim() {
-        for (int i = 0; i < mNetTrackers.length; i++) {
-            if (mNetTrackers[i] != null && mNetConfigs[i].radio == ConnectivityManager.TYPE_MOBILE) {
-                ((MobileDataStateTracker)mNetTrackers[i]).updateDataSim(getDataSim());
-            }
-        }
     }
 }

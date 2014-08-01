@@ -569,6 +569,8 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
             mQSDataTypeIconId = TelephonyIcons.QS_DATA_4G[mInetCondition];
             mContentDescriptionDataType = mContext.getString(
                     R.string.accessibility_data_connection_4g);
+        } else if (!hasService() || mDataState != TelephonyManager.DATA_CONNECTED) {
+            mDataTypeIconId = 0;
         } else {
             switch (mDataNetType) {
                 case TelephonyManager.NETWORK_TYPE_UNKNOWN:
@@ -1015,8 +1017,12 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
                     mobileLabel = "";
                 }
             } else {
+                if (mNetworkName != null && mNetworkName.length() != 0) {
+                    mobileLabel = mNetworkName;
+                } else {
                 mobileLabel
                     = context.getString(R.string.status_bar_settings_signal_meter_disconnected);
+                }
             }
 
             // Now for things that should only be shown when actually using mobile data.

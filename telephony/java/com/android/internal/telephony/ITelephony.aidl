@@ -17,13 +17,13 @@
 package com.android.internal.telephony;
 
 import android.os.Bundle;
+import android.telephony.NeighboringCellInfo;
+import com.android.internal.telephony.ITelephonyListener;
 import android.os.IBinder;
 import java.util.List;
 import android.telephony.NeighboringCellInfo;
 import android.telephony.CellInfo;
-import android.telephony.NeighboringCellInfo;
 
-import com.android.internal.telephony.ITelephonyListener;
 
 import java.util.List;
 

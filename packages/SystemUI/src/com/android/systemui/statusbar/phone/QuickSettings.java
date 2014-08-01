@@ -73,8 +73,8 @@ import com.android.systemui.statusbar.policy.BatteryController;
 import com.android.systemui.statusbar.policy.BluetoothController;
 import com.android.systemui.statusbar.policy.LocationController;
 import com.android.systemui.statusbar.policy.NetworkController;
-import com.android.systemui.statusbar.policy.NetworkControllerDualSIM;
 import com.android.systemui.statusbar.policy.RotationLockController;
+import com.android.systemui.statusbar.policy.NetworkControllerDualSIM;
 
 import java.util.ArrayList;
 

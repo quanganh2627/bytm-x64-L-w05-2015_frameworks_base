@@ -41,18 +41,18 @@ public class SignalClusterViewDualSIM
     NetworkControllerDualSIM mNC;
 
     private boolean mWifiVisible = false;
-    private int mWifiStrengthId = 0, mWifiActivityId = 0;
+    private int mWifiStrengthId = 0;
     private boolean mMobileVisible = false;
-    private int mMobileStrengthId = 0, mMobileActivityId = 0, mMobileTypeId = 0;
-    private int mMobileStrengthId2 = 0, mMobileActivityId2 = 0, mMobileTypeId2 = 0;
+    private int mMobileStrengthId = 0, mMobileTypeId = 0;
+    private int mMobileStrengthId2 = 0, mMobileTypeId2 = 0;
     private boolean mIsAirplaneMode = false;
     private int mAirplaneIconId = 0;
     private String mWifiDescription, mMobileDescription, mMobileTypeDescription;
     private String mMobileDescription2, mMobileTypeDescription2;
 
     ViewGroup mWifiGroup, mMobileGroup, mMobileGroup2;
-    ImageView mWifi, mMobile, mWifiActivity, mMobileActivity, mMobileType, mAirplane;
-    ImageView mMobile2, mMobileActivity2, mMobileType2;
+    ImageView mWifi, mMobile, mMobileType, mAirplane;
+    ImageView mMobile2,  mMobileType2;
     View mSpacer;
 
     public SignalClusterViewDualSIM(Context context) {
@@ -78,15 +78,12 @@ public class SignalClusterViewDualSIM
 
         mWifiGroup       = (ViewGroup) findViewById(R.id.wifi_combo);
         mWifi            = (ImageView) findViewById(R.id.wifi_signal);
-        mWifiActivity    = (ImageView) findViewById(R.id.wifi_inout);
         mMobileGroup     = (ViewGroup) findViewById(R.id.mobile_combo);
         mMobile          = (ImageView) findViewById(R.id.mobile_signal);
-        mMobileActivity  = (ImageView) findViewById(R.id.mobile_inout);
         mMobileType      = (ImageView) findViewById(R.id.mobile_type);
         mSpacer          =             findViewById(R.id.spacer);
         mMobileGroup2    = (ViewGroup) findViewById(R.id.mobile_combo2);
         mMobile2         = (ImageView) findViewById(R.id.mobile_signal2);
-        mMobileActivity2 = (ImageView) findViewById(R.id.mobile_inout2);
         mMobileType2     = (ImageView) findViewById(R.id.mobile_type2);
         mAirplane        = (ImageView) findViewById(R.id.airplane);
 
@@ -97,37 +94,31 @@ public class SignalClusterViewDualSIM
     protected void onDetachedFromWindow() {
         mWifiGroup       = null;
         mWifi            = null;
-        mWifiActivity    = null;
         mMobileGroup     = null;
         mMobile          = null;
-        mMobileActivity  = null;
         mMobileType      = null;
         mSpacer          = null;
         mMobileGroup2    = null;
         mMobile2         = null;
-        mMobileActivity2 = null;
         mMobileType2     = null;
         mAirplane        = null;
         super.onDetachedFromWindow();
     }
 
     @Override
-    public void setWifiIndicators(boolean visible, int strengthIcon, int activityIcon,
-            String contentDescription) {
+    public void setWifiIndicators(boolean visible, int strengthIcon, String contentDescription) {
         mWifiVisible = visible;
         mWifiStrengthId = strengthIcon;
-        mWifiActivityId = activityIcon;
         mWifiDescription = contentDescription;
 
         apply();
     }
 
     @Override
-    public void setMobileDataIndicators(boolean visible, int strengthIcon, int activityIcon,
+    public void setMobileDataIndicators(boolean visible, int strengthIcon,
             int typeIcon, String contentDescription, String typeContentDescription) {
         mMobileVisible = visible;
         mMobileStrengthId = strengthIcon;
-        mMobileActivityId = activityIcon;
         mMobileTypeId = typeIcon;
         mMobileDescription = contentDescription;
         mMobileTypeDescription = typeContentDescription;
@@ -136,19 +127,17 @@ public class SignalClusterViewDualSIM
     }
 
     @Override
-    public void setMobileDataIndicators2(boolean visible, int strengthIcon, int activityIcon,
+    public void setMobileDataIndicators2(boolean visible, int strengthIcon,
                 int typeIcon, String contentDescription, String typeContentDescription,
-                int strengthIcon2, int activityIcon2, int typeIcon2, String contentDescription2,
+                int strengthIcon2, int typeIcon2, String contentDescription2,
                 String typeContentDescription2) {
         mMobileVisible = visible;
         mMobileStrengthId = strengthIcon;
-        mMobileActivityId = activityIcon;
         mMobileTypeId = typeIcon;
         mMobileDescription = contentDescription;
         mMobileTypeDescription = typeContentDescription;
 
         mMobileStrengthId2 = strengthIcon2;
-        mMobileActivityId2 = activityIcon2;
         mMobileTypeId2 = typeIcon2;
         mMobileDescription2 = contentDescription2;
         mMobileTypeDescription2 = typeContentDescription2;
@@ -168,11 +157,11 @@ public class SignalClusterViewDualSIM
     public boolean dispatchPopulateAccessibilityEvent(AccessibilityEvent event) {
         // Standard group layout onPopulateAccessibilityEvent() implementations
         // ignore content description, so populate manually
-        if (mWifiVisible && mWifiGroup.getContentDescription() != null)
+        if (mWifiVisible && mWifiGroup != null && mWifiGroup.getContentDescription() != null)
             event.getText().add(mWifiGroup.getContentDescription());
-        if (mMobileVisible && mMobileGroup.getContentDescription() != null)
+        if (mMobileVisible && mMobileGroup != null && mMobileGroup.getContentDescription() != null)
             event.getText().add(mMobileGroup.getContentDescription());
-        if (mMobileVisible && mMobileGroup2.getContentDescription() != null)
+        if (mMobileVisible && mMobileGroup2 != null && mMobileGroup2.getContentDescription() != null)
             event.getText().add(mMobileGroup2.getContentDescription());
         return super.dispatchPopulateAccessibilityEvent(event);
     }
@@ -185,7 +174,7 @@ public class SignalClusterViewDualSIM
         if (mWifiVisible) {
             mWifiGroup.setVisibility(View.VISIBLE);
             mWifi.setImageResource(mWifiStrengthId);
-            mWifiActivity.setImageResource(mWifiActivityId);
+
             mWifiGroup.setContentDescription(mWifiDescription);
         } else {
             mWifiGroup.setVisibility(View.GONE);
@@ -194,17 +183,15 @@ public class SignalClusterViewDualSIM
         if (DEBUG) Slog.d(TAG,
                 String.format("wifi: %s sig=%d act=%d",
                     (mWifiVisible ? "VISIBLE" : "GONE"),
-                    mWifiStrengthId, mWifiActivityId));
+                    mWifiStrengthId));
 
         if (mMobileVisible && !mIsAirplaneMode) {
             mMobileGroup.setVisibility(View.VISIBLE);
             mMobile.setImageResource(mMobileStrengthId);
-            mMobileActivity.setImageResource(mMobileActivityId);
             mMobileType.setImageResource(mMobileTypeId);
             mMobileGroup.setContentDescription(mMobileTypeDescription + " " + mMobileDescription);
             mMobileGroup2.setVisibility(View.VISIBLE);
             mMobile2.setImageResource(mMobileStrengthId2);
-            mMobileActivity2.setImageResource(mMobileActivityId2);
             mMobileType2.setImageResource(mMobileTypeId2);
             mMobileGroup2.setContentDescription(mMobileTypeDescription2 + " " + mMobileDescription2);
 
@@ -214,8 +201,8 @@ public class SignalClusterViewDualSIM
         }
 
         if (mIsAirplaneMode) {
-            mAirplane.setVisibility(View.VISIBLE);
             mAirplane.setImageResource(mAirplaneIconId);
+            mAirplane.setVisibility(View.VISIBLE);
         } else {
             mAirplane.setVisibility(View.GONE);
         }
@@ -227,9 +214,9 @@ public class SignalClusterViewDualSIM
         }
 
         if (DEBUG) Slog.d(TAG,
-                String.format("mobile: %s sig=%d act=%d typ=%d",
+                String.format("mobile: %s sig=%d typ=%d",
                     (mMobileVisible ? "VISIBLE" : "GONE"),
-                    mMobileStrengthId, mMobileActivityId, mMobileTypeId));
+                    mMobileStrengthId, mMobileTypeId));
 
         mMobileType.setVisibility(
                 !mWifiVisible ? View.VISIBLE : View.GONE);
@@ -238,3 +225,4 @@ public class SignalClusterViewDualSIM
                 !mWifiVisible ? View.VISIBLE : View.GONE);
     }
 }
+

@@ -286,7 +286,7 @@ public class AccountManagerService
     public void systemReady() {
     }
 
-    private UserManager getUserManager() {
+    protected UserManager getUserManager() {
         if (mUserManager == null) {
             mUserManager = UserManager.get(mContext);
         }
@@ -433,7 +433,7 @@ public class AccountManagerService
         }
     }
 
-    private void onUserRemoved(Intent intent) {
+    protected void onUserRemoved(Intent intent) {
         int userId = intent.getIntExtra(Intent.EXTRA_USER_HANDLE, -1);
         if (userId < 1) return;
 
@@ -1137,7 +1137,7 @@ public class AccountManagerService
         }
     }
 
-    private void sendAccountsChangedBroadcast(int userId) {
+    protected void sendAccountsChangedBroadcast(int userId) {
         Log.i(TAG, "the accounts changed, sending broadcast of "
                 + ACCOUNTS_CHANGED_INTENT.getAction());
         mContext.sendBroadcastAsUser(ACCOUNTS_CHANGED_INTENT, new UserHandle(userId));

@@ -48,9 +48,9 @@ import com.android.systemui.settings.CurrentUserTracker;
 import com.android.systemui.statusbar.policy.BatteryController.BatteryStateChangeCallback;
 import com.android.systemui.statusbar.policy.LocationController.LocationSettingsChangeCallback;
 import com.android.systemui.statusbar.policy.NetworkController.NetworkSignalChangedCallback;
-import com.android.systemui.statusbar.policy.NetworkControllerDualSIM.NetworkSignalChangedCallbackExt;
 import com.android.systemui.statusbar.policy.RotationLockController;
 import com.android.systemui.statusbar.policy.RotationLockController.RotationLockControllerCallback;
+import com.android.systemui.statusbar.policy.NetworkControllerDualSIM.NetworkSignalChangedCallbackExt;
 
 import java.util.List;
 

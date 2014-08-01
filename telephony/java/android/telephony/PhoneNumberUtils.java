@@ -26,6 +26,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.location.CountryDetector;
+import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.SystemProperties;
 import android.provider.Contacts;
@@ -168,8 +169,9 @@ public class PhoneNumberUtils
         // CALL_PRIVILEGED permission).
         if (scheme.equals("voicemail")) {
             if (TelephonyConstants.IS_DSDS) {
-                boolean primaryOnSim1 = TelephonyManager.getPrimarySim()
-                        == TelephonyConstants.DSDS_SLOT_1_ID;
+                ConnectivityManager cm =
+                        (ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
+                boolean primaryOnSim1 = cm.getPrimaryDataSim() == TelephonyConstants.DSDS_SLOT_1_ID;
 
                 if (intent.hasExtra(TelephonyConstants.EXTRA_DSDS_CALL_POLICY)) {
                     int policy = intent.getIntExtra(TelephonyConstants.EXTRA_DSDS_CALL_POLICY, 0);

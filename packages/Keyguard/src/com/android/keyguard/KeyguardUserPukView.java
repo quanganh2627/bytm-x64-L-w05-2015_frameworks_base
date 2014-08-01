@@ -22,26 +22,18 @@ import android.content.Context;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
-import android.telephony.TelephonyManager;
+import android.net.ConnectivityManager;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.text.method.DigitsKeyListener;
 import android.util.AttributeSet;
-import android.text.Html;
-import android.text.method.SingleLineTransformationMethod;
-import android.text.TextUtils;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.TextView;
 import android.widget.TextView.OnEditorActionListener;
-import com.android.keyguard.KeyguardUpdateMonitor;
+
 import com.android.internal.telephony.ITelephony;
 
-import android.content.res.Resources;
-import android.content.res.TypedArray;
-import android.content.res.XmlResourceParser;
-import android.content.res.Resources.NotFoundException;
 import android.util.Log;
 
 import com.android.internal.telephony.TelephonyConstants;
@@ -56,8 +48,7 @@ public class KeyguardUserPukView extends KeyguardAbsKeyInputView
 
     static private final String TAG = "UserPukUnlock";
     static private final boolean DEBUG = true;
-    protected KeyguardSecurityCallback mCallback;
-    protected TextView mPasswordEntry;
+
     private ProgressDialog mSimUnlockProgressDialog = null;
     private volatile boolean mCheckInProgress;
     private String mPukText;
@@ -409,7 +400,8 @@ public class KeyguardUserPukView extends KeyguardAbsKeyInputView
         mStateMachine.next();
     }
     boolean isPrimaryPhone() {
-        return (mSlot== TelephonyManager.getPrimarySim());
+        ConnectivityManager cm = (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        return (mSlot== cm.getPrimaryDataSim());
     }
 
     /**
@@ -418,7 +410,8 @@ public class KeyguardUserPukView extends KeyguardAbsKeyInputView
     static private String getSeviceBySlot(int slotId, Context ctx) {
         boolean isPrimary = true;
         if (TelephonyConstants.IS_DSDS) {
-            isPrimary = (slotId == TelephonyManager.getPrimarySim());
+            ConnectivityManager cm = (ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+            isPrimary = (slotId ==  cm.getPrimaryDataSim());
         }
         return isPrimary ? "phone" : "phone2";
     }

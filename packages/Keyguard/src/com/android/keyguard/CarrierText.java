@@ -17,12 +17,10 @@
 package com.android.keyguard;
 
 import android.content.Context;
-import android.telephony.TelephonyManager;
-import android.text.Html;
 import android.text.method.SingleLineTransformationMethod;
+import android.text.Html;
 import android.text.TextUtils;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 
@@ -32,6 +30,8 @@ import com.android.internal.telephony.TelephonyConstants;
 import com.android.internal.widget.LockPatternUtils;
 
 import java.util.Locale;
+import android.telephony.TelephonyManager;
+import android.util.Log;
 
 public class CarrierText extends TextView {
     private static CharSequence mSeparator;
@@ -40,8 +40,7 @@ public class CarrierText extends TextView {
 
     private CharSequence mPlmn[] = {null, null};
     private CharSequence mSpn[] = {null, null};
-    private State mSimState[] = {IccCardConstants.State.NOT_READY,
-            IccCardConstants.State.NOT_READY};
+    private State mSimState[] = { IccCardConstants.State.NOT_READY, IccCardConstants.State.NOT_READY};
 
     private static final String mColor1 =
             Integer.toHexString(TelephonyConstants.DSDS_TEXT_COLOR_SLOT_1 & 0x00FFFFFF);

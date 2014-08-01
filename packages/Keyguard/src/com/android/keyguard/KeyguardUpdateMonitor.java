@@ -43,8 +43,8 @@ import android.os.IRemoteCallback;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.UserHandle;
-import android.provider.Settings;
 import android.os.SystemProperties;
+import android.provider.Settings;
 import android.net.ConnectivityManager;
 
 import com.android.internal.telephony.IccCardConstants;
@@ -105,12 +105,12 @@ public class KeyguardUpdateMonitor {
     // Telephony state
     private IccCardConstants.State mSimState[] = {
             IccCardConstants.State.READY, IccCardConstants.State.READY};
-    private CharSequence mTelephonyPlmn[] = {null, null};
-    private CharSequence mTelephonySpn[] = {null, null};
     private int mRingMode;
     private int mPhoneState[] = {0, 0};
     private boolean mKeyguardIsVisible;
     private boolean mBootCompleted;
+    private CharSequence mTelephonyPlmn[] = {null, null};
+    private CharSequence mTelephonySpn[] = {null, null};
     private boolean mPoweOnPinCheckDone = false;
     private int mUserPinAcitivity = 0;
     private boolean mSimInited[] = {false, false};
@@ -378,6 +378,8 @@ public class KeyguardUpdateMonitor {
                 // This is required because telephony doesn't return to "READY" after
                 // these state transitions. See bug 7197471.
                 state = IccCardConstants.State.READY;
+            } else if (IccCardConstants.INTENT_VALUE_ICC_NOT_READY.equals(stateExtra)) {
+                state = IccCardConstants.State.NOT_READY;
             } else {
                 state = IccCardConstants.State.UNKNOWN;
             }
@@ -524,9 +526,11 @@ public class KeyguardUpdateMonitor {
         }
 
         // Take a guess at initial SIM state, battery status and PLMN until we get an update
-        mSimState[0] = mSimState[1] = IccCardConstants.State.NOT_READY;
+        mSimState[0] = IccCardConstants.State.NOT_READY;
+        mSimState[1] = IccCardConstants.State.NOT_READY;
         mBatteryStatus = new BatteryStatus(BATTERY_STATUS_UNKNOWN, 100, 0, 0);
-        mTelephonyPlmn[0] = mTelephonyPlmn[1] = getDefaultPlmn();
+        mTelephonyPlmn[0] = getDefaultPlmn();
+        mTelephonyPlmn[1] = getDefaultPlmn();
 
         // Watch for interesting updates
         final IntentFilter filter = new IntentFilter();
@@ -724,15 +728,14 @@ public class KeyguardUpdateMonitor {
         if (!TelephonyConstants.IS_DSDS) {
             return mPhoneState[0];
         }
-        return mPhoneState[0] == TelephonyManager.CALL_STATE_IDLE ?
-                mPhoneState[1] : mPhoneState[0];
+        return mPhoneState[0] == TelephonyManager.CALL_STATE_IDLE ? mPhoneState[1] : mPhoneState[0];
     }
 	
     /**
      * Handle {@link #MSG_PHONE_STATE_CHANGED}
      */
     protected void handlePhoneStateChanged(String newState, int slot) {
-        if (DEBUG) Log.d(TAG, "handlePhoneStateChanged(" + newState + ")" + " slot= " + slot);
+        if (DEBUG) Log.d(TAG, "handlePhoneStateChanged(" + newState + ")" + " slot=" + slot);
         if (TelephonyManager.EXTRA_STATE_IDLE.equals(newState)) {
             mPhoneState[slot] = TelephonyManager.CALL_STATE_IDLE;
         } else if (TelephonyManager.EXTRA_STATE_OFFHOOK.equals(newState)) {
@@ -818,10 +821,9 @@ public class KeyguardUpdateMonitor {
             Log.d(TAG, "handleSimStateChange: intentValue = " + simArgs + " "
                     + "state resolved to " + state.toString() + " slot = " + slot);
         }
-        mUserPinAcitivity = SystemProperties.getInt(
-                TelephonyConstants.PROPERTY_USER_PIN_ACTIVITY, 0 );
+        mUserPinAcitivity = SystemProperties.getInt(TelephonyConstants.PROPERTY_USER_PIN_ACTIVITY, 0 );
        // workaround for airplane mode PIN/state, force a refresh even actually no change.
-        if (state != IccCardConstants.State.UNKNOWN /*&& state != mSimState*/) {
+        if (state != IccCardConstants.State.UNKNOWN && state != IccCardConstants.State.NOT_READY/*&& state != mSimState[slot]*/) {
             mSimState[slot] = state;
             for (int i = 0; i < mCallbacks.size(); i++) {
                 KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
@@ -1032,13 +1034,6 @@ public class KeyguardUpdateMonitor {
         handleSimStateChange(new SimArgs(IccCardConstants.State.READY, slot));
     }
 
-    public boolean reportDualSimUnlocked(int slot) {
-        boolean ret = mSimState[1 - slot].isPinLocked() ? false : true;
-        if (ret) {
-            reportIccPinCheckDone();
-        }
-        return ret;
-    }
 
     /**
      * Report that the emergency call button has been pressed and the emergency dialer is
@@ -1054,6 +1049,13 @@ public class KeyguardUpdateMonitor {
         } else {
             handleReportEmergencyCallAction();
         }
+    }
+    public boolean reportDualSimUnlocked(int slot) {
+        boolean ret = mSimState[1 - slot].isPinLocked() ? false : true;
+        if (ret) {
+            reportIccPinCheckDone();
+        }
+        return ret;
     }
 
     public CharSequence getTelephonyPlmn() {
@@ -1179,9 +1181,6 @@ public class KeyguardUpdateMonitor {
     public boolean isScreenOn() {
         return mScreenOn;
     }
-    boolean hasPoweronPinCheckDone() {
-        return mPoweOnPinCheckDone;
-    }
 
     void reportIccPinCheckDone() {
         if (!hasPoweronPinCheckDone()) {
@@ -1190,6 +1189,13 @@ public class KeyguardUpdateMonitor {
         }
     }
 
+    boolean hasPoweronPinCheckDone() {
+        return mPoweOnPinCheckDone;
+    }
+    private boolean isSimUnavailable(IccCardConstants.State simState) {
+        return (simState == IccCardConstants.State.PERM_DISABLED
+                ||simState == IccCardConstants.State.ABSENT);
+    }
     private boolean isPowerOnSimSecure() {
         if (hasPoweronPinCheckDone()) return false;
         final boolean sim1Secure = mSimState[0].isPinLocked();
@@ -1251,6 +1257,13 @@ public class KeyguardUpdateMonitor {
         return reportUserPinUnlocked(slot);
     }
 
+    private void setPowerOnPinCheckComplete() {
+        if (DEBUG) Log.d(TAG, "setPowerOnPinCheckComplete,SIM 0:" + mSimState[0] + ",SIM 1:" + mSimState[1]);
+        if ((!mSimState[0].isPinLocked()) && (!mSimState[1].isPinLocked())) {
+            if (DEBUG) Log.d(TAG, "Both SIM are not locked during power on");
+            reportIccPinCheckDone();
+        }
+    }
     private void setAndCheckPowerOnLocked(int slot) {
         if (!TelephonyConstants.IS_DSDS) {
             return;
@@ -1262,14 +1275,4 @@ public class KeyguardUpdateMonitor {
         // Both SIMs are initialized, report PIN check complete.
         setPowerOnPinCheckComplete();
     }
-
-    private void setPowerOnPinCheckComplete() {
-        if (DEBUG) Log.d(TAG, "setPowerOnPinCheckComplete,SIM 0:"
-                + mSimState[0] + ",SIM 1:" + mSimState[1]);
-        if ((!mSimState[0].isPinLocked()) && (!mSimState[1].isPinLocked())) {
-            if (DEBUG) Log.d(TAG, "Both SIM are not locked during power on");
-            reportIccPinCheckDone();
-        }
-    }
-
 }

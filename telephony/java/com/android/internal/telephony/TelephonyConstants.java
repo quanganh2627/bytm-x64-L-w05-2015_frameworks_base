@@ -178,6 +178,12 @@ public class TelephonyConstants {
         convertToMode(SystemProperties.get(PROPERTY_DUAL_SIM_MODE));
 
     /**
+     * Mode which needs two ril
+     */
+    public static final boolean NEED_TWO_RILS =
+        (DUAL_SIM_MODE != DUAL_SIM_MODE_NONE);
+
+    /**
      * DSDS cases
      */
     public static final boolean IS_DSDS = DUAL_SIM_MODE == DUAL_SIM_MODE_DSDS;

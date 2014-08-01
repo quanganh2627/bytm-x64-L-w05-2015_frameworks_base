@@ -950,7 +950,7 @@ public interface WindowManagerPolicy {
      * @param lidOpen True if the lid is now open.
      */
     public void notifyLidSwitchChanged(long whenNanos, boolean lidOpen);
-    
+
     /**
      * Tell the policy if anyone is requesting that keyguard not come on.
      *

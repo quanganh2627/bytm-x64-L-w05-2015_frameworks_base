@@ -92,7 +92,11 @@ public class CarrierLabel extends TextView {
     }
 
     private boolean isSim1Primary() {
-        return TelephonyManager.getPrimarySim() == TelephonyConstants.DSDS_SLOT_1_ID;
+        int curId = Settings.Global.getInt(
+                getContext().getContentResolver(),
+                Settings.Global.MOBILE_DATA_SIM,
+                TelephonyConstants.DSDS_SLOT_1_ID);
+        return curId == TelephonyConstants.DSDS_SLOT_1_ID;
     }
 
     private final BroadcastReceiver mIntentReceiver = new BroadcastReceiver() {

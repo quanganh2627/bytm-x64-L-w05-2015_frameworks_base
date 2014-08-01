@@ -113,6 +113,10 @@ class TelephonyIcons {
           R.drawable.stat_sys_signal_4_fully }
     };
 
+    static final int[] QS_DATA_R = {
+        R.drawable.ic_qs_signal_r,
+        R.drawable.ic_qs_signal_full_r
+    };
     static final int[][] TELEPHONY_SIGNAL_STRENGTH_ROAMING_SLOT1 = {
         { R.drawable.stat_sys_signal_slot1_0,
           R.drawable.stat_sys_signal_slot1_1,
@@ -139,10 +143,6 @@ class TelephonyIcons {
           R.drawable.stat_sys_signal_slot2_4_fully }
     };
 
-    static final int[] QS_DATA_R = {
-        R.drawable.ic_qs_signal_r,
-        R.drawable.ic_qs_signal_full_r
-    };
 
     static final int[][] DATA_SIGNAL_STRENGTH = TELEPHONY_SIGNAL_STRENGTH;
 
@@ -160,6 +160,10 @@ class TelephonyIcons {
               R.drawable.stat_sys_data_fully_connected_g }
         };
 
+    static final int[] QS_DATA_G = {
+        R.drawable.ic_qs_signal_g,
+        R.drawable.ic_qs_signal_full_g
+    };
     static final int[][] DATA_G_SLOT1 = {
         { R.drawable.stat_sys_data_connected_slot1_g,
           R.drawable.stat_sys_data_connected_slot1_g,
@@ -182,10 +186,6 @@ class TelephonyIcons {
           R.drawable.stat_sys_data_fully_connected_slot2_g }
     };
 
-    static final int[] QS_DATA_G = {
-        R.drawable.ic_qs_signal_g,
-        R.drawable.ic_qs_signal_full_g
-    };
 
     static final int[][] DATA_3G = {
             { R.drawable.stat_sys_data_fully_connected_3g,
@@ -198,6 +198,10 @@ class TelephonyIcons {
               R.drawable.stat_sys_data_fully_connected_3g }
         };
 
+    static final int[] QS_DATA_3G = {
+        R.drawable.ic_qs_signal_3g,
+        R.drawable.ic_qs_signal_full_3g
+    };
     static final int[][] DATA_3G_SLOT1 = {
         { R.drawable.stat_sys_data_connected_slot1_3g,
           R.drawable.stat_sys_data_connected_slot1_3g,
@@ -220,11 +224,6 @@ class TelephonyIcons {
           R.drawable.stat_sys_data_fully_connected_slot2_3g }
     };
 
-    static final int[] QS_DATA_3G = {
-        R.drawable.ic_qs_signal_3g,
-        R.drawable.ic_qs_signal_full_3g
-    };
-
     static final int[][] DATA_E = {
             { R.drawable.stat_sys_data_fully_connected_e,
               R.drawable.stat_sys_data_fully_connected_e,
@@ -236,6 +235,10 @@ class TelephonyIcons {
               R.drawable.stat_sys_data_fully_connected_e }
         };
 
+    static final int[] QS_DATA_E = {
+        R.drawable.ic_qs_signal_e,
+        R.drawable.ic_qs_signal_full_e
+    };
     static final int[][] DATA_E_SLOT1 = {
         { R.drawable.stat_sys_data_connected_slot1_e,
           R.drawable.stat_sys_data_connected_slot1_e,
@@ -258,11 +261,6 @@ class TelephonyIcons {
           R.drawable.stat_sys_data_fully_connected_slot2_e }
     };
 
-    static final int[] QS_DATA_E = {
-        R.drawable.ic_qs_signal_e,
-        R.drawable.ic_qs_signal_full_e
-    };
-
     //3.5G
     static final int[][] DATA_H = {
             { R.drawable.stat_sys_data_fully_connected_h,
@@ -275,6 +273,10 @@ class TelephonyIcons {
               R.drawable.stat_sys_data_fully_connected_h }
     };
 
+    static final int[] QS_DATA_H = {
+                R.drawable.ic_qs_signal_h,
+                R.drawable.ic_qs_signal_full_h
+    };
     static final int[][] DATA_H_SLOT1 = {
         { R.drawable.stat_sys_data_connected_slot1_h,
           R.drawable.stat_sys_data_connected_slot1_h,
@@ -297,10 +299,6 @@ class TelephonyIcons {
           R.drawable.stat_sys_data_fully_connected_slot2_h }
     };
 
-    static final int[] QS_DATA_H = {
-                R.drawable.ic_qs_signal_h,
-                R.drawable.ic_qs_signal_full_h
-    };
 
     //CDMA
     // Use 3G icons for EVDO data and 1x icons for 1XRTT data

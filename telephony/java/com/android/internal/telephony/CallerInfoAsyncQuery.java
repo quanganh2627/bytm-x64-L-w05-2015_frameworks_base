@@ -20,6 +20,7 @@ import android.content.AsyncQueryHandler;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.SQLException;
+import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -29,7 +30,6 @@ import android.provider.ContactsContract.CommonDataKinds.SipAddress;
 import android.provider.ContactsContract.Data;
 import android.provider.ContactsContract.PhoneLookup;
 import android.telephony.PhoneNumberUtils;
-import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.telephony.Rlog;
 
@@ -406,8 +406,11 @@ public class CallerInfoAsyncQuery {
         cw.number = number;
         boolean usingPrimary = true;
         if (TelephonyConstants.IS_DSDS) {
+            Object service = context.getSystemService(Context.CONNECTIVITY_SERVICE);
             int primaryDataSim = TelephonyConstants.DSDS_INVALID_SLOT_ID;
-            primaryDataSim = TelephonyManager.getPrimarySim();
+            if (service != null) {
+                primaryDataSim = ((ConnectivityManager)service).getPrimaryDataSim();
+            }
             switch (primaryDataSim) {
                 case TelephonyConstants.DSDS_SLOT_1_ID:
                     usingPrimary = simIndex != TelephonyConstants.DSDS_SLOT_2_ID;

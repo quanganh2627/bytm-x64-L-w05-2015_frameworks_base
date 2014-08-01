@@ -711,6 +711,8 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
             if (st.decorView != null) {
                 wm.removeView(st.decorView);
                 // Log.v(TAG, "Removing main menu from window manager.");
+                st.isOpen = false;
+                st.decorView.removeAllViews();
                 if (st.isCompact) {
                     sRotationWatcher.removeWindow(this);
                 }
@@ -728,6 +730,7 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
         // This view is no longer shown, so null it out
         st.shownPanelView = null;
 
+        st.decorView = null;
         if (st.isInExpandedMode) {
             // Next time the menu opens, it should not be in expanded mode, so
             // force a refresh of the decor

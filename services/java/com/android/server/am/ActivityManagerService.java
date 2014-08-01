@@ -1000,7 +1000,7 @@ public final class ActivityManagerService extends ActivityManagerNative
     static ActivityThread mSystemThread;
 
     int mCurrentUserId = 0;
-    private UserManagerService mUserManager;
+    protected UserManagerService mUserManager;
 
     private final class AppDeathRecipient implements IBinder.DeathRecipient {
         final ProcessRecord mApp;
@@ -1955,7 +1955,7 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
     }
 
-    private ActivityManagerService() {
+    protected ActivityManagerService() {
         Slog.i(TAG, "Memory class: " + ActivityManager.staticGetMemoryClass());
 
         mFgBroadcastQueue = new BroadcastQueue(this, "foreground", BROADCAST_FG_TIMEOUT, false);
@@ -16536,7 +16536,7 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
     }
 
-    private void updateStartedUserArrayLocked() {
+    protected void updateStartedUserArrayLocked() {
         int num = 0;
         for (int i=0; i<mStartedUsers.size();  i++) {
             UserStartedState uss = mStartedUsers.valueAt(i);

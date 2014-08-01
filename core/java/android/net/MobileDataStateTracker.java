@@ -19,7 +19,6 @@ package android.net;
 import static com.android.internal.telephony.DctConstants.CMD_SET_POLICY_DATA_ENABLE;
 import static com.android.internal.telephony.DctConstants.CMD_SET_SIM_DATA_ENABLED;
 import static com.android.internal.telephony.DctConstants.CMD_SET_USER_DATA_ENABLE;
-import static com.android.internal.telephony.DctConstants.CMD_SET_DATA_SIM;
 import static com.android.internal.telephony.DctConstants.DISABLED;
 import static com.android.internal.telephony.DctConstants.ENABLED;
 
@@ -35,7 +34,6 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
 import android.os.ServiceManager;
-import android.provider.Settings;
 import android.telephony.PhoneStateListener;
 import android.telephony.SignalStrength;
 import android.telephony.TelephonyManager;
@@ -85,10 +83,11 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
     protected boolean mUserDataEnabled = true;
     protected boolean mPolicyDataEnabled = true;
 
-    private Handler[] mHandler =
-        new Handler[TelephonyConstants.IS_DSDS ? 2 : 1];
-    private AsyncChannel[] mDataConnectionTrackerAc =
-            new AsyncChannel[TelephonyConstants.IS_DSDS ? 2 : 1];
+    private Handler mHandler;
+    private AsyncChannel mDataConnectionTrackerAc;
+
+    private boolean mIsPrimary = true;
+    protected boolean mSimDataEnabled = true;
 
     private AtomicBoolean mIsCaptivePortal = new AtomicBoolean(false);
 
@@ -105,7 +104,6 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
      * The default value is true. When configuration supports DSDS,
      * this value can be false for type on non-data SIM.
      */
-    private final boolean mTypeOnDataSim;
 
     /*
      * mDataSimId means current data Sim, Sim A or Sim B.
@@ -113,7 +111,6 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
      *
      * The default value is set to A. So that it's compatible on single SIM case.
      */
-    private int mDataSimId = ConnectivityManager.MOBILE_DATA_NETWORK_SLOT_A;
 
 
     /**
@@ -122,15 +119,15 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
      * @param tag the name of this network
      */
     public MobileDataStateTracker(int netType, String tag) {
-
-        TelephonyManager tm = TelephonyManager.getDefault();
+        TelephonyManager tm;
         // handle DSDS case and for MMS2
         if (TelephonyConstants.IS_DSDS &&
-                ConnectivityManager.isNetworkTypeOnNonDataSim(netType)) {
-            mTypeOnDataSim = false;
+                ConnectivityManager.isNetworkTypeOnSim2(netType)) {
+            mIsPrimary = false;
+            mSimDataEnabled = false;
             tm = TelephonyManager.get2ndTm();
         } else {
-            mTypeOnDataSim = true;
+            tm = TelephonyManager.getDefault();
         }
 
         mNetworkInfo = new NetworkInfo(netType,
@@ -149,14 +146,13 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
         mTarget = target;
         mContext = context;
 
-        mHandler[0] = new MdstHandler(target.getLooper(), this, 0);
+        mHandler = new MdstHandler(target.getLooper(), this);
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(TelephonyIntents.ACTION_ANY_DATA_CONNECTION_STATE_CHANGED);
         filter.addAction(TelephonyIntents.ACTION_DATA_CONNECTION_CONNECTED_TO_PROVISIONING_APN);
         filter.addAction(TelephonyIntents.ACTION_DATA_CONNECTION_FAILED);
         if (TelephonyConstants.IS_DSDS) {
-            mHandler[1] = new MdstHandler(target.getLooper(), this, 1);
             filter.addAction(TelephonyIntents2.ACTION_ANY_DATA_CONNECTION_STATE_CHANGED);
             filter.addAction(TelephonyIntents2.ACTION_DATA_CONNECTION_FAILED);
         }
@@ -178,23 +174,21 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
 
     static class MdstHandler extends Handler {
         private MobileDataStateTracker mMdst;
-        private int mSlot;
-        MdstHandler(Looper looper, MobileDataStateTracker mdst, int slot) {
+
+        MdstHandler(Looper looper, MobileDataStateTracker mdst) {
             super(looper);
             mMdst = mdst;
-            mSlot = slot;
         }
 
         @Override
         public void handleMessage(Message msg) {
-        if (VDBG) mMdst.log("msg:" + msg.what + ",from slot:" + mSlot);
 		switch (msg.what) {
                 case AsyncChannel.CMD_CHANNEL_HALF_CONNECTED:
                     if (msg.arg1 == AsyncChannel.STATUS_SUCCESSFUL) {
                         if (VDBG) {
                             mMdst.log("MdstHandler connected");
                         }
-                        mMdst.mDataConnectionTrackerAc[mSlot] = (AsyncChannel) msg.obj;
+                        mMdst.mDataConnectionTrackerAc = (AsyncChannel) msg.obj;
                     } else {
                         if (VDBG) {
                             mMdst.log("MdstHandler %s NOT connected error=" + msg.arg1);
@@ -203,7 +197,7 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
                     break;
                 case AsyncChannel.CMD_CHANNEL_DISCONNECTED:
                     if (VDBG) mMdst.log("Disconnected from DataStateTracker");
-                    mMdst.mDataConnectionTrackerAc[mSlot] = null;
+                    mMdst.mDataConnectionTrackerAc = null;
                     break;
                 default: {
                     if (VDBG) mMdst.log("Ignorning unknown message=" + msg);
@@ -302,14 +296,14 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
 
                 if (TelephonyConstants.IS_DSDS) {
                     boolean isPrimary = intent.getAction().equals(TelephonyIntents.
-                        ACTION_ANY_DATA_CONNECTION_STATE_CHANGED);
-                    int slot = isPrimary ? TelephonyConstants.DSDS_SLOT_1_ID :
-                            TelephonyConstants.DSDS_SLOT_2_ID;
+                        ACTION_ANY_DATA_CONNECTION_STATE_CHANGED) ||
+                        intent.getAction().equals(TelephonyIntents.
+                        ACTION_DATA_CONNECTION_CONNECTED_TO_PROVISIONING_APN);
 
-                    if (!isMonitoredSim(slot)) {
+                    if (!isMonitoredSim(isPrimary)) {
                         if (VDBG)
                             log("Broadcast received: " + intent.getAction()  + " is ignored!"
-                                + " Because mDataSim = " + mDataSimId);
+                                + " Because mIsPrimary = " + mIsPrimary);
                         return;
                     }
                 }
@@ -317,7 +311,7 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
                 TelephonyManager tm;
                 if (!TelephonyConstants.IS_DSDS) { // single sim case
                     tm = TelephonyManager.getDefault();
-                } else if (isOnSim1()) { // DSDS on primary sim case
+                } else if (isOnDataSim()) { // DSDS on data sim case
                     tm = TelephonyManager.getDefault();
                 } else { // DSDS on secondary sim case
                     tm = TelephonyManager.get2ndTm();
@@ -417,11 +411,11 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
                                                             mNetworkInfo);
                         msg.sendToTarget();
                     } else if (TelephonyConstants.IS_DSDS &&
-                            (TextUtils.equals(reason, PhoneConstants.REASON_DATA_ATTACHED))) {
+                            (TextUtils.equals(reason, PhoneConstants.REASON_DATA_ATTACHED) ||
+                            TextUtils.equals(reason, PhoneConstants.REASON_APN_CHANGED))) {
                         mNetworkInfo.setDetailedState(mNetworkInfo.getDetailedState(), reason,
                                 mNetworkInfo.getExtraInfo());
-                        Message msg = mTarget.obtainMessage(EVENT_STATE_CHANGED,
-                                new NetworkInfo(mNetworkInfo));
+                        Message msg = mTarget.obtainMessage(EVENT_STATE_CHANGED, new NetworkInfo(mNetworkInfo));
                         msg.sendToTarget();
                     }
                 }
@@ -438,22 +432,20 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
                     }
                     return;
                 }
+                mNetworkInfo.setIsConnectedToProvisioningNetwork(false);
 				
                 if (TelephonyConstants.IS_DSDS) {
                     boolean isPrimary = intent.getAction().equals(TelephonyIntents.
                          ACTION_DATA_CONNECTION_FAILED);
-                    int slot = isPrimary ? TelephonyConstants.DSDS_SLOT_1_ID :
-                            TelephonyConstants.DSDS_SLOT_2_ID;
-                    if (!isMonitoredSim(slot)) {
+                    if (!isMonitoredSim(isPrimary)) {
                         if (DBG) {
                             log("Broadcast received: " + intent.getAction() + " is ignored!"
-                                    + "Because DataSim = " + mDataSimId);
+                                    + "Because mIsPrimary = " + mIsPrimary);
                         }
                         return;
                     }
                 }				
                 // Assume this isn't a provisioning network.
-                mNetworkInfo.setIsConnectedToProvisioningNetwork(false);
                 String reason = intent.getStringExtra(PhoneConstants.FAILURE_REASON_KEY);
                 String apnName = intent.getStringExtra(PhoneConstants.DATA_APN_KEY);
                 if (DBG) {
@@ -471,7 +463,7 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
         if ((mPhoneService == null) || forceRefresh) {
             String service;
             if (TelephonyConstants.IS_DSDS) {
-                service = isOnSim1() ? "phone" : "phone2";
+                service = isOnDataSim() ? "phone" : "phone2";
                 if (DBG) log("Phone service: " + service);
             } else {
                 service = "phone";
@@ -496,17 +488,18 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
         String networkTypeStr = "unknown";
 
         //TODO We have to edit the parameter for getNetworkType regarding CDMA
+        int networkType;
         // TelephonyManager uses static variable to create 2nd instance so it is safe
         // to get secondary TelephonyManager.
         TelephonyManager tm;
 
         if (TelephonyConstants.IS_DSDS) {
-            tm = isOnSim1() ? (new TelephonyManager(mContext)) :
+            tm = isOnDataSim() ? (new TelephonyManager(mContext)) :
                 TelephonyManager.get2ndTm();
         } else {
             tm = new TelephonyManager(mContext);
         }
-        int networkType = tm.getNetworkType();
+        networkType = tm.getNetworkType();
         switch(networkType) {
         case TelephonyManager.NETWORK_TYPE_GPRS:
             networkTypeStr = "gprs";
@@ -574,7 +567,7 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
      * @return true if this is ready to operate
      */
     public boolean isReady() {
-        return mDataConnectionTrackerAc[mDataSimId] != null;
+        return mDataConnectionTrackerAc != null;
     }
 
     @Override
@@ -636,6 +629,7 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
     public boolean reconnect() {
         boolean retValue = false; //connected or expect to be?
         setTeardownRequested(false);
+        if (DBG) log("request mobile");
         switch (setEnableApn(mApnType, true)) {
             case PhoneConstants.APN_ALREADY_ACTIVE:
                 // need to set self to CONNECTING so the below message is handled.
@@ -685,16 +679,9 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
     }
 
     public void setInternalDataEnable(boolean enabled) {
-        if (DBG) log("setSlotInternalDataEnable: E enabled=" + enabled);
-        setSlotInternalDataEnable(0, enabled);
-
-        if (TelephonyConstants.IS_DSDS) {
-            setSlotInternalDataEnable(1, enabled);
-        }	
-	}
-    private void setSlotInternalDataEnable(int slot, boolean enabled) {	
         if (DBG) log("setInternalDataEnable: E enabled=" + enabled);
-        final AsyncChannel channel = mDataConnectionTrackerAc[slot];
+
+        final AsyncChannel channel = mDataConnectionTrackerAc;
 
         if (channel != null) {
             channel.sendMessage(DctConstants.EVENT_SET_INTERNAL_DATA_ENABLE,
@@ -706,15 +693,9 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
     @Override
     public void setUserDataEnable(boolean enabled) {
         if (DBG) log("setUserDataEnable: E enabled=" + enabled);
-        setSlotUserDataEnable(0, enabled);
 
-        if (TelephonyConstants.IS_DSDS) {
-            setSlotUserDataEnable(1, enabled);
-        }
-    }
 
-    private void setSlotUserDataEnable(int slot, boolean enabled) {
-        final AsyncChannel channel = mDataConnectionTrackerAc[slot];
+        final AsyncChannel channel = mDataConnectionTrackerAc;
         if (channel != null) {
             channel.sendMessage(DctConstants.CMD_SET_USER_DATA_ENABLE,
                     enabled ? DctConstants.ENABLED : DctConstants.DISABLED);
@@ -726,15 +707,9 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
     @Override
     public void setPolicyDataEnable(boolean enabled) {
         if (DBG) log("setPolicyDataEnable(enabled=" + enabled + ")");
-        setSlotPolicyDataEnable(0, enabled);
 
-        if (TelephonyConstants.IS_DSDS) {
-            setSlotPolicyDataEnable(1, enabled);
-        }
-    }
 
-    private void setSlotPolicyDataEnable(int slot, boolean enabled) {
-        final AsyncChannel channel = mDataConnectionTrackerAc[slot];
+        final AsyncChannel channel = mDataConnectionTrackerAc;
         if (channel != null) {
             channel.sendMessage(DctConstants.CMD_SET_POLICY_DATA_ENABLE,
                     enabled ? DctConstants.ENABLED : DctConstants.DISABLED);
@@ -749,16 +724,10 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
      */
     public void setEnableFailFastMobileData(int enabled) {
         if (DBG) log("setEnableFailFastMobileData(enabled=" + enabled + ")");
-        setSlotEnableFailFastMobileData(0, enabled);
 
-        if (TelephonyConstants.IS_DSDS) {
-            setSlotEnableFailFastMobileData(1, enabled);
-        }
-    }
 
-    private void setSlotEnableFailFastMobileData(int slot, int enabled) {		
 		
-        final AsyncChannel channel = mDataConnectionTrackerAc[slot];
+        final AsyncChannel channel = mDataConnectionTrackerAc;
         if (channel != null) {
             channel.sendMessage(DctConstants.CMD_SET_ENABLE_FAIL_FAST_MOBILE_DATA, enabled);
         }
@@ -776,7 +745,7 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
             msg.what = DctConstants.CMD_SET_DEPENDENCY_MET;
             msg.arg1 = (met ? DctConstants.ENABLED : DctConstants.DISABLED);
             msg.setData(bundle);
-            mDataConnectionTrackerAc[mDataSimId].sendMessage(msg);
+            mDataConnectionTrackerAc.sendMessage(msg);
             if (VDBG) log("setDependencyMet: X met=" + met);
         } catch (NullPointerException e) {
             loge("setDependencyMet: X mAc was null" + e);
@@ -788,16 +757,10 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
      */
     public void enableMobileProvisioning(String url) {
         if (DBG) log("enableMobileProvisioning(url=" + url + ")");
-        SlotenableMobileProvisioning(0, url);
 
-        if (TelephonyConstants.IS_DSDS) {
-            SlotenableMobileProvisioning(1, url);
-        }
-    }
 
-    private void SlotenableMobileProvisioning(int slot, String url) {		
 		
-        final AsyncChannel channel = mDataConnectionTrackerAc[slot];
+        final AsyncChannel channel = mDataConnectionTrackerAc;
         if (channel != null) {
             Message msg = Message.obtain();
             msg.what = DctConstants.CMD_ENABLE_MOBILE_PROVISIONING;
@@ -816,7 +779,7 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
             Message msg = Message.obtain();
             msg.what = DctConstants.CMD_IS_PROVISIONING_APN;
             msg.setData(Bundle.forPair(DctConstants.APN_TYPE_KEY, mApnType));
-            Message result = mDataConnectionTrackerAc[mDataSimId].sendMessageSynchronously(msg);
+            Message result = mDataConnectionTrackerAc.sendMessageSynchronously(msg);
             retVal = result.arg1 == DctConstants.ENABLED;
         } catch (NullPointerException e) {
             loge("isProvisioningNetwork: X " + e);
@@ -844,8 +807,8 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
         pw.print("Data enabled: user="); pw.print(mUserDataEnabled);
         pw.print(", policy="); pw.println(mPolicyDataEnabled);
         if (TelephonyConstants.IS_DSDS) {
-            pw.print(", mTypeOnDataSim="); pw.println(mTypeOnDataSim);
-            pw.print(", mDataSimId="); pw.println(mDataSimId);
+            pw.print(", mIsPrimary="); pw.println(mIsPrimary);
+            pw.print(", mSimDataEnabled="); pw.println(mSimDataEnabled);
         }
         return writer.toString();
     }
@@ -902,8 +865,9 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
                 return PhoneConstants.APN_TYPE_HIPRI;
             case ConnectivityManager.TYPE_MOBILE_FOTA:
                 return PhoneConstants.APN_TYPE_FOTA;
-            case ConnectivityManager.TYPE_MOBILE_IMS:
-                return PhoneConstants.APN_TYPE_IMS;
+           //for DSDS branch, now use TYPE_MOBILE2_MMS replaced of TYPE_MOBILE_IMS
+//               case ConnectivityManager.TYPE_MOBILE_IMS:
+//                      return PhoneConstants.APN_TYPE_IMS;
             case ConnectivityManager.TYPE_MOBILE_CBS:
                 return PhoneConstants.APN_TYPE_CBS;
             case ConnectivityManager.TYPE_MOBILE_IA:
@@ -934,63 +898,38 @@ public class MobileDataStateTracker extends BaseNetworkStateTracker {
     public void supplyMessenger(Messenger messenger) {
         if (VDBG) log(mApnType + " got supplyMessenger");
         AsyncChannel ac = new AsyncChannel();
-        ac.connect(mContext, MobileDataStateTracker.this.mHandler[0], messenger);
+        ac.connect(mContext, MobileDataStateTracker.this.mHandler, messenger);
     }
 
 
     /*
      * Check whether the message comes from expected SIM
      */
-    private boolean isMonitoredSim(int slot) {
-        if ((mTypeOnDataSim && (mDataSimId == slot)) ||
-                (!mTypeOnDataSim && (mDataSimId != slot))) {
-            return true;
+    private boolean isMonitoredSim(boolean isPrimary) {
+        return (mIsPrimary == isPrimary);
         }
-        return false;
+    private boolean isOnDataSim() {
+        return mIsPrimary;
     }
 
-    public void setSimDataEnabled(int slot, boolean enabled) {
-        if (DBG) log("setSimDataEnabled: E enabled=" + enabled + " on slot " + slot);
-        final AsyncChannel channel = mDataConnectionTrackerAc[slot];
+    public void setSimDataEnabled(boolean enabled) {
+        if (DBG) log("setSimDataEnabled: E enabled=" + enabled);
+        final AsyncChannel channel = mDataConnectionTrackerAc;
         if (channel != null) {
             channel.sendMessage(CMD_SET_SIM_DATA_ENABLED, enabled ? ENABLED : DISABLED);
+            mSimDataEnabled = enabled;
         }
-        if (VDBG) log("setSimDataEnabled: X enabled=" + enabled + " on slot " + slot);
-        if (enabled) getPhoneService(true);
+        if (VDBG) log("setSimDataEnabled: X enabled=" + enabled);
     }
 
     /*
      * Internal helper function to determine this tracker is used for sim1.
      */
-    private boolean isOnSim1() {
-        return (mTypeOnDataSim && mDataSimId == ConnectivityManager.MOBILE_DATA_NETWORK_SLOT_A) ||
-                (!mTypeOnDataSim && mDataSimId == ConnectivityManager.MOBILE_DATA_NETWORK_SLOT_B);
-    }
 
-    public void setDataSim(int slot) {
-        if (mDataSimId == slot) {
-            log("No Data sim changed, just return");
-            return;
-        }
 
-        mDataSimId = slot;
-        getPhoneService(true);
 
-        if (mNetworkInfo.getType() == ConnectivityManager.TYPE_MOBILE) {
-            if (mDataConnectionTrackerAc[slot] != null) {
-                mDataConnectionTrackerAc[slot].sendMessage(CMD_SET_DATA_SIM, ENABLED);
-            }
 
-            if (mDataConnectionTrackerAc[1 - slot] != null) {
-                mDataConnectionTrackerAc[1 - slot].sendMessage(CMD_SET_DATA_SIM, DISABLED);
-            }
-        }
-    }
 
-    public void updateDataSim(int slotId) {
-        mDataSimId = slotId;
-        getPhoneService(true);
-    }
     private void log(String s) {
         Slog.d(TAG, mApnType + ": " + s);
     }
