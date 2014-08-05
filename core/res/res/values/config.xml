@@ -188,7 +188,7 @@
         <item>"mobile_mms,2,0,2,60000,true"</item>
         <item>"mobile_supl,3,0,2,60000,true"</item>
         <item>"mobile_hipri,5,0,3,60000,true"</item>
-        <item>"mobile_bluetooth,7,7,1,-1,true"</item>
+	<item>"mobile_bluetooth,7,7,1,-1,true"</item>
         <item>"mobile_fota,10,0,2,60000,true"</item>
         <item>"mobile_ims,11,0,2,60000,true"</item>
         <item>"mobile_cbs,12,0,2,60000,true"</item>
@@ -209,7 +209,7 @@
         <item>"mobile_cbs,12,0,2,60000,true"</item>
         <item>"wifi_p2p,13,1,0,-1,true"</item>
         <item>"mobile_ia,14,0,2,-1,true"</item>
-        <item>"mobile_mms2,14,0,2,60000,true"</item>
+        <item>"mobile_mms2,15,0,2,60000,true"</item>
     </string-array>
 	
     <!-- Array of ConnectivityManager.TYPE_xxxx constants for networks that may only
