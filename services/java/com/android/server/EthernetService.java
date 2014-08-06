@@ -47,6 +47,7 @@ import android.os.Parcelable;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
+import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.JsonReader;
 import android.util.JsonWriter;
@@ -170,9 +171,30 @@ public class EthernetService extends IEthernetManager.Stub {
         public void interfaceClassDataActivityChanged(String label, boolean active) {}
         public void interfaceLinkStateChanged(String iface, boolean up) {
             if(DBG) Slog.d(TAG, "interfaceLinkStateChanged for " + iface + ", up = " + up);
-            if (mAvailableInterface != null && up) {
-                //sendMessage(mAvailableInterface, 
-                //EthernetStateMachine.CMD_LINK_UP);
+            String eth_regex = mContext.getResources().getString(
+                    com.android.internal.R.string.config_ethernet_iface_regex);
+
+            // If it's not an ethernet interface, or it is the utility interface,
+            // do nothing:
+            if ( ! iface.matches(eth_regex)
+                    || iface.equals(getUtilityInterface())) {
+                if(DBG) Slog.d(TAG, "interfaceLinkStateChanged: I cannot manage " + iface);
+                return;
+            }
+
+            if (mAvailableInterface != null) {
+                EthernetInfo ei = mAvailableInterface.getInfo();
+                if (up) {
+                    if (ei.getDetailedState() == NetworkInfo.DetailedState.DISCONNECTED) {
+                        sendMessage(mAvailableInterface,
+                            EthernetStateMachine.CMD_LINKUP);
+                    }
+                } else {
+                    if (ei.getDetailedState() == NetworkInfo.DetailedState.CONNECTED) {
+                        sendMessage(mAvailableInterface,
+                            EthernetStateMachine.CMD_LINKDOWN);
+                    }
+                }
             }
         }
         public void interfaceStatusChanged(String iface, boolean up) {
@@ -208,7 +230,7 @@ public class EthernetService extends IEthernetManager.Stub {
                 newIntent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
                 newIntent.putExtra(EthernetManager.EXTRA_ETHERNET_INFO, ei);
                 if(DBG) Slog.d(TAG, "Sending EthernetManager.NETWORK_STATE_CHANGED_ACTION");
-                mContext.sendBroadcast(newIntent);
+                mContext.sendBroadcastAsUser(newIntent, new UserHandle(UserHandle.USER_CURRENT));
 
                 // If it's the utility interface or not our active interface,
                 // do nothing:
@@ -261,7 +283,7 @@ public class EthernetService extends IEthernetManager.Stub {
         Intent newIntent = new Intent(EthernetManager.INTERFACE_REMOVED_ACTION);
         newIntent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
         newIntent.putExtra(EthernetManager.EXTRA_INTERFACE_NAME, iface);
-        mContext.sendBroadcast(newIntent);
+        mContext.sendBroadcastAsUser(newIntent, new UserHandle(UserHandle.USER_CURRENT));
     }
 
     private void addInterface(String iface) {

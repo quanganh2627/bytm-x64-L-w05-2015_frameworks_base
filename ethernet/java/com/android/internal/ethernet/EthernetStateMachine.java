@@ -32,6 +32,7 @@ import android.os.INetworkManagementService;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.UserHandle;
 import android.util.Slog;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
@@ -44,6 +45,8 @@ public class EthernetStateMachine extends StateMachine {
     public static final int CMD_UPDATE_INTERFACE = BASE + 1;
     public static final int CMD_SHUTDOWN = BASE + 2;
     public static final int CMD_INTERFACE_GONE = BASE + 3;
+    public static final int CMD_LINKDOWN = BASE + 4;
+    public static final int CMD_LINKUP = BASE + 5;
     private Context mContext;
     private EthernetInfo mEthernetInfo;
     private DhcpStateMachine mDhcpStateMachine;
@@ -119,7 +122,7 @@ public class EthernetStateMachine extends StateMachine {
         Intent intent = new Intent(EthernetManager.INTERFACE_STATE_CHANGED_ACTION);
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
         intent.putExtra(EthernetManager.EXTRA_ETHERNET_INFO, new EthernetInfo(mEthernetInfo));
-        mContext.sendBroadcast(intent);
+        mContext.sendBroadcastAsUser(intent, new UserHandle(UserHandle.USER_CURRENT));
     }
 
     private void setNetworkDetailedState(DetailedState state) {
@@ -158,6 +161,12 @@ public class EthernetStateMachine extends StateMachine {
                 case CMD_SHUTDOWN:
                     shutdown();
                     return HANDLED;
+                case CMD_LINKDOWN:
+                    linkDown();
+                    return HANDLED;
+                case CMD_LINKUP:
+                    linkUp();
+                    return HANDLED;
                 case DhcpStateMachine.CMD_ON_QUIT:
                     if (DBG) Slog.d(TAG, "Received CMD_ON_QUIT");
                     mDhcpStateMachine = null;
@@ -177,6 +186,24 @@ public class EthernetStateMachine extends StateMachine {
         mEthernetInfo.disable();
         setNetworkDetailedState(DetailedState.DISCONNECTING);
         transitionTo(mDisconnectingState);
+    }
+
+    private void linkDown() {
+        try {
+            mNetd.clearInterfaceAddresses(mEthernetInfo.getName());
+        } catch (RemoteException re) {
+            Slog.e(TAG, mEthernetInfo.getName() + " Failed to clear interface address: " + re);
+        } catch (IllegalStateException ise) {
+            // Oftentimes interface may not exist anymore:
+            if (DBG) Slog.d(TAG, "Failed to clear interface address "
+                    + mEthernetInfo.getName() + ": " + ise);
+        }
+        mDhcpStateMachine.sendMessage(DhcpStateMachine.CMD_STOP_DHCP);
+        setNetworkDetailedState(DetailedState.DISCONNECTED);
+    }
+
+    private void linkUp() {
+        transitionTo(mIdleState);
     }
 
     class IdleState extends State {
@@ -306,6 +333,8 @@ public class EthernetStateMachine extends StateMachine {
             setNetworkDetailedState(DetailedState.CONNECTED);
         } catch (RemoteException re) {
                 Slog.e(TAG, mEthernetInfo.getName()+"DHCP setlinkaddress failed"+re);
+        } catch (IllegalStateException re) {
+            Slog.e(TAG, mEthernetInfo.getName()+"set interface config failed"+re);
         }
     }
 
@@ -347,6 +376,7 @@ public class EthernetStateMachine extends StateMachine {
             if (DBG) Slog.d(TAG, mEthernetInfo.getName() + " Entered DisconnectingState");
             try {
                 mNetd.setInterfaceDown(mEthernetInfo.getName());
+                mNetd.clearInterfaceAddresses(mEthernetInfo.getName());
             } catch (RemoteException re) {
                 Slog.e(TAG, mEthernetInfo.getName() + " Failed to bring down interface: " + re);
             } catch (IllegalStateException ise) {
