@@ -1610,7 +1610,7 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
             return "noport";
         }
 
-        final byte[] buffer = new byte[2048];
+        byte[] buffer = new byte[2048];
 
         BufferedInputStream bis = null; 
         OutputStreamWriter osw = null;
@@ -1658,17 +1658,32 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
             int length = bis.available();
 
 
-            while ((length = bis.read(buffer, 0, bis.available())) > 0) {
+//            while ((length = bis.read(buffer, 0, bis.available())) > 0) {
+//                sb.append(new String(buffer, 0, length));
+//                String ret = sb.toString();
+//
+//                if (DEBUG) {
+//                    Log.d(TAG, "Try to read out result, ret=" + ret+",length = "+length);
+//                }
+//
+//                if (ret.contains("OK") || ret.contains("ERROR") || ret.contains("NOT SUPPORT")) {
+//                    return ret;
+//                }
+//            }
+            while((length = bis.available()) > 0){
+                if(length >= buffer.length)
+                    buffer = new byte[length + 0x200];
+                    
+                length = bis.read(buffer, 0, bis.available());
                 sb.append(new String(buffer, 0, length));
-                String ret = sb.toString();
-
+                String ret = sb.toString();   
                 if (DEBUG) {
-                    Log.d(TAG, "Try to read out result, ret=" + ret);
+                    Log.d(TAG, "Try to read out result, ret=" + ret+",length 2 = "+length);
                 }
 
                 if (ret.contains("OK") || ret.contains("ERROR") || ret.contains("NOT SUPPORT")) {
                     return ret;
-                }
+                }                             
             }
         } catch (FileNotFoundException e) {
             return "noport";
@@ -1715,6 +1730,11 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
 	
 	Log.d(TAG, newStr + " is = " + is + " ie = " + ie);
 	
+	if((is < 0) || (is > ie))
+	{
+	    Log.d(TAG, "not valid CSQ.");
+	    return;
+    }	    
 	String tmp = newStr.substring((is+4), ie);
 	
 	Log.d(TAG, "length " + tmp.length() + " " + tmp);
