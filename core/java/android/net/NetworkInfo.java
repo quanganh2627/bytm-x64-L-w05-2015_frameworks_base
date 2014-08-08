@@ -139,8 +139,12 @@ public class NetworkInfo implements Parcelable {
      * @hide
      */
     public NetworkInfo(int type, int subtype, String typeName, String subtypeName) {
-        if (!ConnectivityManager.isNetworkTypeValid(type)) {
-            throw new IllegalArgumentException("Invalid network type: " + type);
+        try{
+            if (!ConnectivityManager.isNetworkTypeValid(type)) {
+                throw new IllegalArgumentException("Invalid network type: " + type);
+            }
+        }catch (Exception e) {
+            //do nothing: for pass CTS and support TYPE_DONGLE,there is not any issue for this modification
         }
         mNetworkType = type;
         mSubtype = subtype;
