@@ -198,6 +198,14 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                         //Enable
                         if (DBG) Log.d(TAG, "Auto-enabling Bluetooth.");
                         sendEnableMsg(mQuietEnableExternal);
+                    } else if (mEnableExternal == false) {
+                        if (DBG)
+                            Log.d(TAG, "System Rebooted: BT was disabled, so enabling and then"
+                                    + " disabling BT to do FW patching in BT Chip");
+
+                        sendEnableMsg(mQuietEnableExternal);
+                        SystemClock.sleep(500);
+                        sendDisableMsg();
                     }
                 }
 
