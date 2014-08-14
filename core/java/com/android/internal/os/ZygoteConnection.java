@@ -22,6 +22,7 @@ import android.os.Build;
 import android.os.Process;
 import android.os.SELinux;
 import android.os.SystemProperties;
+import android.os.UserHandle;
 import android.util.Log;
 
 import dalvik.system.PathClassLoader;
@@ -250,7 +251,7 @@ class ZygoteConnection {
                 IoUtils.closeQuietly(serverPipeFd);
                 serverPipeFd = null;
                 if (ENABLE_HOUDINI) {
-                    int ret = isABI2App(parsedArgs.uid);
+                    int ret = isABI2App(UserHandle.getAppId(parsedArgs.uid));
                     // Log.d(TAG, "isABI2App return " + ret);
                     if ((ret & APP_ABI2_FLAG) == APP_ABI2_FLAG) {
                         ICheckExt check = new CheckExt();
