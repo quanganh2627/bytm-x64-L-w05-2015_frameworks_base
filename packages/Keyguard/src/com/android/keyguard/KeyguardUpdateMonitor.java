@@ -823,7 +823,7 @@ public class KeyguardUpdateMonitor {
         }
         mUserPinAcitivity = SystemProperties.getInt(TelephonyConstants.PROPERTY_USER_PIN_ACTIVITY, 0 );
        // workaround for airplane mode PIN/state, force a refresh even actually no change.
-        if (state != IccCardConstants.State.UNKNOWN && state != IccCardConstants.State.NOT_READY/*&& state != mSimState[slot]*/) {
+        if (state != IccCardConstants.State.UNKNOWN && state != IccCardConstants.State.NOT_READY && state != mSimState[slot]) {
             mSimState[slot] = state;
             for (int i = 0; i < mCallbacks.size(); i++) {
                 KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
@@ -835,7 +835,7 @@ public class KeyguardUpdateMonitor {
                     }
                 }
             }
-			setAndCheckPowerOnLocked(slot);
+            setAndCheckPowerOnLocked(slot);
         }
     }
 
