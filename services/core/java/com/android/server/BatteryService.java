@@ -142,6 +142,12 @@ public final class BatteryService extends SystemService {
 
     private boolean mSentLowBatteryBroadcast = false;
 
+    // Variables used to check if battery is discharging, by taking voltage
+    // samples
+    private static int sDischargeCount = 0;
+    private static int sVoltagePrev = -1;
+    private static final int MAX_DISCHARGE_COUNT = 3;
+
     public BatteryService(Context context) {
         super(context);
 
@@ -254,10 +260,30 @@ public final class BatteryService extends SystemService {
                 && (oldPlugged || mLastBatteryLevel > mLowBatteryWarningLevel);
     }
 
+    private boolean isDischarging() {
+    // If the voltage is dropping during consecutive readings, report that battery is discharging.
+    // Reset the discharge count if the current voltage is greater than the previous voltage
+        if ((mBatteryProps.batteryVoltage < sVoltagePrev) && (sVoltagePrev != -1)) {
+            sDischargeCount++;
+        } else if (mBatteryProps.batteryVoltage > sVoltagePrev) {
+            sDischargeCount = 0;
+        }
+        sVoltagePrev = mBatteryProps.batteryVoltage;
+        return sDischargeCount >= MAX_DISCHARGE_COUNT;
+    }
+
     private void shutdownIfNoPowerLocked() {
         // shut down gracefully if our battery is critically low and we are not powered.
         // wait until the system has booted before attempting to display the shutdown dialog.
-        if (mBatteryProps.batteryLevel == 0 && !isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY)) {
+        // if powered check whether discharging and start the shutdown otherwise
+        // initiate shutdown immediately.
+
+        boolean chargerConnected;
+
+        chargerConnected = isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY);
+
+        if ((mBatteryProps.batteryLevel == 0) &&
+            (!chargerConnected || (chargerConnected && isDischarging()))) {
             mHandler.post(new Runnable() {
                 @Override
                 public void run() {
