@@ -223,7 +223,8 @@ public class KeyguardSimPinView extends KeyguardAbsKeyInputView
     protected void verifyPasswordAndUnlock() {
         String entry = mPasswordEntry.getText().toString();
 
-        if (entry.length() < 4) {
+        if (entry.length() < 4 || entry.length() > 8) {
+            if (DEBUG) Log.d(LOG_TAG, "bug 956, minjie pin length error");
             // otherwise, display a message to the user, and don't submit.
             mSecurityMessageDisplay.setMessage(R.string.kg_invalid_sim_pin_hint, true);
             mPasswordEntry.setText("");
