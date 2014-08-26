@@ -425,13 +425,15 @@ public final class BatteryService extends SystemService {
 
             if (!mBatteryLevelLow) {
                 // Should we now switch in to low battery mode?
-                if (mPlugType == BATTERY_PLUGGED_NONE
-                        && mBatteryProps.batteryLevel <= mLowBatteryWarningLevel) {
+                if ((mPlugType == BATTERY_PLUGGED_NONE ||
+                    mPlugType == BatteryManager.BATTERY_PLUGGED_USB) &&
+                    mBatteryProps.batteryLevel <= mLowBatteryWarningLevel) {
                     mBatteryLevelLow = true;
                 }
             } else {
                 // Should we now switch out of low battery mode?
-                if (mPlugType != BATTERY_PLUGGED_NONE) {
+                if (mPlugType != BATTERY_PLUGGED_NONE &&
+                    mPlugType != BatteryManager.BATTERY_PLUGGED_USB) {
                     mBatteryLevelLow = false;
                 } else if (mBatteryProps.batteryLevel >= mLowBatteryCloseWarningLevel)  {
                     mBatteryLevelLow = false;
