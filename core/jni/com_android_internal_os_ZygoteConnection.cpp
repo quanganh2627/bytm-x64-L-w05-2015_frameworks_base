@@ -46,14 +46,14 @@ static void com_android_internal_os_ZygoteConnection_settingHoudiniABI (JNIEnv *
 #define APP_ABI2_FLAG               1
 #define APP_IMPLICIT_ABI_FLAG       2
 
-static jint com_android_internal_os_ZygoteConnection_isABI2App (JNIEnv *env, jobject clazz, jint uid)
+static jint com_android_internal_os_ZygoteConnection_isABI2App (JNIEnv *env, jobject clazz, jint appId)
 {
     int app_abi_flag = 0;
     int fd = open(APP_WITH_ABI2, O_RDONLY,0444);
     if (fd != -1) {
-        int pkguid = 0;
-        while (read(fd, &pkguid, 4) > 0) {
-            if (uid == pkguid) {
+        int pkgAppId = 0;
+        while (read(fd, &pkgAppId, 4) > 0) {
+            if (appId == pkgAppId) {
                 app_abi_flag |= APP_ABI2_FLAG;
                 break;
             }
@@ -66,9 +66,9 @@ static jint com_android_internal_os_ZygoteConnection_isABI2App (JNIEnv *env, job
 
     fd = open(APP_WITH_IMPLICIT_ABI, O_RDONLY,0444);
     if (fd != -1) {
-        int pkguid = 0;
-        while (read(fd, &pkguid, 4) > 0) {
-            if (uid == pkguid) {
+        int pkgAppId = 0;
+        while (read(fd, &pkgAppId, 4) > 0) {
+            if (appId == pkgAppId) {
                 app_abi_flag |= APP_IMPLICIT_ABI_FLAG;
                 break;
             }
