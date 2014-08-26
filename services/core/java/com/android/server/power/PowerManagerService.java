@@ -663,7 +663,7 @@ public final class PowerManagerService extends SystemService
     }
 
     void updateLowPowerModeLocked() {
-        if (mIsPowered && mLowPowerModeSetting) {
+        if (!mBatteryLevelLow && mIsPowered && mLowPowerModeSetting) {
             if (DEBUG_SPEW) {
                 Slog.d(TAG, "updateLowPowerModeLocked: powered, turning setting off");
             }
