@@ -652,9 +652,10 @@ public final class MediaStore {
                 // Assuming thumbnail has been generated, at least original image exists.
                 if (kind == MICRO_KIND) {
                     synchronized (sThumbBufLock) {
-                        if (sThumbBuf == null) {
+                        //don't use the last thumbnalis
+                        //if (sThumbBuf == null) {
                             sThumbBuf = new byte[MiniThumbFile.BYTES_PER_MINTHUMB];
-                        }
+                        //}
                         if (thumbFile.getMiniThumbFromFile(origId, sThumbBuf) != null) {
                             bitmap = BitmapFactory.decodeByteArray(sThumbBuf, 0, sThumbBuf.length);
                             if (bitmap == null) {
