@@ -51,6 +51,7 @@ import android.util.Log;
 import android.util.Slog;
 import android.view.WindowManager;
 import android.webkit.WebViewFactory;
+import android.view.WindowManagerPolicy;
 
 import com.android.internal.R;
 import com.android.internal.os.BinderInternal;
@@ -106,6 +107,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.lang.reflect.Constructor;
 
 public final class SystemServer {
     private static final String TAG = "SystemServer";
@@ -176,6 +178,20 @@ public final class SystemServer {
     public SystemServer() {
         // Check for factory test mode.
         mFactoryTestMode = FactoryTest.getMode();
+    }
+
+    private Object createServiceWithConstructor(String serviceClassName,
+            java.lang.Class[] ptype, java.lang.Object[] objArray) {
+        Object object = null;
+        Slog.d(TAG, "registerService service: " + serviceClassName);
+        try {
+            Class c = Class.forName(serviceClassName);
+            Constructor cons = c.getConstructor(ptype);
+            object = cons.newInstance(objArray);
+        } catch (Exception ex) {
+            Slog.e(TAG, "Got unexpected MaybeAbstract failure", ex);
+        }
+        return object;
     }
 
     private void run() {
@@ -792,6 +808,13 @@ public final class SystemServer {
                 } catch (Throwable e) {
                     reportWtf("starting Audio Service", e);
                 }
+            }
+
+            if (true) {
+                Class[] ptype = new Class[]
+                        { Context.class, WindowManagerPolicy.WindowManagerFuncs.class };
+                Object[] obj = new Object[] { context, wm };
+                createServiceWithConstructor("com.intel.multidisplay.DisplayObserver", ptype , obj);
             }
 
             if (!disableNonCoreServices) {

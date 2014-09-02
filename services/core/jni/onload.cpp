@@ -42,9 +42,18 @@ int register_android_server_tv_TvInputHal(JNIEnv* env);
 int register_android_server_PersistentDataBlockService(JNIEnv* env);
 int register_android_server_fingerprint_FingerprintService(JNIEnv* env);
 int register_android_server_Watchdog(JNIEnv* env);
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+namespace intel {
+int register_intel_multidisplay_DisplaySetting(JNIEnv *env);
+};
+#endif
 };
 
 using namespace android;
+
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+using namespace android::intel;
+#endif
 
 extern "C" jint JNI_OnLoad(JavaVM* vm, void* reserved)
 {
@@ -79,6 +88,9 @@ extern "C" jint JNI_OnLoad(JavaVM* vm, void* reserved)
     register_android_server_PersistentDataBlockService(env);
     register_android_server_fingerprint_FingerprintService(env);
     register_android_server_Watchdog(env);
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    register_intel_multidisplay_DisplaySetting(env);
+#endif
 
     return JNI_VERSION_1_4;
 }
