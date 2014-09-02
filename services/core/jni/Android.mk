@@ -63,3 +63,10 @@ LOCAL_SHARED_LIBRARIES += \
     libGLESv2 \
     libnetutils \
 
+ifeq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
+    LOCAL_SHARED_LIBRARIES += \
+        libmultidisplay \
+        libbinder \
+        libmultidisplayjni
+    LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
+endif
