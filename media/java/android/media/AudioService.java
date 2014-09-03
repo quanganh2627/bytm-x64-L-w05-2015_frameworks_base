@@ -467,8 +467,7 @@ public class AudioService extends IAudioService.Stub {
     public final static int STREAM_REMOTE_MUSIC = -200;
 
     // Devices for which the volume is fixed and VolumePanel slider should be disabled
-    final int mFixedVolumeDevices = AudioSystem.DEVICE_OUT_AUX_DIGITAL |
-            AudioSystem.DEVICE_OUT_ALL_USB;
+    final int mFixedVolumeDevices = AudioSystem.DEVICE_OUT_ALL_USB;
 
     // TODO merge orientation and rotation
     private final boolean mMonitorOrientation;
