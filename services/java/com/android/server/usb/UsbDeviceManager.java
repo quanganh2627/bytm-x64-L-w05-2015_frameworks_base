@@ -106,7 +106,8 @@ public class UsbDeviceManager {
     // We often get rapid connect/disconnect events when enabling USB functions,
     // which need debouncing.
     private static final int UPDATE_DELAY = 1000;
-
+    private int mVBusStatus;
+    private int mOtgObWork = 0;
     // Time we received a request to enter USB accessory mode
     private long mAccessoryModeRequestTime = 0;
 
@@ -121,7 +122,6 @@ public class UsbDeviceManager {
     private boolean mBootCompleted;
 
     private final Object mLock = new Object();
-
     private final Context mContext;
     private final ContentResolver mContentResolver;
 
@@ -188,7 +188,29 @@ public class UsbDeviceManager {
         }
     };
 
-    public UsbDeviceManager(Context context) {
+    private final  UEventObserver nUEventObserver = new UEventObserver() {
+	@Override
+	public void onUEvent(UEventObserver.UEvent event) {
+		int otg_plug = 0;
+		mOtgObWork = 1;
+		if (event.get("otg_plug") != null) {
+			otg_plug = Integer.parseInt(event.get("otg_plug"));
+			/* otg devices plug in*/
+			if (otg_plug == 1) {
+				if (mVBusStatus == UsbManager.USB_HOST_VBUS_ALERT ||
+					mVBusStatus == UsbManager.USB_HOST_VBUS_CRITICAL) {
+					mHandler.showUsbWarning("HOST_NOT_WORK");
+				}
+			}
+		}
+	}
+    };
+
+    private void register_usbid_uevent() {
+	nUEventObserver.startObserving("DEVPATH=/devices/platform/vbus_warn");
+    };
+
+	public UsbDeviceManager(Context context) {
         mContext = context;
         mContentResolver = context.getContentResolver();
         PackageManager pm = mContext.getPackageManager();
@@ -220,6 +242,7 @@ public class UsbDeviceManager {
         if (secureAdbEnabled && !dataEncrypted) {
             mDebuggingManager = new UsbDebuggingManager(context);
         }
+	register_usbid_uevent();
     }
 
     private BroadcastReceiver mPowerReceiver = new BroadcastReceiver() {
@@ -248,12 +271,16 @@ public class UsbDeviceManager {
                     Slog.i(TAG, "USB vBus changed to Alert/Critical");
                 default:
                     Slog.w(TAG, "USB vBus changed to unknown");
-                    SystemProperties.set(prop, critical);
-                    break;
+		    /* which means we enable otg lower battery warning*/
+		    if (mOtgObWork == 1) {
+			SystemProperties.set(prop, critical);
+			mHandler.showUsbWarning("HOST_NOT_WORK");
+			}
+			break;
             }
+	    mVBusStatus = status;
         }
     };
-
 
     public void setCurrentSettings(UsbSettingsManager settings) {
         synchronized (mLock) {
