@@ -390,9 +390,6 @@ iterateOverNativeFiles(JNIEnv *env, jstring javaFilePath, jstring javaCpuAbi, js
     }
 
 #ifdef WITH_HOUDINI
-    if (!hasPrimaryAbi && !useSecondaryAbi && noMatchAbi)
-        return INSTALL_FAILED_CPU_ABI_INCOMPATIBLE;
-
     if (!hasPrimaryAbi && useSecondaryAbi)
         return INSTALL_ABI2_SUCCEEDED;
 #endif
@@ -708,11 +705,6 @@ com_android_internal_content_NativeLibraryHelper_listNativeBinaries(JNIEnv *env,
 
     if (hasPrimaryAbi == false && hasSecondaryAbi == true) {
         return INSTALL_ABI2_SUCCEEDED;
-    }
-
-    if (hasPrimaryAbi == false && hasSecondaryAbi == false && hasUpgradeAbi == false &&
-            noMatchAbi == true) {
-       return INSTALL_FAILED_CPU_ABI_INCOMPATIBLE;
     }
 
     return INSTALL_SUCCEEDED;
