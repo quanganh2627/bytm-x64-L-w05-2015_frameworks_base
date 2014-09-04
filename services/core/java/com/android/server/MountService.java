@@ -1099,6 +1099,25 @@ class MountService extends IMountService.Stub
                 /*
                  * Media is blank or does not contain a supported filesystem
                  */
+                String oldState;
+                int loop = 50;
+                do {
+                    synchronized (mVolumeStates) {
+                        oldState = mVolumeStates.get(path);
+                        if (oldState == null)
+                            break;
+                    }
+                    /*
+                     * wait for 100ms first to give a chance for MountService
+                     * to handle other events from vold service first
+                     */
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException error) {
+                        Slog.i(TAG, "Exception during sleep");
+                    }
+                    loop--;
+                } while (!oldState.equals(Environment.MEDIA_UNMOUNTED) || loop == 0);
                 updatePublicVolumeState(volume, Environment.MEDIA_NOFS);
                 action = Intent.ACTION_MEDIA_NOFS;
                 rc = StorageResultCode.OperationFailedMediaBlank;
