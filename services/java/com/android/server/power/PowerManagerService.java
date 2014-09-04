@@ -336,6 +336,10 @@ public final class PowerManagerService extends IPowerManager.Stub
     // Use -1 if no value has been set.
     private int mScreenBrightnessSetting;
 
+    // Maximum Brightness Limit set due to platform Thermal conditions
+    // Value ranges from 0 to 255, with 255 as default.
+    private int mScreenBrightnessSettingThermalLimit = PowerManager.BRIGHTNESS_ON;
+
     // The screen auto-brightness adjustment setting, from -1 to 1.
     // Use 0 if there is no adjustment.
     private float mScreenAutoBrightnessAdjustmentSetting;
@@ -419,6 +423,28 @@ public final class PowerManagerService extends IPowerManager.Stub
         // activity manager is not running when the constructor is called, so we
         // have to defer setting the screen state until this point.
         mDisplayBlanker.unblankAllDisplays();
+    }
+
+    /* new function added, called from display plugin */
+    public void setThermalBrightnessLimit(int newBrightness, boolean immediate) {
+	// Update the max (Thermally) allowed brightness value synchronously.
+	synchronized (mLock) {
+	    mScreenBrightnessSettingThermalLimit = newBrightness;
+
+	    // mScreenBrightnessSetting stores the current brightness value
+	    // set the new brightness only if its lesser than the current brightness
+	    if (immediate && newBrightness < mScreenBrightnessSetting) {
+		mScreenBrightnessSetting = newBrightness;
+		mDirty |= DIRTY_SETTINGS;
+		updatePowerStateLocked();
+	    }
+	}
+    }
+
+    public int getThermalBrightnessLimit() {
+	synchronized (mLock) {
+	    return mScreenBrightnessSettingThermalLimit;
+	}
     }
 
     public void setPolicy(WindowManagerPolicy policy) {
@@ -1698,7 +1724,9 @@ public final class PowerManagerService extends IPowerManager.Stub
                     mScreenBrightnessSettingMaximum), mScreenBrightnessSettingMinimum);
             screenAutoBrightnessAdjustment = Math.max(Math.min(
                     screenAutoBrightnessAdjustment, 1.0f), -1.0f);
-            mDisplayPowerRequest.screenBrightness = screenBrightness;
+	    // Cap the brightness according to allowed Thermal Limit
+	    mDisplayPowerRequest.screenBrightness = Math.min(screenBrightness,
+							     getThermalBrightnessLimit());
             mDisplayPowerRequest.screenAutoBrightnessAdjustment =
                     screenAutoBrightnessAdjustment;
             mDisplayPowerRequest.useAutoBrightness = autoBrightness;

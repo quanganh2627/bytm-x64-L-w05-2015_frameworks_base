@@ -70,6 +70,7 @@ import com.android.server.usb.UsbService;
 import com.android.server.wifi.WifiService;
 import com.android.server.wm.WindowManagerService;
 import com.android.internal.telephony.TelephonyConstants;
+import com.android.server.thermal.ThermalService;
 
 import dalvik.system.VMRuntime;
 import dalvik.system.Zygote;
@@ -157,6 +158,7 @@ class ServerThread {
         InputManagerService inputManager = null;
         TelephonyRegistry telephonyRegistry = null;
         ConsumerIrService consumerIr = null;
+	ThermalService thermalservice = null;
 
         // Create a handler thread just for the window manager to enjoy.
         HandlerThread wmHandlerThread = new HandlerThread("WindowManager");
@@ -294,6 +296,14 @@ class ServerThread {
             Slog.i(TAG, "Consumer IR Service");
             consumerIr = new ConsumerIrService(context);
             ServiceManager.addService(Context.CONSUMER_IR_SERVICE, consumerIr);
+
+	    if ("1".equals(SystemProperties.get("persist.service.thermal", "0"))) {
+		Slog.i(TAG, "Thermal Service enabled");
+		thermalservice = new ThermalService(context);
+		ServiceManager.addService("thermalservice", thermalservice);
+	    } else {
+		Log.i(TAG, "Thermal Service disabled");
+	    }
 
             // only initialize the power service after we have started the
             // lights service, content providers and the battery service.
@@ -776,7 +786,7 @@ class ServerThread {
                 }
             }
 
-            if (!disableNonCoreServices && 
+            if (!disableNonCoreServices &&
                 context.getResources().getBoolean(R.bool.config_dreamsSupported)) {
                 try {
                     Slog.i(TAG, "Dreams Service");
