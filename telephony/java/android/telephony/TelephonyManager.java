@@ -2168,10 +2168,11 @@ public class TelephonyManager {
      * @hide
      */
     public static int getPrimarySim() {
-        return SystemProperties.getBoolean("ro.build.prim_equals_data", false) ?
-                Settings.Global.getInt(mContext.getContentResolver(),
-                Settings.Global.MOBILE_DATA_SIM,
-                ConnectivityManager.MOBILE_DATA_NETWORK_SLOT_A)
-                : 0;
+        mContext.enforceCallingOrSelfPermission(
+            android.Manifest.permission.ACCESS_NETWORK_STATE,
+            "TelephonyManager");
+        int retVal = Settings.Global.getInt(mContext.getContentResolver(),
+                Settings.Global.MOBILE_DATA_SIM, 0);
+        return retVal;
     }
 }
