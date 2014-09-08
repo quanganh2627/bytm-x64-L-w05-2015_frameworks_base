@@ -467,7 +467,22 @@ public class WifiP2pManager {
     public static final int REPORT_NFC_HANDOVER_SUCCEEDED           = BASE + 80;
     /** @hide */
     public static final int REPORT_NFC_HANDOVER_FAILED              = BASE + 81;
+    /** @hide */
+    public static final int SET_USER_AUTH                           = BASE + 82;
+    /** @hide */
+    public static final int SET_USER_AUTH_FAILED                    = BASE + 83;
+    /** @hide */
+    public static final int SET_USER_AUTH_SUCCEEDED                 = BASE + 84;
 
+    /** @hide */
+    public static final int USER_AUTH_REQUEST                       = BASE + 85;
+    /** @hide */
+    public static final int USER_AUTH_SHOW_PIN                      = BASE + 86;
+
+    /** @hide */
+    public static final int PEER_CONNECTION_USER_ACCEPT             = BASE + 87;
+    /** @hide */
+    public static final int PEER_CONNECTION_USER_REJECT             = BASE + 88;
 
     /**
      * Create a new WifiP2pManager instance. Applications use
@@ -656,6 +671,34 @@ public class WifiP2pManager {
         public void onHandoverMessageAvailable(String handoverMessage);
     }
 
+    /** Interface for callback invocation when client need to accept connection {@hide}*/
+    public interface UserAuthorizationListener {
+        /**
+         * User need to accept or decline connection request from Peer
+         *
+         * <p>This function is invoked if user register a UserAuthorizationListener using
+         * {@link #setUserAuthorizationListener}. Use interface {@link #authorizeConnection}
+         * to accept or decline the connection request.
+         *
+         * @param wpsMethod Wps method used
+         * @param pin code to displayed if wpsMethod is DISPLAY (null otherwise)
+         * @param peerAddress address of the peer requesting the connection
+         */
+        public void onUserAuthorizationRequest(int wpsMethod, String pin, String peerAddress);
+
+        /**
+         * Need to display pin code for wps connection
+         *
+         * <p>This function is invoked if user register a UserAuthorizationListener using
+         * {@link #setUserAuthorizationListener}. In this case user doesn't have to accept
+         * nor decline the connection request, it simply needs to display pin code.
+         *
+         * @param pin code to displayed
+         * @param peerAddress address of the peer requesting the connection
+         */
+        public void onShowPin(String pin, String peerAddress);
+    }
+
     /**
      * A channel that connects the application to the Wifi p2p framework.
      * Most p2p operations require a Channel as an argument. An instance of Channel is obtained
@@ -674,6 +717,7 @@ public class WifiP2pManager {
         private DnsSdServiceResponseListener mDnsSdServRspListener;
         private DnsSdTxtRecordListener mDnsSdTxtListener;
         private UpnpServiceResponseListener mUpnpServRspListener;
+        private UserAuthorizationListener mUserAuthListener;
         private HashMap<Integer, Object> mListenerMap = new HashMap<Integer, Object>();
         private Object mListenerMapLock = new Object();
         private int mListenerKey = 0;
@@ -697,6 +741,8 @@ public class WifiP2pManager {
                         }
                         break;
                     /* ActionListeners grouped together */
+                    case SET_USER_AUTH_FAILED:
+                        mUserAuthListener = null;
                     case DISCOVER_PEERS_FAILED:
                     case STOP_DISCOVERY_FAILED:
                     case DISCOVER_SERVICES_FAILED:
@@ -743,6 +789,7 @@ public class WifiP2pManager {
                     case START_LISTEN_SUCCEEDED:
                     case STOP_LISTEN_SUCCEEDED:
                     case SET_CHANNEL_SUCCEEDED:
+                    case SET_USER_AUTH_SUCCEEDED:
                     case REPORT_NFC_HANDOVER_SUCCEEDED:
                         if (listener != null) {
                             ((ActionListener) listener).onSuccess();
@@ -786,6 +833,14 @@ public class WifiP2pManager {
                             ((HandoverMessageListener) listener)
                                     .onHandoverMessageAvailable(handoverMessage);
                         }
+                        break;
+                    case USER_AUTH_REQUEST:
+                        WifiP2pConfig config = (WifiP2pConfig) message.obj;
+                        handleUserAuthRequest(config);
+                        break;
+                    case USER_AUTH_SHOW_PIN:
+                        WpsInfo wps = (WpsInfo) message.obj;
+                        handleUserAuthShowPin(wps);
                         break;
                     default:
                         Log.d(TAG, "Ignored " + message);
@@ -831,6 +886,19 @@ public class WifiP2pManager {
                 }
             } else {
                 Log.e(TAG, "Unhandled resp " + resp);
+            }
+        }
+
+        private void handleUserAuthRequest(WifiP2pConfig config) {
+            if (mUserAuthListener != null) {
+                mUserAuthListener.onUserAuthorizationRequest(config.wps.setup, config.wps.pin,
+                        config.deviceAddress);
+            }
+        }
+
+        private void handleUserAuthShowPin(WpsInfo wps) {
+            if (mUserAuthListener != null) {
+                mUserAuthListener.onShowPin(wps.pin, wps.BSSID);
             }
         }
 
@@ -1439,5 +1507,53 @@ public class WifiP2pManager {
         bundle.putString(EXTRA_HANDOVER_MESSAGE, handoverRequest);
         c.mAsyncChannel.sendMessage(RESPONDER_REPORT_NFC_HANDOVER, 0,
                 c.putListener(listener), bundle);
+    }
+
+    /**
+     * Register listener to offload connection authorization from p2p service
+     *
+     * @param c is the channel created at {@link #initialize}
+     * @param authListener listener called when p2p service need user to accept/decline connection
+     * @param listener for callback on success or failure. Can be null.
+     * @hide
+     */
+    public void setUserAuthorizationListener(Channel c, UserAuthorizationListener authListener,
+            ActionListener listener) {
+        checkChannel(c);
+        int arg1;
+        if (authListener == null) {
+            arg1 = 0;
+        } else {
+            arg1 = 1;
+        }
+        c.mUserAuthListener = authListener;
+        c.mAsyncChannel.sendMessage(SET_USER_AUTH, arg1, c.putListener(listener));
+    }
+
+    /**
+     * Accept or decline connection. To be called in response to
+     * {@link UserAuthorizationListener#onUserAuthorizationRequest}
+     *
+     * @param c is the channel created at {@link #initialize}
+     * @param accept user accept or decline connection
+     * @param pin pin code needed for connection. Can be null.
+     * @param listener for callback on success or failure. Can be null.
+     * @hide
+     */
+    public void authorizeConnection(Channel c, boolean accept, String pin,
+            ActionListener listener) {
+        checkChannel(c);
+
+        if (c.mUserAuthListener == null) {
+            return;
+        }
+
+        if (accept) {
+            c.mAsyncChannel.sendMessage(PEER_CONNECTION_USER_ACCEPT, 0,
+                    c.putListener(listener), pin);
+        } else {
+            c.mAsyncChannel.sendMessage(PEER_CONNECTION_USER_REJECT, 0,
+                    c.putListener(listener), pin);
+        }
     }
 }
