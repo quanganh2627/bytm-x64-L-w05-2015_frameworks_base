@@ -1605,6 +1605,11 @@ class AlarmManagerService extends SystemService {
                 if (localLOGV) {
                     Slog.v(TAG, "sending alarm " + alarm);
                 }
+                if (alarm.wakeup) {
+                    Slog.v(TAG, "triggered: "
+                            + alarm.operation.getIntent().toShortString(false, true, false, false)
+                            + " Pkg: " + alarm.operation.getTargetPackage() + "\n");
+                }
                 alarm.operation.send(getContext(), 0,
                         mBackgroundIntent.putExtra(
                                 Intent.EXTRA_ALARM_COUNT, alarm.count),
