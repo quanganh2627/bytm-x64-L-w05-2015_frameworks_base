@@ -97,10 +97,13 @@ import com.android.server.usb.UsbService;
 import com.android.server.wallpaper.WallpaperManagerService;
 import com.android.server.webkit.WebViewUpdateService;
 import com.android.server.wm.WindowManagerService;
+import com.intel.config.FeatureConfig;
 
 import dalvik.system.VMRuntime;
 
 import java.io.File;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -922,6 +925,16 @@ public final class SystemServer {
                 mSystemServiceManager.startService(TvInputManagerService.class);
             }
 
+            if (FeatureConfig.INTEL_FEATURE_AWARESERVICE) {
+                Class[] ptype = new Class[] { Context.class };
+                Object[] obj = new Object[] { context };
+
+                String name = "com.intel.aware.awareservice.AwareService";
+                registerService(name, ptype , obj);
+
+                Slog.i(TAG, "AwareServices");
+            }
+
             if (!disableNonCoreServices) {
                 try {
                     Slog.i(TAG, "Media Router Service");
@@ -1191,5 +1204,23 @@ public final class SystemServer {
                     "com.android.systemui.SystemUIService"));
         //Slog.d(TAG, "Starting service: " + intent);
         context.startServiceAsUser(intent, UserHandle.OWNER);
+    }
+
+    private Object registerService(String serviceClassName, java.lang.Class[] ptype,
+            java.lang.Object[] objArray) {
+        Object object = null;
+        Slog.d(TAG, "registerService service: " + serviceClassName);
+        try {
+            Class c = Class.forName(serviceClassName);
+            Method m = c.getMethod("main", ptype);
+            object = m.invoke(c, objArray);
+        } catch (IllegalAccessException iae) {
+            Slog.e(TAG, "Got expected PackageAccess complaint", iae);
+        } catch (InstantiationError ie) {
+            Slog.e(TAG, "Got expected InstantationError", ie);
+        } catch (Exception ex) {
+            Slog.e(TAG, "Got unexpected MaybeAbstract failure", ex);
+        }
+        return object;
     }
 }
