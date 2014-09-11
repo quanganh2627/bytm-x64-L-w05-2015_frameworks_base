@@ -307,7 +307,7 @@ public class AudioService extends IAudioService.Stub {
 //<<<<<<< HEAD
         AudioSystem.STREAM_RING,            // STREAM_SYSTEM_ENFORCED
         AudioSystem.STREAM_RING,            // STREAM_DTMF
-        AudioSystem.STREAM_MUSIC            // STREAM_TTS
+        AudioSystem.STREAM_MUSIC,            // STREAM_TTS
 //=======
 //        AudioSystem.STREAM_MUSIC,           // STREAM_SYSTEM_ENFORCED
 //        AudioSystem.STREAM_MUSIC,           // STREAM_DTMF
