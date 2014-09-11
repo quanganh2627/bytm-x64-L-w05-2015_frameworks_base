@@ -32,7 +32,7 @@ services := \
 
 # The convention is to name each service module 'services.$(module_name)'
 LOCAL_STATIC_JAVA_LIBRARIES := $(addprefix services.,$(services))
-
+LOCAL_JAVA_LIBRARIES := com.intel.config
 include $(BUILD_JAVA_LIBRARY)
 
 # native library
