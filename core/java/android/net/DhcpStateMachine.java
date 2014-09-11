@@ -27,11 +27,21 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.DhcpResults;
+import android.net.InterfaceConfiguration;
+import android.net.LinkAddress;
+import android.net.LinkProperties;
 import android.net.NetworkUtils;
+import android.os.INetworkManagementService;
 import android.os.Message;
 import android.os.PowerManager;
+import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.util.Log;
+import android.util.Slog;
+
+import java.util.Collection;
+
 
 /**
  * StateMachine that interacts with the native DHCP client and can talk to
@@ -394,6 +404,40 @@ public class DhcpStateMachine extends StateMachine {
             mDhcpResults = dhcpResults;
             mController.obtainMessage(CMD_POST_DHCP_ACTION, DHCP_SUCCESS, 0, dhcpResults)
                 .sendToTarget();
+            //Manually switch IP from STATIC from DHCP, interface would not be updated.
+            //how to check: ifconfig wlan0
+            try {
+                LinkProperties lp = mDhcpResults.linkProperties;
+                INetworkManagementService  mNetd =
+                    INetworkManagementService.Stub.asInterface(
+                        ServiceManager.getService(Context.NETWORKMANAGEMENT_SERVICE));
+                InterfaceConfiguration config = mNetd.getInterfaceConfig(mInterfaceName);
+                Collection<LinkAddress> addresses = lp.getLinkAddresses();
+
+                if (addresses.size() == 0) {
+                    Log.e(TAG, "DHCP no link address of interface:" + mInterfaceName);
+                } else if (addresses.size() > 1) {
+                    Log.e(TAG, "DHCP consistency error: Multiple link address of " +
+                        "interface" + mInterfaceName);
+                } else {
+                    LinkAddress la = addresses.iterator().next();
+                    if (la != null) {
+                        //Must clear before setLinkAddress
+                        mNetd.clearInterfaceAddresses(mInterfaceName);
+                        config.setLinkAddress(la);
+                        config.setInterfaceUp();
+                        mNetd.setInterfaceConfig(mInterfaceName, config);
+                        Log.e(TAG, "DHCP synced link address " + la +
+                            " with " + mInterfaceName);
+                    } else {
+                        Log.e(TAG, "DHCP no link address set to interface" +
+                            mInterfaceName);
+                    }
+                }
+            } catch (RemoteException re) {
+                Log.e(TAG, "DHCP sync link address with interface:"
+                    + mInterfaceName + " failed");
+            }
         } else {
             Log.e(TAG, "DHCP failed on " + mInterfaceName + ": " +
                     NetworkUtils.getDhcpError());
