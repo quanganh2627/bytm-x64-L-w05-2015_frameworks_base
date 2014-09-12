@@ -172,6 +172,11 @@ public class BrightnessController implements ToggleSlider.Listener {
                                     UserHandle.USER_CURRENT);
                         }
                     });
+                try {
+                        Thread.sleep(250);
+                } catch(InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                }
             }
         }
 
