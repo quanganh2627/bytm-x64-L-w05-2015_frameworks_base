@@ -1493,6 +1493,9 @@
     -->
     <bool name="config_enableWifiDisplay">false</bool>
 
+    <!-- Configure Group Owner Intent used to perform WiFi Display P2P connection. -->
+    <integer name="config_groupOwnerIntentWifiDisplay">0</integer>
+
     <!-- When true use the linux /dev/input/event subsystem to detect the switch changes
          on the headphone/microphone jack. When false use the older uevent framework. -->
     <bool name="config_useDevInputEventForAudioJack">false</bool>
