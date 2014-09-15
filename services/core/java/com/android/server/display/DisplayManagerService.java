@@ -803,19 +803,22 @@ public final class DisplayManagerService extends SystemService {
     }
 
     private void setDisplayPropertiesInternal(int displayId, boolean hasContent,
+            boolean hasBgPresentation,
             float requestedRefreshRate, boolean inTraversal) {
         synchronized (mSyncRoot) {
             LogicalDisplay display = mLogicalDisplays.get(displayId);
             if (display == null) {
                 return;
             }
-            if (display.hasContentLocked() != hasContent) {
+            if (display.hasContentLocked() != hasContent
+                    || display.hasBgPresentationLocked() != hasBgPresentation) {
                 if (DEBUG) {
                     Slog.d(TAG, "Display " + displayId + " hasContent flag changed: "
                             + "hasContent=" + hasContent + ", inTraversal=" + inTraversal);
                 }
 
                 display.setHasContentLocked(hasContent);
+                display.setHasBgPresentationLocked(hasBgPresentation);
                 scheduleTraversalLocked(inTraversal);
             }
             if (display.getRequestedRefreshRateLocked() != requestedRefreshRate) {
@@ -859,7 +862,13 @@ public final class DisplayManagerService extends SystemService {
                     + device.getDisplayDeviceInfoLocked());
             return;
         }
-        display.configureDisplayInTransactionLocked(device, info.state == Display.STATE_OFF);
+        boolean isBlanked = (mGlobalDisplayState == Display.STATE_OFF)
+                && (info.flags & DisplayDeviceInfo.FLAG_NEVER_BLANK) == 0;
+        if (isBlanked && display.hasBgPresentationLocked()) {
+            // Display has a background presentation, so override isBlanked.
+            isBlanked = false;
+        }
+        display.configureDisplayInTransactionLocked(device, isBlanked);
 
         // Update the viewports if needed.
         if (!mDefaultViewport.valid
@@ -1507,8 +1516,10 @@ public final class DisplayManagerService extends SystemService {
 
         @Override
         public void setDisplayProperties(int displayId, boolean hasContent,
+                boolean hasBgPresentation,
                 float requestedRefreshRate, boolean inTraversal) {
-            setDisplayPropertiesInternal(displayId, hasContent, requestedRefreshRate, inTraversal);
+            setDisplayPropertiesInternal(displayId, hasContent, hasBgPresentation,
+                    requestedRefreshRate, inTraversal);
         }
     }
 }
