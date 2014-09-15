@@ -192,6 +192,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
             }
         };
 
+        mGroupOwnerIntent = mContext.getResources().getInteger(
+                com.android.internal.R.integer.config_groupOwnerIntentWifiDisplay);
+
         final ContentResolver resolver = mContext.getContentResolver();
         resolver.registerContentObserver(Settings.Global.getUriFor(
                 Settings.Global.WIFI_DISPLAY_ON), false, settingsObserver);
@@ -698,7 +701,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
             config.wps = wps;
             config.deviceAddress = mConnectingDevice.deviceAddress;
             // Helps with STA & P2P concurrency
-            config.groupOwnerIntent = WifiP2pConfig.MIN_GROUP_OWNER_INTENT;
+            config.groupOwnerIntent = mGroupOwnerIntent;
 
             WifiDisplay display = createWifiDisplay(mConnectingDevice);
             advertiseDisplay(display, null, 0, 0, 0);
