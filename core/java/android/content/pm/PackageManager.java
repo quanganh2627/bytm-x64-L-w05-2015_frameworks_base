@@ -1693,6 +1693,38 @@ public abstract class PackageManager {
     public static final String EXTRA_FAILURE_EXISTING_PERMISSION
             = "android.content.pm.extra.FAILURE_EXISTING_PERMISSION";
 
+    // BEGIN Intel Changes for Selective Compilation.
+    /**
+     * Compilation flag suggested for "O3" level optimizations.
+     * @hide
+     */
+    public static final String O3_LEVEL = "O3";
+
+    /**
+     * Compilation flag suggested for "O2" level optimizations.
+     * @hide
+     */
+    public static final String O2_LEVEL = "O2";
+
+    /**
+     * Compilation flag suggested for "O1" level optimizations.
+     * @hide
+     */
+    public static final String O1_LEVEL = "O1";
+
+    /**
+     * Compilation flag suggested for "speed" level optimizations.
+     * @hide
+     */
+    public static final String SPEED = "speed";
+
+    /**
+     * Compilation flag suggested for "interpret-only" level optimizations.
+     * @hide
+     */
+    public static final String INTERPRET = "interpret-only";
+    // END Intel Changes for Selective Compilation.
+
     /**
      * Retrieve overall information about an application package that is
      * installed on the system.

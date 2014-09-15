@@ -174,6 +174,7 @@ import android.util.SparseArray;
 import android.util.SparseBooleanArray;
 import android.view.Display;
 
+import java.lang.Math;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
@@ -195,6 +196,7 @@ import java.security.cert.CertificateException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -206,6 +208,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -450,6 +454,366 @@ public class PackageManagerService extends IPackageManager.Stub {
     final PackageInstallerService mInstallerService;
 
     HashSet<PackageParser.Package> mDeferredDexOpt = null;
+
+    // BEGIN Intel Changes for Selective Compilation.
+
+    // Enable debug flags within selectivity methods.
+    static boolean DEBUG_SELECTIVE = false;
+    static boolean SELECTIVE_ENABLED = true;
+    static boolean DEFAULT_SELECTIVE_ENABLED = true;
+
+    /*
+     * Usage info of a package
+     */
+    public class UsageInfo {
+        public String packageName;
+
+        // For use by package manager to store dexOpt flags
+        public String dexOptFlag;
+
+        // For use by package manager to keep track of when a package was last used.
+        public long lastPackageUsageTimeInMills;
+
+        // For use by package manager to store time from Unix epoch of when the dexopt completed.
+        public long dexOptTime;
+
+        public UsageInfo(String packageName, String dexOptFlag, long timeInMillis,
+                              long dexOptTime) {
+            this.packageName = packageName;
+            this.dexOptFlag = dexOptFlag;
+            this.lastPackageUsageTimeInMills = timeInMillis;
+            this.dexOptTime = dexOptTime;
+            if (DEBUG_DEXOPT || DEBUG_SELECTIVE) {
+                Slog.i(TAG, "UsageInfo create " + packageName + " : flag:" + dexOptFlag
+                        + ", lrt: " + timeInMillis + ", ucount: "
+                        + dexOptTime);
+            }
+        }
+
+        public void updateUsage(PackageParser.Package pkg) {
+            this.packageName = pkg.packageName;
+            this.dexOptFlag = pkg.mDexOptFlag;
+            this.lastPackageUsageTimeInMills = pkg.mLastPackageUsageTimeInMills;
+            this.dexOptTime = pkg.mDexOptTime;
+            if (DEBUG_DEXOPT || DEBUG_SELECTIVE) {
+                Slog.i(TAG, "UsageInfo updateInfo " + packageName + " : flag:" + dexOptFlag
+                        + ", lrt: " + lastPackageUsageTimeInMills
+                        + ", dexOptday: " + dexOptTime);
+            }
+        }
+    }
+
+    /*
+     * package installation history
+     * Install history is persisted in a file located in the
+     * <data dir>/<system dir>/install-history.list.
+     * This typically resolves to: data/system/install-history.list.
+     */
+    private class InstallHistory {
+
+        private final Object mFileLock = new Object();
+        private final AtomicLong mLastWritten = new AtomicLong(0);
+        private final AtomicBoolean mBackgroundWriteRunning = new AtomicBoolean(false);
+        private final String INSTALL_HISTORY_CLASS_NAME = InstallHistory.class.getSimpleName();
+        private static final int WRITE_INTERVAL
+                                        = (DEBUG_DEXOPT) ?
+                                            0 :
+                                            30 * 60 * 1000; // 30m in ms.
+
+        // Max period of time that an app's LRT should be before removing.
+        private final long MAX_INSTALL_HISTORY_PERIOD = TimeUnit.DAYS.toMillis(365); // 365 days in milliseconds.
+
+        // obtain package install history from file
+        private AtomicFile getInstallHistoryFile() {
+            File dataDir = Environment.getDataDirectory();
+            File systemDir = new File(dataDir, "system");
+            File fname = new File(systemDir, "install-history.list");
+            return new AtomicFile(fname);
+        }
+
+        // decide on writing package history to file.
+        // File is written:
+        // a) Explicit force is passed.
+        // b) Have not written to the file for at least the given WRITE_INTERVAL threshold period.
+        // c) selective.forceIHWrite is set to true.
+        private void writePackageHistory(boolean force) {
+            boolean forceInstallHistoryWrite = SystemProperties.getBoolean("selective.forceIHWrite", false);
+            if (force || forceInstallHistoryWrite) {
+                writeInstallHistory();
+                return;
+            }
+            if (((SystemClock.elapsedRealtime() - mLastWritten.get()) < WRITE_INTERVAL)
+                && !DEBUG_DEXOPT) {
+                return;
+            }
+            if (mBackgroundWriteRunning.compareAndSet(false, true)) {
+                new Thread("InstallHistory_DiskWriter") {
+                    @Override
+                    public void run() {
+                        try {
+                           writeInstallHistory();
+                        } catch (Exception e) {
+                           Slog.i(TAG, INSTALL_HISTORY_CLASS_NAME
+                               + ": write to file failed, " + e);
+                        } finally {
+                            mBackgroundWriteRunning.set(false);
+                        }
+                    }
+                }.start();
+            }
+        }
+
+        // store information about packageUsage in install-history
+        private void storePackageInfo(PackageParser.Package pkg) {
+            UsageInfo usageInfo;
+
+            if (mUsageHistory.containsKey(pkg.packageName) == true) {
+                usageInfo = mUsageHistory.get(pkg.packageName);
+                usageInfo.updateUsage(pkg);  // update info.
+            } else {
+                usageInfo = new UsageInfo(pkg.packageName, pkg.mDexOptFlag,
+                                          pkg.mLastPackageUsageTimeInMills, pkg.mDexOptTime);
+            }
+
+            if (DEBUG_DEXOPT) {
+                Slog.i(TAG, "UsageInfo read " + usageInfo.packageName
+                        + " : flag:" + usageInfo.dexOptFlag
+                        + ", lrt: " + usageInfo.lastPackageUsageTimeInMills
+                        + ", dexOptday: "+ usageInfo.dexOptTime);
+            }
+            mUsageHistory.put(pkg.packageName, usageInfo);
+        }
+
+        // Suggests dexOpt Flag based on package usage level.
+        private String suggestDexOptFlag(PackageParser.Package pkg, boolean install) {
+            DEBUG_SELECTIVE = SystemProperties.getBoolean("selective.debug", false);
+            // Basic version only sends O2.
+            // Enhanced version will send O1, O2, etc.
+            SELECTIVE_ENABLED = SystemProperties.getBoolean("persist.selective.enabled", DEFAULT_SELECTIVE_ENABLED);
+            return SELECTIVE_ENABLED ? PackageManager.O2_LEVEL : "";
+        }
+
+        // Aging of apps based on LRT.
+        // Any apps that have not been used within the INSTALL_HISTORY_PERIOD,
+        // will be purged from the file.
+        private void ageFunction() {
+
+            // How long should an app go unused before being purged from the install history file.
+            long INSTALL_HISTORY_PERIOD
+                = SystemProperties.getLong("persist.selective.IHFilePeriod",
+                                            MAX_INSTALL_HISTORY_PERIOD);
+            // Paranoid check.
+            if (INSTALL_HISTORY_PERIOD < Long.MIN_VALUE
+                  || INSTALL_HISTORY_PERIOD > Long.MAX_VALUE) {
+                INSTALL_HISTORY_PERIOD = MAX_INSTALL_HISTORY_PERIOD;
+            }
+
+            long now = System.currentTimeMillis();  // time from unix epoch time.
+            Iterator<Map.Entry<String, UsageInfo>> it = mUsageHistory.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, UsageInfo> entry = it.next();
+                UsageInfo item = entry.getValue();
+
+                if (item != null) {
+                    long diff = now - item.lastPackageUsageTimeInMills;
+                    if (diff > INSTALL_HISTORY_PERIOD) {
+                        if (DEBUG_DEXOPT || DEBUG_SELECTIVE) {
+                            Slog.i(TAG, INSTALL_HISTORY_CLASS_NAME
+                                          + ": Removing " + item.packageName + " because last used app: "
+                                          + item.lastPackageUsageTimeInMills + " ms, now: "
+                                          + now + " ms. \ndiff : " + diff
+                                          + " ms, INSTALL_HISTORY_PERIOD: " + INSTALL_HISTORY_PERIOD
+                                          + " ms.");
+                        }
+                        it.remove();
+                    }
+                }
+            }
+        }
+
+        // Decode file information. Insert debug and test levels as needed.
+        private void decodeFileInfo(int version) {
+           if (DEBUG_DEXOPT) {
+               if (version == 1) {
+                   Log.i(TAG, INSTALL_HISTORY_CLASS_NAME
+                       + ": version= " + version + ". No extra options.");
+               } else {
+                   Log.i(TAG, INSTALL_HISTORY_CLASS_NAME
+                       + ": version= " + version + ". Unable to decode.");
+               }
+           }
+        }
+
+        private String readToken(InputStream in, StringBuffer sb, char endOfToken)
+                throws IOException {
+            sb.setLength(0);
+            while (true) {
+                int ch = in.read();
+                if (ch == -1) {
+                    if (sb.length() == 0) {
+                        return null;
+                    }
+                    throw new IOException("Unexpected EOF");
+                }
+                if (ch == endOfToken) {
+                    return sb.toString();
+                }
+                sb.append((char)ch);
+            }
+        }
+
+        // Read install and usage history of packages.
+        // Each file contains the following format:
+        // Line 1 - version number
+        // Subsequent lines - package_name compiler_filter_level LRT_time DexOpt_time
+        private void readInstallHistory() {
+            synchronized (mFileLock) {
+                AtomicFile file = getInstallHistoryFile();
+                BufferedInputStream in = null;
+                try {
+                    in = new BufferedInputStream(file.openRead());
+                    StringBuffer sb = new StringBuffer();
+
+                    // read version information
+                    String firstWord = readToken(in, sb, '\n');
+                    if (firstWord == null) {
+                        throw new IOException(INSTALL_HISTORY_CLASS_NAME
+                            + ": Failed to read version information");
+                    }
+                    if (DEBUG_DEXOPT) {
+                        Log.i(TAG, INSTALL_HISTORY_CLASS_NAME
+                            + ": first line version info: " + firstWord);
+                    }
+                    int versionInfo = Integer.parseInt(firstWord.toString());
+                    decodeFileInfo(versionInfo);
+
+                    while (true) {
+                        String packageName = readToken(in, sb, ' ');
+                        if (packageName == null) {
+                            break;
+                        }
+                        String dexOptFlag = readToken(in, sb, ' ');
+                        if (dexOptFlag == null) {
+                            throw new IOException(INSTALL_HISTORY_CLASS_NAME
+                                                + ": Failed to find dexOpt level for package "
+                                                + packageName);
+                        }
+                        String timeInMillisString = readToken(in, sb, ' ');
+                        if (timeInMillisString == null) {
+                            throw new IOException(INSTALL_HISTORY_CLASS_NAME
+                                                + ": Failed to find last usage time for package "
+                                                + packageName);
+                        }
+                        String readDexOptDate = readToken(in, sb, ' ');
+                        if (readDexOptDate == null) {
+                            throw new IOException(INSTALL_HISTORY_CLASS_NAME
+                                                + ": Failed to read dexOpt/aging date for package "
+                                                + packageName);
+                        }
+                        long timeInMillis;
+                        try {
+                            timeInMillis = Long.parseLong(timeInMillisString.toString());
+                        } catch (NumberFormatException e) {
+                            throw new IOException(INSTALL_HISTORY_CLASS_NAME
+                                                + ": Failed to parse " + timeInMillisString
+                                                + " as a long.", e);
+                        }
+                        int dexOptTime;
+                        try {
+                            dexOptTime = Integer.parseInt(readDexOptDate.toString());
+                        } catch (NumberFormatException e) {
+                            throw new IOException(INSTALL_HISTORY_CLASS_NAME
+                                                + ": Failed to parse " + readDexOptDate
+                                                + " as an Integer.", e);
+                        }
+                        if (dexOptFlag == "UNKNOWN-Flag") {
+                            dexOptFlag = null;
+                        }
+
+                        UsageInfo usageInfo = new UsageInfo(packageName, dexOptFlag,
+                                                            timeInMillis, dexOptTime);
+                        mUsageHistory.put(packageName, usageInfo);
+                    }
+                } catch (FileNotFoundException expected) {
+                } catch (IOException e) {
+                    Log.w(TAG, INSTALL_HISTORY_CLASS_NAME
+                                + ": Failed to read package installation history", e);
+                } finally {
+                    IoUtils.closeQuietly(in);
+                }
+            }
+            mLastWritten.set(SystemClock.elapsedRealtime());
+        }
+
+        // write install and usage history of packages.
+        private void writeInstallHistory() {
+            SELECTIVE_ENABLED = SystemProperties.getBoolean("persist.selective.enabled", DEFAULT_SELECTIVE_ENABLED);
+            if (!SELECTIVE_ENABLED) {
+              return;
+            }
+            ageFunction();
+            synchronized (mPackages) {
+                synchronized (mFileLock) {
+                    AtomicFile file = getInstallHistoryFile();
+                    FileOutputStream f = null;
+                    try {
+                        f = file.startWrite();
+                        BufferedOutputStream out = new BufferedOutputStream(f);
+                        FileUtils.setPermissions(file.getBaseFile().getPath(), 0660,
+                                                  SYSTEM_UID, PACKAGE_INFO_GID);
+                        StringBuilder sb = new StringBuilder();
+
+                        // write version information in first line.
+                        sb.setLength(0);
+                        sb.append("1");
+                        sb.append('\n');
+                        out.write(sb.toString().getBytes(StandardCharsets.US_ASCII));
+
+                        // write install history information.
+                        Iterator<Map.Entry<String, UsageInfo>> it
+                              = mUsageHistory.entrySet().iterator();
+
+                        while (it.hasNext()) {
+                            Map.Entry<String, UsageInfo> entry = it.next();
+                            UsageInfo item = entry.getValue();
+
+                            if (item != null) {
+                                sb.setLength(0);
+                                sb.append(item.packageName);
+                                sb.append(' ');
+                                if (item.dexOptFlag == null) {
+                                    sb.append("UNKNOWN-Flag");
+                                } else {
+                                    sb.append(item.dexOptFlag);
+                                }
+                                sb.append(' ');
+                                sb.append((long)item.lastPackageUsageTimeInMills);
+                                sb.append(' ');
+                                sb.append(item.dexOptTime);
+                                sb.append('\n');
+                            }
+                            out.write(sb.toString().getBytes(StandardCharsets.US_ASCII));
+                        }
+                        out.flush();
+                        file.finishWrite(f);
+                    } catch (IOException e) {
+                        if (f != null) {
+                            file.failWrite(f);
+                        }
+                        Log.e(TAG, INSTALL_HISTORY_CLASS_NAME
+                                    + ": Failed to write package usage history", e);
+                    }
+                }
+            }
+            mLastWritten.set(SystemClock.elapsedRealtime());
+        }
+    }
+
+    // Store installation history of packages
+    final HashMap<String, UsageInfo> mUsageHistory = new HashMap<String, UsageInfo>();
+    // END Intel Changes for Selective Compilation.
+
+    private final InstallHistory mInstallHistory = new InstallHistory();
 
     // Cache of users who need badging.
     SparseBooleanArray mUserNeedsBadging = new SparseBooleanArray();
@@ -1377,6 +1741,11 @@ public class PackageManagerService extends IPackageManager.Stub {
 
             long startTime = SystemClock.uptimeMillis();
 
+            // BEGIN Intel Changes for Selective Compilation.
+            // read and update install history.
+            mInstallHistory.readInstallHistory();
+            // END Intel Changes for Selective Compilation.
+
             EventLog.writeEvent(EventLogTags.BOOT_PROGRESS_PMS_SYSTEM_SCAN_START,
                     startTime);
 
@@ -1426,6 +1795,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                 // (and framework jars) into all available architectures. It's possible
                 // to compile them only when we come across an app that uses them (there's
                 // already logic for that in scanPackageLI) but that adds some complexity.
+                SELECTIVE_ENABLED = SystemProperties.getBoolean("persist.selective.enabled", DEFAULT_SELECTIVE_ENABLED);
                 for (String dexCodeInstructionSet : dexCodeInstructionSets) {
                     for (SharedLibraryEntry libEntry : mSharedLibraries.values()) {
                         final String lib = libEntry.path;
@@ -1442,7 +1812,9 @@ public class PackageManagerService extends IPackageManager.Stub {
 
                                 // The list of "shared libraries" we have at this point is
                                 if (dexoptRequired == DexFile.DEXOPT_NEEDED) {
-                                    mInstaller.dexopt(lib, Process.SYSTEM_UID, true, dexCodeInstructionSet);
+                                    String dexOptFlag = SELECTIVE_ENABLED ? PackageManager.O2_LEVEL : "";
+                                    mInstaller.dexopt(lib, Process.SYSTEM_UID, true, dexCodeInstructionSet,
+                                        dexOptFlag);
                                 } else {
                                     mInstaller.patchoat(lib, Process.SYSTEM_UID, true, dexCodeInstructionSet);
                                 }
@@ -1479,6 +1851,7 @@ public class PackageManagerService extends IPackageManager.Stub {
                 // TODO: We could compile these only for the most preferred ABI. We should
                 // first double check that the dex files for these commands are not referenced
                 // by other system apps.
+                SELECTIVE_ENABLED = SystemProperties.getBoolean("persist.selective.enabled", DEFAULT_SELECTIVE_ENABLED);
                 for (String dexCodeInstructionSet : dexCodeInstructionSets) {
                     for (int i=0; i<frameworkFiles.length; i++) {
                         File libPath = new File(frameworkDir, frameworkFiles[i]);
@@ -1496,7 +1869,9 @@ public class PackageManagerService extends IPackageManager.Stub {
                                                                                  dexCodeInstructionSet,
                                                                                  false);
                             if (dexoptRequired == DexFile.DEXOPT_NEEDED) {
-                                mInstaller.dexopt(path, Process.SYSTEM_UID, true, dexCodeInstructionSet);
+                                String dexOptFlag = SELECTIVE_ENABLED ? PackageManager.O2_LEVEL : "";
+                                mInstaller.dexopt(path, Process.SYSTEM_UID, true, dexCodeInstructionSet,
+                                                  dexOptFlag);
                                 didDexOptLibraryOrTool = true;
                             } else if (dexoptRequired == DexFile.PATCHOAT_NEEDED) {
                                 mInstaller.patchoat(path, Process.SYSTEM_UID, true, dexCodeInstructionSet);
@@ -4461,6 +4836,81 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
     }
 
+
+    // BEGIN Intel Changes for Selective Compilation.
+    /*
+     * OTA Deferral Policy
+     * Compile most recently apps until our budget is exhausted.
+     * Returns true if expected behavior (compilation completes or budget is exhausted)
+     * Returns false if something unexpected happens before compilation happens.
+     */
+    private boolean OTADeferralPolicy(HashSet<PackageParser.Package> pkgs) {
+        SELECTIVE_ENABLED = SystemProperties.getBoolean("persist.selective.enabled", DEFAULT_SELECTIVE_ENABLED);
+        if (pkgs == null || pkgs.isEmpty() || !SELECTIVE_ENABLED) {
+            return false;
+        }
+
+        // Get the sorted values by most recently last resumed time.
+        ArrayList<PackageParser.Package> lrtSortedPkgs = new ArrayList<PackageParser.Package>(pkgs);
+        Collections.sort(lrtSortedPkgs, new PackageParser.LRTComparator());
+        final long DEFAULT_OTA_BUDGET = 7 * 60 * 1000;  // 7 mins in milliseconds.
+        final long OTA_BUDGET = SystemProperties.getLong("persist.selective.ota_budget",
+                                                          DEFAULT_OTA_BUDGET);
+        int count = 0;
+
+        // start optimization of all apps stored in "lrt_sorted_pkgs".
+        Log.i(TAG, "Attempting to optimize all packages under budget. Package count: "
+            + lrtSortedPkgs.size()
+            + " and OTA BUDGET is " + OTA_BUDGET + "ms.");
+
+        final long START_TIME_STAMP = System.currentTimeMillis() + OTA_BUDGET;
+        // endTimeStamp is a shifting end time with each dexopt duration substracting from it.
+        // When endTimeStamp is less than or equal to the startTimeStamp, we have exhaused our
+        // budget.
+        long endTimeStamp = START_TIME_STAMP + OTA_BUDGET;
+
+        for (PackageParser.Package p : lrtSortedPkgs) {
+            if ((endTimeStamp - START_TIME_STAMP) <= 0) {
+                return true;  // budget exhausted. OTA compilation should end, defer the rest.
+            }
+
+            long startTimeForPackageDexOpt = System.currentTimeMillis();
+
+            // Compile package.
+            synchronized (mInstallLock) {
+                performDexOptLI(p, null /* instruction sets */, false /* force dex */, false /* defer */,
+                        true /* include dependencies */);
+            }
+
+            long elapsedTimeForPackageDexOpt =
+                    System.currentTimeMillis() - startTimeForPackageDexOpt;
+            endTimeStamp = endTimeStamp - elapsedTimeForPackageDexOpt;
+            count++;
+
+            long timeRemaining = endTimeStamp - START_TIME_STAMP;
+            // Display message.
+            try {
+                ActivityManagerNative.getDefault().showBootMessage(
+                        "Optimizing app " + count + "."
+                        + " Max remaining time: "
+                        + Math.max(((timeRemaining) / 1000), 0)
+                        + " seconds", true);
+            } catch (RemoteException e) {
+            }
+
+            // Debug info.
+            if(DEBUG_DEXOPT) {
+                Log.i(TAG, "Count: " + count + " of " + lrtSortedPkgs.size()
+                    + ". Optimize pkg: " + p.applicationInfo.packageName
+                    + " took : " + elapsedTimeForPackageDexOpt + "ms. "
+                    + " Time budget left: "
+                    + Math.max((timeRemaining), 0) + "ms.");
+            }
+        }
+        return true;  // OTA Deferral Policy completed.
+    }
+    // END Intel Changes for Selective Compilation.
+
     @Override
     public void performBootDexOpt() {
         enforceSystemOrRoot("Only the system can request dexopt be performed");
@@ -4542,6 +4992,11 @@ public class PackageManagerService extends IPackageManager.Stub {
                     Log.i(TAG, "Adding app " + sortedPkgs.size() + ": " + pkg.packageName);
                 }
                 sortedPkgs.add(pkg);
+            }
+
+            // If our OTA policy works, we can quit. Otherwise, use AOSP default policy.
+            if (OTADeferralPolicy(pkgs)) {
+                return;
             }
 
             int i = 0;
@@ -4672,15 +5127,25 @@ public class PackageManagerService extends IPackageManager.Stub {
             targetInstructionSet = instructionSet != null ? instructionSet :
                     getPrimaryInstructionSet(p.applicationInfo);
             if (p.mDexOptPerformed.contains(targetInstructionSet)) {
+                // update and store usage information
+                mInstallHistory.storePackageInfo(p);
                 return false;
             }
         }
 
+        boolean dexOptSuccess = false;
         synchronized (mInstallLock) {
             final String[] instructionSets = new String[] { targetInstructionSet };
-            return performDexOptLI(p, instructionSets, false /* force dex */, false /* defer */,
+            dexOptSuccess = performDexOptLI(p, instructionSets, false /* force dex */, false /* defer */,
                     true /* include dependencies */) == DEX_OPT_PERFORMED;
+            if (dexOptSuccess == false) {
+                p.mDexOptFlag = ""; // dexopt failed
+            }
+            // update and store usage information.
+            mInstallHistory.storePackageInfo(p);
+            mInstallHistory.writePackageHistory(false);
         }
+        return dexOptSuccess;
     }
 
     public HashSet<String> getPackagesThatNeedDexOpt() {
@@ -4702,8 +5167,38 @@ public class PackageManagerService extends IPackageManager.Stub {
         return pkgs;
     }
 
+    // BEGIN Intel Changes for Selective Compilation.
+    public ArrayList<String> getLRTSortedPackagesStringsThatNeedDexOpt() {
+        ArrayList<String> pkgs = null;
+        ArrayList<PackageParser.Package> lrtSortedPkgs = getLRTSortedPackages();
+        synchronized (mPackages) {
+            for (PackageParser.Package p : lrtSortedPkgs) {
+                if (!p.mDexOptPerformed.isEmpty()) {
+                    continue;
+                }
+                if (pkgs == null) {
+                    pkgs = new ArrayList<String>();
+                }
+                pkgs.add(p.packageName);
+            }
+        }
+        return pkgs;
+    }
+
+    public ArrayList<PackageParser.Package> getLRTSortedPackages() {
+        ArrayList<PackageParser.Package> lrtSortedPkgs = null;
+        // Sort the values by most recently last resumed time.
+        synchronized (mPackages) {
+            lrtSortedPkgs = new ArrayList<PackageParser.Package>(mPackages.values());
+        }
+        Collections.sort(lrtSortedPkgs, new PackageParser.LRTComparator());
+        return lrtSortedPkgs;
+    }
+    // END Intel Changes for Selective Compilation.
+
     public void shutdown() {
         mPackageUsage.write(true);
+        mInstallHistory.writePackageHistory(true);
     }
 
     private void performDexOptLibsLI(ArrayList<String> libs, String[] instructionSets,
@@ -4774,12 +5269,22 @@ public class PackageManagerService extends IPackageManager.Stub {
                     final byte isDexOptNeeded = DexFile.isDexOptNeededInternal(path,
                             pkg.packageName, dexCodeInstructionSet, defer);
                     if (forceDex || (!defer && isDexOptNeeded == DexFile.DEXOPT_NEEDED)) {
+
+                        // check usagelevel and get dexOptLevel.
+                        String dexOptLevel = mInstallHistory.suggestDexOptFlag(pkg, true);
+                        pkg.mDexOptFlag = dexOptLevel;
+                        pkg.mDexOptTime = System.currentTimeMillis();
+                        pkg.mLastPackageUsageTimeInMills = System.currentTimeMillis();
+
+                        // If no / empty flag is passed, no need to add to log message.
+                        String logDexOptFlagString = dexOptLevel.trim().length() > 0
+                              ? " with dexOptFlag=" + dexOptLevel : "";
                         Log.i(TAG, "Running dexopt on: " + path + " pkg="
                                 + pkg.applicationInfo.packageName + " isa=" + dexCodeInstructionSet
-                                + " vmSafeMode=" + vmSafeMode);
+                                + " vmSafeMode=" + vmSafeMode + logDexOptFlagString);
                         final int sharedGid = UserHandle.getSharedAppGid(pkg.applicationInfo.uid);
                         final int ret = mInstaller.dexopt(path, sharedGid, !isForwardLocked(pkg),
-                                pkg.packageName, dexCodeInstructionSet, vmSafeMode);
+                                pkg.packageName, dexCodeInstructionSet, vmSafeMode, dexOptLevel);
 
                         if (ret < 0) {
                             // Don't bother running dexopt again if we failed, it will probably
@@ -4787,6 +5292,8 @@ public class PackageManagerService extends IPackageManager.Stub {
                             // paths & ISAs.
                             return DEX_OPT_FAILED;
                         }
+                        mInstallHistory.storePackageInfo(pkg);
+                        mInstallHistory.writePackageHistory(false);
 
                         performedDexOpt = true;
                     } else if (!defer && isDexOptNeeded == DexFile.PATCHOAT_NEEDED) {
