@@ -140,6 +140,7 @@ void NotifyDeviceResetArgs::notify(const sp<InputListenerInterface>& listener) c
 QueuedInputListener::QueuedInputListener(const sp<InputListenerInterface>& innerListener) :
         mInnerListener(innerListener) {
     event_processing_handle = NULL;
+    event_processing = NULL;
     eventProcessingInitImpl();
 }
 
