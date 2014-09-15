@@ -73,6 +73,10 @@ final class LogicalDisplay {
     // True if the logical display has unique content.
     private boolean mHasContent;
 
+    // True if the logical display has a background presentation.
+    // Prevents blanking even if primary display is off.
+    private boolean mHasBgPresentation;
+
     // The pending requested refresh rate. 0 if no request is pending.
     private float mRequestedRefreshRate;
 
@@ -335,6 +339,28 @@ final class LogicalDisplay {
      */
     public void setHasContentLocked(boolean hasContent) {
         mHasContent = hasContent;
+    }
+
+    /**
+     * Returns true if the logical display has a background presentation.
+     * <p>
+     * If the display has unique a background presentation, we won't blank it even
+     * when the primary display is powered off.
+     * </p>
+     *
+     * @return True if the display has a background presentation.
+     */
+    public boolean hasBgPresentationLocked() {
+        return mHasBgPresentation;
+    }
+
+     /**
+     * Sets whether the logical display has a background presentation.
+     *
+     * @param hasContent True if the display has a background presentation.
+     */
+    public void setHasBgPresentationLocked(boolean hasBgPresentation) {
+        mHasBgPresentation = hasBgPresentation;
     }
 
     /**
