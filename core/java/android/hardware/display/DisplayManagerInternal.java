@@ -129,7 +129,7 @@ public abstract class DisplayManagerInternal {
      * prior to call to performTraversalInTransactionFromWindowManager.
      */
     public abstract void setDisplayProperties(int displayId, boolean hasContent,
-            float requestedRefreshRate, boolean inTraversal);
+            boolean hasBgPresentation, float requestedRefreshRate, boolean inTraversal);
 
     /**
      * Describes the requested power state of the display.
