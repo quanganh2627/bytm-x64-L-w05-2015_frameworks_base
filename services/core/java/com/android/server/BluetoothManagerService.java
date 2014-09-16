@@ -44,6 +44,10 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
+
+import com.intel.cws.cwsservicemanagerclient.CsmClient;
+import com.intel.cws.cwsservicemanager.CsmException;
+
 class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final String TAG = "BluetoothManagerService";
     private static final boolean DBG = true;
@@ -122,6 +126,14 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private final BluetoothHandler mHandler;
     private int mErrorRecoveryRetryCounter;
     private final int mSystemUiUid;
+
+    private CsmClientBt mCsmClient;
+
+    private class CsmClientBt extends CsmClient {
+        public CsmClientBt(Context context) throws CsmException {
+            super(context, CsmClientBt.CSM_ID_BT, 1);
+        }
+    }
 
     private void registerForAirplaneMode(IntentFilter filter) {
         final ContentResolver resolver = mContext.getContentResolver();
@@ -218,6 +230,12 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         loadStoredNameAndAddress();
         if (isBluetoothPersistedStateOn()) {
             mEnableExternal = true;
+        }
+
+        try {
+            mCsmClient = new CsmClientBt(mContext);
+        } catch (CsmException e) {
+            if (DBG) Log.d(TAG, "Unable to create CsmClientBt.", e);
         }
 
         int sysUiUid = -1;
@@ -1151,6 +1169,13 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 sendBluetoothStateCallback(isUp);
 
                 if (isUp) {
+                    if (mCsmClient != null) {
+                        try {
+                            mCsmClient.csmStartModem();
+                        } catch (CsmException e) {
+                            if (DBG) Log.d(TAG, "Unable to start CsmClientBt.", e);
+                        }
+                    }
                     // connect to GattService
                     if (mContext.getPackageManager().hasSystemFeature(
                                                      PackageManager.FEATURE_BLUETOOTH_LE)) {
@@ -1159,6 +1184,9 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                                 UserHandle.CURRENT);
                     }
                 } else {
+                    if (mCsmClient != null) {
+                        mCsmClient.csmStop();
+                    }
                     //If Bluetooth is off, send service down event to proxy objects, and unbind
                     if (!isUp && canUnbindBluetoothService()) {
                         sendBluetoothServiceDownCallback();
