@@ -2882,6 +2882,18 @@ public abstract class Context {
     public static final String JOB_SCHEDULER_SERVICE = "jobscheduler";
 
     /**
+     * Use with {@link #getSystemService} to retrieve a
+     * {@link com.intel.cws.cwsservicemanager} for CWS operations
+     * on the device.
+     *
+     * @see #getSystemService
+     * @see com.intel.cws.cwsservicemanager
+     *
+     * @hide
+     */
+    public static final String CSM_SERVICE = "cws_service_manager";
+
+    /**
      * Use with {@link #getSystemService} to retrieve a {@link
      * android.service.persistentdata.PersistentDataBlockManager} instance
      * for interacting with a storage device that lives across factory resets.

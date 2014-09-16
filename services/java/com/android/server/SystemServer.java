@@ -99,6 +99,7 @@ import com.android.server.wallpaper.WallpaperManagerService;
 import com.android.server.webkit.WebViewUpdateService;
 import com.android.server.wm.WindowManagerService;
 import com.intel.config.FeatureConfig;
+import com.intel.cws.cwsservicemanager.CwsServiceMgr;
 
 import dalvik.system.VMRuntime;
 
@@ -426,6 +427,7 @@ public final class SystemServer {
         ConsumerIrService consumerIr = null;
         AudioService audioService = null;
         MmsServiceBroker mmsService = null;
+        CwsServiceMgr cwsService = null;
 
         boolean disableStorage = SystemProperties.getBoolean("config.disable_storage", false);
         boolean disableMedia = SystemProperties.getBoolean("config.disable_media", false);
@@ -521,6 +523,19 @@ public final class SystemServer {
                 bluetooth = new BluetoothManagerService(context);
                 ServiceManager.addService(BluetoothAdapter.BLUETOOTH_MANAGER_SERVICE, bluetooth);
             }
+
+            try {
+                Slog.i(TAG, "Cws Service Manager");
+                cwsService = CwsServiceMgr.getInstance(context);
+                if (null != cwsService) {
+                    ServiceManager.addService(Context.CSM_SERVICE, cwsService);
+                } else {
+                    Slog.e(TAG, "cwsService is null");
+                }
+            } catch (Throwable e) {
+                reportWtf("starting Cws Service Manager", e);
+            }
+
         } catch (RuntimeException e) {
             Slog.e("System", "******************************************");
             Slog.e("System", "************ Failure starting core service", e);

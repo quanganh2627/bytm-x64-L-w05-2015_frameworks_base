@@ -11,4 +11,6 @@ LOCAL_SRC_FILES += \
 
 LOCAL_JAVA_LIBRARIES := android.policy telephony-common
 
+LOCAL_STATIC_JAVA_LIBRARIES := CwsServiceMgr CsmClient
+
 include $(BUILD_STATIC_JAVA_LIBRARY)
