@@ -88,6 +88,10 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.NtpTrustedTime;
 
+import com.intel.cws.cwsservicemanager.CsmException;
+import com.intel.cws.cwsservicemanagerclient.CsmClient;
+import com.intel.cws.cwsservicemanagerclient.CsmEfBootstrap;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileDescriptor;
@@ -253,6 +257,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
     // Secure setting for GPS behavior when battery saver mode is on.
     private static final String BATTERY_SAVER_GPS_MODE = "batterySaverGpsMode";
 
+    private static final int DEFAULT_HSLP_PORT = 7275; // default port - secure
+
     /** simpler wrapper for ProviderRequest + Worksource */
     private static class GpsRequest {
         public ProviderRequest request;
@@ -408,6 +414,10 @@ public class GpsLocationProvider implements LocationProviderInterface {
     private WorkSource mClientSource = new WorkSource();
 
     private GeofenceHardwareImpl mGeofenceHardwareImpl;
+
+    private CsmClientGps mCsmClient;
+
+    private String mUiccHslp = null;
 
     private final IGpsStatusProvider mGpsStatusProvider = new IGpsStatusProvider.Stub() {
         @Override
@@ -673,6 +683,13 @@ public class GpsLocationProvider implements LocationProviderInterface {
         // Load GPS configuration.
         mProperties = new Properties();
         reloadGpsProperties(mContext, mProperties);
+
+        // Create a Cws service manager client for GPS
+        try {
+            mCsmClient = new CsmClientGps(context);
+        } catch (CsmException e) {
+            Log.e(TAG, "Unexpected exception: ", e);
+        }
 
         // Create a GPS net-initiated handler.
         mNIHandler = new GpsNetInitiatedHandler(context,
@@ -995,9 +1012,9 @@ public class GpsLocationProvider implements LocationProviderInterface {
 
         if (enabled) {
             mSupportsXtra = native_supports_xtra();
-
-            // TODO: remove the following native calls if we can make sure they are redundant.
-            if (mSuplServerHost != null) {
+            if (mUiccHslp != null) {
+                native_set_agps_server(AGPS_TYPE_SUPL, mUiccHslp, DEFAULT_HSLP_PORT);
+            } else if (mSuplServerHost != null) {
                 native_set_agps_server(AGPS_TYPE_SUPL, mSuplServerHost, mSuplServerPort);
             }
             if (mC2KServerHost != null) {
@@ -1267,10 +1284,20 @@ public class GpsLocationProvider implements LocationProviderInterface {
             mSingleShot = singleShot;
             mPositionMode = GPS_POSITION_MODE_STANDALONE;
 
-            boolean agpsEnabled =
-                    (Settings.Global.getInt(mContext.getContentResolver(),
-                                            Settings.Global.ASSISTED_GPS_ENABLED, 1) != 0);
-            mPositionMode = getSuplMode(mProperties, agpsEnabled, singleShot);
+            try {
+                mCsmClient.csmStartModem();
+            } catch (CsmException e) {
+                Log.e(TAG, "CsmClient.startClient failed in startNavigating() ", e);
+            }
+
+            if (Settings.Global.getInt(mContext.getContentResolver(),
+                    Settings.Global.ASSISTED_GPS_ENABLED, 1) != 0) {
+                if (singleShot && hasCapability(GPS_CAPABILITY_MSA)) {
+                    mPositionMode = GPS_POSITION_MODE_MS_ASSISTED;
+                } else if (hasCapability(GPS_CAPABILITY_MSB)) {
+                    mPositionMode = GPS_POSITION_MODE_MS_BASED;
+                }
+            }
 
             if (DEBUG) {
                 String mode;
@@ -1328,6 +1355,8 @@ public class GpsLocationProvider implements LocationProviderInterface {
             mTimeToFirstFix = 0;
             mLastFixTime = 0;
             mLocationFlags = LOCATION_INVALID;
+
+            mCsmClient.csmStop();
 
             // reset SV count to zero
             updateStatus(LocationProvider.TEMPORARILY_UNAVAILABLE, 0);
@@ -2066,6 +2095,89 @@ public class GpsLocationProvider implements LocationProviderInterface {
         public void onProviderEnabled(String provider) { }
         @Override
         public void onProviderDisabled(String provider) { }
+    }
+
+    /**
+     * Cws service manager client for gps class.
+     * Manages communication with CSM, allowing to retrieve HSLP address, ask for modem start,
+     * reacts on sim state change.
+     */
+    private class CsmClientGps extends CsmClient {
+        public CsmClientGps(Context context) throws CsmException {
+            super(context, CsmClientGps.CSM_ID_GPS, 1);
+            csmActivateSimStatusReceiver();
+        }
+
+        @Override
+        public void csmClientModemUnavailable() {
+            super.csmClientModemUnavailable();
+        }
+
+        @Override
+        public void onSimLoaded() {
+            super.onSimLoaded();
+
+            new GetBootstrapTask().execute();
+        }
+
+        @Override
+        public void onSimAbsent() {
+            super.onSimAbsent();
+
+            if (mUiccHslp != null) {
+                mUiccHslp = null;
+                if (DEBUG) Log.d(TAG, "Sim absent - resetting H-SLP");
+
+                if (mEnabled && mSuplServerHost != null) {
+                    if (DEBUG) Log.d(TAG, "Using H-SLP read from the config file");
+                    native_set_agps_server(AGPS_TYPE_SUPL,
+                            mSuplServerHost,
+                            mSuplServerPort);
+                }
+            }
+        }
+
+        private class GetBootstrapTask extends AsyncTask<Void, Void, String> {
+
+            @Override
+            protected String doInBackground(Void... param) {
+
+                if (DEBUG) Log.d(TAG, "GetBootstrapTask - doInBackground");
+
+                CsmEfBootstrap csmEfBootstrap = new CsmEfBootstrap(getClientId().byteValue(),
+                        getService());
+                String hslpAddress = new String();
+                try {
+                    hslpAddress = new String(csmEfBootstrap.readHslpAddress());
+                } catch (CsmException e) {
+                    hslpAddress = new String();
+                    if (DEBUG) Log.d(TAG, e.getMessage());
+                }
+
+                if (hslpAddress.isEmpty()) {
+                    mUiccHslp = null;
+
+                    if (DEBUG) Log.d(TAG, "Empty Uicc H-SLP Address received.");
+
+                    if (mEnabled && mSuplServerHost != null) {
+                        if (DEBUG) Log.d(TAG, "Using H-SLP read from the config file");
+                        native_set_agps_server(AGPS_TYPE_SUPL,
+                                mSuplServerHost,
+                                mSuplServerPort);
+                    }
+                } else {
+                    mUiccHslp = hslpAddress;
+                    if (mEnabled) {
+                        if (DEBUG) Log.d(TAG, "Uicc H-SLP Address received: " + hslpAddress);
+                        native_set_agps_server(AGPS_TYPE_SUPL,
+                                hslpAddress,
+                                DEFAULT_HSLP_PORT);
+                    }
+                }
+                return hslpAddress;
+            }
+        }
+
     }
 
     private String getSelectedApn() {

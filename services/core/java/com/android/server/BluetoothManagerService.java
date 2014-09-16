@@ -33,6 +33,7 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -44,6 +45,13 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
+
+import com.intel.cws.cwsservicemanagerclient.CsmClient;
+import com.intel.cws.cwsservicemanager.CsmCoexMgr;
+import com.intel.cws.cwsservicemanager.CsmException;
+import java.lang.Math;
+import java.util.BitSet;
+
 class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final String TAG = "BluetoothManagerService";
     private static final boolean DBG = true;
@@ -122,6 +130,15 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
     private final BluetoothHandler mHandler;
     private int mErrorRecoveryRetryCounter;
     private final int mSystemUiUid;
+    private BluetoothAdapter mAdapter;
+
+    private CsmClientBt mCsmClient;
+
+    private class CsmClientBt extends CsmClient {
+        public CsmClientBt(Context context) throws CsmException {
+            super(context, CsmClientBt.CSM_ID_BT, 1);
+        }
+    }
 
     private void registerForAirplaneMode(IntentFilter filter) {
         final ContentResolver resolver = mContext.getContentResolver();
@@ -188,9 +205,215 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     if (DBG) Log.d(TAG,"Retrieving Bluetooth Adapter name and address...");
                     getNameAndAddress();
                 }
+            } else if (CsmCoexMgr.ACTION_COEX_SAFECHANNELS_INFO.equals(action)) {
+
+                if (DBG) Log.d(TAG, "COEX_SAFECHANNELS : Information received");
+
+                Bundle bundle = intent.getBundleExtra(CsmCoexMgr.COEX_SAFECHANNELS_EXTRA);
+                if (bundle != null) {
+                    int minFreq = bundle.getInt(CsmCoexMgr.COEX_SAFECHANNELS_BT_MIN_KEY);
+                    int maxFreq = bundle.getInt(CsmCoexMgr.COEX_SAFECHANNELS_BT_MAX_KEY);
+
+                    if (DBG) Log.d(TAG, "COEX_SAFECHANNELS : [" + minFreq + ", " + maxFreq + "]");
+
+                    handleCoexSafeChannels(minFreq, maxFreq);
+                }
+                else {
+                    Log.e(TAG, "Empty information for intent: " + action);
+                }
+            } else if (CsmCoexMgr.ACTION_COEX_RT_CONTROL.equals(action)) {
+
+                if (DBG) Log.d(TAG, "COEX_RT : Control received");
+                Bundle bundle = intent.getBundleExtra(CsmCoexMgr.COEX_RT_CONTROL_EXTRA);
+                if (bundle != null) {
+                    int channelEnable = bundle.getInt(CsmCoexMgr.COEX_RT_STATE);
+                    int rxCenterFrequency = 0;
+                    int txCenterFrequency = 0;
+                    int rxChannelBandwith = 0;
+                    int txChannelBandwith = 0;
+                    int channelType = bundle.getInt(CsmCoexMgr.COEX_RT_CHANNEL_TYPE);
+                    if (channelEnable == CsmCoexMgr.COEX_RT_STATE_ON) {
+                        rxCenterFrequency = bundle.getInt(CsmCoexMgr.COEX_RT_RX_CENTER_FREQUENCY);
+                        txCenterFrequency = bundle.getInt(CsmCoexMgr.COEX_RT_TX_CENTER_FREQUENCY);
+                        rxChannelBandwith = bundle.getInt(CsmCoexMgr.COEX_RT_RX_CHANNEL_BANDWITH);
+                        txChannelBandwith = bundle.getInt(CsmCoexMgr.COEX_RT_TX_CHANNEL_BANDWITH);
+                    }
+                    if (DBG) Log.d(TAG, "COEX_RT : channelEnable= " + channelEnable +
+                            " rxCenterFrequency= " + rxCenterFrequency +
+                            " txCenterFrequency= " + txCenterFrequency +
+                            " rxChannelBandwith= " + rxChannelBandwith +
+                            " txChannelBandwith= " + txChannelBandwith +
+                            " channelType = " + channelType);
+
+                    handleCoexRtControl(channelEnable, rxCenterFrequency, txCenterFrequency,
+                            rxChannelBandwith, txChannelBandwith, channelType);
+                }
+                else {
+                    Log.e(TAG, "Empty information for intent: " + action);
+                }
+            } else if (CsmCoexMgr.ACTION_COEX_EXT_FRAME_CONFIG.equals(action)) {
+
+                if (DBG) Log.d(TAG, "COEX_RT : External Frame config intent received");
+                Bundle bundleExt =
+                        intent.getBundleExtra(CsmCoexMgr.COEX_EXT_FRAME_CONFIG_EXTRA);
+                if (bundleExt != null) {
+                    int frameDuration =
+                            bundleExt.getInt(CsmCoexMgr.COEX_EXT_FRAME_CONFIG_DURATION);
+                    int frameSyncOffset =
+                            bundleExt.getInt(CsmCoexMgr.COEX_EXT_FRAME_CONFIG_OFFSET);
+                    int frameSyncJitter =
+                            bundleExt.getInt(CsmCoexMgr.COEX_EXT_FRAME_CONFIG_JITTER);
+                    byte numPeriod =
+                            bundleExt.getByte(CsmCoexMgr.COEX_EXT_FRAME_CONFIG_NUMBER_PERIOD);
+                    int[] periodDuration =
+                            bundleExt.getIntArray
+                            (CsmCoexMgr.COEX_EXT_FRAME_CONFIG_PERIOD_DURATION);
+                    byte[] periodType =
+                            bundleExt.getByteArray(CsmCoexMgr.COEX_EXT_FRAME_CONFIG_PERIOD_TYPE);
+                    if (DBG) {
+                        Log.d(TAG, "COEX_RT : External Frame config parameters:");
+                        Log.d(TAG, "frameDuration = " + frameDuration);
+                        Log.d(TAG, "frameSyncOffset = " + frameSyncOffset);
+                        Log.d(TAG, "frameSyncJitter = " + frameSyncJitter);
+                        Log.d(TAG, "numPeriod = " + numPeriod);
+                        int i;
+                        for (i = 0; i < periodDuration.length; i++) {
+                            Log.d(TAG, "periodDuration[" + i + "]=" + periodDuration[i]);
+                        }
+                        for (i = 0; i < periodType.length; i++) {
+                            Log.d(TAG, "periodType[" + i + "]=" + periodType[i]);
+                        }
+                    }
+                    handleCoexExternalFrameConfig(frameDuration, frameSyncOffset,
+                            frameSyncJitter, numPeriod, periodDuration, periodType);
+                }
+                else {
+                    Log.e(TAG, "Empty information for intent: " + action);
+                }
+            } else if (CsmCoexMgr.ACTION_COEX_MWS_SIGNALING.equals(action)) {
+
+                if (DBG) Log.d(TAG, "COEX_RT : Set MWS signaling intent received");
+                Bundle bundleSignaling =
+                        intent.getBundleExtra(CsmCoexMgr.COEX_MWS_SIGNALING_EXTRA);
+                if (bundleSignaling != null) {
+                    int[] signalingParameters =
+                            bundleSignaling.getIntArray(CsmCoexMgr.COEX_MWS_SIGNALING_PARAMS);
+                    if (DBG) {
+                        Log.d(TAG, "COEX_RT : Set MWS signaling parameters:");
+                        int i;
+                        for (i = 0; i < signalingParameters.length; i++) {
+                            Log.d(TAG, "signalingParameters[" + i + "]=" + signalingParameters[i]);
+                        }
+                    }
+                    handleSetMwsSignaling(signalingParameters);
+                }
+                else {
+                    Log.e(TAG, "Empty information for intent: " + action);
+                }
             }
         }
     };
+
+    private void handleCoexSafeChannels(int minFreq, int maxFreq) {
+        final int BT_LO_FREQ = 2402;
+        final int BT_HI_FREQ = 2480;
+        final int AFH_CLASSIFICATION_SIZE = 79;
+        final int LE_CLASSIFICATION_SIZE = 37;
+
+        // Refine bounds to BT
+        if (minFreq > BT_HI_FREQ || maxFreq < BT_LO_FREQ) {
+            Log.e(TAG, "COEX_SAFECHANNELS : Invalid frequency. Reset to default safe channels");
+            minFreq = BT_LO_FREQ;
+            maxFreq = BT_HI_FREQ;
+        } else {
+            minFreq = Math.max(minFreq, BT_LO_FREQ);
+            maxFreq = Math.min(maxFreq, BT_HI_FREQ);
+        }
+
+        if (DBG) {
+            Log.d(TAG, "COEX_SAFECHANNELS : Building BR/EDR Channel Range for [" + minFreq + ", "
+                    + maxFreq + "]");
+        }
+
+        // BT AFH Host Channel Classification (79 1-bit field).
+        //    - [0-78] Bad: 0 or Unknown: 1
+        // Refer to BT Core Spec Vol. 2, Part E - HCI 7.3.46
+        BitSet BtChannels = new BitSet(AFH_CLASSIFICATION_SIZE);
+
+        // All channels are unknown
+        BtChannels.set(0, AFH_CLASSIFICATION_SIZE);
+
+        // Compute BT safe channels Range
+        // f=2402+k MHz, k=0,...,78
+        int BtLowerChannel = minFreq - BT_LO_FREQ;
+        int BtUpperChannel = maxFreq - BT_LO_FREQ;
+
+
+        if (BtLowerChannel > 0) {
+            BtChannels.clear(0, BtLowerChannel);
+        }
+
+        if (BtUpperChannel < AFH_CLASSIFICATION_SIZE - 1) {
+            BtChannels.clear(BtUpperChannel + 1, AFH_CLASSIFICATION_SIZE);
+        }
+
+        if (DBG) {
+            Log.d(TAG, "COEX_SAFECHANNELS : BR/EDR Channel Range : [" + BtLowerChannel + ", "
+                    + BtUpperChannel + "]");
+        }
+
+        // LE Host Channel Classification (37 1-bit field)
+        //    - [0-36] ad: 0 or Unknown: 1
+        // Refer to BT Core Spec Vol.2, Part E - HCI 7.8.19
+        BitSet LeChannels = new BitSet(LE_CLASSIFICATION_SIZE);
+        LeChannels.set(0, LE_CLASSIFICATION_SIZE);
+
+        // Compute LE safe channels :
+        // RF channels arrangement 2402 + k * 2 MHz, where k = 0, ..., 39.
+        int LeLowerChannel = ((minFreq - BT_LO_FREQ) + 1) / 2;
+        int LeUpperChannel = ((maxFreq - BT_LO_FREQ)  + 1) / 2;
+        if (LeLowerChannel > 0) {
+            LeChannels.clear(0, LeLowerChannel);
+        }
+        if (LeUpperChannel < LE_CLASSIFICATION_SIZE - 1) {
+            LeChannels.clear(LeUpperChannel + 1, LE_CLASSIFICATION_SIZE);
+        }
+        if (DBG) {
+            Log.d(TAG, "COEX_SAFECHANNELS : LE Channel Range : [" + LeLowerChannel + ", "
+                    + LeUpperChannel + "]");
+        }
+        if (mAdapter == null) {
+            mAdapter = BluetoothAdapter.getDefaultAdapter();
+        }
+    }
+
+    private void handleCoexRtControl(int coexRtState, int rxCenterFreq, int txCenterFreq,
+            int rxChannelBandwith, int txChannelBandwith, int channelType) {
+        if (mAdapter == null) {
+            mAdapter = BluetoothAdapter.getDefaultAdapter();
+        }
+        if (mAdapter != null) {
+            int enable = (coexRtState == CsmCoexMgr.COEX_RT_STATE_ON) ? 1 : 0;
+
+            if (DBG) {
+                Log.d(TAG, "handleCoexRtControl : RT state = "
+                        + (coexRtState == CsmCoexMgr.COEX_RT_STATE_ON));
+            }
+        }
+    }
+
+    private void handleCoexExternalFrameConfig(int frameDuration, int frameSyncOffset,
+            int frameSyncJitter, byte numPeriod, int[] periodDuration, byte[] periodType) {
+        if (DBG) {
+            Log.d(TAG, "handleCoexExternalFrameConfig");
+        }
+    }
+
+    private void handleSetMwsSignaling(int[] params) {
+        if (DBG) {
+            Log.d(TAG, "handleSetMwsSignaling");
+        }
+    }
 
     BluetoothManagerService(Context context) {
         mHandler = new BluetoothHandler(IoThread.get().getLooper());
@@ -212,12 +435,22 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         IntentFilter filter = new IntentFilter(Intent.ACTION_BOOT_COMPLETED);
         filter.addAction(BluetoothAdapter.ACTION_LOCAL_NAME_CHANGED);
         filter.addAction(Intent.ACTION_USER_SWITCHED);
+        filter.addAction(CsmCoexMgr.ACTION_COEX_SAFECHANNELS_INFO);
+        filter.addAction(CsmCoexMgr.ACTION_COEX_RT_CONTROL);
+        filter.addAction(CsmCoexMgr.ACTION_COEX_EXT_FRAME_CONFIG);
+        filter.addAction(CsmCoexMgr.ACTION_COEX_MWS_SIGNALING);
         registerForAirplaneMode(filter);
         filter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY);
         mContext.registerReceiver(mReceiver, filter);
         loadStoredNameAndAddress();
         if (isBluetoothPersistedStateOn()) {
             mEnableExternal = true;
+        }
+
+        try {
+            mCsmClient = new CsmClientBt(mContext);
+        } catch (CsmException e) {
+            if (DBG) Log.d(TAG, "Unable to create CsmClientBt.", e);
         }
 
         int sysUiUid = -1;
@@ -1151,6 +1384,13 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 sendBluetoothStateCallback(isUp);
 
                 if (isUp) {
+                    if (mCsmClient != null) {
+                        try {
+                            mCsmClient.csmStartModem();
+                        } catch (CsmException e) {
+                            if (DBG) Log.d(TAG, "Unable to start CsmClientBt.", e);
+                        }
+                    }
                     // connect to GattService
                     if (mContext.getPackageManager().hasSystemFeature(
                                                      PackageManager.FEATURE_BLUETOOTH_LE)) {
@@ -1159,6 +1399,9 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                                 UserHandle.CURRENT);
                     }
                 } else {
+                    if (mCsmClient != null) {
+                        mCsmClient.csmStop();
+                    }
                     //If Bluetooth is off, send service down event to proxy objects, and unbind
                     if (!isUp && canUnbindBluetoothService()) {
                         sendBluetoothServiceDownCallback();
