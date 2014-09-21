@@ -489,8 +489,10 @@ public class VectorDrawable extends Drawable {
                 R.styleable.VectorDrawable_viewportHeight, pathRenderer.mViewportHeight);
 
         if (pathRenderer.mViewportWidth <= 0) {
-            throw new XmlPullParserException(a.getPositionDescription() +
-                    "<vector> tag requires viewportWidth > 0");
+            Log.e(LOGTAG, "illegal pathRenderer.mViewportWidth <=0. Temporary workaround by setting it to 1");
+	    pathRenderer.mViewportWidth = 10;
+            //throw new XmlPullParserException(a.getPositionDescription() +
+            //      "<vector> tag requires viewportWidth > 0");
         } else if (pathRenderer.mViewportHeight <= 0) {
             throw new XmlPullParserException(a.getPositionDescription() +
                     "<vector> tag requires viewportHeight > 0");
