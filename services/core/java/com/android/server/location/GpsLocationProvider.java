@@ -54,6 +54,8 @@ import android.location.LocationRequest;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.BatteryStats;
 import android.os.Binder;
@@ -1966,6 +1968,31 @@ public class GpsLocationProvider implements LocationProviderInterface {
                 Log.e(TAG, "CDMA not supported.");
             }
         }
+        if ((flags & AGPS_RIL_REQUEST_REFLOC_MAC) == AGPS_RIL_REQUEST_REFLOC_MAC) {
+            WifiManager wifi = (WifiManager) mContext
+                    .getSystemService(Context.WIFI_SERVICE);
+            if (wifi != null) {
+                WifiInfo info = wifi.getConnectionInfo();
+                String sBssid = info.getBSSID();
+
+                if (sBssid != null && !("00:00:00:00:00:00".equals(sBssid))) {
+
+                    // Get mac address as a byte array
+                    byte[] bBssid = new byte[6];
+
+                    for (int i = 0; i < sBssid.length(); i += 3) {
+                        bBssid[i / 3] = (byte) ((Character.digit(sBssid.charAt(i), 16) << 4)
+                                             + Character.digit(sBssid.charAt(i+1), 16));
+                    }
+
+                    // Connected AP MAC@ data injection into JNI
+                    if (VERBOSE) Log.v(TAG, "Ref location [MAC@ info] "
+                            + sBssid);
+
+                    native_agps_set_ref_location_wlan_mac(bBssid, bBssid.length);
+                }
+            }
+        }
     }
 
     private void sendMessage(int message, int arg, Object obj) {
@@ -2207,6 +2234,7 @@ public class GpsLocationProvider implements LocationProviderInterface {
     // AGPS ril suport
     private native void native_agps_set_ref_location_cellid(int type, int mcc, int mnc,
             int lac, int cid, int pci);
+    private native void native_agps_set_ref_location_wlan_mac(byte [] msg, int length);
     private native void native_agps_set_id(int type, String setid);
 
     private native void native_update_network_state(boolean connected, int type,
