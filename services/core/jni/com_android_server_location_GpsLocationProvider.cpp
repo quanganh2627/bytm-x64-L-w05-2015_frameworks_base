@@ -656,6 +656,28 @@ static void android_location_GpsLocationProvider_agps_set_reference_location_cel
     sAGpsRilInterface->set_ref_location(&location, sizeof(location));
 }
 
+static void android_location_GpsLocationProvider_agps_set_reference_location_wlan_mac(JNIEnv* env,
+        jobject obj, jbyteArray mac, jint size)
+{
+    AGpsRefLocation location;
+    size_t sz = (size_t)size;
+
+    location.type = AGPS_REG_LOCATION_TYPE_MAC;
+
+    if (!sAGpsRilInterface) {
+        ALOGE("no AGPS RIL interface in agps_set_reference_location_wlan_mac");
+        return;
+    }
+
+    if (sz != sizeof(AGpsRefLocationMac)) {
+        ALOGE("Not a valid mac address (%s:%d).",__FUNCTION__,__LINE__);
+        return;
+    }
+    memcpy(&location.u.mac, env->GetByteArrayElements(mac, 0), sz);
+
+    sAGpsRilInterface->set_ref_location(&location, sizeof(location));
+}
+
 static void android_location_GpsLocationProvider_agps_send_ni_message(JNIEnv* env,
         jobject obj, jbyteArray ni_msg, jint size)
 {
@@ -1466,6 +1488,9 @@ static JNINativeMethod sMethods[] = {
     {"native_agps_set_ref_location_cellid",
             "(IIIIII)V",
             (void*)android_location_GpsLocationProvider_agps_set_reference_location_cellid},
+    {"native_agps_set_ref_location_wlan_mac",
+            "([BI)V",
+            (void*)android_location_GpsLocationProvider_agps_set_reference_location_wlan_mac},
     {"native_set_agps_server",
             "(ILjava/lang/String;I)V",
             (void*)android_location_GpsLocationProvider_set_agps_server},
