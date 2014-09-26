@@ -1631,6 +1631,9 @@ public final class InputMethodManager {
         return DISPATCH_NOT_HANDLED;
     }
 
+    public boolean isMCurMethodNull(){
+	return mCurMethod == null;
+    }
     // Must be called on the main looper
     void sendInputEventAndReportResultOnMainLooper(PendingEvent p) {
         final boolean handled;

@@ -3685,7 +3685,7 @@ public final class ViewRootImpl implements ViewParent,
         protected int onProcess(QueuedInputEvent q) {
             if (mLastWasImTarget && !isInLocalFocusMode()) {
                 InputMethodManager imm = InputMethodManager.peekInstance();
-                if (imm != null) {
+                if (imm != null && !imm.isMCurMethodNull()) {
                     final InputEvent event = q.mEvent;
                     if (DEBUG_IMF) Log.v(TAG, "Sending input event to IME: " + event);
                     int result = imm.dispatchInputEvent(event, q, this, mHandler);
