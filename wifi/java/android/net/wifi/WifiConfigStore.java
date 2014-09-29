@@ -388,10 +388,12 @@ class WifiConfigStore {
     private void removeConfigAndSendBroadcastIfNeeded(int netId) {
         WifiConfiguration config = mConfiguredNetworks.get(netId);
         if (config != null) {
+/*
             // Remove any associated keys
             if (config.enterpriseConfig != null) {
                 config.enterpriseConfig.removeKeys(mKeyStore);
             }
+*/
             mConfiguredNetworks.remove(netId);
             mNetworkIds.remove(configKey(config));
 
