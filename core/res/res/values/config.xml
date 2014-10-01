@@ -1876,4 +1876,7 @@
     <!-- Configure discarding WiFi scanning when P2P connected.-->
     <bool name="config_discard_scan_when_p2p_connected">false</bool>
 
+    <!-- Boolean indicating whether the wifi chipset supports multi-role multi-channel -->
+    <bool translatable="false" name="config_wifi_multirole_multichannel_support">false</bool>
+
 </resources>
