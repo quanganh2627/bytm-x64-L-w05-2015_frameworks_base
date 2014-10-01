@@ -1217,6 +1217,20 @@ public final class DisplayManagerService extends SystemService {
         }
 
         @Override // Binder call
+        public void reconnectWifiDisplay() {
+            final long token = Binder.clearCallingIdentity();
+            try {
+                synchronized (mSyncRoot) {
+                    if (mWifiDisplayAdapter != null) {
+                        mWifiDisplayAdapter.requestReconnectLocked();
+                    }
+                }
+            } finally {
+                Binder.restoreCallingIdentity(token);
+            }
+        }
+
+        @Override // Binder call
         public void renameWifiDisplay(String address, String alias) {
             if (address == null) {
                 throw new IllegalArgumentException("address must not be null");
