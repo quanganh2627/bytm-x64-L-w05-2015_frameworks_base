@@ -16,6 +16,7 @@
 
 package android.location;
 
+import android.os.SystemProperties;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
@@ -134,6 +135,29 @@ public final class GpsStatus {
     }
 
     /**
+     * Used to mirror "ro.gnss.sv.status" property on class instantiation.
+     *
+     * When the property is "true", the GNSS BSP tunnels mixed GNSS Sv in GpsSvStatus.
+     * This extends Android legacy behavior.
+     *
+     * Then GpsSvStatus contains mixed GNSS constellation space vehicules such as:
+     * <ul>
+     * <li> GPS:     with PRN in this range [1;32]
+     * <li> SBAS:    with PRN in this range [33;51]
+     * <li> GLONASS: with PRN in this range [65;88]
+     * <li> IMES:    with PRN in this range [173;182]
+     * <li> QZSS:    with PRN in this range [193;197]
+     * <li> BEIDOU:  with PRN in this range [201;237]
+     * <li> GALILEO: with PRN in this range [301;336]
+     * </ul>
+     *
+     * When the property is not "true", the GNSS BSP provides only GPS Sv in GpsSvStatus.
+     * This matches Android legacy behavior.
+     */
+    private static final boolean mGnssSvStatus = Boolean.parseBoolean(SystemProperties.get(
+            "ro.gnss.sv.status"));
+
+    /**
      * Used internally within {@link LocationManager} to copy GPS status
      * data from the Location Manager Service to its cached GpsStatus instance.
      * Is synchronized to ensure that GPS status updates are atomic.
@@ -149,7 +173,24 @@ public final class GpsStatus {
         
         for (i = 0; i < svCount; i++) {
             int prn = prns[i] - 1;
-            int prnShift = (1 << prn);
+            int svShift;
+            if (mGnssSvStatus) {
+                /**
+                 * The GNSS BSP provides GpsSvStatus that contains mixed GNSS constellation space
+                 * vehicules.
+                 * Then the Sv bit index in ephemerisMask, almanacMask and usedInFixMask
+                 * corresponds to the Sv index in the prns[] list.
+                 */
+                svShift = (1 << i);
+            } else {
+                /**
+                 * The GNSS BSP provides GpsSvStatus that contains only GPS constellation space
+                 * vehicules.
+                 * Then the Sv bit index in ephemerisMask, almanacMask and usedInFixMask
+                 * corresponds to the Sv PRN.
+                 */
+                svShift = (1 << prn);
+            }
             if (prn >= 0 && prn < mSatellites.length) {
                 GpsSatellite satellite = mSatellites[prn];
     
@@ -157,9 +198,9 @@ public final class GpsStatus {
                 satellite.mSnr = snrs[i];
                 satellite.mElevation = elevations[i];
                 satellite.mAzimuth = azimuths[i];
-                satellite.mHasEphemeris = ((ephemerisMask & prnShift) != 0);
-                satellite.mHasAlmanac = ((almanacMask & prnShift) != 0);
-                satellite.mUsedInFix = ((usedInFixMask & prnShift) != 0);
+                satellite.mHasEphemeris = ((ephemerisMask & svShift) != 0);
+                satellite.mHasAlmanac = ((almanacMask & svShift) != 0);
+                satellite.mUsedInFix = ((usedInFixMask & svShift) != 0);
             }
         }
     }
