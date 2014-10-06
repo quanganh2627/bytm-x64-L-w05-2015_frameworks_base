@@ -1033,8 +1033,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
 
     private static boolean isWifiDisplay(WifiP2pDevice device) {
         return device.wfdInfo != null
-                && device.wfdInfo.isWfdEnabled()
-                && isPrimarySinkDeviceType(device.wfdInfo.getDeviceType());
+                && device.wfdInfo.isWfdEnabled();
     }
 
     private static boolean isPrimarySinkDeviceType(int deviceType) {

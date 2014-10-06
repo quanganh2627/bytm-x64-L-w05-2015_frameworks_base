@@ -309,7 +309,7 @@ final class WifiDisplayAdapter extends DisplayAdapter {
         for (int i = 0; i < mAvailableDisplays.length; i++) {
             WifiDisplay d = mAvailableDisplays[i];
             displays.add(new WifiDisplay(d.getDeviceAddress(), d.getDeviceName(),
-                    d.getDeviceAlias(), true, d.canConnect(), remembered[i]));
+                    d.getDeviceAlias(), true, true, remembered[i]));
         }
         mDisplays = displays.toArray(WifiDisplay.EMPTY_ARRAY);
     }
