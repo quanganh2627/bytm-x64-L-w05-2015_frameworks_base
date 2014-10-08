@@ -46,7 +46,7 @@ public class TelephonyIntents2 {
      * This is a protected intent that can only be sent by the system.
      */
     public static final String ACTION_EMERGENCY_CALL_STATUS_CHANGED =
-            "com.imc.intent.EMERGENCY_CALL_STATUS2";
+            "com.pekall.intent.EMERGENCY_CALL_STATUS2";
 
     /**
      * Broadcast Action: The phone service state has changed. The intent will have the following
@@ -75,7 +75,7 @@ public class TelephonyIntents2 {
      * <p class="note">This is a protected intent that can only be sent
      * by the system.
      */
-    public static final String ACTION_SERVICE_STATE_CHANGED = "com.imc.intent.SERVICE_STATE2";
+    public static final String ACTION_SERVICE_STATE_CHANGED = "com.pekall.intent.SERVICE_STATE2";
 
     /**
      * <p>Broadcast Action: The radio technology has changed. The intent will have the following
@@ -97,7 +97,7 @@ public class TelephonyIntents2 {
      * by the system.
      */
     public static final String ACTION_RADIO_TECHNOLOGY_CHANGED
-            = "com.imc.intent.RADIO_TECHNOLOGY2";
+            = "com.pekall.intent.RADIO_TECHNOLOGY2";
     /**
      * <p>Broadcast Action: The emergency callback mode is changed.
      * <ul>
@@ -116,7 +116,7 @@ public class TelephonyIntents2 {
      * by the system.
      */
     public static final String ACTION_EMERGENCY_CALLBACK_MODE_CHANGED
-            = "com.imc.intent.EMERGENCY_CALLBACK_MODE_CHANGED2";
+            = "com.pekall.intent.EMERGENCY_CALLBACK_MODE_CHANGED2";
     /**
      * Broadcast Action: The phone's signal strength has changed. The intent will have the
      * following extra values:</p>
@@ -141,7 +141,7 @@ public class TelephonyIntents2 {
      * <p class="note">This is a protected intent that can only be sent
      * by the system.
      */
-    public static final String ACTION_SIGNAL_STRENGTH_CHANGED = "com.imc.intent.SIG_STR2";
+    public static final String ACTION_SIGNAL_STRENGTH_CHANGED = "com.pekall.intent.SIG_STR2";
 
 
     /**
@@ -166,7 +166,7 @@ public class TelephonyIntents2 {
      * by the system.
      */
     public static final String ACTION_ANY_DATA_CONNECTION_STATE_CHANGED
-            = "com.imc.intent.ANY_DATA_STATE2";
+            = "com.pekall.intent.ANY_DATA_STATE2";
 
     /**
      * Broadcast Action: Occurs when a data connection connects to a provisioning apn
@@ -190,7 +190,8 @@ public class TelephonyIntents2 {
      * by the system.
      */
     public static final String ACTION_DATA_CONNECTION_CONNECTED_TO_PROVISIONING_APN
-            = "com.imc.intent.DATA_CONNECTION_CONNECTED_TO_PROVISIONING_APN2";
+            = "com.pekall.intent.DATA_CONNECTION_CONNECTED_TO_PROVISIONING_APN2";
+
 
     /**
      * Broadcast Action: An attempt to establish a data connection has failed.
@@ -209,7 +210,7 @@ public class TelephonyIntents2 {
      * by the system.
      */
     public static final String ACTION_DATA_CONNECTION_FAILED
-            = "com.imc.intent.DATA_CONNECTION_FAILED2";
+            = "com.pekall.intent.DATA_CONNECTION_FAILED2";
 
 
     /**
@@ -233,7 +234,7 @@ public class TelephonyIntents2 {
      * by the system.
      */
     public static final String ACTION_SIM_STATE_CHANGED
-            = "com.imc.intent.SIM_STATE_CHANGED2";
+            = "com.pekall.intent.SIM_STATE_CHANGED2";
 
 
     /**
@@ -250,7 +251,7 @@ public class TelephonyIntents2 {
      * <p class="note">This is a protected intent that can only be sent
      * by the system.
      */
-    public static final String ACTION_NETWORK_SET_TIME = "com.imc.intent.NETWORK_SET_TIME2";
+    public static final String ACTION_NETWORK_SET_TIME = "com.pekall.intent.NETWORK_SET_TIME2";
 
 
     /**
@@ -269,7 +270,7 @@ public class TelephonyIntents2 {
      * by the system.
      */
     public static final String ACTION_NETWORK_SET_TIMEZONE
-            = "com.imc.intent.NETWORK_SET_TIMEZONE2";
+            = "com.pekall.intent.NETWORK_SET_TIMEZONE2";
 
     /**
      * <p>Broadcast Action: It indicates the Emergency callback mode blocks datacall/sms
@@ -281,7 +282,7 @@ public class TelephonyIntents2 {
      * by the system.
      */
     public static final String ACTION_SHOW_NOTICE_ECM_BLOCK_OTHERS
-            = "com.imc.intent.ACTION_SHOW_NOTICE_ECM_BLOCK_OTHERS2";
+            = "com.pekall.intent.ACTION_SHOW_NOTICE_ECM_BLOCK_OTHERS2";
     /**
      * Broadcast Action: The Service Provider string(s) have been updated.  Activities or
      * services that use these strings should update their display.
@@ -304,6 +305,6 @@ public class TelephonyIntents2 {
      * by the system.
      */
     public static final String SPN_STRINGS_UPDATED_ACTION =
-            "com.imc.intent.SPN_STRINGS_UPDATED.phone2";
+            "com.pekall.intent.SPN_STRINGS_UPDATED.phone2";
 
 }
