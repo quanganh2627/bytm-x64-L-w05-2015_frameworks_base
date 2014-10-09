@@ -90,6 +90,7 @@ import android.net.wimax.WimaxManagerConstants;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.FileUtils;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -137,6 +138,7 @@ import com.android.server.connectivity.Nat464Xlat;
 import com.android.server.connectivity.NetworkAgentInfo;
 import com.android.server.connectivity.NetworkMonitor;
 import com.android.server.connectivity.PacManager;
+import com.android.server.connectivity.PermissionMonitor;
 import com.android.server.connectivity.Tethering;
 import com.android.server.connectivity.Vpn;
 import com.android.server.net.BaseNetworkObserver;
@@ -170,6 +172,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -224,6 +227,8 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     AlarmManager mAlarmManager;
 
     private Tethering mTethering;
+
+    private final PermissionMonitor mPermissionMonitor;
 
     private KeyStore mKeyStore;
 
@@ -400,7 +405,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     private ArrayList mInetLog;
 
     // track the current default http proxy - tell the world if we get a new one (real change)
-    private ProxyInfo mDefaultProxy = null;
+    private volatile ProxyInfo mDefaultProxy = null;
     private Object mProxyLock = new Object();
     private boolean mDefaultProxyDisabled = false;
 
@@ -701,6 +706,8 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 && SystemProperties.get("ro.build.type").equals("eng");
 
         mTethering = new Tethering(mContext, mNetd, statsService, mHandler.getLooper());
+
+        mPermissionMonitor = new PermissionMonitor(mContext, mNetd);
 
         //set up the listener for user state for creating user VPNs
         IntentFilter intentFilter = new IntentFilter();
@@ -1484,6 +1491,8 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         }
 
         mHandler.sendMessage(mHandler.obtainMessage(EVENT_SYSTEM_READY));
+
+        mPermissionMonitor.startMonitoring();
     }
 
     private BroadcastReceiver mUserPresentReceiver = new BroadcastReceiver() {
@@ -1785,6 +1794,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         return false;
     }
 
+    private boolean isRequest(NetworkRequest request) {
+        return mNetworkRequests.get(request).isRequest;
+    }
+
     // must be stateless - things change under us.
     private class NetworkStateTrackerHandler extends Handler {
         public NetworkStateTrackerHandler(Looper looper) {
@@ -1888,6 +1901,9 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                         loge("EVENT_SET_EXPLICITLY_SELECTED from unknown NetworkAgent");
                         break;
                     }
+                    if (nai.created && !nai.networkMisc.explicitlySelected) {
+                        loge("ERROR: created network explicitly selected.");
+                    }
                     nai.networkMisc.explicitlySelected = true;
                     break;
                 }
@@ -1897,8 +1913,14 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                         boolean valid = (msg.arg1 == NetworkMonitor.NETWORK_TEST_RESULT_VALID);
                         if (valid) {
                             if (DBG) log("Validated " + nai.name());
+                            final boolean previouslyValidated = nai.validated;
+                            final int previousScore = nai.getCurrentScore();
                             nai.validated = true;
-                            rematchNetworkAndRequests(nai);
+                            rematchNetworkAndRequests(nai, !previouslyValidated);
+                            // If score has changed, rebroadcast to NetworkFactories. b/17726566
+                            if (nai.getCurrentScore() != previousScore) {
+                                sendUpdatedScoreToFactories(nai);
+                            }
                         }
                         updateInetCondition(nai, valid);
                         // Let the NetworkAgent know the state of its network
@@ -2071,6 +2093,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             }
             // Since we've lost the network, go through all the requests that
             // it was satisfying and see if any other factory can satisfy them.
+            // TODO: This logic may be better replaced with a call to rematchAllNetworksAndRequests
             final ArrayList<NetworkAgentInfo> toActivate = new ArrayList<NetworkAgentInfo>();
             for (int i = 0; i < nai.networkRequests.size(); i++) {
                 NetworkRequest request = nai.networkRequests.valueAt(i);
@@ -2106,7 +2129,9 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 requestNetworkTransitionWakelock(nai.name());
             }
             for (NetworkAgentInfo networkToActivate : toActivate) {
+                networkToActivate.networkLingered.clear();
                 networkToActivate.networkMonitor.sendMessage(NetworkMonitor.CMD_NETWORK_CONNECTED);
+                rematchNetworkAndRequests(networkToActivate, false);
             }
         }
     }
@@ -2144,6 +2169,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 bestNetwork.networkLingered.clear();
                 bestNetwork.networkMonitor.sendMessage(NetworkMonitor.CMD_NETWORK_CONNECTED);
             }
+            // TODO: This logic may be better replaced with a call to rematchNetworkAndRequests
             bestNetwork.addRequest(nri.request);
             mNetworkForRequestId.put(nri.request.requestId, bestNetwork);
             notifyNetworkCallback(bestNetwork, nri);
@@ -2188,7 +2214,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                         boolean keep = nai.isVPN();
                         for (int i = 0; i < nai.networkRequests.size() && !keep; i++) {
                             NetworkRequest r = nai.networkRequests.valueAt(i);
-                            if (mNetworkRequests.get(r).isRequest) keep = true;
+                            if (isRequest(r)) keep = true;
                         }
                         if (!keep) {
                             if (DBG) log("no live requests for " + nai.name() + "; disconnecting");
@@ -2472,6 +2498,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         if (nai == null) return;
         if (DBG) log("reportBadNetwork(" + nai.name() + ") by " + uid);
         synchronized (nai) {
+            // Validating an uncreated network could result in a call to rematchNetworkAndRequests()
+            // which isn't meant to work on uncreated networks.
+            if (!nai.created) return;
+
             if (isNetworkBlocked(nai, uid)) return;
 
             nai.networkMonitor.sendMessage(NetworkMonitor.CMD_FORCE_REEVALUATION, uid);
@@ -2530,12 +2560,12 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             } finally {
                 Binder.restoreCallingIdentity(token);
             }
-        }
 
-        if (mGlobalProxy == null) {
-            proxyProperties = mDefaultProxy;
+            if (mGlobalProxy == null) {
+                proxyProperties = mDefaultProxy;
+            }
+            sendProxyBroadcast(proxyProperties);
         }
-        sendProxyBroadcast(proxyProperties);
     }
 
     private void loadGlobalProxy() {
@@ -3533,6 +3563,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         updateDnses(newLp, oldLp, netId, flushDns);
         updateClat(newLp, oldLp, networkAgent);
         if (isDefaultNetwork(networkAgent)) handleApplyDefaultProxy(newLp.getHttpProxy());
+        // TODO - move this check to cover the whole function
+        if (!Objects.equals(newLp, oldLp)) {
+            notifyNetworkCallbacks(networkAgent, ConnectivityManager.CALLBACK_IP_CHANGED);
+        }
     }
 
     private void updateClat(LinkProperties newLp, LinkProperties oldLp, NetworkAgentInfo na) {
@@ -3670,10 +3704,22 @@ public class ConnectivityService extends IConnectivityManager.Stub {
 
     private void updateCapabilities(NetworkAgentInfo networkAgent,
             NetworkCapabilities networkCapabilities) {
-        // TODO - what else here?  Verify still satisfies everybody?
-        // Check if satisfies somebody new?  call callbacks?
-        synchronized (networkAgent) {
-            networkAgent.networkCapabilities = networkCapabilities;
+        //  TODO - turn this on in MR1 when we have more dogfooding time.
+        // rematchAllNetworksAndRequests();
+        if (!Objects.equals(networkAgent.networkCapabilities, networkCapabilities)) {
+            synchronized (networkAgent) {
+                networkAgent.networkCapabilities = networkCapabilities;
+            }
+            notifyNetworkCallbacks(networkAgent, ConnectivityManager.CALLBACK_CAP_CHANGED);
+        }
+    }
+
+    private void sendUpdatedScoreToFactories(NetworkAgentInfo nai) {
+        for (int i = 0; i < nai.networkRequests.size(); i++) {
+            NetworkRequest nr = nai.networkRequests.valueAt(i);
+            // Don't send listening requests to factories. b/17393458
+            if (!isRequest(nr)) continue;
+            sendUpdatedScoreToFactories(nr, nai.getCurrentScore());
         }
     }
 
@@ -3688,37 +3734,32 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     private void callCallbackForRequest(NetworkRequestInfo nri,
             NetworkAgentInfo networkAgent, int notificationType) {
         if (nri.messenger == null) return;  // Default request has no msgr
-        Object o;
-        int a1 = 0;
-        int a2 = 0;
+        Bundle bundle = new Bundle();
+        bundle.putParcelable(NetworkRequest.class.getSimpleName(),
+                new NetworkRequest(nri.request));
+        Message msg = Message.obtain();
+        if (notificationType != ConnectivityManager.CALLBACK_UNAVAIL &&
+                notificationType != ConnectivityManager.CALLBACK_RELEASED) {
+            bundle.putParcelable(Network.class.getSimpleName(), networkAgent.network);
+        }
         switch (notificationType) {
-            case ConnectivityManager.CALLBACK_LOSING:
-                a1 = 30 * 1000; // TODO - read this from NetworkMonitor
-                // fall through
-            case ConnectivityManager.CALLBACK_PRECHECK:
-            case ConnectivityManager.CALLBACK_AVAILABLE:
-            case ConnectivityManager.CALLBACK_LOST:
-            case ConnectivityManager.CALLBACK_CAP_CHANGED:
+            case ConnectivityManager.CALLBACK_LOSING: {
+                msg.arg1 = 30 * 1000; // TODO - read this from NetworkMonitor
+                break;
+            }
+            case ConnectivityManager.CALLBACK_CAP_CHANGED: {
+                bundle.putParcelable(NetworkCapabilities.class.getSimpleName(),
+                        new NetworkCapabilities(networkAgent.networkCapabilities));
+                break;
+            }
             case ConnectivityManager.CALLBACK_IP_CHANGED: {
-                o = new NetworkRequest(nri.request);
-                a2 = networkAgent.network.netId;
+                bundle.putParcelable(LinkProperties.class.getSimpleName(),
+                        new LinkProperties(networkAgent.linkProperties));
                 break;
-            }
-            case ConnectivityManager.CALLBACK_UNAVAIL:
-            case ConnectivityManager.CALLBACK_RELEASED: {
-                o = new NetworkRequest(nri.request);
-                break;
-            }
-            default: {
-                loge("Unknown notificationType " + notificationType);
-                return;
             }
         }
-        Message msg = Message.obtain();
-        msg.arg1 = a1;
-        msg.arg2 = a2;
-        msg.obj = o;
         msg.what = notificationType;
+        msg.setData(bundle);
         try {
             if (VDBG) {
                 log("sending notification " + notifyTypeToName(notificationType) +
@@ -3731,22 +3772,24 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         }
     }
 
+    private void teardownUnneededNetwork(NetworkAgentInfo nai) {
+        for (int i = 0; i < nai.networkRequests.size(); i++) {
+            NetworkRequest nr = nai.networkRequests.valueAt(i);
+            // Ignore listening requests.
+            if (!isRequest(nr)) continue;
+            loge("Dead network still had at least " + nr);
+            break;
+        }
+        nai.asyncChannel.disconnect();
+    }
+
     private void handleLingerComplete(NetworkAgentInfo oldNetwork) {
         if (oldNetwork == null) {
             loge("Unknown NetworkAgentInfo in handleLingerComplete");
             return;
         }
-        if (DBG) {
-            log("handleLingerComplete for " + oldNetwork.name());
-            for (int i = 0; i < oldNetwork.networkRequests.size(); i++) {
-                NetworkRequest nr = oldNetwork.networkRequests.valueAt(i);
-                // Ignore listening requests.
-                if (mNetworkRequests.get(nr).isRequest == false) continue;
-                loge("Dead network still had at least " + nr);
-                break;
-            }
-        }
-        oldNetwork.asyncChannel.disconnect();
+        if (DBG) log("handleLingerComplete for " + oldNetwork.name());
+        teardownUnneededNetwork(oldNetwork);
     }
 
     private void makeDefault(NetworkAgentInfo newNetwork) {
@@ -3768,21 +3811,32 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     //   satisfied by newNetwork, and reassigns to newNetwork
     //   any such requests for which newNetwork is the best.
     //
-    // - Tears down any Networks that as a result are no longer
+    // - Lingers any Networks that as a result are no longer
     //   needed. A network is needed if it is the best network for
     //   one or more NetworkRequests, or if it is a VPN.
     //
-    // - Tears down newNetwork if it is validated but turns out to be
-    //   unneeded. Does not tear down newNetwork if it is
-    //   unvalidated, because future validation may improve
-    //   newNetwork's score enough that it is needed.
+    // - Tears down newNetwork if it just became validated
+    //   (i.e. nascent==true) but turns out to be unneeded.
+    //   Does not tear down newNetwork if it is unvalidated,
+    //   because future validation may improve newNetwork's
+    //   score enough that it is needed.
     //
     // NOTE: This function only adds NetworkRequests that "newNetwork" could satisfy,
     // it does not remove NetworkRequests that other Networks could better satisfy.
     // If you need to handle decreases in score, use {@link rematchAllNetworksAndRequests}.
     // This function should be used when possible instead of {@code rematchAllNetworksAndRequests}
     // as it performs better by a factor of the number of Networks.
-    private void rematchNetworkAndRequests(NetworkAgentInfo newNetwork) {
+    //
+    // @param nascent indicates if newNetwork just became validated, in which case it should be
+    //               torn down if unneeded.  If nascent is false, no action is taken if newNetwork
+    //               is found to be unneeded by this call.  Presumably, in this case, either:
+    //               - newNetwork is unvalidated (and left alive), or
+    //               - the NetworkRequests keeping newNetwork alive have been transitioned to
+    //                 another higher scoring network by another call to rematchNetworkAndRequests()
+    //                 and this other call also lingered newNetwork.
+    private void rematchNetworkAndRequests(NetworkAgentInfo newNetwork, boolean nascent) {
+        if (!newNetwork.created) loge("ERROR: uncreated network being rematched.");
+        if (nascent && !newNetwork.validated) loge("ERROR: nascent network not validated.");
         boolean keep = newNetwork.isVPN();
         boolean isNewDefault = false;
         if (DBG) log("rematching " + newNetwork.name());
@@ -3868,11 +3922,11 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         }
         // Linger any networks that are no longer needed.
         for (NetworkAgentInfo nai : affectedNetworks) {
-            boolean teardown = !nai.isVPN();
+            boolean teardown = !nai.isVPN() && nai.validated;
             for (int i = 0; i < nai.networkRequests.size() && teardown; i++) {
                 NetworkRequest nr = nai.networkRequests.valueAt(i);
                 try {
-                if (mNetworkRequests.get(nr).isRequest) {
+                if (isRequest(nr)) {
                     teardown = false;
                 }
                 } catch (Exception e) {
@@ -3927,20 +3981,16 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             }
 
             notifyNetworkCallbacks(newNetwork, ConnectivityManager.CALLBACK_AVAILABLE);
-        } else if (newNetwork.validated) {
-            // Only tear down validated networks here.  Leave unvalidated to either become
+        } else if (nascent) {
+            // Only tear down newly validated networks here.  Leave unvalidated to either become
             // validated (and get evaluated against peers, one losing here) or
             // NetworkMonitor reports a bad network and we tear it down then.
+            // Networks that have been up for a while and are validated should be torn down via
+            // the lingering process so communication on that network is given time to wrap up.
             // TODO: Could teardown unvalidated networks when their NetworkCapabilities
             // satisfy no NetworkRequests.
-            if (DBG && newNetwork.networkRequests.size() != 0) {
-                loge("tearing down network with live requests:");
-                for (int i=0; i < newNetwork.networkRequests.size(); i++) {
-                    loge("  " + newNetwork.networkRequests.valueAt(i));
-                }
-            }
             if (DBG) log("Validated network turns out to be unwanted.  Tear it down.");
-            newNetwork.asyncChannel.disconnect();
+            teardownUnneededNetwork(newNetwork);
         }
     }
 
@@ -3962,10 +4012,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         // can only add more NetworkRequests satisfied by "changed", and this is exactly what
         // rematchNetworkAndRequests() handles.
         if (changed != null && oldScore < changed.getCurrentScore()) {
-            rematchNetworkAndRequests(changed);
+            rematchNetworkAndRequests(changed, false);
         } else {
             for (NetworkAgentInfo nai : mNetworkAgentInfos.values()) {
-                rematchNetworkAndRequests(nai);
+                rematchNetworkAndRequests(nai, false);
             }
         }
     }
@@ -4039,14 +4089,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 // TODO: support proxy per network.
             }
             // Consider network even though it is not yet validated.
-            // TODO: All the if-statement conditions can be removed now that validation only confers
-            // a score increase.
-            if (mNetworkForRequestId.get(mDefaultRequest.requestId) == null &&
-                    networkAgent.isVPN() == false &&
-                    mDefaultRequest.networkCapabilities.satisfiedByNetworkCapabilities(
-                    networkAgent.networkCapabilities)) {
-                rematchNetworkAndRequests(networkAgent);
-            }
+            rematchNetworkAndRequests(networkAgent, false);
         } else if (state == NetworkInfo.State.DISCONNECTED ||
                 state == NetworkInfo.State.SUSPENDED) {
             networkAgent.asyncChannel.disconnect();
@@ -4076,12 +4119,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
 
         if (nai.created) rematchAllNetworksAndRequests(nai, oldScore);
 
-        for (int i = 0; i < nai.networkRequests.size(); i++) {
-            NetworkRequest nr = nai.networkRequests.valueAt(i);
-            // Don't send listening requests to factories. b/17393458
-            if (mNetworkRequests.get(nr).isRequest == false) continue;
-            sendUpdatedScoreToFactories(nr, score);
-        }
+        sendUpdatedScoreToFactories(nai);
     }
 
     // notify only this one new request of the current state
@@ -4193,6 +4231,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             NetworkInfo result = new NetworkInfo(
                     networkType, 0, ConnectivityManager.getNetworkTypeName(networkType), "");
             result.setDetailedState(NetworkInfo.DetailedState.DISCONNECTED, null, null);
+            result.setIsAvailable(true);
             return result;
         }
     }

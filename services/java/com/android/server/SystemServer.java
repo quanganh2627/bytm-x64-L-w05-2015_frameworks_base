@@ -291,7 +291,7 @@ public final class SystemServer {
 
     private void reportWtf(String msg, Throwable e) {
         Slog.w(TAG, "***********************************************");
-        Log.wtf(TAG, "BOOT FAILURE " + msg, e);
+        Slog.wtf(TAG, "BOOT FAILURE " + msg, e);
     }
 
     private void performPendingShutdown() {

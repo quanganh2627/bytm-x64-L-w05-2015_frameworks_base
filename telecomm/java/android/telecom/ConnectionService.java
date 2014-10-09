@@ -104,12 +104,14 @@ public abstract class ConnectionService extends Service {
                 PhoneAccountHandle connectionManagerPhoneAccount,
                 String id,
                 ConnectionRequest request,
-                boolean isIncoming) {
+                boolean isIncoming,
+                boolean isUnknown) {
             SomeArgs args = SomeArgs.obtain();
             args.arg1 = connectionManagerPhoneAccount;
             args.arg2 = id;
             args.arg3 = request;
             args.argi1 = isIncoming ? 1 : 0;
+            args.argi2 = isUnknown ? 1 : 0;
             mHandler.obtainMessage(MSG_CREATE_CONNECTION, args).sendToTarget();
         }
 
@@ -221,6 +223,7 @@ public abstract class ConnectionService extends Service {
                         final String id = (String) args.arg2;
                         final ConnectionRequest request = (ConnectionRequest) args.arg3;
                         final boolean isIncoming = args.argi1 == 1;
+                        final boolean isUnknown = args.argi2 == 1;
                         if (!mAreAccountsInitialized) {
                             Log.d(this, "Enqueueing pre-init request %s", id);
                             mPreInitializationConnectionRequests.add(new Runnable() {
@@ -230,7 +233,8 @@ public abstract class ConnectionService extends Service {
                                             connectionManagerPhoneAccount,
                                             id,
                                             request,
-                                            isIncoming);
+                                            isIncoming,
+                                            isUnknown);
                                 }
                             });
                         } else {
@@ -238,7 +242,8 @@ public abstract class ConnectionService extends Service {
                                     connectionManagerPhoneAccount,
                                     id,
                                     request,
-                                    isIncoming);
+                                    isIncoming,
+                                    isUnknown);
                         }
                     } finally {
                         args.recycle();
@@ -357,6 +362,14 @@ public abstract class ConnectionService extends Service {
 
         @Override
         public void onConnectionRemoved(Conference conference, Connection connection) {
+        }
+
+        @Override
+        public void onConferenceableConnectionsChanged(
+                Conference conference, List<Connection> conferenceableConnections) {
+            mAdapter.setConferenceableConnections(
+                    mIdByConference.get(conference),
+                    createConnectionIdList(conferenceableConnections));
         }
 
         @Override
@@ -515,12 +528,14 @@ public abstract class ConnectionService extends Service {
             final PhoneAccountHandle callManagerAccount,
             final String callId,
             final ConnectionRequest request,
-            boolean isIncoming) {
+            boolean isIncoming,
+            boolean isUnknown) {
         Log.d(this, "createConnection, callManagerAccount: %s, callId: %s, request: %s, " +
-                "isIncoming: %b", callManagerAccount, callId, request, isIncoming);
+                "isIncoming: %b, isUnknown: %b", callManagerAccount, callId, request, isIncoming,
+                isUnknown);
 
-        Connection connection = isIncoming
-                ? onCreateIncomingConnection(callManagerAccount, request)
+        Connection connection = isUnknown ? onCreateUnknownConnection(callManagerAccount, request)
+                : isIncoming ? onCreateIncomingConnection(callManagerAccount, request)
                 : onCreateOutgoingConnection(callManagerAccount, request);
         Log.d(this, "createConnection, connection: %s", connection);
         if (connection == null) {
@@ -638,19 +653,25 @@ public abstract class ConnectionService extends Service {
     private void conference(String callId1, String callId2) {
         Log.d(this, "conference %s, %s", callId1, callId2);
 
-        Connection connection1 = findConnectionForAction(callId1, "conference");
-        if (connection1 == getNullConnection()) {
-            Log.w(this, "Connection1 missing in conference request %s.", callId1);
-            return;
-        }
-
         Connection connection2 = findConnectionForAction(callId2, "conference");
         if (connection2 == getNullConnection()) {
             Log.w(this, "Connection2 missing in conference request %s.", callId2);
             return;
         }
 
-        onConference(connection1, connection2);
+        Connection connection1 = findConnectionForAction(callId1, "conference");
+        if (connection1 == getNullConnection()) {
+            Conference conference1 = findConferenceForAction(callId1, "addConnection");
+            if (conference1 == getNullConference()) {
+                Log.w(this,
+                        "Connection1 or Conference1 missing in conference request %s.",
+                        callId1);
+            } else {
+                conference1.onMerge(connection2);
+            }
+        } else {
+            onConference(connection1, connection2);
+        }
     }
 
     private void splitFromConference(String callId) {
@@ -856,6 +877,23 @@ public abstract class ConnectionService extends Service {
             PhoneAccountHandle connectionManagerPhoneAccount,
             ConnectionRequest request) {
         return null;
+    }
+
+    /**
+     * Create a {@code Connection} for a new unknown call. An unknown call is a call originating
+     * from the ConnectionService that was neither a user-initiated outgoing call, nor an incoming
+     * call created using
+     * {@code TelecomManager#addNewIncomingCall(PhoneAccountHandle, android.os.Bundle)}.
+     *
+     * @param connectionManagerPhoneAccount
+     * @param request
+     * @return
+     *
+     * @hide
+     */
+    public Connection onCreateUnknownConnection(PhoneAccountHandle connectionManagerPhoneAccount,
+            ConnectionRequest request) {
+       return null;
     }
 
     /**
