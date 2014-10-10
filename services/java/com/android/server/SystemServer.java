@@ -101,6 +101,8 @@ import com.android.server.wm.WindowManagerService;
 import com.intel.cws.cwsservicemanager.CwsServiceMgr;
 import com.intel.config.FeatureConfig;
 
+import com.intel.internal.cellcoex.service.CellCoexServiceMgr;
+
 import dalvik.system.VMRuntime;
 
 import java.io.File;
@@ -427,6 +429,7 @@ public final class SystemServer {
         AudioService audioService = null;
         MmsServiceBroker mmsService = null;
         CwsServiceMgr cwsService = null;
+        CellCoexServiceMgr cwsCellCoexServiceMgr = null;
 
         boolean disableStorage = SystemProperties.getBoolean("config.disable_storage", false);
         boolean disableMedia = SystemProperties.getBoolean("config.disable_media", false);
@@ -437,6 +440,7 @@ public final class SystemServer {
         boolean disableNonCoreServices = SystemProperties.getBoolean("config.disable_noncore", false);
         boolean disableNetwork = SystemProperties.getBoolean("config.disable_network", false);
         boolean isEmulator = SystemProperties.get("ro.kernel.qemu").equals("1");
+        boolean disableCellularCoex = SystemProperties.getBoolean("config.disable_cellcoex", false);
 
         try {
             Slog.i(TAG, "Reading configuration...");
@@ -724,6 +728,21 @@ public final class SystemServer {
                             Context.NSD_SERVICE, serviceDiscovery);
                 } catch (Throwable e) {
                     reportWtf("starting Service Discovery Service", e);
+                }
+
+                if (!disableCellularCoex) {
+                    try {
+                        Slog.i(TAG, "Cws Cellular Coexistence Manager");
+                        cwsCellCoexServiceMgr = CellCoexServiceMgr.getInstance(context);
+                        if (null != cwsCellCoexServiceMgr) {
+                            ServiceManager.addService(Context.CELLCOEX_SERVICE,
+                                    cwsCellCoexServiceMgr);
+                        } else {
+                            Slog.e(TAG, "cwsCellCoexServiceMgr is null");
+                        }
+                    } catch (Throwable e) {
+                        reportWtf("starting Cws Cellular Coexistence Manager", e);
+                    }
                 }
             }
 

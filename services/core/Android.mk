@@ -11,6 +11,7 @@ LOCAL_SRC_FILES += \
 
 LOCAL_JAVA_LIBRARIES += android.policy telephony-common com.intel.config
 
-LOCAL_STATIC_JAVA_LIBRARIES += CwsServiceMgr CsmClient com.intel.aa
+LOCAL_STATIC_JAVA_LIBRARIES += CwsServiceMgr CsmClient com.intel.aa \
+    CwsCellularCoexMgrService
 
 include $(BUILD_STATIC_JAVA_LIBRARY)

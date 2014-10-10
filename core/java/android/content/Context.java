@@ -2808,6 +2808,18 @@ public abstract class Context {
 
     /**
      * Use with {@link #getSystemService} to retrieve a
+     * {@link com.intel.cws.cellcoexmgr} for CWS operations
+     * on the device.
+     *
+     * @see #getSystemService
+     * @see com.intel.cws.cellcoexmgr
+     *
+     * @hide
+     */
+    public static final String CELLCOEX_SERVICE = "cws_cell_coex_manager";
+
+    /**
+     * Use with {@link #getSystemService} to retrieve a
      * {@link android.hardware.camera2.CameraManager} for interacting with
      * camera devices.
      *
