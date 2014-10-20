@@ -142,10 +142,12 @@ public final class PowerManagerService extends SystemService
     // Summarizes the user activity state.
     private static final int USER_ACTIVITY_SCREEN_BRIGHT = 1 << 0;
     private static final int USER_ACTIVITY_SCREEN_DIM = 1 << 1;
+    private static final int USER_ACTIVITY_SCREEN_DREAM = 1 << 2;
 
     // Default timeout in milliseconds.  This is only used until the settings
     // provider populates the actual default value (R.integer.def_screen_off_timeout).
     private static final int DEFAULT_SCREEN_OFF_TIMEOUT = 15 * 1000;
+    private static final int DEFAULT_SLEEP_TIMEOUT = -1;
 
     // Power hints defined in hardware/libhardware/include/hardware/power.h.
     private static final int POWER_HINT_INTERACTION = 2;
@@ -214,7 +216,6 @@ public final class PowerManagerService extends SystemService
     private long mLastInteractivePowerHintTime;
 
     // A bitfield that summarizes the effect of the user activity timer.
-    // A zero value indicates that the user activity timer has expired.
     private int mUserActivitySummary;
 
     // The desired display power state.  The actual state may lag behind the
@@ -339,6 +340,9 @@ public final class PowerManagerService extends SystemService
 
     // The screen off timeout setting value in milliseconds.
     private int mScreenOffTimeoutSetting;
+
+    // The sleep timeout setting value in milliseconds.
+    private int mSleepTimeoutSetting;
 
     // The maximum allowable screen off timeout according to the device
     // administration policy.  Overrides other settings.
@@ -543,6 +547,9 @@ public final class PowerManagerService extends SystemService
             resolver.registerContentObserver(Settings.System.getUriFor(
                     Settings.System.SCREEN_OFF_TIMEOUT),
                     false, mSettingsObserver, UserHandle.USER_ALL);
+            resolver.registerContentObserver(Settings.Secure.getUriFor(
+                    Settings.Secure.SLEEP_TIMEOUT),
+                    false, mSettingsObserver, UserHandle.USER_ALL);
             resolver.registerContentObserver(Settings.Global.getUriFor(
                     Settings.Global.STAY_ON_WHILE_PLUGGED_IN),
                     false, mSettingsObserver, UserHandle.USER_ALL);
@@ -623,6 +630,9 @@ public final class PowerManagerService extends SystemService
                 UserHandle.USER_CURRENT) != 0);
         mScreenOffTimeoutSetting = Settings.System.getIntForUser(resolver,
                 Settings.System.SCREEN_OFF_TIMEOUT, DEFAULT_SCREEN_OFF_TIMEOUT,
+                UserHandle.USER_CURRENT);
+        mSleepTimeoutSetting = Settings.Secure.getIntForUser(resolver,
+                Settings.Secure.SLEEP_TIMEOUT, DEFAULT_SLEEP_TIMEOUT,
                 UserHandle.USER_CURRENT);
         mStayOnWhilePluggedInSetting = Settings.Global.getInt(resolver,
                 Settings.Global.STAY_ON_WHILE_PLUGGED_IN, BatteryManager.BATTERY_PLUGGED_AC);
@@ -739,6 +749,14 @@ public final class PowerManagerService extends SystemService
                 notifyAcquire = true;
             }
 
+            // Generate user-level wakelock traces for Wuwatch
+            if (SystemProperties.get("wakelock.trace", "unknown").equals("1")) {
+                Slog.i("WAKELOCK_ACQUIRE", "TIMESTAMP=" + SystemClock.elapsedRealtimeNanos()
+                        + ", TAG=" + tag + ", TYPE=" + wakeLock.getLockLevelString()
+                        + ", COUNT=0" + ", PID=" + pid + ", UID=" + uid
+                        + ", FLAGS=" + wakeLock.getLockFlagsString());
+            }
+
             applyWakeLockFlagsOnAcquireLocked(wakeLock, uid);
             mDirty |= DIRTY_WAKE_LOCKS;
             updatePowerStateLocked();
@@ -820,6 +838,14 @@ public final class PowerManagerService extends SystemService
         applyWakeLockFlagsOnReleaseLocked(wakeLock);
         mDirty |= DIRTY_WAKE_LOCKS;
         updatePowerStateLocked();
+
+        // Generate user-level wakelock traces for Wuwatch
+        if (SystemProperties.get("wakelock.trace", "unknown").equals("1")) {
+            Slog.i("WAKELOCK_RELEASE", "TIMESTAMP=" + SystemClock.elapsedRealtimeNanos()
+                    + ", TAG=" + wakeLock.mTag + ", TYPE=" + wakeLock.getLockLevelString()
+                    + ", COUNT=0" + ", PID=" + wakeLock.mOwnerPid + ", UID="
+                    + wakeLock.mOwnerUid + ", FLAGS=" + wakeLock.getLockFlagsString());
+        }
     }
 
     private void applyWakeLockFlagsOnReleaseLocked(WakeLock wakeLock) {
@@ -1431,7 +1457,8 @@ public final class PowerManagerService extends SystemService
             if (mWakefulness == WAKEFULNESS_AWAKE
                     || mWakefulness == WAKEFULNESS_DREAMING
                     || mWakefulness == WAKEFULNESS_DOZING) {
-                final int screenOffTimeout = getScreenOffTimeoutLocked();
+                final int sleepTimeout = getSleepTimeoutLocked();
+                final int screenOffTimeout = getScreenOffTimeoutLocked(sleepTimeout);
                 final int screenDimDuration = getScreenDimDurationLocked(screenOffTimeout);
 
                 mUserActivitySummary = 0;
@@ -1439,11 +1466,11 @@ public final class PowerManagerService extends SystemService
                     nextTimeout = mLastUserActivityTime
                             + screenOffTimeout - screenDimDuration;
                     if (now < nextTimeout) {
-                        mUserActivitySummary |= USER_ACTIVITY_SCREEN_BRIGHT;
+                        mUserActivitySummary = USER_ACTIVITY_SCREEN_BRIGHT;
                     } else {
                         nextTimeout = mLastUserActivityTime + screenOffTimeout;
                         if (now < nextTimeout) {
-                            mUserActivitySummary |= USER_ACTIVITY_SCREEN_DIM;
+                            mUserActivitySummary = USER_ACTIVITY_SCREEN_DIM;
                         }
                     }
                 }
@@ -1458,7 +1485,22 @@ public final class PowerManagerService extends SystemService
                         }
                     }
                 }
-                if (mUserActivitySummary != 0) {
+                if (mUserActivitySummary == 0) {
+                    if (sleepTimeout >= 0) {
+                        final long anyUserActivity = Math.max(mLastUserActivityTime,
+                                mLastUserActivityTimeNoChangeLights);
+                        if (anyUserActivity >= mLastWakeTime) {
+                            nextTimeout = anyUserActivity + sleepTimeout;
+                            if (now < nextTimeout) {
+                                mUserActivitySummary = USER_ACTIVITY_SCREEN_DREAM;
+                            }
+                        }
+                    } else {
+                        mUserActivitySummary = USER_ACTIVITY_SCREEN_DREAM;
+                        nextTimeout = -1;
+                    }
+                }
+                if (mUserActivitySummary != 0 && nextTimeout >= 0) {
                     Message msg = mHandler.obtainMessage(MSG_USER_ACTIVITY_TIMEOUT);
                     msg.setAsynchronous(true);
                     mHandler.sendMessageAtTime(msg, nextTimeout);
@@ -1495,13 +1537,24 @@ public final class PowerManagerService extends SystemService
         }
     }
 
-    private int getScreenOffTimeoutLocked() {
+    private int getSleepTimeoutLocked() {
+        int timeout = mSleepTimeoutSetting;
+        if (timeout <= 0) {
+            return -1;
+        }
+        return Math.max(timeout, mMinimumScreenOffTimeoutConfig);
+    }
+
+    private int getScreenOffTimeoutLocked(int sleepTimeout) {
         int timeout = mScreenOffTimeoutSetting;
         if (isMaximumScreenOffTimeoutFromDeviceAdminEnforcedLocked()) {
             timeout = Math.min(timeout, mMaximumScreenOffTimeoutFromDeviceAdmin);
         }
         if (mUserActivityTimeoutOverrideFromWindowManager >= 0) {
             timeout = (int)Math.min(timeout, mUserActivityTimeoutOverrideFromWindowManager);
+        }
+        if (sleepTimeout >= 0) {
+            timeout = Math.min(timeout, sleepTimeout);
         }
         return Math.max(timeout, mMinimumScreenOffTimeoutConfig);
     }
@@ -1619,8 +1672,7 @@ public final class PowerManagerService extends SystemService
             mSandmanScheduled = false;
             wakefulness = mWakefulness;
             if (mSandmanSummoned && mDisplayReady) {
-                startDreaming = ((wakefulness == WAKEFULNESS_DREAMING && canDreamLocked())
-                        || wakefulness == WAKEFULNESS_DOZING);
+                startDreaming = canDreamLocked() || canDozeLocked();
                 mSandmanSummoned = false;
             } else {
                 startDreaming = false;
@@ -1708,13 +1760,14 @@ public final class PowerManagerService extends SystemService
 
     /**
      * Returns true if the device is allowed to dream in its current state.
-     * This function is not called when dozing.
      */
     private boolean canDreamLocked() {
         if (mWakefulness != WAKEFULNESS_DREAMING
                 || !mDreamsSupportedConfig
                 || !mDreamsEnabledSetting
                 || !mDisplayPowerRequest.isBrightOrDim()
+                || (mUserActivitySummary & (USER_ACTIVITY_SCREEN_BRIGHT
+                        | USER_ACTIVITY_SCREEN_DIM | USER_ACTIVITY_SCREEN_DREAM)) == 0
                 || !mBootCompleted) {
             return false;
         }
@@ -1734,6 +1787,13 @@ public final class PowerManagerService extends SystemService
             }
         }
         return true;
+    }
+
+    /**
+     * Returns true if the device is allowed to doze in its current state.
+     */
+    private boolean canDozeLocked() {
+        return mWakefulness == WAKEFULNESS_DOZING;
     }
 
     /**
@@ -2126,7 +2186,7 @@ public final class PowerManagerService extends SystemService
             t.start();
             t.join();
         } catch (InterruptedException e) {
-            Log.wtf(TAG, e);
+            Slog.wtf(TAG, e);
         }
     }
 
@@ -2348,6 +2408,7 @@ public final class PowerManagerService extends SystemService
             pw.println("  mMaximumScreenDimDurationConfig=" + mMaximumScreenDimDurationConfig);
             pw.println("  mMaximumScreenDimRatioConfig=" + mMaximumScreenDimRatioConfig);
             pw.println("  mScreenOffTimeoutSetting=" + mScreenOffTimeoutSetting);
+            pw.println("  mSleepTimeoutSetting=" + mSleepTimeoutSetting);
             pw.println("  mMaximumScreenOffTimeoutFromDeviceAdmin="
                     + mMaximumScreenOffTimeoutFromDeviceAdmin + " (enforced="
                     + isMaximumScreenOffTimeoutFromDeviceAdminEnforcedLocked() + ")");
@@ -2372,9 +2433,11 @@ public final class PowerManagerService extends SystemService
             pw.println("  mScreenBrightnessSettingMaximum=" + mScreenBrightnessSettingMaximum);
             pw.println("  mScreenBrightnessSettingDefault=" + mScreenBrightnessSettingDefault);
 
-            final int screenOffTimeout = getScreenOffTimeoutLocked();
+            final int sleepTimeout = getSleepTimeoutLocked();
+            final int screenOffTimeout = getScreenOffTimeoutLocked(sleepTimeout);
             final int screenDimDuration = getScreenDimDurationLocked(screenOffTimeout);
             pw.println();
+            pw.println("Sleep timeout: " + sleepTimeout + " ms");
             pw.println("Screen off timeout: " + screenOffTimeout + " ms");
             pw.println("Screen dim duration: " + screenDimDuration + " ms");
 

@@ -764,6 +764,35 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
                 .getAccessibilityFocusClickPointInScreenNotLocked(outPoint);
     }
 
+    /**
+     * Gets the bounds of the active window.
+     *
+     * @param outBounds The output to which to write the bounds.
+     */
+    boolean getActiveWindowBounds(Rect outBounds) {
+        // TODO: This should be refactored to work with accessibility
+        // focus in multiple windows.
+        IBinder token;
+        synchronized (mLock) {
+            final int windowId = mSecurityPolicy.mActiveWindowId;
+            token = mGlobalWindowTokens.get(windowId);
+            if (token == null) {
+                token = getCurrentUserStateLocked().mWindowTokens.get(windowId);
+            }
+        }
+        mWindowManagerService.getWindowFrame(token, outBounds);
+        if (!outBounds.isEmpty()) {
+            return true;
+        }
+        return false;
+    }
+
+    boolean accessibilityFocusOnlyInActiveWindow() {
+        synchronized (mLock) {
+            return mWindowsForAccessibilityCallback == null;
+        }
+    }
+
     int getActiveWindowId() {
         return mSecurityPolicy.getActiveWindowId();
     }
@@ -1581,10 +1610,15 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
         if (userState.mUserId != UserHandle.USER_OWNER) {
             return;
         }
-        if (hasRunningServicesLocked(userState) && LockPatternUtils.isDeviceEncrypted()) {
-            // If there are running accessibility services we do not have encryption as
-            // the user needs the accessibility layer to be running to authenticate.
-            mLockPatternUtils.clearEncryptionPassword();
+        final long identity = Binder.clearCallingIdentity();
+        try {
+            if (hasRunningServicesLocked(userState) && LockPatternUtils.isDeviceEncrypted()) {
+                // If there are running accessibility services we do not have encryption as
+                // the user needs the accessibility layer to be running to authenticate.
+                mLockPatternUtils.clearEncryptionPassword();
+            }
+        } finally {
+            Binder.restoreCallingIdentity(identity);
         }
     }
 
@@ -2117,7 +2151,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
                 // performs the current profile parent resolution.
                 final int resolvedUserId = mSecurityPolicy
                         .resolveCallingUserIdEnforcingPermissionsLocked(
-                                UserHandle.getCallingUserId());
+                                UserHandle.USER_CURRENT);
                 if (resolvedUserId != mCurrentUserId) {
                     return null;
                 }
@@ -2148,7 +2182,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
                 // performs the current profile parent resolution.
                 final int resolvedUserId = mSecurityPolicy
                         .resolveCallingUserIdEnforcingPermissionsLocked(
-                                UserHandle.getCallingUserId());
+                                UserHandle.USER_CURRENT);
                 if (resolvedUserId != mCurrentUserId) {
                     return null;
                 }
@@ -2181,7 +2215,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
                 // performs the current profile parent resolution.
                 final int resolvedUserId = mSecurityPolicy
                         .resolveCallingUserIdEnforcingPermissionsLocked(
-                                UserHandle.getCallingUserId());
+                                UserHandle.USER_CURRENT);
                 if (resolvedUserId != mCurrentUserId) {
                     return false;
                 }
@@ -2233,7 +2267,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
                 // performs the current profile parent resolution.
                 final int resolvedUserId = mSecurityPolicy
                         .resolveCallingUserIdEnforcingPermissionsLocked(
-                                UserHandle.getCallingUserId());
+                                UserHandle.USER_CURRENT);
                 if (resolvedUserId != mCurrentUserId) {
                     return false;
                 }
@@ -2285,7 +2319,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
                 // performs the current profile parent resolution.
                 final int resolvedUserId = mSecurityPolicy
                         .resolveCallingUserIdEnforcingPermissionsLocked(
-                                UserHandle.getCallingUserId());
+                                UserHandle.USER_CURRENT);
                 if (resolvedUserId != mCurrentUserId) {
                     return false;
                 }
@@ -2337,7 +2371,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
                 // performs the current profile parent resolution.
                 final int resolvedUserId = mSecurityPolicy
                         .resolveCallingUserIdEnforcingPermissionsLocked(
-                                UserHandle.getCallingUserId());
+                                UserHandle.USER_CURRENT);
                 if (resolvedUserId != mCurrentUserId) {
                     return false;
                 }
@@ -2390,7 +2424,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
                 // performs the current profile parent resolution.
                 final int resolvedUserId = mSecurityPolicy
                         .resolveCallingUserIdEnforcingPermissionsLocked(
-                                UserHandle.getCallingUserId());
+                                UserHandle.USER_CURRENT);
                 if (resolvedUserId != mCurrentUserId) {
                     return false;
                 }
@@ -2441,7 +2475,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
                 // performs the current profile parent resolution.
                 final int resolvedUserId = mSecurityPolicy
                         .resolveCallingUserIdEnforcingPermissionsLocked(
-                                UserHandle.getCallingUserId());
+                                UserHandle.USER_CURRENT);
                 if (resolvedUserId != mCurrentUserId) {
                     return false;
                 }
@@ -2480,7 +2514,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
                 // performs the current profile parent resolution.
                 final int resolvedUserId = mSecurityPolicy
                         .resolveCallingUserIdEnforcingPermissionsLocked(
-                                UserHandle.getCallingUserId());
+                                UserHandle.USER_CURRENT);
                 if (resolvedUserId != mCurrentUserId) {
                     return false;
                 }
@@ -2527,7 +2561,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
                 // performs the current profile parent resolution.
                 final int resolvedUserId = mSecurityPolicy
                         .resolveCallingUserIdEnforcingPermissionsLocked(
-                                UserHandle.getCallingUserId());
+                                UserHandle.USER_CURRENT);
                 if (resolvedUserId != mCurrentUserId) {
                     return false;
                 }
@@ -3207,6 +3241,13 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
                     point.y = (int) (point.y * (1 / spec.scale));
                 }
 
+                // Make sure the point is within the window.
+                Rect windowBounds = mTempRect;
+                getActiveWindowBounds(windowBounds);
+                if (!windowBounds.contains(point.x, point.y)) {
+                    return false;
+                }
+
                 // Make sure the point is within the screen.
                 Point screenSize = mTempPoint;
                 mDefaultDisplay.getRealSize(screenSize);
@@ -3566,6 +3607,9 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
         }
 
         private void notifyWindowsChanged() {
+            if (mWindowsForAccessibilityCallback == null) {
+                return;
+            }
             final long identity = Binder.clearCallingIdentity();
             try {
                 // Let the client know the windows changed.
@@ -3621,6 +3665,12 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
             if (callingUserId == userId) {
                 return resolveProfileParentLocked(userId);
             }
+            final int callingUserParentId = resolveProfileParentLocked(callingUserId);
+            if (callingUserParentId == mCurrentUserId &&
+                    (userId == UserHandle.USER_CURRENT
+                            || userId == UserHandle.USER_CURRENT_OR_SELF)) {
+                return mCurrentUserId;
+            }
             if (!hasPermission(Manifest.permission.INTERACT_ACROSS_USERS)
                     && !hasPermission(Manifest.permission.INTERACT_ACROSS_USERS_FULL)) {
                 throw new SecurityException("Call from user " + callingUserId + " as user "
@@ -3644,6 +3694,10 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
         }
 
         private boolean isRetrievalAllowingWindow(int windowId) {
+            // The system gets to interact with any window it wants.
+            if (Binder.getCallingUid() == Process.SYSTEM_UID) {
+                return true;
+            }
             if (windowId == mActiveWindowId) {
                 return true;
             }

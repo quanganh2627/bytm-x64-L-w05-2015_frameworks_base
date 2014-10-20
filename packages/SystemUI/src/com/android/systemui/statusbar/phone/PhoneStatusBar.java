@@ -2135,6 +2135,10 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         return onKeyguard && (isMethodInsecure || mDozing || mScreenOnComingFromTouch);
     }
 
+    public boolean isDozing() {
+        return mDozing;
+    }
+
     @Override  // NotificationData.Environment
     public String getCurrentMediaNotificationKey() {
         return mMediaNotificationKey;
@@ -2368,7 +2372,9 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
     }
 
     public void animateCollapseQuickSettings() {
-        mStatusBarView.collapseAllPanels(true);
+        if (mState == StatusBarState.SHADE) {
+            mStatusBarView.collapseAllPanels(true);
+        }
     }
 
     void makeExpandedInvisible() {
@@ -2470,7 +2476,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
                 && mStatusBarWindowState != state) {
             mStatusBarWindowState = state;
             if (DEBUG_WINDOW_STATE) Log.d(TAG, "Status bar " + windowStateToString(state));
-            if (!showing) {
+            if (!showing && mState == StatusBarState.SHADE) {
                 mStatusBarView.collapseAllPanels(false);
             }
         }
@@ -3488,6 +3494,15 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
     }
 
     public void showKeyguard() {
+        if (mLaunchTransitionFadingAway) {
+            mNotificationPanel.animate().cancel();
+            mNotificationPanel.setAlpha(1f);
+            if (mLaunchTransitionEndRunnable != null) {
+                mLaunchTransitionEndRunnable.run();
+            }
+            mLaunchTransitionEndRunnable = null;
+            mLaunchTransitionFadingAway = false;
+        }
         setBarState(StatusBarState.KEYGUARD);
         updateKeyguardState(false /* goingToFullShade */, false /* fromShadeLocked */);
         if (!mScreenOnFromKeyguard) {
@@ -3527,7 +3542,8 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
      * @param endRunnable the runnable to be run when the transition is done
      */
     public void fadeKeyguardAfterLaunchTransition(final Runnable beforeFading,
-            final Runnable endRunnable) {
+            Runnable endRunnable) {
+        mLaunchTransitionEndRunnable = endRunnable;
         Runnable hideRunnable = new Runnable() {
             @Override
             public void run() {
@@ -3545,9 +3561,10 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
                             @Override
                             public void run() {
                                 mNotificationPanel.setAlpha(1);
-                                if (endRunnable != null) {
-                                    endRunnable.run();
+                                if (mLaunchTransitionEndRunnable != null) {
+                                    mLaunchTransitionEndRunnable.run();
                                 }
+                                mLaunchTransitionEndRunnable = null;
                                 mLaunchTransitionFadingAway = false;
                             }
                         });
