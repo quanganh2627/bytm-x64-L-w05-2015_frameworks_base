@@ -326,7 +326,7 @@ public class PrintActivity extends Activity implements RemotePrintDocument.Updat
         PrintSpoolerService spooler = mSpoolerProvider.getSpooler();
 
         if (mState == STATE_INITIALIZING) {
-            if (isFinishing()) {
+            if (spooler != null && isFinishing()) {
                 spooler.setPrintJobState(mPrintJob.getId(), PrintJobInfo.STATE_CANCELED, null);
             }
             super.onPause();
