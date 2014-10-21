@@ -405,7 +405,7 @@
     <!-- @hide -->
     <permission android:name="android.permission.RECEIVE_BLUETOOTH_MAP"
         android:permissionGroup="android.permission-group.MESSAGES"
-        android:protectionLevel="dangerous"
+        android:protectionLevel="signature|system"
         android:label="@string/permlab_receiveBluetoothMap"
         android:description="@string/permdesc_receiveBluetoothMap" />
 
@@ -679,14 +679,14 @@
     <!-- Allows an application to modify and remove existing voicemails in the system -->
     <permission android:name="com.android.voicemail.permission.WRITE_VOICEMAIL"
         android:permissionGroup="android.permission-group.VOICEMAIL"
-        android:protectionLevel="dangerous"
+        android:protectionLevel="system|signature"
         android:label="@string/permlab_writeVoicemail"
         android:description="@string/permdesc_writeVoicemail" />
 
     <!-- Allows an application to read voicemails in the system. -->
     <permission android:name="com.android.voicemail.permission.READ_VOICEMAIL"
         android:permissionGroup="android.permission-group.VOICEMAIL"
-        android:protectionLevel="dangerous"
+        android:protectionLevel="system|signature"
         android:label="@string/permlab_readVoicemail"
         android:description="@string/permdesc_readVoicemail" />
 
@@ -1223,7 +1223,7 @@
          @hide Pending API council approval -->
     <permission android:name="android.permission.READ_PRECISE_PHONE_STATE"
         android:permissionGroup="android.permission-group.PHONE_CALLS"
-        android:protectionLevel="dangerous"
+        android:protectionLevel="signature|system"
         android:label="@string/permlab_readPrecisePhoneState"
         android:description="@string/permdesc_readPrecisePhoneState" />
 
@@ -2900,6 +2900,7 @@
         </activity>
         <activity android:name="com.android.internal.app.PlatLogoActivity"
                 android:theme="@style/Theme.Wallpaper.NoTitleBar.Fullscreen"
+                android:configChanges="orientation|keyboardHidden"
                 android:process=":ui">
         </activity>
         <activity android:name="com.android.internal.app.DisableCarModeActivity"

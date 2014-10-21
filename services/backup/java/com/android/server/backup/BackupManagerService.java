@@ -2422,6 +2422,11 @@ public class BackupManagerService extends IBackupManager.Stub {
                     mStatus = invokeAgentForBackup(PACKAGE_MANAGER_SENTINEL,
                             IBackupAgent.Stub.asInterface(pmAgent.onBind()), mTransport);
                     addBackupTrace("PMBA invoke: " + mStatus);
+
+                    // Because the PMBA is a local instance, it has already executed its
+                    // backup callback and returned.  Blow away the lingering (spurious)
+                    // pending timeout message for it.
+                    mBackupHandler.removeMessages(MSG_TIMEOUT);
                 }
 
                 if (mStatus == BackupTransport.TRANSPORT_NOT_INITIALIZED) {
@@ -2857,9 +2862,12 @@ public class BackupManagerService extends IBackupManager.Stub {
             try { if (mSavedState != null) mSavedState.close(); } catch (IOException e) {}
             try { if (mBackupData != null) mBackupData.close(); } catch (IOException e) {}
             try { if (mNewState != null) mNewState.close(); } catch (IOException e) {}
-            mSavedState = mBackupData = mNewState = null;
             synchronized (mCurrentOpLock) {
+                // Current-operation callback handling requires the validity of these various
+                // bits of internal state as an invariant of the operation still being live.
+                // This means we make sure to clear all of the state in unison inside the lock.
                 mCurrentOperations.clear();
+                mSavedState = mBackupData = mNewState = null;
             }
 
             // If this was a pseudopackage there's no associated Activity Manager state
@@ -7055,6 +7063,11 @@ if (MORE_DEBUG) Slog.v(TAG, "   + got " + nRead + "; now wanting " + (size - soF
         private  void startRestore() {
             sendStartRestore(mAcceptSet.size());
 
+            // If we're starting a full-system restore, set up to begin widget ID remapping
+            if (mIsSystemRestore) {
+                AppWidgetBackupBridge.restoreStarting(UserHandle.USER_OWNER);
+            }
+
             try {
                 String transportDir = mTransport.transportDirName();
                 mStateDir = new File(mBaseStateDir, transportDir);
@@ -8854,6 +8867,12 @@ if (MORE_DEBUG) Slog.v(TAG, "   + got " + nRead + "; now wanting " + (size - soF
                     Slog.w(TAG, "Null transport getting restore sets");
                     return -1;
                 }
+
+                // We know we're doing legit work now, so halt the timeout
+                // until we're done.  It gets started again when the result
+                // comes in.
+                mBackupHandler.removeMessages(MSG_RESTORE_TIMEOUT);
+
                 // spin off the transport request to our service thread
                 mWakelock.acquire();
                 Message msg = mBackupHandler.obtainMessage(MSG_RUN_GET_RESTORE_SETS,
@@ -8906,6 +8925,9 @@ if (MORE_DEBUG) Slog.v(TAG, "   + got " + nRead + "; now wanting " + (size - soF
             synchronized (mQueueLock) {
                 for (int i = 0; i < mRestoreSets.length; i++) {
                     if (token == mRestoreSets[i].token) {
+                        // Real work, so stop the session timeout until we finalize the restore
+                        mBackupHandler.removeMessages(MSG_RESTORE_TIMEOUT);
+
                         long oldId = Binder.clearCallingIdentity();
                         mWakelock.acquire();
                         if (MORE_DEBUG) {
@@ -8985,6 +9007,9 @@ if (MORE_DEBUG) Slog.v(TAG, "   + got " + nRead + "; now wanting " + (size - soF
             synchronized (mQueueLock) {
                 for (int i = 0; i < mRestoreSets.length; i++) {
                     if (token == mRestoreSets[i].token) {
+                        // Stop the session timeout until we finalize the restore
+                        mBackupHandler.removeMessages(MSG_RESTORE_TIMEOUT);
+
                         long oldId = Binder.clearCallingIdentity();
                         mWakelock.acquire();
                         if (MORE_DEBUG) {
@@ -9064,6 +9089,9 @@ if (MORE_DEBUG) Slog.v(TAG, "   + got " + nRead + "; now wanting " + (size - soF
                 Slog.e(TAG, "Unable to contact transport for restore");
                 return -1;
             }
+
+            // Stop the session timeout until we finalize the restore
+            mBackupHandler.removeMessages(MSG_RESTORE_TIMEOUT);
 
             // Ready to go:  enqueue the restore request and claim success
             long oldId = Binder.clearCallingIdentity();

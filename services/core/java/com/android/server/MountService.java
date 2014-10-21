@@ -63,7 +63,6 @@ import android.util.AttributeSet;
 import android.util.Slog;
 import android.util.Xml;
 
-import android.view.AccessibilityManagerInternal;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.IMediaContainerService;
@@ -558,8 +557,6 @@ class MountService extends IMountService.Stub
 
     private final Handler mHandler;
 
-    private final AccessibilityManagerInternal mAccessibilityManagerInternal;
-
     void waitForAsecScan() {
         waitForLatch(mAsecsScanned);
     }
@@ -860,6 +857,11 @@ class MountService extends IMountService.Stub
         } catch (RemoteException e) {
             Slog.e(TAG, "Error setting system locale from mount service", e);
         }
+
+        // Temporary workaround for http://b/17945169.
+        Slog.d(TAG, "Setting system properties to " + systemLocale + " from mount service");
+        SystemProperties.set("persist.sys.language", locale.getLanguage());
+        SystemProperties.set("persist.sys.country", locale.getCountry());
     }
 
     /**
@@ -1456,9 +1458,6 @@ class MountService extends IMountService.Stub
         HandlerThread hthread = new HandlerThread(TAG);
         hthread.start();
         mHandler = new MountServiceHandler(hthread.getLooper());
-
-        mAccessibilityManagerInternal = LocalServices.getService(
-                AccessibilityManagerInternal.class);
 
         // Watch for user changes
         final IntentFilter userFilter = new IntentFilter();
@@ -2258,16 +2257,8 @@ class MountService extends IMountService.Stub
             Slog.i(TAG, "changing encryption password...");
         }
 
-        final NativeDaemonEvent event;
         try {
-            // The accessibility layer may veto having a non-default encryption
-            // password because if there are enabled accessibility services the
-            // user cannot authenticate as the latter need access to the data.
-            if (!TextUtils.isEmpty(password)
-                    && !mAccessibilityManagerInternal.isNonDefaultEncryptionPasswordAllowed()) {
-                return getEncryptionState();
-            }
-            event = mConnector.execute("cryptfs", "changepw", CRYPTO_TYPES[type],
+            NativeDaemonEvent event = mConnector.execute("cryptfs", "changepw", CRYPTO_TYPES[type],
                         new SensitiveArg(toHex(password)));
             return Integer.parseInt(event.getMessage());
         } catch (NativeDaemonConnectorException e) {

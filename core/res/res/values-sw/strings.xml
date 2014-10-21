@@ -1598,7 +1598,7 @@
     <string name="kg_forgot_pattern_button_text" msgid="8852021467868220608">"Umesahau Ruwaza"</string>
     <string name="kg_wrong_pattern" msgid="1850806070801358830">"Mchoro Usio sahihi"</string>
     <string name="kg_wrong_password" msgid="2333281762128113157">"Nenosiri Lisilo sahihi"</string>
-    <string name="kg_wrong_pin" msgid="1131306510833563801">"PIN isiyo sahihi"</string>
+    <string name="kg_wrong_pin" msgid="1131306510833563801">"Nambari ya PIN si sahihi"</string>
     <string name="kg_too_many_failed_attempts_countdown" msgid="6358110221603297548">"Jaribu tena baada ya sekunde <xliff:g id="NUMBER">%1$d</xliff:g>."</string>
     <string name="kg_pattern_instructions" msgid="398978611683075868">"Chora ruwaza yako"</string>
     <string name="kg_sim_pin_instructions" msgid="2319508550934557331">"Ingiza PIN ya SIM"</string>
@@ -1759,12 +1759,12 @@
     <string name="item_is_selected" msgid="949687401682476608">"<xliff:g id="ITEM">%1$s</xliff:g> kimechaguliwa"</string>
     <string name="deleted_key" msgid="7659477886625566590">"<xliff:g id="KEY">%1$s</xliff:g> kimefutwa"</string>
     <string name="managed_profile_label_badge" msgid="2355652472854327647">"Ya kazini <xliff:g id="LABEL">%1$s</xliff:g>"</string>
-    <string name="lock_to_app_toast" msgid="1230563865743799321">"Ili ubandue skrini hii, gusa na ushikilie Nyuma na Ya hivi majuzi kwa wakati mmoja."</string>
-    <string name="lock_to_app_toast_accessible" msgid="3340628918851844044">"Ili ubandue skrini hii, gusa na ushikilie Ya hivi karibuni."</string>
+    <string name="lock_to_app_toast" msgid="7570091317001980053">"Ili ubanue skrini hii, gusa na ushikilie Nyuma na Muhtasari kwa wakati mmoja."</string>
+    <string name="lock_to_app_toast_accessible" msgid="8239120109365070664">"Ili ubanue skrini hii, gusa na ushikilie Muhtasari."</string>
     <string name="lock_to_app_toast_locked" msgid="8739004135132606329">"Skrini imebandikwa. Ubanduaji hauruhusiwi na shirika lako."</string>
     <string name="lock_to_app_title" msgid="1682643873107812874">"Ungependa kutumia ubandikaji skrini?"</string>
-    <string name="lock_to_app_description" msgid="9076084599283282800">"Ubandikaji skrini hufunga skrini kwenye onyesho moja.\n\nIli uondoe, gusa na ushikilie Nyuma na Ya hivi majuzi kwa wakati mmoja."</string>
-    <string name="lock_to_app_description_accessible" msgid="2132076937479670601">"Ubandikaji skrini hufunga skrini kwenye onyesho moja.\n\nIli uondoe, gusa na ushikilie Ya hivi majuzi."</string>
+    <string name="lock_to_app_description" msgid="4120623404152035221">"Ubandikaji skrini hufunga skrini kwenye onyesho moja.\n\nIli uibanue, gusa na ushikilie Nyuma na Muhtasari kwa wakati mmoja."</string>
+    <string name="lock_to_app_description_accessible" msgid="199664191087836099">"Ubandikaji skrini hufunga skrini kwenye onyesho moja. \n\nIli uibanue, gusa na ushikilie Muhtasari."</string>
     <string name="lock_to_app_negative" msgid="2259143719362732728">"HAPANA, ASANTE"</string>
     <string name="lock_to_app_positive" msgid="7085139175671313864">"ANZA"</string>
     <string name="lock_to_app_start" msgid="6643342070839862795">"Skrini imebandikwa"</string>

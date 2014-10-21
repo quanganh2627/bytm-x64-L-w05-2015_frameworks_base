@@ -434,10 +434,19 @@ public final class ActivityManagerService extends ActivityManagerNative
 
     public class PendingAssistExtras extends Binder implements Runnable {
         public final ActivityRecord activity;
+        public final Bundle extras;
+        public final Intent intent;
+        public final String hint;
+        public final int userHandle;
         public boolean haveResult = false;
         public Bundle result = null;
-        public PendingAssistExtras(ActivityRecord _activity) {
+        public PendingAssistExtras(ActivityRecord _activity, Bundle _extras, Intent _intent,
+                String _hint, int _userHandle) {
             activity = _activity;
+            extras = _extras;
+            intent = _intent;
+            hint = _hint;
+            userHandle = _userHandle;
         }
         @Override
         public void run() {
@@ -3552,7 +3561,7 @@ public final class ActivityManagerService extends ActivityManagerNative
     @Override
     public final int startActivityAsCaller(IApplicationThread caller, String callingPackage,
             Intent intent, String resolvedType, IBinder resultTo, String resultWho, int requestCode,
-            int startFlags, ProfilerInfo profilerInfo, Bundle options) {
+            int startFlags, ProfilerInfo profilerInfo, Bundle options, int userId) {
 
         // This is very dangerous -- it allows you to perform a start activity (including
         // permission grants) as any app that may launch one of your own activities.  So
@@ -3590,11 +3599,15 @@ public final class ActivityManagerService extends ActivityManagerNative
             targetPackage = sourceRecord.launchedFromPackage;
         }
 
+        if (userId == UserHandle.USER_NULL) {
+            userId = UserHandle.getUserId(sourceRecord.app.uid);
+        }
+
         // TODO: Switch to user app stacks here.
         try {
             int ret = mStackSupervisor.startActivityMayWait(null, targetUid, targetPackage, intent,
                     resolvedType, null, null, resultTo, resultWho, requestCode, startFlags, null,
-                    null, null, options, UserHandle.getUserId(sourceRecord.app.uid), null, null);
+                    null, null, options, userId, null, null);
             return ret;
         } catch (SecurityException e) {
             // XXX need to figure out how to propagate to original app.
@@ -10449,6 +10462,31 @@ public final class ActivityManagerService extends ActivityManagerNative
     }
 
     public Bundle getAssistContextExtras(int requestType) {
+        PendingAssistExtras pae = enqueueAssistContext(requestType, null, null,
+                UserHandle.getCallingUserId());
+        if (pae == null) {
+            return null;
+        }
+        synchronized (pae) {
+            while (!pae.haveResult) {
+                try {
+                    pae.wait();
+                } catch (InterruptedException e) {
+                }
+            }
+            if (pae.result != null) {
+                pae.extras.putBundle(Intent.EXTRA_ASSIST_CONTEXT, pae.result);
+            }
+        }
+        synchronized (this) {
+            mPendingAssistExtras.remove(pae);
+            mHandler.removeCallbacks(pae);
+        }
+        return pae.extras;
+    }
+
+    private PendingAssistExtras enqueueAssistContext(int requestType, Intent intent, String hint,
+            int userHandle) {
         enforceCallingPermission(android.Manifest.permission.GET_TOP_ACTIVITY_INFO,
                 "getAssistContextExtras()");
         PendingAssistExtras pae;
@@ -10462,13 +10500,13 @@ public final class ActivityManagerService extends ActivityManagerNative
             extras.putString(Intent.EXTRA_ASSIST_PACKAGE, activity.packageName);
             if (activity.app == null || activity.app.thread == null) {
                 Slog.w(TAG, "getAssistContextExtras failed: no process for " + activity);
-                return extras;
+                return null;
             }
             if (activity.app.pid == Binder.getCallingPid()) {
                 Slog.w(TAG, "getAssistContextExtras failed: request process same as " + activity);
-                return extras;
+                return null;
             }
-            pae = new PendingAssistExtras(activity);
+            pae = new PendingAssistExtras(activity, extras, intent, hint, userHandle);
             try {
                 activity.app.thread.requestAssistContextExtras(activity.appToken, pae,
                         requestType);
@@ -10476,25 +10514,10 @@ public final class ActivityManagerService extends ActivityManagerNative
                 mHandler.postDelayed(pae, PENDING_ASSIST_EXTRAS_TIMEOUT);
             } catch (RemoteException e) {
                 Slog.w(TAG, "getAssistContextExtras failed: crash calling " + activity);
-                return extras;
+                return null;
             }
+            return pae;
         }
-        synchronized (pae) {
-            while (!pae.haveResult) {
-                try {
-                    pae.wait();
-                } catch (InterruptedException e) {
-                }
-            }
-            if (pae.result != null) {
-                extras.putBundle(Intent.EXTRA_ASSIST_CONTEXT, pae.result);
-            }
-        }
-        synchronized (this) {
-            mPendingAssistExtras.remove(pae);
-            mHandler.removeCallbacks(pae);
-        }
-        return extras;
     }
 
     public void reportAssistContextExtras(IBinder token, Bundle extras) {
@@ -10503,7 +10526,38 @@ public final class ActivityManagerService extends ActivityManagerNative
             pae.result = extras;
             pae.haveResult = true;
             pae.notifyAll();
+            if (pae.intent == null) {
+                // Caller is just waiting for the result.
+                return;
+            }
         }
+
+        // We are now ready to launch the assist activity.
+        synchronized (this) {
+            boolean exists = mPendingAssistExtras.remove(pae);
+            mHandler.removeCallbacks(pae);
+            if (!exists) {
+                // Timed out.
+                return;
+            }
+        }
+        pae.intent.replaceExtras(extras);
+        if (pae.hint != null) {
+            pae.intent.putExtra(pae.hint, true);
+        }
+        pae.intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_SINGLE_TOP
+                | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        closeSystemDialogs("assist");
+        try {
+            mContext.startActivityAsUser(pae.intent, new UserHandle(pae.userHandle));
+        } catch (ActivityNotFoundException e) {
+            Slog.w(TAG, "No activity to handle assist action.", e);
+        }
+    }
+
+    public boolean launchAssistIntent(Intent intent, int requestType, String hint, int userHandle) {
+        return enqueueAssistContext(requestType, intent, hint, userHandle) != null;
     }
 
     public void registerProcessObserver(IProcessObserver observer) {
@@ -12538,7 +12592,7 @@ public final class ActivityManagerService extends ActivityManagerNative
 
     void dumpRecentsLocked(FileDescriptor fd, PrintWriter pw, String[] args,
             int opti, boolean dumpAll, String dumpPackage) {
-        pw.println("ACTIVITY MANAGER RECENT ACTIVITIES (dumpsys activity recents)");
+        pw.println("ACTIVITY MANAGER RECENT TASKS (dumpsys activity recents)");
 
         boolean printedAnything = false;
 
@@ -13033,6 +13087,7 @@ public final class ActivityManagerService extends ActivityManagerNative
             pw.println("  OOM levels:");
             printOomLevel(pw, "SYSTEM_ADJ", ProcessList.SYSTEM_ADJ);
             printOomLevel(pw, "PERSISTENT_PROC_ADJ", ProcessList.PERSISTENT_PROC_ADJ);
+            printOomLevel(pw, "PERSISTENT_SERVICE_ADJ", ProcessList.PERSISTENT_SERVICE_ADJ);
             printOomLevel(pw, "FOREGROUND_APP_ADJ", ProcessList.FOREGROUND_APP_ADJ);
             printOomLevel(pw, "VISIBLE_APP_ADJ", ProcessList.VISIBLE_APP_ADJ);
             printOomLevel(pw, "PERCEPTIBLE_APP_ADJ", ProcessList.PERCEPTIBLE_APP_ADJ);
@@ -13636,7 +13691,8 @@ public final class ActivityManagerService extends ActivityManagerNative
         return true;
     }
 
-    ArrayList<ProcessRecord> collectProcesses(PrintWriter pw, int start, String[] args) {
+    ArrayList<ProcessRecord> collectProcesses(PrintWriter pw, int start, boolean allPkgs,
+            String[] args) {
         ArrayList<ProcessRecord> procs;
         synchronized (this) {
             if (args != null && args.length > start
@@ -13650,6 +13706,9 @@ public final class ActivityManagerService extends ActivityManagerNative
                 for (int i=mLruProcesses.size()-1; i>=0; i--) {
                     ProcessRecord proc = mLruProcesses.get(i);
                     if (proc.pid == pid) {
+                        procs.add(proc);
+                    } else if (allPkgs && proc.pkgList != null
+                            && proc.pkgList.containsKey(args[start])) {
                         procs.add(proc);
                     } else if (proc.processName.equals(args[start])) {
                         procs.add(proc);
@@ -13667,7 +13726,7 @@ public final class ActivityManagerService extends ActivityManagerNative
 
     final void dumpGraphicsHardwareUsage(FileDescriptor fd,
             PrintWriter pw, String[] args) {
-        ArrayList<ProcessRecord> procs = collectProcesses(pw, 0, args);
+        ArrayList<ProcessRecord> procs = collectProcesses(pw, 0, false, args);
         if (procs == null) {
             pw.println("No process found for: " + args[0]);
             return;
@@ -13703,7 +13762,7 @@ public final class ActivityManagerService extends ActivityManagerNative
     }
 
     final void dumpDbInfo(FileDescriptor fd, PrintWriter pw, String[] args) {
-        ArrayList<ProcessRecord> procs = collectProcesses(pw, 0, args);
+        ArrayList<ProcessRecord> procs = collectProcesses(pw, 0, false, args);
         if (procs == null) {
             pw.println("No process found for: " + args[0]);
             return;
@@ -13829,7 +13888,8 @@ public final class ActivityManagerService extends ActivityManagerNative
 
     static final int[] DUMP_MEM_OOM_ADJ = new int[] {
             ProcessList.NATIVE_ADJ,
-            ProcessList.SYSTEM_ADJ, ProcessList.PERSISTENT_PROC_ADJ, ProcessList.FOREGROUND_APP_ADJ,
+            ProcessList.SYSTEM_ADJ, ProcessList.PERSISTENT_PROC_ADJ,
+            ProcessList.PERSISTENT_SERVICE_ADJ, ProcessList.FOREGROUND_APP_ADJ,
             ProcessList.VISIBLE_APP_ADJ, ProcessList.PERCEPTIBLE_APP_ADJ,
             ProcessList.BACKUP_APP_ADJ, ProcessList.HEAVY_WEIGHT_APP_ADJ,
             ProcessList.SERVICE_ADJ, ProcessList.HOME_APP_ADJ,
@@ -13837,7 +13897,7 @@ public final class ActivityManagerService extends ActivityManagerNative
     };
     static final String[] DUMP_MEM_OOM_LABEL = new String[] {
             "Native",
-            "System", "Persistent", "Foreground",
+            "System", "Persistent", "Persistent Service", "Foreground",
             "Visible", "Perceptible",
             "Heavy Weight", "Backup",
             "A Services", "Home",
@@ -13845,7 +13905,7 @@ public final class ActivityManagerService extends ActivityManagerNative
     };
     static final String[] DUMP_MEM_OOM_COMPACT_LABEL = new String[] {
             "native",
-            "sys", "pers", "fore",
+            "sys", "pers", "persvc", "fore",
             "vis", "percept",
             "heavy", "backup",
             "servicea", "home",
@@ -13871,6 +13931,7 @@ public final class ActivityManagerService extends ActivityManagerNative
         boolean oomOnly = false;
         boolean isCompact = false;
         boolean localOnly = false;
+        boolean packages = false;
         
         int opti = 0;
         while (opti < args.length) {
@@ -13891,6 +13952,8 @@ public final class ActivityManagerService extends ActivityManagerNative
                 oomOnly = true;
             } else if ("--local".equals(opt)) {
                 localOnly = true;
+            } else if ("--package".equals(opt)) {
+                packages = true;
             } else if ("-h".equals(opt)) {
                 pw.println("meminfo dump options: [-a] [-d] [-c] [--oom] [process]");
                 pw.println("  -a: include all available information for each process.");
@@ -13898,6 +13961,8 @@ public final class ActivityManagerService extends ActivityManagerNative
                 pw.println("  -c: dump in a compact machine-parseable representation.");
                 pw.println("  --oom: only show processes organized by oom adj.");
                 pw.println("  --local: only collect details locally, don't call process.");
+                pw.println("  --package: interpret process arg as package, dumping all");
+                pw.println("             processes that have loaded that package.");
                 pw.println("If [process] is specified it can be the name or ");
                 pw.println("pid of a specific process to dump.");
                 return;
@@ -13911,7 +13976,7 @@ public final class ActivityManagerService extends ActivityManagerNative
         long realtime = SystemClock.elapsedRealtime();
         final long[] tmpLong = new long[1];
 
-        ArrayList<ProcessRecord> procs = collectProcesses(pw, opti, args);
+        ArrayList<ProcessRecord> procs = collectProcesses(pw, opti, packages, args);
         if (procs == null) {
             // No Java processes.  Maybe they want to print a native process.
             if (args != null && args.length > opti
@@ -13966,7 +14031,7 @@ public final class ActivityManagerService extends ActivityManagerNative
             return;
         }
 
-        if (!brief && !oomOnly && (procs.size() == 1 || isCheckinRequest)) {
+        if (!brief && !oomOnly && (procs.size() == 1 || isCheckinRequest || packages)) {
             dumpDetails = true;
         }
 
@@ -14082,7 +14147,7 @@ public final class ActivityManagerService extends ActivityManagerNative
 
         long nativeProcTotalPss = 0;
 
-        if (!isCheckinRequest && procs.size() > 1) {
+        if (!isCheckinRequest && procs.size() > 1 && !packages) {
             // If we are showing aggregations, also look for native processes to
             // include so that our aggregations are more accurate.
             updateCpuStatsNow();
@@ -16752,7 +16817,8 @@ public final class ActivityManagerService extends ActivityManagerNative
                             } else {
                                 if ((cr.flags&(Context.BIND_ABOVE_CLIENT
                                         |Context.BIND_IMPORTANT)) != 0) {
-                                    adj = clientAdj;
+                                    adj = clientAdj >= ProcessList.PERSISTENT_SERVICE_ADJ
+                                            ? clientAdj : ProcessList.PERSISTENT_SERVICE_ADJ;
                                 } else if ((cr.flags&Context.BIND_NOT_VISIBLE) != 0
                                         && clientAdj < ProcessList.PERCEPTIBLE_APP_ADJ
                                         && adj > ProcessList.PERCEPTIBLE_APP_ADJ) {

@@ -896,7 +896,8 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                             mHandler.sendMessageDelayed(timeoutMsg,TIMEOUT_BIND_MS);
                             Intent i = new Intent(IBluetooth.class.getName());
                             if (!doBind(i, mConnection,
-                                    Context.BIND_AUTO_CREATE, UserHandle.CURRENT)) {
+                                    Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT,
+                                    UserHandle.CURRENT)) {
                                 mHandler.removeMessages(MESSAGE_TIMEOUT_BIND);
                             } else {
                                 mBinding = true;
@@ -1283,7 +1284,8 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                 mHandler.sendMessageDelayed(timeoutMsg,TIMEOUT_BIND_MS);
                 mConnection.setGetNameAddressOnly(false);
                 Intent i = new Intent(IBluetooth.class.getName());
-                if (!doBind(i, mConnection,Context.BIND_AUTO_CREATE, UserHandle.CURRENT)) {
+                if (!doBind(i, mConnection,Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT,
+                        UserHandle.CURRENT)) {
                     mHandler.removeMessages(MESSAGE_TIMEOUT_BIND);
                 } else {
                     mBinding = true;
@@ -1393,7 +1395,8 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                     if (mContext.getPackageManager().hasSystemFeature(
                                                      PackageManager.FEATURE_BLUETOOTH_LE)) {
                         Intent i = new Intent(IBluetoothGatt.class.getName());
-                        doBind(i, mConnection, Context.BIND_AUTO_CREATE, UserHandle.CURRENT);
+                        doBind(i, mConnection, Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT,
+                                UserHandle.CURRENT);
                     }
                 } else {
                     if (mCsmClient != null) {

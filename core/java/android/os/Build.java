@@ -485,7 +485,7 @@ public class Build {
         public static final int JELLY_BEAN = 16;
 
         /**
-         * Android 4.2: Moar jelly beans!
+         * November 2012: Android 4.2, Moar jelly beans!
          *
          * <p>Applications targeting this or a later release will get these
          * new changes in behavior:</p>
@@ -505,12 +505,12 @@ public class Build {
         public static final int JELLY_BEAN_MR1 = 17;
 
         /**
-         * Android 4.3: Jelly Bean MR2, the revenge of the beans.
+         * July 2013: Android 4.3, the revenge of the beans.
          */
         public static final int JELLY_BEAN_MR2 = 18;
 
         /**
-         * Android 4.4: KitKat, another tasty treat.
+         * October 2013: Android 4.4, KitKat, another tasty treat.
          *
          * <p>Applications targeting this or a later release will get these
          * new changes in behavior:</p>
@@ -553,7 +553,13 @@ public class Build {
         public static final int KITKAT_WATCH = 20;
 
         /**
-         * L!
+         * Temporary until we completely switch to {@link #LOLLIPOP}.
+         * @hide
+         */
+        public static final int L = 21;
+
+        /**
+         * Lollipop.  A flat one with beautiful shadows.  But still tasty.
          *
          * <p>Applications targeting this or a later release will get these
          * new changes in behavior:</p>
@@ -561,9 +567,27 @@ public class Build {
          * <li> {@link android.content.Context#bindService Context.bindService} now
          * requires an explicit Intent, and will throw an exception if given an implicit
          * Intent.</li>
+         * <li> {@link android.app.Notification.Builder Notification.Builder} will
+         * not have the colors of their various notification elements adjusted to better
+         * match the new material design look.</li>
+         * <li> {@link android.os.Message} will validate that a message is not currently
+         * in use when it is recycled.</li>
+         * <li> Hardware accelerated drawing in windows will be enabled automatically
+         * in most places.</li>
+         * <li> {@link android.widget.Spinner} throws an exception if attaching an
+         * adapter with more than one item type.</li>
+         * <li> If the app is a launcher, the launcher will be available to the user
+         * even when they are using corporate profiles (which requires that the app
+         * use {@link android.content.pm.LauncherApps} to correctly populate its
+         * apps UI).</li>
+         * <li> Calling {@link android.app.Service#stopForeground Service.stopForeground}
+         * with removeNotification false will modify the still posted notification so that
+         * it is no longer forced to be ongoing.</li>
+         * <li> A {@link android.service.dreams.DreamService} must require the
+         * {@link android.Manifest.permission#BIND_DREAM_SERVICE} permission to be usable.</li>
          * </ul>
          */
-        public static final int L = 21;
+        public static final int LOLLIPOP = 21;
     }
     
     /** The type of build, like "user" or "eng". */

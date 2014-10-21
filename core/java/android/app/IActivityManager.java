@@ -69,7 +69,7 @@ public interface IActivityManager extends IInterface {
             ProfilerInfo profilerInfo, Bundle options, int userId) throws RemoteException;
     public int startActivityAsCaller(IApplicationThread caller, String callingPackage,
             Intent intent, String resolvedType, IBinder resultTo, String resultWho, int requestCode,
-            int flags, ProfilerInfo profilerInfo, Bundle options) throws RemoteException;
+            int flags, ProfilerInfo profilerInfo, Bundle options, int userId) throws RemoteException;
     public WaitResult startActivityAndWait(IApplicationThread caller, String callingPackage,
             Intent intent, String resolvedType, IBinder resultTo, String resultWho,
             int requestCode, int flags, ProfilerInfo profilerInfo, Bundle options,
@@ -416,6 +416,9 @@ public interface IActivityManager extends IInterface {
     public Bundle getAssistContextExtras(int requestType) throws RemoteException;
 
     public void reportAssistContextExtras(IBinder token, Bundle extras) throws RemoteException;
+
+    public boolean launchAssistIntent(Intent intent, int requestType, String hint, int userHandle)
+            throws RemoteException;
 
     public void killUid(int uid, String reason) throws RemoteException;
 
@@ -777,4 +780,5 @@ public interface IActivityManager extends IInterface {
     int RELEASE_SOME_ACTIVITIES_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+236;
     int BOOT_ANIMATION_COMPLETE_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+237;
     int GET_TASK_DESCRIPTION_ICON_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+238;
+    int LAUNCH_ASSIST_INTENT_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+239;
 }
