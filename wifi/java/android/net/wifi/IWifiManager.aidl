@@ -152,5 +152,13 @@ interface IWifiManager
     void setAllowScansWithTraffic(int enabled);
 
     WifiConnectionStatistics getConnectionStatistics();
+
+    void setRTCoexMode(int enable, int safeChannelBitmap);
+
+    void configureWlanRTCoex();
+
+    void setSafeChannel(int safeChannelBitmap);
+
+    int getWifiSafeChannelBitmap();
 }
 

@@ -1342,7 +1342,8 @@ public class NetworkManagementService extends INetworkManagementService.Stub
                 mConnector.execute("softap", "set", wlanIface);
             } else {
                 mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
-                                   "broadcast", "6", getSecurityType(wifiConfig),
+                                   "broadcast", wifiConfig.channel,
+                                   getSecurityType(wifiConfig),
                                    new SensitiveArg(wifiConfig.preSharedKey));
             }
             mConnector.execute("softap", "startap");
@@ -1392,7 +1393,8 @@ public class NetworkManagementService extends INetworkManagementService.Stub
                 mConnector.execute("softap", "set", wlanIface);
             } else {
                 mConnector.execute("softap", "set", wlanIface, wifiConfig.SSID,
-                                   "broadcast", "6", getSecurityType(wifiConfig),
+                                   "broadcast", wifiConfig.channel,
+                                   getSecurityType(wifiConfig),
                                    new SensitiveArg(wifiConfig.preSharedKey));
             }
         } catch (NativeDaemonConnectorException e) {

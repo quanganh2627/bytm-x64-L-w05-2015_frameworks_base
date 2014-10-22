@@ -212,6 +212,12 @@ public class WifiConfiguration implements Parcelable {
     public boolean dirty;
 
     /**
+     * Radio channel used by this WiFi Configuration.
+     * @hide
+     */
+    public int channel;
+
+    /**
      * The code referring to a reason for disabling the network
      * Valid when {@link #status} == Status.DISABLED
      * @hide
@@ -829,6 +835,7 @@ public class WifiConfiguration implements Parcelable {
         ephemeral = false;
         noInternetAccess = false;
         mIpConfiguration = new IpConfiguration();
+        channel = 6;
     }
 
     /**
@@ -1146,6 +1153,8 @@ public class WifiConfiguration implements Parcelable {
         sbuf.append('\n');
         sbuf.append("autoJoinUseAggressiveJoinAttemptThreshold: ");
         sbuf.append(this.autoJoinUseAggressiveJoinAttemptThreshold);
+        sbuf.append('\n');
+        sbuf.append("channel: ").append(this.channel);
         sbuf.append('\n');
 
         return sbuf.toString();
@@ -1466,6 +1475,7 @@ public class WifiConfiguration implements Parcelable {
                     = source.autoJoinUseAggressiveJoinAttemptThreshold;
             autoJoinBailedDueToLowRssi = source.autoJoinBailedDueToLowRssi;
             dirty = source.dirty;
+            channel = source.channel;
         }
     }
 
@@ -1530,6 +1540,7 @@ public class WifiConfiguration implements Parcelable {
         dest.writeInt(numUserTriggeredJoinAttempts);
         dest.writeInt(autoJoinUseAggressiveJoinAttemptThreshold);
         dest.writeInt(autoJoinBailedDueToLowRssi ? 1 : 0);
+        dest.writeInt(channel);
     }
 
     /** Implement the Parcelable interface {@hide} */
@@ -1590,6 +1601,7 @@ public class WifiConfiguration implements Parcelable {
                 config.numUserTriggeredJoinAttempts = in.readInt();
                 config.autoJoinUseAggressiveJoinAttemptThreshold = in.readInt();
                 config.autoJoinBailedDueToLowRssi = in.readInt() != 0;
+                config.channel = in.readInt();
                 return config;
             }
 
