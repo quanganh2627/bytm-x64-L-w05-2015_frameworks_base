@@ -1221,10 +1221,6 @@ public class Canvas {
      * @hide
      */
     protected static void throwIfCannotDraw(Bitmap bitmap) {
-        if (bitmap.mBuffer == null) {
-            throw new RuntimeException("Canvas: trying to use a bitmap(" + bitmap +
-                    ") which has mBuffer equal to null");
-        }
         if (bitmap.isRecycled()) {
             throw new RuntimeException("Canvas: trying to use a recycled bitmap " + bitmap);
         }
