@@ -33,6 +33,7 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.storage.IMountService;
@@ -556,11 +557,16 @@ public class LockPatternUtils {
             getLockSettings().setLockPattern(patternToString(pattern), userId);
             DevicePolicyManager dpm = getDevicePolicyManager();
             if (pattern != null) {
-
-                int userHandle = userId;
-                if (userHandle == UserHandle.USER_OWNER) {
-                    String stringPattern = patternToString(pattern);
-                    updateEncryptionPassword(StorageManager.CRYPT_TYPE_PATTERN, stringPattern);
+                // Update the device encryption password.
+                if (userId == UserHandle.USER_OWNER
+                        && LockPatternUtils.isDeviceEncryptionEnabled()) {
+                    final boolean required = isCredentialRequiredToDecrypt(true);
+                    if (!required) {
+                        clearEncryptionPassword();
+                    } else {
+                        String stringPattern = patternToString(pattern);
+                        updateEncryptionPassword(StorageManager.CRYPT_TYPE_PATTERN, stringPattern);
+                    }
                 }
 
                 setBoolean(PATTERN_EVER_CHOSEN_KEY, true);
@@ -720,12 +726,9 @@ public class LockPatternUtils {
 
     /** Update the encryption password if it is enabled **/
     private void updateEncryptionPassword(final int type, final String password) {
-        DevicePolicyManager dpm = getDevicePolicyManager();
-        if (dpm.getStorageEncryptionStatus(getCurrentOrCallingUserId())
-                != DevicePolicyManager.ENCRYPTION_STATUS_ACTIVE) {
+        if (!isDeviceEncryptionEnabled()) {
             return;
         }
-
         final IBinder service = ServiceManager.getService("mount");
         if (service == null) {
             Log.e(TAG, "Could not find the mount service to update the encryption password");
@@ -785,13 +788,20 @@ public class LockPatternUtils {
                 getLockSettings().setLockPassword(password, userHandle);
                 int computedQuality = computePasswordQuality(password);
 
-                if (userHandle == UserHandle.USER_OWNER) {
-                    // Update the encryption password.
-                    int type = computedQuality == DevicePolicyManager.PASSWORD_QUALITY_NUMERIC
-                        || computedQuality == DevicePolicyManager.PASSWORD_QUALITY_NUMERIC_COMPLEX
-                        ? StorageManager.CRYPT_TYPE_PIN
-                        : StorageManager.CRYPT_TYPE_PASSWORD;
-                    updateEncryptionPassword(type, password);
+                // Update the device encryption password.
+                if (userHandle == UserHandle.USER_OWNER
+                        && LockPatternUtils.isDeviceEncryptionEnabled()) {
+                    if (!isCredentialRequiredToDecrypt(true)) {
+                        clearEncryptionPassword();
+                    } else {
+                        boolean numeric = computedQuality
+                                == DevicePolicyManager.PASSWORD_QUALITY_NUMERIC;
+                        boolean numericComplex = computedQuality
+                                == DevicePolicyManager.PASSWORD_QUALITY_NUMERIC_COMPLEX;
+                        int type = numeric || numericComplex ? StorageManager.CRYPT_TYPE_PIN
+                                : StorageManager.CRYPT_TYPE_PASSWORD;
+                        updateEncryptionPassword(type, password);
+                    }
                 }
 
                 if (!isFallback) {
@@ -892,6 +902,17 @@ public class LockPatternUtils {
             Log.e(TAG, "Error getting encryption state", re);
         }
         return true;
+    }
+
+    /**
+     * Determine if the device supports encryption, even if it's set to default. This
+     * differs from isDeviceEncrypted() in that it returns true even if the device is
+     * encrypted with the default password.
+     * @return true if device encryption is enabled
+     */
+    public static boolean isDeviceEncryptionEnabled() {
+        final String status = SystemProperties.get("ro.crypto.state", "unsupported");
+        return "encrypted".equalsIgnoreCase(status);
     }
 
     /**
@@ -1631,5 +1652,20 @@ public class LockPatternUtils {
 
     private void onAfterChangingPassword() {
         getTrustManager().reportEnabledTrustAgentsChanged(getCurrentOrCallingUserId());
+    }
+
+    public boolean isCredentialRequiredToDecrypt(boolean defaultValue) {
+        final int value = Settings.Global.getInt(mContentResolver,
+                Settings.Global.REQUIRE_PASSWORD_TO_DECRYPT, -1);
+        return value == -1 ? defaultValue : (value != 0);
+    }
+
+    public void setCredentialRequiredToDecrypt(boolean required) {
+        if (getCurrentUser() != UserHandle.USER_OWNER) {
+            Log.w(TAG, "Only device owner may call setCredentialRequiredForDecrypt()");
+            return;
+        }
+        Settings.Global.putInt(mContext.getContentResolver(),
+                Settings.Global.REQUIRE_PASSWORD_TO_DECRYPT, required ? 1 : 0);
     }
 }

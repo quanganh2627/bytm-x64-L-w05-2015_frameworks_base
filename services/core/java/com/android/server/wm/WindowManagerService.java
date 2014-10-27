@@ -7227,11 +7227,14 @@ public class WindowManagerService extends IWindowManager.Stub
     }
 
     public void updateShowImeWithHardKeyboard() {
-        boolean showImeWithHardKeyboard = Settings.Secure.getIntForUser(
+        final boolean showImeWithHardKeyboard = Settings.Secure.getIntForUser(
                 mContext.getContentResolver(), Settings.Secure.SHOW_IME_WITH_HARD_KEYBOARD, 0,
                 mCurrentUserId) == 1;
         synchronized (mWindowMap) {
-            mShowImeWithHardKeyboard = showImeWithHardKeyboard;
+            if (mShowImeWithHardKeyboard != showImeWithHardKeyboard) {
+                mShowImeWithHardKeyboard = showImeWithHardKeyboard;
+                mH.sendEmptyMessage(H.SEND_NEW_CONFIGURATION);
+            }
         }
     }
 
@@ -9605,7 +9608,7 @@ public class WindowManagerService extends IWindowManager.Stub
                 for (i=N-1; i>=0; i--) {
                     WindowState w = windows.get(i);
                     final TaskStack stack = w.getStack();
-                    if (stack == null) {
+                    if (stack == null && w.getAttrs().type != TYPE_PRIVATE_PRESENTATION) {
                         continue;
                     }
 
@@ -9617,7 +9620,7 @@ public class WindowManagerService extends IWindowManager.Stub
                         handleNotObscuredLocked(w, currentTime, innerDw, innerDh);
                     }
 
-                    if (!stack.testDimmingTag()) {
+                    if (stack != null && !stack.testDimmingTag()) {
                         handleFlagDimBehind(w);
                     }
 

@@ -39,16 +39,18 @@ final class HdmiCecLocalDevicePlayback extends HdmiCecLocalDevice {
     }
 
     @Override
+    void init() {
+        super.init();
+        mIsActiveSource = false;
+    }
+
+    @Override
     @ServiceThreadOnly
     protected void onAddressAllocated(int logicalAddress, int reason) {
         assertRunOnServiceThread();
         mService.sendCecCommand(HdmiCecMessageBuilder.buildReportPhysicalAddressCommand(
                 mAddress, mService.getPhysicalAddress(), mDeviceType));
-        if (reason == HdmiControlService.INITIATED_BY_SCREEN_ON) {
-            oneTouchPlay(new IHdmiControlCallback.Stub() {
-                @Override public void onComplete(int result) throws RemoteException {}
-            });
-        }
+        startQueuedActions();
     }
 
     @Override

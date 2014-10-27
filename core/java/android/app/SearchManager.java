@@ -23,6 +23,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.ResolveInfo;
+import android.content.res.Configuration;
 import android.database.Cursor;
 import android.graphics.Rect;
 import android.net.Uri;
@@ -624,9 +625,13 @@ public class SearchManager
             return;
         }
 
-        ensureSearchDialog();
+        UiModeManager uiModeManager = new UiModeManager();
+        // Don't show search dialog on televisions.
+        if (uiModeManager.getCurrentModeType() != Configuration.UI_MODE_TYPE_TELEVISION) {
+            ensureSearchDialog();
 
-        mSearchDialog.show(initialQuery, selectInitialQuery, launchActivity, appSearchData);
+            mSearchDialog.show(initialQuery, selectInitialQuery, launchActivity, appSearchData);
+        }
     }
 
     private void ensureSearchDialog() {
@@ -982,6 +987,22 @@ public class SearchManager
         } catch (RemoteException re) {
             Log.e(TAG, "getAssistIntent() failed: " + re);
             return null;
+        }
+    }
+
+    /**
+     * Launch an assist action for the current top activity.
+     * @hide
+     */
+    public boolean launchAssistAction(int requestType, String hint, int userHandle) {
+        try {
+            if (mService == null) {
+                return false;
+            }
+            return mService.launchAssistAction(requestType, hint, userHandle);
+        } catch (RemoteException re) {
+            Log.e(TAG, "launchAssistAction() failed: " + re);
+            return false;
         }
     }
 }

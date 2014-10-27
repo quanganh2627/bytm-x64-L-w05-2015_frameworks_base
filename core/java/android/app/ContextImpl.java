@@ -150,7 +150,6 @@ import android.app.trust.TrustManager;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.app.IAppOpsService;
 import com.android.internal.os.IDropBoxManagerService;
-import com.android.internal.telecom.ITelecomService;
 import com.android.internal.ethernet.EthernetManager;
 import com.android.internal.ethernet.IEthernetManager;
 import java.io.File;
@@ -1683,7 +1682,7 @@ class ContextImpl extends Context {
 
     private void validateServiceIntent(Intent service) {
         if (service.getComponent() == null && service.getPackage() == null) {
-            if (getApplicationInfo().targetSdkVersion >= Build.VERSION_CODES.L) {
+            if (getApplicationInfo().targetSdkVersion >= Build.VERSION_CODES.LOLLIPOP) {
                 IllegalArgumentException ex = new IllegalArgumentException(
                         "Service Intent must be explicit: " + service);
                 throw ex;

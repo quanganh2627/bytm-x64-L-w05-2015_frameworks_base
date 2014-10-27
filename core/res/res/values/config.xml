@@ -392,7 +392,7 @@
     <integer translatable="false" name="config_wifi_framework_scan_interval">300000</integer>
 
     <!-- Integer indicating associated partial scan interval in milliseconds -->
-    <integer translatable="false" name="config_wifi_framework_associated_scan_interval">10000</integer>
+    <integer translatable="false" name="config_wifi_framework_associated_scan_interval">20000</integer>
 
     <!-- Integer indicating associated full scan backoff, representing a fraction: xx/8 -->
     <integer translatable="false" name="config_wifi_framework_associated_full_scan_backoff">12</integer>
@@ -1780,9 +1780,6 @@
     <bool name="config_networkSamplingWakesDevice">true</bool>
 
     <string-array translatable="false" name="config_cdma_home_system" />
-
-    <!-- Default text encoding for WebSettings. @hide @SystemApi -->
-    <string name="config_webSettingsDefaultTextEncoding">UTF-8</string>
 
     <!--From SmsMessage-->
     <!--Support decoding the user data payload as pack GSM 8-bit (a GSM alphabet

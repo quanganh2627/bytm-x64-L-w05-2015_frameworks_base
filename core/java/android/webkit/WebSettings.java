@@ -1355,9 +1355,10 @@ public abstract class WebSettings {
     public synchronized boolean getJavaScriptCanOpenWindowsAutomatically() {
         throw new MustOverrideException();
     }
+
     /**
      * Sets the default text encoding name to use when decoding html pages.
-     * The default is "Latin-1".
+     * The default is "UTF-8".
      *
      * @param encoding the text encoding name
      */
@@ -1461,7 +1462,7 @@ public abstract class WebSettings {
      *
      * By default, apps that target {@link android.os.Build.VERSION_CODES#KITKAT} or below default
      * to {@link #MIXED_CONTENT_ALWAYS_ALLOW}. Apps targeting
-     * {@link android.os.Build.VERSION_CODES#L} default to {@link #MIXED_CONTENT_NEVER_ALLOW}.
+     * {@link android.os.Build.VERSION_CODES#LOLLIPOP} default to {@link #MIXED_CONTENT_NEVER_ALLOW}.
      *
      * The preferred and most secure mode of operation for the WebView is
      * {@link #MIXED_CONTENT_NEVER_ALLOW} and use of {@link #MIXED_CONTENT_ALWAYS_ALLOW} is
@@ -1482,7 +1483,7 @@ public abstract class WebSettings {
 
     /**
      * Sets whether to use a video overlay for embedded encrypted video.
-     * In API levels prior to {@link android.os.Build.VERSION_CODES#L}, encrypted video can
+     * In API levels prior to {@link android.os.Build.VERSION_CODES#LOLLIPOP}, encrypted video can
      * only be rendered directly on a secure video surface, so it had been a hard problem to play
      * encrypted video in HTML.  When this flag is on, WebView can play encrypted video (MSE/EME)
      * by using a video overlay (aka hole-punching) for videos embedded using HTML &lt;video&gt;

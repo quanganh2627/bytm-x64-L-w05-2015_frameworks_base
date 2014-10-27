@@ -2002,9 +2002,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                     } else if (state == NetworkInfo.State.CONNECTED) {
                     //    handleConnect(info);
                     }
-                    if (mLockdownTracker != null) {
-                        mLockdownTracker.onNetworkInfoChanged(info);
-                    }
+                    notifyLockdownVpn(null);
                     break;
                 }
                 case NetworkStateTracker.EVENT_CONFIGURATION_CHANGED: {
@@ -2127,6 +2125,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             if (nai.networkRequests.get(mDefaultRequest.requestId) != null) {
                 removeDataActivityTracking(nai);
                 mActiveDefaultNetwork = ConnectivityManager.TYPE_NONE;
+                notifyLockdownVpn(nai);
                 requestNetworkTransitionWakelock(nai.name());
             }
             for (NetworkAgentInfo networkToActivate : toActivate) {
@@ -3802,6 +3801,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         } catch (Exception e) {
             loge("Exception setting default network :" + e);
         }
+        notifyLockdownVpn(newNetwork);
         handleApplyDefaultProxy(newNetwork.linkProperties.getHttpProxy());
         updateTcpBufferSizes(newNetwork);
     }
@@ -3917,6 +3917,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                         }
                         mDefaultInetConditionPublished = newNetwork.validated ? 100 : 0;
                         mLegacyTypeTracker.add(newNetwork.networkInfo.getType(), newNetwork);
+                        notifyLockdownVpn(newNetwork);
                     }
                 }
             }
@@ -4036,6 +4037,16 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         sendInetConditionBroadcast(nai.networkInfo);
     }
 
+    private void notifyLockdownVpn(NetworkAgentInfo nai) {
+        if (mLockdownTracker != null) {
+            if (nai != null && nai.isVPN()) {
+                mLockdownTracker.onVpnStateChanged(nai.networkInfo);
+            } else {
+                mLockdownTracker.onNetworkInfoChanged();
+            }
+        }
+    }
+
     private void updateNetworkInfo(NetworkAgentInfo networkAgent, NetworkInfo newInfo) {
         NetworkInfo.State state = newInfo.getState();
         NetworkInfo oldInfo = null;
@@ -4043,9 +4054,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             oldInfo = networkAgent.networkInfo;
             networkAgent.networkInfo = newInfo;
         }
-        if (networkAgent.isVPN() && mLockdownTracker != null) {
-            mLockdownTracker.onVpnStateChanged(newInfo);
-        }
+        notifyLockdownVpn(networkAgent);
 
         if (oldInfo != null && oldInfo.getState() == state) {
             if (VDBG) log("ignoring duplicate network state non-change");
