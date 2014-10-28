@@ -38,6 +38,7 @@ import android.view.View;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -640,9 +641,11 @@ public final class AccessibilityManager {
         synchronized (mLock) {
             isEnabled = mIsEnabled;
         }
-        final int listenerCount = mAccessibilityStateChangeListeners.size();
-        for (int i = 0; i < listenerCount; i++) {
-            mAccessibilityStateChangeListeners.get(i).onAccessibilityStateChanged(isEnabled);
+        Iterator<AccessibilityStateChangeListener> iterator =
+                mAccessibilityStateChangeListeners.iterator();
+        while (iterator.hasNext()) {
+            AccessibilityStateChangeListener listener = iterator.next();
+            listener.onAccessibilityStateChanged(isEnabled);
         }
     }
 
@@ -654,10 +657,11 @@ public final class AccessibilityManager {
         synchronized (mLock) {
             isTouchExplorationEnabled = mIsTouchExplorationEnabled;
         }
-        final int listenerCount = mTouchExplorationStateChangeListeners.size();
-        for (int i = 0; i < listenerCount; i++) {
-            mTouchExplorationStateChangeListeners.get(i)
-                    .onTouchExplorationStateChanged(isTouchExplorationEnabled);
+        Iterator<TouchExplorationStateChangeListener> iterator =
+                mTouchExplorationStateChangeListeners.iterator();
+        while (iterator.hasNext()) {
+            TouchExplorationStateChangeListener listener = iterator.next();
+            listener.onTouchExplorationStateChanged(isTouchExplorationEnabled);
         }
     }
 
@@ -669,10 +673,11 @@ public final class AccessibilityManager {
         synchronized (mLock) {
             isHighTextContrastEnabled = mIsHighTextContrastEnabled;
         }
-        final int listenerCount = mHighTextContrastStateChangeListeners.size();
-        for (int i = 0; i < listenerCount; i++) {
-            mHighTextContrastStateChangeListeners.get(i)
-                    .onHighTextContrastStateChanged(isHighTextContrastEnabled);
+        Iterator<HighTextContrastChangeListener> iterator =
+                mHighTextContrastStateChangeListeners.iterator();
+        while (iterator.hasNext()) {
+            HighTextContrastChangeListener listener = iterator.next();
+            listener.onHighTextContrastStateChanged(isHighTextContrastEnabled);
         }
     }
 
