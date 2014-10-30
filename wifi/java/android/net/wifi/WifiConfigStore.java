@@ -294,7 +294,6 @@ class WifiConfigStore {
                 config.SSID == null)) {
             return new NetworkUpdateResult(INVALID_NETWORK_ID);
         }
-
         boolean newNetwork = (config.networkId == INVALID_NETWORK_ID);
         NetworkUpdateResult result = addOrUpdateNetworkNative(config);
         int netId = result.getNetworkId();
@@ -365,6 +364,7 @@ class WifiConfigStore {
                     result.isNewNetwork ? WifiManager.CHANGE_REASON_ADDED :
                             WifiManager.CHANGE_REASON_CONFIG_CHANGE);
         }
+
         return result.getNetworkId();
     }
 
@@ -1290,6 +1290,40 @@ class WifiConfigStore {
                 break setVariables;
             }
 
+	if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WAPI_CERT)) {
+                if (config.wapiAsCert != null &&
+                    !mWifiNative.setNetworkVariable(
+                    netId,
+                    WifiConfiguration.wapiAsCertVarName,
+                    config.wapiAsCert)) {
+                    Log.d(TAG, "failed to set WAPI_CERT as cert: "+
+                                config.wapiAsCert);
+                    break setVariables;
+                }
+
+                if (config.wapiUserCert != null &&
+                    !mWifiNative.setNetworkVariable(
+                    netId,
+                    WifiConfiguration.wapiUserCertVarName,
+                    config.wapiUserCert)) {
+                    Log.d(TAG, "failed to set WAPI_CERT user cert: "+
+                                config.wapiUserCert);
+                    break setVariables;
+                }
+            }
+
+            if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WAPI_PSK)) {
+                if (!mWifiNative.setNetworkVariable(
+                    netId,
+                    WifiConfiguration.wapiKeyType,
+                    Integer.toString(config.wapiPskType))) {
+                    Log.e(TAG, "failed to set WAPI_KEY_TYPE as : "+
+                                config.wapiKeyType);
+                    break setVariables;
+                }
+	    }
+
+
             if (config.enterpriseConfig != null &&
                     config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.NONE) {
 
@@ -1651,6 +1685,29 @@ class WifiConfigStore {
                 enterpriseFields.put(key, removeDoubleQuotes(value));
             } else {
                 enterpriseFields.put(key, WifiEnterpriseConfig.EMPTY_VALUE);
+            }
+        }
+        if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WAPI_CERT)) {
+            value = mWifiNative.getNetworkVariable(netId, WifiConfiguration.wapiAsCertVarName);
+            Log.d(TAG, "***WAPI : readNetworkVariables WAPI_CERT as cert " + value);
+            if (!TextUtils.isEmpty(value)) {
+                config.wapiAsCert = removeDoubleQuotes(value);
+            } else {
+                config.wapiAsCert = null;
+            }
+            value = mWifiNative.getNetworkVariable(netId, WifiConfiguration.wapiUserCertVarName);
+            Log.d(TAG, "***WAPI : readNetworkVariables WAPI_CERT user cert " + value);
+            if (!TextUtils.isEmpty(value)) {
+                config.wapiUserCert = removeDoubleQuotes(value);
+            } else {
+                config.wapiUserCert = null;
+            }
+            value = mWifiNative.getNetworkVariable(netId, WifiConfiguration.wapiPrivateCertVarName);
+            Log.d(TAG, "***WAPI : readNetworkVariables WAPI_CERT private key cert " + value);
+            if (!TextUtils.isEmpty(value)) {
+                config.wapiPrivateCert = removeDoubleQuotes(value);
+            } else {
+                config.wapiPrivateCert = null;
             }
         }
 

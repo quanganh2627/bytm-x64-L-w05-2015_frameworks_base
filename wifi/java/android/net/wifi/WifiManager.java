@@ -263,6 +263,11 @@ public class WifiManager {
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
     public static final String SUPPLICANT_CONNECTION_CHANGE_ACTION =
         "android.net.wifi.supplicant.CONNECTION_CHANGE";
+    public static final String SUPPLICANT_WAPI_EVENT =
+        "android.net.wifi.supplicant.WAPI_EVENT";
+    public static final int WAPI_EVENT_AUTH_FAIL_CODE = 16;
+    public static final int WAPI_EVENT_CERT_FAIL_CODE = 17;
+
     /**
      * The lookup key for a boolean that indicates whether a connection to
      * the supplicant daemon has been gained or lost. {@code true} means

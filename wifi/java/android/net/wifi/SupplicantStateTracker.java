@@ -170,6 +170,11 @@ class SupplicantStateTracker extends StateMachine {
         public boolean processMessage(Message message) {
             if (DBG) Log.d(TAG, getName() + message.toString() + "\n");
             switch (message.what) {
+                case WifiMonitor.WAPI_AUTHENTICATION_FAILURE_EVENT:
+                    mAuthenticationFailuresCount++;
+                    mAuthFailureInSupplicantBroadcast = true;
+                    break;
+
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                     mAuthenticationFailuresCount++;
                     mAuthFailureInSupplicantBroadcast = true;

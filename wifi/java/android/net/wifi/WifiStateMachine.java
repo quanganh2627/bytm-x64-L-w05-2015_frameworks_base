@@ -2796,6 +2796,8 @@ public class WifiStateMachine extends StateMachine {
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                 case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
                 case WifiMonitor.WPS_OVERLAP_EVENT:
+                case WifiMonitor.WAPI_AUTHENTICATION_FAILURE_EVENT:
+                case WifiMonitor.WAPI_CERTIFICATION_FAILURE_EVENT:
                 case CMD_BLACKLIST_NETWORK:
                 case CMD_CLEAR_BLACKLIST:
                 case CMD_SET_OPERATIONAL_MODE:
@@ -3261,7 +3263,9 @@ public class WifiStateMachine extends StateMachine {
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                 case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
-                case WifiMonitor.WPS_OVERLAP_EVENT:
+                case WifiMonitor.WPS_OVERLAP_EVENT:         
+                case WifiMonitor.WAPI_AUTHENTICATION_FAILURE_EVENT:
+                case WifiMonitor.WAPI_CERTIFICATION_FAILURE_EVENT:
                 case CMD_SET_COUNTRY_CODE:
                 case CMD_SET_FREQUENCY_BAND:
                 case CMD_START_PACKET_FILTERING:
@@ -3699,6 +3703,30 @@ public class WifiStateMachine extends StateMachine {
             WifiConfiguration config;
             boolean ok;
             switch(message.what) {
+                case WifiMonitor.WAPI_AUTHENTICATION_FAILURE_EVENT:
+                {
+                    Intent intent;
+                    logv("Handling WAPI_EVENT, msg [" + message.what + "]");
+                    String wapiEventName = "wapi_string";
+                    intent = new Intent(WifiManager.SUPPLICANT_WAPI_EVENT);
+
+                    intent.putExtra(wapiEventName, WifiManager.WAPI_EVENT_AUTH_FAIL_CODE);
+                    mContext.sendBroadcast(intent);
+                    mSupplicantStateTracker.sendMessage(WifiMonitor.WAPI_AUTHENTICATION_FAILURE_EVENT);
+                    break;
+                }
+                case WifiMonitor.WAPI_CERTIFICATION_FAILURE_EVENT:
+                {
+                    Intent intent;
+                    logv("Handling WAPI_EVENT, msg [" + message.what + "]");
+                    String wapiEventName = "wapi_string";
+                    intent = new Intent(WifiManager.SUPPLICANT_WAPI_EVENT);
+
+                    intent.putExtra(wapiEventName, WifiManager.WAPI_EVENT_CERT_FAIL_CODE);
+                    mContext.sendBroadcast(intent);
+                    break;
+                }
+
                 case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
                     mSupplicantStateTracker.sendMessage(WifiMonitor.ASSOCIATION_REJECTION_EVENT);
                     break;
@@ -3822,6 +3850,7 @@ public class WifiStateMachine extends StateMachine {
                      * For a new network, a config is passed to create and connect.
                      * For an existing network, a network id is passed
                      */
+
                     int netId = message.arg1;
                     config = (WifiConfiguration) message.obj;
 

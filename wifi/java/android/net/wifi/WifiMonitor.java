@@ -66,6 +66,11 @@ public class WifiMonitor {
     /** All events coming from the supplicant start with this prefix */
     private static final String EVENT_PREFIX_STR = "CTRL-EVENT-";
     private static final int EVENT_PREFIX_LEN_STR = EVENT_PREFIX_STR.length();
+    private static final String WAPI_EVENT_PREFIX_STR = "WAPI:";
+    private static final String WAPI_CERTIFICATION_FAILURE_STR =
+       "certificate initialization failed";
+    private static final String WAPI_AUTHENTICATION_FAILURE_STR =
+       "authentication failed";
 
     /** All WPA events coming from the supplicant start with this prefix */
     private static final String WPA_EVENT_PREFIX_STR = "WPA:";
@@ -317,6 +322,8 @@ public class WifiMonitor {
     public static final int WPS_TIMEOUT_EVENT                    = BASE + 11;
     /* Driver was hung */
     public static final int DRIVER_HUNG_EVENT                    = BASE + 12;
+    public static final int WAPI_AUTHENTICATION_FAILURE_EVENT    = BASE + 13;
+    public static final int WAPI_CERTIFICATION_FAILURE_EVENT     = BASE + 14;
 
     /* P2P events */
     public static final int P2P_DEVICE_FOUND_EVENT               = BASE + 21;
@@ -601,6 +608,17 @@ public class WifiMonitor {
                 } else if (eventStr.startsWith(HOST_AP_EVENT_PREFIX_STR)) {
                     handleHostApEvents(eventStr);
                 }
+                else if (eventStr.startsWith(WAPI_EVENT_PREFIX_STR) &&
+                        0 < eventStr.indexOf(WAPI_CERTIFICATION_FAILURE_STR)) {
+                    if (false) Log.v(TAG, "Got WAPI event [" + eventStr + "]");
+                    mStateMachine.sendMessage(WAPI_CERTIFICATION_FAILURE_EVENT);
+                }
+                else if (eventStr.startsWith(WAPI_EVENT_PREFIX_STR) &&
+                        0 < eventStr.indexOf(WAPI_AUTHENTICATION_FAILURE_STR)) {
+                    if (false) Log.v(TAG, "Got WAPI event [" + eventStr + "]");
+                    mStateMachine.sendMessage(WAPI_AUTHENTICATION_FAILURE_EVENT);
+                }
+
                 else {
                     if (DBG) Log.w(TAG, "couldn't identify event type - " + eventStr);
                 }
