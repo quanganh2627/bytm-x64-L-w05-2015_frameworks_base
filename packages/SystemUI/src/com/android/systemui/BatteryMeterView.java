@@ -103,6 +103,13 @@ public class BatteryMeterView extends View implements DemoMode {
                 voltage = intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0);
                 temperature = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0);
 
+				//if charging full, the status bar displays discharge icon not charge icon
+				if (status == BatteryManager.BATTERY_STATUS_FULL ||
+						(status == BatteryManager.BATTERY_STATUS_CHARGING &&
+						 level == 100)) {
+					plugged = false; 
+				}
+
                 setContentDescription(
                         context.getString(R.string.accessibility_battery_level, level));
                 postInvalidate();
