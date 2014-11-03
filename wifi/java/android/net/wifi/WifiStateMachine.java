@@ -2141,6 +2141,9 @@ public class WifiStateMachine extends StateMachine {
 
         scanResults = scanResultsBuf.toString();
         if (TextUtils.isEmpty(scanResults)) {
+	   synchronized(mScanResultCache) {
+	       mScanResults = new ArrayList<ScanResult>();
+	   }
            return;
         }
 
