@@ -232,6 +232,21 @@ final class WifiDisplayAdapter extends DisplayAdapter {
         });
     }
 
+    public void requestReconnectLocked() {
+        if (DEBUG) {
+            Slog.d(TAG, "requestReconnectedLocked");
+        }
+        mActiveDisplayState = WifiDisplayStatus.DISPLAY_STATE_DISCONNECTING;
+        getHandler().post(new Runnable() {
+            @Override
+            public void run() {
+                if (mDisplayController != null) {
+                    mDisplayController.requestReconnect();
+                }
+            }
+        });
+    }
+
     public void requestRenameLocked(String address, String alias) {
         if (DEBUG) {
             Slog.d(TAG, "requestRenameLocked: address=" + address + ", alias=" + alias);
@@ -261,6 +276,7 @@ final class WifiDisplayAdapter extends DisplayAdapter {
     }
 
     public void requestForgetLocked(String address) {
+        final String addr = address;
         if (DEBUG) {
             Slog.d(TAG, "requestForgetLocked: address=" + address);
         }
@@ -274,6 +290,15 @@ final class WifiDisplayAdapter extends DisplayAdapter {
         if (mActiveDisplay != null && mActiveDisplay.getDeviceAddress().equals(address)) {
             requestDisconnectLocked();
         }
+
+        getHandler().post(new Runnable() {
+            @Override
+            public void run() {
+                if (mDisplayController != null) {
+                    mDisplayController.requestForget(addr);
+                }
+            }
+        });
     }
 
     public WifiDisplayStatus getWifiDisplayStatusLocked() {

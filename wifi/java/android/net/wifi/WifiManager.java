@@ -2552,6 +2552,58 @@ public class WifiManager {
         }
     }
 
+    /** @hide */
+    public boolean setSafeChannel(int safeChannelBitmap) {
+        if (mService == null) {
+            return false;
+        } else {
+            try {
+                mService.setSafeChannel(safeChannelBitmap);
+                return true;
+            } catch (RemoteException e) {
+                return false;
+            }
+        }
+    }
 
+    /** @hide */
+    public boolean setRTCoexMode(int enable, int safeChannelBitmap) {
+        if (mService == null) {
+            return false;
+        } else {
+            try {
+                mService.setRTCoexMode(enable, safeChannelBitmap);
+                return true;
+            } catch (RemoteException e) {
+                return false;
+            }
+        }
+    }
 
+    /** @hide */
+    public int getWifiSafeChannelBitmap() {
+        if (mService == null) {
+            return 0;
+        } else {
+            try {
+                return mService.getWifiSafeChannelBitmap();
+            } catch (RemoteException e) {
+                return 0;
+            }
+        }
+    }
+
+    /** @hide */
+    public boolean configureWlanRTCoex() {
+        if (mService == null) {
+            return false;
+        } else {
+            try {
+                mService.configureWlanRTCoex();
+                return true;
+            } catch (RemoteException e) {
+                return false;
+            }
+        }
+    }
 }

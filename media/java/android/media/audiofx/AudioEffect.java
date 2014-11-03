@@ -107,6 +107,13 @@ public class AudioEffect {
             .fromString("0a8abfe0-654c-11e0-ba26-0002a5d5c51b");
 
     /**
+     * UUID for Wind Noise Reduction (WNR)
+     * @hide
+     */
+    public static final UUID EFFECT_TYPE_WNR = UUID
+            .fromString("dab015e0-bfac-11e3-bcd9-0002a5d5c51b");
+
+    /**
      * UUID for Acoustic Echo Canceler (AEC)
      */
     public static final UUID EFFECT_TYPE_AEC = UUID
@@ -117,6 +124,13 @@ public class AudioEffect {
      */
     public static final UUID EFFECT_TYPE_NS = UUID
             .fromString("58b4b260-8e06-11e0-aa8e-0002a5d5c51b");
+
+    /**
+     * UUID for Beam Forming (BMF)
+     * @hide
+     */
+    public static final UUID EFFECT_TYPE_BMF = UUID
+            .fromString("30927220-bfb0-11e3-b03a-0002a5d5c51b");
 
     /**
      * UUID for Loudness Enhancer
@@ -202,7 +216,8 @@ public class AudioEffect {
      * {@link AudioEffect#EFFECT_TYPE_AEC}, {@link AudioEffect#EFFECT_TYPE_AGC},
      * {@link AudioEffect#EFFECT_TYPE_BASS_BOOST}, {@link AudioEffect#EFFECT_TYPE_ENV_REVERB},
      * {@link AudioEffect#EFFECT_TYPE_EQUALIZER}, {@link AudioEffect#EFFECT_TYPE_NS},
-     * {@link AudioEffect#EFFECT_TYPE_PRESET_REVERB}, {@link AudioEffect#EFFECT_TYPE_VIRTUALIZER}.
+     * {@link AudioEffect#EFFECT_TYPE_PRESET_REVERB}, {@link AudioEffect#EFFECT_TYPE_VIRTUALIZER},
+     * {@link AudioEFfect#EFFECT_TYPE_BMF}, {@link AudioEffect#EFFECT_TYPE_WNR}.
      *  </li>
      *  <li>uuid: UUID for this particular implementation</li>
      *  <li>connectMode: {@link #EFFECT_INSERT} or {@link #EFFECT_AUXILIARY}</li>
@@ -223,7 +238,8 @@ public class AudioEffect {
          * {@link AudioEffect#EFFECT_TYPE_BASS_BOOST}, {@link AudioEffect#EFFECT_TYPE_ENV_REVERB},
          * {@link AudioEffect#EFFECT_TYPE_EQUALIZER}, {@link AudioEffect#EFFECT_TYPE_NS},
          * {@link AudioEffect#EFFECT_TYPE_PRESET_REVERB},
-         * {@link AudioEffect#EFFECT_TYPE_VIRTUALIZER}.
+         * {@link AudioEffect#EFFECT_TYPE_VIRTUALIZER}, {@link AudioEFfect#EFFECT_TYPE_BMF},
+         * {@link AudioEffect#EFFECT_TYPE_WNR}.
          * @param uuid         UUID for this particular implementation
          * @param connectMode  {@link #EFFECT_INSERT} or {@link #EFFECT_AUXILIARY}
          * @param name         human readable effect name
@@ -244,8 +260,9 @@ public class AudioEffect {
          *  One of {@link AudioEffect#EFFECT_TYPE_AEC},
          *  {@link AudioEffect#EFFECT_TYPE_AGC}, {@link AudioEffect#EFFECT_TYPE_BASS_BOOST},
          *  {@link AudioEffect#EFFECT_TYPE_ENV_REVERB}, {@link AudioEffect#EFFECT_TYPE_EQUALIZER},
-         *  {@link AudioEffect#EFFECT_TYPE_NS}, {@link AudioEffect#EFFECT_TYPE_PRESET_REVERB}
-         *   or {@link AudioEffect#EFFECT_TYPE_VIRTUALIZER}.<br>
+         *  {@link AudioEffect#EFFECT_TYPE_NS}, {@link AudioEffect#EFFECT_TYPE_PRESET_REVERB},
+         *  {@link AudioEffect#EFFECT_TYPE_VIRTUALIZER}, {@link AudioEFfect#EFFECT_TYPE_BMF}
+         *   or {@link AudioEffect#EFFECT_TYPE_WNR}.<br>
          *  For reverberation, bass boost, EQ and virtualizer, the UUID
          *  corresponds to the OpenSL ES Interface ID.
          */
