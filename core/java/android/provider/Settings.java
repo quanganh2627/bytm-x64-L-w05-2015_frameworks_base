@@ -2872,6 +2872,7 @@ public final class Settings {
             MOVED_TO_GLOBAL.add(Settings.Global.PREFERRED_NETWORK_MODE);
             MOVED_TO_GLOBAL.add(Settings.Global.PREFERRED_NETWORK2_MODE);
             MOVED_TO_GLOBAL.add(Settings.Global.GSM_3G_SELECTION_MODE);
+            MOVED_TO_GLOBAL.add(Settings.Global.ONLY_3G_SELECTION_MODE);
         }
 
         /** @hide */
@@ -5902,6 +5903,13 @@ public final class Settings {
          * @hide
          */
         public static final String GSM_3G_SELECTION_MODE = "gsm_3g_selection_mode";
+
+        /**
+         * only 3g selection mode for dual sim device.
+         * When this mode is enabled, only 3g mode will be selected.
+         * @hide
+         */
+        public static final String ONLY_3G_SELECTION_MODE = "only_3g_selection_mode";
 
         /**
          * Persisted safe headphone volume management state by AudioService
