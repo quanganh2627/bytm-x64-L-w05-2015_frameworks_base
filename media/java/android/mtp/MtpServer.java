@@ -64,6 +64,10 @@ public class MtpServer implements Runnable {
         native_remove_storage(storage.getStorageId());
     }
 
+    public void changeStorageInfo(MtpStorage storage) {
+        native_change_storageinfo(storage.getStorageId());
+    }
+
     private native final void native_setup(MtpDatabase database, boolean usePtp);
     private native final void native_run();
     private native final void native_cleanup();
@@ -72,4 +76,5 @@ public class MtpServer implements Runnable {
     private native final void native_send_device_property_changed(int property);
     private native final void native_add_storage(MtpStorage storage);
     private native final void native_remove_storage(int storageId);
+    private native final void native_change_storageinfo(int storageId);
 }
