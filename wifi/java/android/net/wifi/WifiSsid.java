@@ -85,70 +85,72 @@ public class WifiSsid implements Parcelable {
             switch (c) {
                 case '\\':
                     i++;
-                    switch(asciiEncoded.charAt(i)) {
-                        case '\\':
-                            octets.write('\\');
-                            i++;
-                            break;
-                        case '"':
-                            octets.write('"');
-                            i++;
-                            break;
-                        case 'n':
-                            octets.write('\n');
-                            i++;
-                            break;
-                        case 'r':
-                            octets.write('\r');
-                            i++;
-                            break;
-                        case 't':
-                            octets.write('\t');
-                            i++;
-                            break;
-                        case 'e':
-                            octets.write(27); //escape char
-                            i++;
-                            break;
-                        case 'x':
-                            i++;
-                            try {
-                                val = Integer.parseInt(asciiEncoded.substring(i, i + 2), HEX_RADIX);
-                            } catch (NumberFormatException e) {
-                                val = -1;
-                            }
-                            if (val < 0) {
-                                val = Character.digit(asciiEncoded.charAt(i), HEX_RADIX);
-                                if (val < 0) break;
+                    if (i< asciiEncoded.length()) {
+                        switch(asciiEncoded.charAt(i)) {
+                            case '\\':
+                                octets.write('\\');
+                                i++;
+                                break;
+                            case '"':
+                                octets.write('"');
+                                i++;
+                                break;
+                            case 'n':
+                                octets.write('\n');
+                                i++;
+                                break;
+                            case 'r':
+                                octets.write('\r');
+                                i++;
+                                break;
+                            case 't':
+                                octets.write('\t');
+                                i++;
+                                break;
+                            case 'e':
+                                octets.write(27); //escape char
+                                i++;
+                                break;
+                            case 'x':
+                                i++;
+                                try {
+                                    val = Integer.parseInt(asciiEncoded.substring(i, i + 2), HEX_RADIX);
+                                } catch (NumberFormatException e) {
+                                    val = -1;
+                                }
+                                if (val < 0) {
+                                    val = Character.digit(asciiEncoded.charAt(i), HEX_RADIX);
+                                    if (val < 0) break;
+                                    octets.write(val);
+                                    i++;
+                                } else {
+                                    octets.write(val);
+                                    i += 2;
+                                }
+                                break;
+                            case '0':
+                            case '1':
+                            case '2':
+                            case '3':
+                            case '4':
+                            case '5':
+                            case '6':
+                            case '7':
+                                val = asciiEncoded.charAt(i) - '0';
+                                i++;
+                                if (asciiEncoded.charAt(i) >= '0' && asciiEncoded.charAt(i) <= '7') {
+                                    val = val * 8 + asciiEncoded.charAt(i) - '0';
+                                    i++;
+                                }
+                                if (asciiEncoded.charAt(i) >= '0' && asciiEncoded.charAt(i) <= '7') {
+                                    val = val * 8 + asciiEncoded.charAt(i) - '0';
+                                    i++;
+                                }
                                 octets.write(val);
-                                i++;
-                            } else {
-                                octets.write(val);
-                                i += 2;
-                            }
-                            break;
-                        case '0':
-                        case '1':
-                        case '2':
-                        case '3':
-                        case '4':
-                        case '5':
-                        case '6':
-                        case '7':
-                            val = asciiEncoded.charAt(i) - '0';
-                            i++;
-                            if (asciiEncoded.charAt(i) >= '0' && asciiEncoded.charAt(i) <= '7') {
-                                val = val * 8 + asciiEncoded.charAt(i) - '0';
-                                i++;
-                            }
-                            if (asciiEncoded.charAt(i) >= '0' && asciiEncoded.charAt(i) <= '7') {
-                                val = val * 8 + asciiEncoded.charAt(i) - '0';
-                                i++;
-                            }
-                            octets.write(val);
-                            break;
-                        default:
-                            break;
+                                break;
+                            default:
+                                break;
+                       }
                     }
                     break;
                 default:
