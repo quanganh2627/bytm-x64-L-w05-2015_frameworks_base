@@ -590,6 +590,18 @@ public final class PowerManager {
     }
 
     /**
+     * Allow power manager to know system has wakeup
+     * @hide
+     */
+    public boolean isSleep() {
+        try {
+            return mService.isSleep();
+        } catch (RemoteException e) {
+            return false;
+        }
+    }
+
+    /**
      * Reboot the device.  Will not return if the reboot is successful.
      * <p>
      * Requires the {@link android.Manifest.permission#REBOOT} permission.

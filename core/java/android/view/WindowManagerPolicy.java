@@ -428,6 +428,9 @@ public interface WindowManagerPolicy {
 
         /** Unregister a system listener for touch events */
         void unregisterPointerEventListener(PointerEventListener listener);
+
+        //add for reboot
+        public void reboot(Context context,String reason,boolean confirm);
     }
 
     public interface PointerEventListener {

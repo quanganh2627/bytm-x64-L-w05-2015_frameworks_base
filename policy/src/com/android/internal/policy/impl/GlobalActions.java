@@ -261,7 +261,7 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
                     return true;
                 }
             });
-
+/*
         // next: airplane mode
         mItems.add(mAirplaneModeOn);
 
@@ -318,6 +318,26 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
         if (mShowSilentToggle) {
             mItems.add(mSilentModeAction);
         }
+*/
+
+            mItems.add(
+                    new SinglePressAction(com.android.internal.R.drawable.ic_settings_backup,
+                        R.string.global_action_reboot) {
+                        public void onPress() {
+                            // shutdown by making sure radio and power are handled accordingly.
+                            // mWindowManagerFuncs.rebootSafeMode(true);
+                            mWindowManagerFuncs.reboot(mContext,null,true);
+                            // ShutdownThread.reboot(mContext,null,false);
+                        }
+
+                        public boolean showDuringKeyguard() {
+                            return true;
+                        }
+
+                        public boolean showBeforeProvisioning() {
+                            return true;
+                        }
+                    });
 
         // one more thing: optionally add a list of users to switch to
         if (SystemProperties.getBoolean("fw.power_user_switcher", false)) {

@@ -542,6 +542,13 @@ public final class PowerManagerService extends IPowerManager.Stub
         }
     }
 
+    public boolean isSleep(){
+        //mDisplayPowerRequest.screenState == DisplayPowerRequest.SCREEN_STATE_OFF
+        if(!mSendWakeUpFinishedNotificationWhenReady)
+            return true;
+        return false;
+    }
+
     private void readConfigurationLocked() {
         final Resources resources = mContext.getResources();
 

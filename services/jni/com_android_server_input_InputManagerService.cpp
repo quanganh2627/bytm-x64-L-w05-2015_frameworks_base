@@ -850,12 +850,14 @@ void NativeInputManager::interceptMotionBeforeQueueing(nsecs_t when, uint32_t& p
 
 void NativeInputManager::handleInterceptActions(jint wmActions, nsecs_t when,
         uint32_t& policyFlags) {
+#if 0
     if (wmActions & WM_ACTION_GO_TO_SLEEP) {
 #if DEBUG_INPUT_DISPATCHER_POLICY
         ALOGD("handleInterceptActions: Going to sleep.");
 #endif
         android_server_PowerManagerService_goToSleep(when);
     }
+#endif
 
     if (wmActions & WM_ACTION_WAKE_UP) {
 #if DEBUG_INPUT_DISPATCHER_POLICY
@@ -863,7 +865,6 @@ void NativeInputManager::handleInterceptActions(jint wmActions, nsecs_t when,
 #endif
         android_server_PowerManagerService_wakeUp(when);
     }
-
     if (wmActions & WM_ACTION_PASS_TO_USER) {
         policyFlags |= POLICY_FLAG_PASS_TO_USER;
     } else {

@@ -680,10 +680,12 @@ public class PhoneWindowManager extends ParentPhoneWindowManager implements Wind
     private void interceptPowerKeyDown(boolean handled, boolean longLongPressCandidate) {
         mPowerKeyHandled = handled;
         if (!handled) {
-            mPowerKeyTimeout = ViewConfiguration.getGlobalActionKeyTimeout();
             Log.i(TAG, String.format("interceptPowerKeyDown: key down event: not handled: set timeout to %d ms", mPowerKeyTimeout));
             // Ask mPowerLongPress to be run when specified amount of time elapses.
-            mHandler.postDelayed(mPowerLongPress, mPowerKeyTimeout);
+            // when enter power button for wakeup not show shut down menu
+            if (mPowerManager.isSleep()) {
+                mHandler.post(mPowerLongPress);
+            }
         } else {
             // only for calls from POWER BUTTON handling can start longLongPress timer
             if (longLongPressCandidate) {
