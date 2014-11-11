@@ -8,6 +8,10 @@ else
     LOCAL_CPPFLAGS += -DPLATFORM_ASF_VERSION=0
 endif
 
+ifeq ($(strip $(POWERHINT_ENABLE)),true)
+    LOCAL_CPPFLAGS += -DPOWERHINT_ENABLE
+endif
+
 LOCAL_SRC_FILES:= \
     com_android_server_AlarmManagerService.cpp \
     com_android_server_AssetAtlasService.cpp \
