@@ -130,6 +130,7 @@ public class Tethering extends BaseNetworkObserver {
     private boolean mRndisEnabled;       // track the RNDIS function enabled state
     private boolean mUsbTetherRequested; // true if USB tethering should be started
                                          // when RNDIS is enabled
+    private boolean mUntetherFinished;   // true if USB untethering is finished
 
     public Tethering(Context context, INetworkManagementService nmService,
             INetworkStatsService statsService, Looper looper) {
@@ -137,6 +138,7 @@ public class Tethering extends BaseNetworkObserver {
         mNMService = nmService;
         mStatsService = statsService;
         mLooper = looper;
+        mUntetherFinished = true;
 
         mPublicSync = new Object();
 
@@ -504,8 +506,8 @@ public class Tethering extends BaseNetworkObserver {
                     // start tethering if we have a request pending
                     if (usbConnected && mRndisEnabled && mUsbTetherRequested) {
                         tetherUsb(true);
+                        mUsbTetherRequested = false;
                     }
-                    mUsbTetherRequested = false;
                 }
             } else if (action.equals(ConnectivityManager.CONNECTIVITY_ACTION)) {
                 NetworkInfo networkInfo = (NetworkInfo)intent.getParcelableExtra(
@@ -601,11 +603,12 @@ public class Tethering extends BaseNetworkObserver {
             if (enable) {
                 if (mRndisEnabled) {
                     tetherUsb(true);
-                } else {
+                } else if (mUntetherFinished) {
                     mUsbTetherRequested = true;
                     usbManager.setCurrentFunction(UsbManager.USB_FUNCTION_RNDIS, false);
                 }
             } else {
+                mUntetherFinished = false;
                 tetherUsb(false);
                 if (mRndisEnabled) {
                     usbManager.setCurrentFunction(null, false);
@@ -1081,6 +1084,7 @@ public class Tethering extends BaseNetworkObserver {
                 setAvailable(false);
                 setLastError(ConnectivityManager.TETHER_ERROR_NO_ERROR);
                 setTethered(false);
+                mUntetherFinished = true;
                 sendTetherStateChangedBroadcast();
             }
             @Override
