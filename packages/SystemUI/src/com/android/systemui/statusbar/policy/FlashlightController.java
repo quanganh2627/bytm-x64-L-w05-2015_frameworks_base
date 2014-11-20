@@ -192,7 +192,7 @@ public class FlashlightController {
                     startSession();
                     return;
                 }
-                if (mFlashlightRequest == null) {
+                if (mFlashlightRequest == null && mSurface != null) {
                     CaptureRequest.Builder builder = mCameraDevice.createCaptureRequest(
                             CameraDevice.TEMPLATE_PREVIEW);
                     builder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_TORCH);
