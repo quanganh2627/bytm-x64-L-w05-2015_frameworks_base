@@ -4844,23 +4844,29 @@ public class PackageManagerService extends IPackageManager.Stub {
      * Returns true if expected behavior (compilation completes or budget is exhausted)
      * Returns false if something unexpected happens before compilation happens.
      */
-    private boolean OTADeferralPolicy(HashSet<PackageParser.Package> pkgs) {
+    private boolean OTADeferralPolicy(HashSet<PackageParser.Package> pkgs, ArrayList<PackageParser.Package> sortedPkgs) {
         SELECTIVE_ENABLED = SystemProperties.getBoolean("persist.selective.enabled", DEFAULT_SELECTIVE_ENABLED);
-        if (pkgs == null || pkgs.isEmpty() || !SELECTIVE_ENABLED) {
+        if (pkgs == null || sortedPkgs == null || !SELECTIVE_ENABLED) {
             return false;
         }
 
-        // Get the sorted values by most recently last resumed time.
+        // Add packages already sorted by priority in AOSP code.
+        ArrayList<PackageParser.Package> finalSortedPkgs = new ArrayList<PackageParser.Package>(sortedPkgs);
+
+        // Get remaining packages and sort by most recently last resumed time.
         ArrayList<PackageParser.Package> lrtSortedPkgs = new ArrayList<PackageParser.Package>(pkgs);
         Collections.sort(lrtSortedPkgs, new PackageParser.LRTComparator());
+        // Append remaining apps that were sorted to the finalSortedPkgs list.
+        finalSortedPkgs.addAll(lrtSortedPkgs);
+
         final long DEFAULT_OTA_BUDGET = 7 * 60 * 1000;  // 7 mins in milliseconds.
         final long OTA_BUDGET = SystemProperties.getLong("persist.selective.ota_budget",
                                                           DEFAULT_OTA_BUDGET);
         int count = 0;
 
-        // start optimization of all apps stored in "lrt_sorted_pkgs".
+        // start optimization of all apps stored in "finalSortedPkgs".
         Log.i(TAG, "Attempting to optimize all packages under budget. Package count: "
-            + lrtSortedPkgs.size()
+            + finalSortedPkgs.size()
             + " and OTA BUDGET is " + OTA_BUDGET + "ms.");
 
         final long START_TIME_STAMP = System.currentTimeMillis() + OTA_BUDGET;
@@ -4869,7 +4875,20 @@ public class PackageManagerService extends IPackageManager.Stub {
         // budget.
         long endTimeStamp = START_TIME_STAMP + OTA_BUDGET;
 
-        for (PackageParser.Package p : lrtSortedPkgs) {
+        File dataDir = Environment.getDataDirectory();
+        long lowThreshold = StorageManager.from(mContext).getStorageLowBytes(dataDir);
+        if (lowThreshold == 0) {
+            throw new IllegalStateException("Invalid low memory threshold");
+        }
+
+        for (PackageParser.Package p : finalSortedPkgs) {
+            long usableSpace = dataDir.getUsableSpace();
+            if (usableSpace < lowThreshold) {
+                Log.w(TAG, "Timed OTA interrupted on remaining apps due to low memory: "
+                      + usableSpace);
+                break;
+            }
+
             if ((endTimeStamp - START_TIME_STAMP) <= 0) {
                 return true;  // budget exhausted. OTA compilation should end, defer the rest.
             }
@@ -4986,17 +5005,21 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
             // Filter out packages that aren't recently used.
             filterRecentlyUsedApps(pkgs);
+
+            // If our OTA policy works, we can quit. Otherwise, use AOSP default policy.
+            // This policy will sort the unsorted "pkgs" remaining apps from filterRecentlyUsedApps
+            // by Last Resumed Time then append to the end of sortedPkgs which were determined
+            // important (core and system apps) by AOSP already.
+            if (OTADeferralPolicy(pkgs, sortedPkgs)) {
+                return;
+            }
+
             // Add all remaining apps.
             for (PackageParser.Package pkg : pkgs) {
                 if (DEBUG_DEXOPT) {
                     Log.i(TAG, "Adding app " + sortedPkgs.size() + ": " + pkg.packageName);
                 }
                 sortedPkgs.add(pkg);
-            }
-
-            // If our OTA policy works, we can quit. Otherwise, use AOSP default policy.
-            if (OTADeferralPolicy(pkgs)) {
-                return;
             }
 
             int i = 0;
