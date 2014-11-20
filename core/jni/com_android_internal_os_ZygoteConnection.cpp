@@ -49,20 +49,42 @@ static void com_android_internal_os_ZygoteConnection_settingHoudiniABI (JNIEnv *
     return;
 }
 
-#define APP_WITH_ABI2      "/data/data/.appwithABI2"
+#define APP_WITH_ABI2               "/data/data/.appwithABI2"
+#define APP_WITH_IMPLICIT_ABI       "/data/.appwithImplicitABI"
+#define APP_ABI2_FLAG               1
+#define APP_IMPLICIT_ABI_FLAG       2
 
-static jboolean com_android_internal_os_ZygoteConnection_isABI2App (JNIEnv *env, jobject clazz, jint uid)
+static jint com_android_internal_os_ZygoteConnection_isABI2App (JNIEnv *env, jobject clazz, jint appId)
 {
-    int pkg_ABI2 = open(APP_WITH_ABI2, O_RDONLY,0444);
-    if (pkg_ABI2 != -1) {
-        int pkguid = 0;
-        while (read(pkg_ABI2, &pkguid, 4) > 0) {
-            if (uid == pkguid) {
-                return true;
+    int app_abi_flag = 0;
+    int fd = open(APP_WITH_ABI2, O_RDONLY,0444);
+    if (fd != -1) {
+        int pkgAppId = 0;
+        while (read(fd, &pkgAppId, 4) > 0) {
+            if (appId == pkgAppId) {
+                app_abi_flag |= APP_ABI2_FLAG;
+                break;
             }
         }
+        close(fd);
     }
-    return false;
+
+    if (!(app_abi_flag & APP_ABI2_FLAG))
+        return (jint)app_abi_flag;
+
+    fd = open(APP_WITH_IMPLICIT_ABI, O_RDONLY,0444);
+    if (fd != -1) {
+        int pkgAppId = 0;
+        while (read(fd, &pkgAppId, 4) > 0) {
+            if (appId == pkgAppId) {
+                app_abi_flag |= APP_IMPLICIT_ABI_FLAG;
+                break;
+            }
+        }
+        close(fd);
+    }
+
+    return (jint)app_abi_flag;
 }
 
 #ifdef WITH_HOUDINI
@@ -82,7 +104,7 @@ static JNINativeMethod gMethods[] = {
     /* name, signature, funcPtr */
     { "settingHoudiniABI", "()V",
         (void *) com_android_internal_os_ZygoteConnection_settingHoudiniABI },
-    { "isABI2App", "(I)Z",
+    { "isABI2App", "(I)I",
         (void *) com_android_internal_os_ZygoteConnection_isABI2App },
 #ifdef WITH_HOUDINI
     { "unloadHoudini", "()V",
