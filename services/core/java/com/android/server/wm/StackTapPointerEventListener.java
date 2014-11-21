@@ -17,6 +17,7 @@
 package com.android.server.wm;
 
 import android.graphics.Region;
+import android.util.Log;
 import android.view.DisplayInfo;
 import android.view.MotionEvent;
 import android.view.WindowManagerPolicy.PointerEventListener;
@@ -24,6 +25,7 @@ import android.view.WindowManagerPolicy.PointerEventListener;
 import com.android.server.wm.WindowManagerService.H;
 
 public class StackTapPointerEventListener implements PointerEventListener {
+    private static final String TAG = "StackTapPointerEventListener";
     private static final int TAP_TIMEOUT_MSEC = 300;
     private static final float TAP_MOTION_SLOP_INCHES = 0.125f;
 
@@ -56,6 +58,10 @@ public class StackTapPointerEventListener implements PointerEventListener {
             case MotionEvent.ACTION_MOVE:
                 if (mPointerId >= 0) {
                     int index = motionEvent.findPointerIndex(mPointerId);
+                    if (index == -1) {
+                        Log.e(TAG, "Invalid pointerId=" + mPointerId + " in onPointerEvent");
+                        break;
+                    }
                     if ((motionEvent.getEventTime() - motionEvent.getDownTime()) > TAP_TIMEOUT_MSEC
                             || (motionEvent.getX(index) - mDownX) > mMotionSlop
                             || (motionEvent.getY(index) - mDownY) > mMotionSlop) {

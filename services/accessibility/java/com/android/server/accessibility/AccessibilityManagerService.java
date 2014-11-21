@@ -1695,8 +1695,8 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
 
         @Override
         public void binderDied() {
-            unlinkToDeath();
             synchronized (mLock) {
+                unlinkToDeath();
                 removeAccessibilityInteractionConnectionLocked(mWindowId, mUserId);
             }
         }
