@@ -33,6 +33,7 @@ import com.android.internal.telephony.TelephonyConstants;
 
 import java.net.InetAddress;
 
+
 /**
  * Class that answers queries about the state of network connectivity. It also
  * notifies applications when network connectivity changes. Get an instance
@@ -371,14 +372,12 @@ public class ConnectivityManager {
      * Service servers.
      * {@hide}
      */
-    public static final int TYPE_MOBILE2_MMS = 15;
+    public static final int TYPE_MOBILE2_MMS = TYPE_MOBILE_IMS;
     /** {@hide} */
-    public static final int MAX_RADIO_TYPE   = TelephonyConstants.IS_DSDS
-                                                  ? TYPE_MOBILE2_MMS : TYPE_MOBILE_IA;
+    public static final int MAX_RADIO_TYPE   = TYPE_MOBILE_IA;
 
     /** {@hide} */
-    public static final int MAX_NETWORK_TYPE = TelephonyConstants.IS_DSDS
-                                                  ? TYPE_MOBILE2_MMS : TYPE_MOBILE_IA;
+    public static final int MAX_NETWORK_TYPE = TYPE_MOBILE_IA;
 
     /**
      * If you want to set the default network preference,you can directly
@@ -464,8 +463,8 @@ public class ConnectivityManager {
                 return "ETHERNET";
             case TYPE_MOBILE_FOTA:
                 return "MOBILE_FOTA";
-            case TYPE_MOBILE_IMS:
-                return "MOBILE_IMS";
+            /*case TYPE_MOBILE_IMS:
+                return "MOBILE_IMS";*/
             case TYPE_MOBILE_CBS:
                 return "MOBILE_CBS";
             case TYPE_WIFI_P2P:
@@ -494,7 +493,7 @@ public class ConnectivityManager {
             case TYPE_MOBILE_DUN:
             case TYPE_MOBILE_HIPRI:
             case TYPE_MOBILE_FOTA:
-            case TYPE_MOBILE_IMS:
+            /*case TYPE_MOBILE_IMS:*/
             case TYPE_MOBILE_CBS:
             case TYPE_MOBILE_IA:
             case TYPE_MOBILE2_MMS:
