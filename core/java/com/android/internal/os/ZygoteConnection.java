@@ -170,11 +170,7 @@ class ZygoteConnection {
             newStderr = new PrintStream(
                     new FileOutputStream(descriptors[2]));
         }
-        String s = "";
-        for (int i = 0; i < args.length; i++ ) {
-            s += args[i];
-        }
-        Log.d(TAG, "args = " + s);
+
         int pid = -1;
         FileDescriptor childPipeFd = null;
         FileDescriptor serverPipeFd = null;

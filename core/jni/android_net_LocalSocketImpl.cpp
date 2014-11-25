@@ -363,7 +363,7 @@ static jint socket_pending (JNIEnv *env, jobject object,
     // If this were a non-socket fd, there would be other cases to worry
     // about...
 
-    ALOGD("socket_pending, ioctl ret:%d, pending:%d", ret, pending);
+    //ALOGD("socket_pending, ioctl ret:%d, pending:%d", ret, pending);
     if (ret < 0) {
         jniThrowIOException(env, errno);
         return (jint) 0;
@@ -513,7 +513,6 @@ static ssize_t socket_read_all(JNIEnv *env, jobject thisJ, int fd,
 
     do {
         ret = recvmsg(fd, &msg, MSG_NOSIGNAL);
-        ALOGD("socket_read_all, recvmsg ret:%d", ret);
     } while (ret < 0 && errno == EINTR);
 
     if (ret < 0 && errno == EPIPE) {
@@ -610,7 +609,6 @@ static int socket_write_all(JNIEnv *env, jobject object, int fd,
 
         do {
             ret = sendmsg(fd, &msg, MSG_NOSIGNAL);
-            ALOGD("socket_write_all, sendmsg ret:%d", ret);
         } while (ret < 0 && errno == EINTR);
 
         if (ret < 0) {

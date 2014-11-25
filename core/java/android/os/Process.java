@@ -28,7 +28,6 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 
 /*package*/ class ZygoteStartFailedEx extends Exception {
@@ -564,12 +563,7 @@ public class Process {
                 writer.write(arg);
                 writer.newLine();
             }
-            String str = "";
-            Iterator it = args.iterator();
-            while( it.hasNext() ) {
-                str += it.next();
-            }
-            Log.d( LOG_TAG, str);
+
             writer.flush();
 
             // Should there be a timeout on this?
