@@ -20,6 +20,8 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src) $(call all-subdir-Iaidl-fil
 
 LOCAL_MODULE := Keyguard
 
+LOCAL_JAVA_LIBRARIES := com.intel.config
+
 LOCAL_CERTIFICATE := platform
 
 LOCAL_PRIVILEGED_MODULE := true

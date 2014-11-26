@@ -56,6 +56,8 @@ import com.android.internal.os.BackgroundThread;
 import com.android.internal.widget.ILockSettings;
 import com.android.internal.widget.ILockSettingsObserver;
 import com.android.internal.widget.LockPatternUtils;
+import com.intel.server.aa.AdaptiveAuthenticationHandler;
+import com.intel.config.FeatureConfig;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -95,6 +97,7 @@ public class LockSettingsService extends ILockSettings.Stub {
 
     private final Context mContext;
     private LockPatternUtils mLockPatternUtils;
+    private AdaptiveAuthenticationHandler mAAhandler = null;
     private boolean mFirstCallToVold;
 
     private final ArrayList<LockSettingsObserver> mObservers = new ArrayList<>();
@@ -106,6 +109,9 @@ public class LockSettingsService extends ILockSettings.Stub {
 
         mLockPatternUtils = new LockPatternUtils(context);
         mFirstCallToVold = true;
+        if (FeatureConfig.INTEL_FEATURE_ADAPTIVE_AUTHENTICATION) {
+            mAAhandler = AdaptiveAuthenticationHandler.GetInstance(mLockPatternUtils, context);
+        }
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_USER_ADDED);
@@ -538,6 +544,21 @@ public class LockSettingsService extends ILockSettings.Stub {
         final KeyStore ks = KeyStore.getInstance();
         final int userUid = UserHandle.getUid(userId, Process.SYSTEM_UID);
         ks.resetUid(userUid);
+    }
+
+    public boolean checkSafe(int userId) {
+        checkWritePermission(userId);
+        return mAAhandler.checkSafe(userId);
+    }
+
+    public void aaUpdate(int userId) {
+        checkWritePermission(userId);
+        mAAhandler.aaUpdate(userId);
+    }
+
+    public void keyguardUnlocked(int userId) {
+        checkWritePermission(userId);
+        mAAhandler.keyguardUnlocked();
     }
 
     private void writeFile(String name, byte[] hash) {

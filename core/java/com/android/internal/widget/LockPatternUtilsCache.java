@@ -240,4 +240,19 @@ public class LockPatternUtilsCache implements ILockSettings {
             return key.hashCode() ^ userId;
         }
     }
+
+    @Override
+    public boolean checkSafe(int userId) throws RemoteException{
+        return mService.checkSafe(userId);
+    }
+
+    @Override
+    public void aaUpdate(int userId) throws RemoteException{
+        mService.aaUpdate(userId);
+    }
+
+    @Override
+    public void keyguardUnlocked(int userId) throws RemoteException{
+        mService.keyguardUnlocked(userId);
+    }
 }

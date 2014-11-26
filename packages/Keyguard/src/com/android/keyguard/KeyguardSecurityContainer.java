@@ -26,6 +26,8 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 
+import com.intel.config.FeatureConfig;
+
 import com.android.internal.widget.LockPatternUtils;
 import com.android.keyguard.KeyguardSecurityModel.SecurityMode;
 
@@ -281,6 +283,11 @@ public class KeyguardSecurityContainer extends FrameLayout implements KeyguardSe
         mLockPatternUtils.reportFailedPasswordAttempt();
         if (showTimeout) {
             showTimeoutDialog();
+            // Turn off AA
+            if (FeatureConfig.INTEL_FEATURE_ADAPTIVE_AUTHENTICATION
+                    && mLockPatternUtils.getAAState()) {
+                mLockPatternUtils.setAAState(false);
+            }
         }
     }
 

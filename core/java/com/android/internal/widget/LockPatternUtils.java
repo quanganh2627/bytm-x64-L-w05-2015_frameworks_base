@@ -48,6 +48,7 @@ import android.widget.Button;
 
 import com.android.internal.R;
 import com.google.android.collect.Lists;
+import com.intel.internal.widget.aa.constants.Constants;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -1667,5 +1668,74 @@ public class LockPatternUtils {
         }
         Settings.Global.putInt(mContext.getContentResolver(),
                 Settings.Global.REQUIRE_PASSWORD_TO_DECRYPT, required ? 1 : 0);
+    }
+
+    public boolean checkSafe() {
+        Log.d(TAG, "check safe");
+        try {
+            ILockSettings lockSettings = getLockSettings();
+            if (lockSettings == null) {
+                Log.e(TAG, "can't get lock setting service");
+                return false;
+            }
+            return lockSettings.checkSafe(getCurrentOrCallingUserId());
+        } catch (RemoteException re) {
+            // What can we do?
+            Log.e(TAG, "checkSafe failed " + re);
+            return false;
+        }
+    }
+
+    public void setSafeZone(String sz) {
+        Log.d(TAG, "set safe zone");
+        setString(Constants.AA_SAFEZONE_KEY, sz, getCurrentOrCallingUserId());
+        // need to update AA calculation
+        aaUpdate();
+    }
+
+    public String getSafeZone() {
+        Log.d(TAG, "get safe zone");
+        return getString(Constants.AA_SAFEZONE_KEY);
+    }
+
+    public void setAAState(boolean state) {
+        Log.d(TAG, "set aa state");
+        setBoolean(Constants.AA_ON_OFF_KEY, state, getCurrentOrCallingUserId());
+        // need to update AA calculation
+        aaUpdate();
+    }
+
+    public boolean getAAState() {
+        Log.d(TAG, "get aa state");
+        return getBoolean(Constants.AA_ON_OFF_KEY, false, getCurrentOrCallingUserId());
+    }
+
+    public void keyguardUnlocked() {
+        Log.d(TAG, "keyguardUnlocked");
+        try {
+            ILockSettings lockSettings = getLockSettings();
+            if (lockSettings == null) {
+                Log.e(TAG, "can't get lock setting service");
+                return;
+            }
+            lockSettings.keyguardUnlocked(getCurrentOrCallingUserId());
+        } catch (RemoteException re) {
+            Log.e(TAG, "keyguardUnlocked " + re);
+        }
+    }
+
+    private void aaUpdate() {
+        Log.d(TAG, "aa update");
+        try {
+            ILockSettings lockSettings = getLockSettings();
+            if (lockSettings == null) {
+                Log.e(TAG, "can't get lock setting service");
+                return;
+            }
+            lockSettings.aaUpdate(getCurrentOrCallingUserId());
+        } catch (RemoteException re) {
+            // What can we do?
+            Log.e(TAG, "aa update " + re);
+        }
     }
 }

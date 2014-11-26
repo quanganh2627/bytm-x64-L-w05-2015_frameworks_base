@@ -11,4 +11,8 @@ LOCAL_SRC_FILES += \
 
 LOCAL_JAVA_LIBRARIES := android.policy telephony-common
 
+LOCAL_JAVA_LIBRARIES += com.intel.config
+
+LOCAL_STATIC_JAVA_LIBRARIES += com.intel.aa
+
 include $(BUILD_STATIC_JAVA_LIBRARY)

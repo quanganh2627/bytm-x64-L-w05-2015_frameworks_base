@@ -396,6 +396,8 @@ LOCAL_JAVA_LIBRARIES := core-libart conscrypt okhttp core-junit bouncycastle ext
 
 LOCAL_MODULE := framework
 
+LOCAL_STATIC_JAVA_LIBRARIES += com.intel.aa.ctr
+
 LOCAL_DX_FLAGS := --core-library --multi-dex
 
 LOCAL_RMTYPEDEFS := true

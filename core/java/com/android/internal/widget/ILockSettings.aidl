@@ -34,6 +34,9 @@ interface ILockSettings {
     boolean havePattern(int userId);
     boolean havePassword(int userId);
     void removeUser(int userId);
+    boolean checkSafe(int userId);
+    void aaUpdate(int userId);
+    void keyguardUnlocked(int userId);
     void registerObserver(in ILockSettingsObserver observer);
     void unregisterObserver(in ILockSettingsObserver observer);
 }

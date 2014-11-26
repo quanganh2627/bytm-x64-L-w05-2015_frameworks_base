@@ -22,6 +22,8 @@ import android.telephony.TelephonyManager;
 import com.android.internal.telephony.IccCardConstants;
 import com.android.internal.widget.LockPatternUtils;
 
+import com.intel.config.FeatureConfig;
+
 public class KeyguardSecurityModel {
 
     /**
@@ -108,6 +110,9 @@ public class KeyguardSecurityModel {
 
                 default:
                     throw new IllegalStateException("Unknown security quality:" + security);
+            }
+	    if (FeatureConfig.INTEL_FEATURE_ADAPTIVE_AUTHENTICATION) {
+                mode = mLockPatternUtils.checkSafe() ? SecurityMode.None : mode;
             }
         }
         return mode;

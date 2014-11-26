@@ -44,6 +44,7 @@ import com.android.internal.widget.LockPatternUtils;
 import com.android.keyguard.KeyguardHostView.OnDismissAction;
 import com.android.keyguard.KeyguardSecurityContainer.SecurityCallback;
 import com.android.keyguard.KeyguardSecurityModel.SecurityMode;
+import com.intel.config.FeatureConfig;
 
 import java.io.File;
 
@@ -169,6 +170,9 @@ public abstract class KeyguardViewBase extends FrameLayout implements SecurityCa
         // If the alternate unlock was suppressed, it can now be safely
         // enabled because the user has left keyguard.
         KeyguardUpdateMonitor.getInstance(mContext).setAlternateUnlockEnabled(true);
+	if (FeatureConfig.INTEL_FEATURE_ADAPTIVE_AUTHENTICATION) {
+                mLockPatternUtils.keyguardUnlocked();
+        }
 
         // If there's a pending runnable because the user interacted with a widget
         // and we're leaving keyguard, then run it.
