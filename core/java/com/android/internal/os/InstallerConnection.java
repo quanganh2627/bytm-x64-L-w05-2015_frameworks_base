@@ -16,6 +16,8 @@
 
 package com.android.internal.os;
 
+import android.content.pm.PackageManager;
+import android.os.SystemProperties;
 import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
 import android.util.Slog;
@@ -90,12 +92,18 @@ public class InstallerConnection {
         }
     }
 
+    public int dexopt(String apkPath, int uid, boolean isPublic, String instructionSet, String dexOptFlag) {
+        return dexopt(apkPath, uid, isPublic, "*", instructionSet, false, dexOptFlag);
+    }
+
     public int dexopt(String apkPath, int uid, boolean isPublic, String instructionSet) {
-        return dexopt(apkPath, uid, isPublic, "*", instructionSet, false);
+        boolean SELECTIVE_ENABLED = SystemProperties.getBoolean("persist.selective.enabled", true);
+        String dexOptFlag = SELECTIVE_ENABLED ? PackageManager.O2_LEVEL : "";
+        return dexopt(apkPath, uid, isPublic, "*", instructionSet, false, dexOptFlag);
     }
 
     public int dexopt(String apkPath, int uid, boolean isPublic, String pkgName,
-            String instructionSet, boolean vmSafeMode) {
+            String instructionSet, boolean vmSafeMode, String dexOptFlag) {
         StringBuilder builder = new StringBuilder("dexopt");
         builder.append(' ');
         builder.append(apkPath);
@@ -108,6 +116,8 @@ public class InstallerConnection {
         builder.append(instructionSet);
         builder.append(' ');
         builder.append(vmSafeMode ? " 1" : " 0");
+        builder.append(' ');
+        builder.append(dexOptFlag);
         return execute(builder.toString());
     }
 
