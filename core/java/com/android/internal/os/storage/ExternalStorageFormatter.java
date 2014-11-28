@@ -124,6 +124,9 @@ public class ExternalStorageFormatter extends Service
         String extStoragePath = mStorageVolume == null ?
                 Environment.getLegacyExternalStorageDirectory().toString() :
                 mStorageVolume.getPath();
+        if (mStorageManager != null) {
+            mStorageManager.unregisterListener(mStorageListener);
+        }
         try {
             mountService.mountVolume(extStoragePath);
         } catch (RemoteException e) {
