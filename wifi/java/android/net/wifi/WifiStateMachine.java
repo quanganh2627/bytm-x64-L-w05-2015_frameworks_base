@@ -1933,15 +1933,14 @@ public class WifiStateMachine extends StateMachine {
         }
 
         scanResults = scanResultsBuf.toString();
-        if (TextUtils.isEmpty(scanResults)) {
-           return;
-        }
-
         // note that all these splits and substrings keep references to the original
         // huge string buffer while the amount we really want is generally pretty small
         // so make copies instead (one example b/11087956 wasted 400k of heap here).
         synchronized(mScanResultCache) {
             mScanResults = new ArrayList<ScanResult>();
+
+            if (TextUtils.isEmpty(scanResults))
+		return;
             String[] lines = scanResults.split("\n");
             final int bssidStrLen = BSSID_STR.length();
             final int flagLen = FLAGS_STR.length();
