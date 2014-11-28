@@ -40,13 +40,17 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
+#include <vector>
+#include <string>
 
 #define APK_LIB "lib/"
 #define APK_LIB_LEN (sizeof(APK_LIB) - 1)
 
 #define LIB_PREFIX "/lib"
 #define LIB_PREFIX_LEN (sizeof(LIB_PREFIX) - 1)
+
+#define APK_ASSETS "assets/"
+#define APK_ASSETS_LEN (sizeof(APK_ASSETS) - 1)
 
 #define LIB_SUFFIX ".so"
 #define LIB_SUFFIX_LEN (sizeof(LIB_SUFFIX) - 1)
@@ -64,6 +68,12 @@ typedef enum {
     INSTALL_SUCCEEDED = 1,
 #ifdef WITH_HOUDINI
     INSTALL_ABI2_SUCCEEDED = 2,
+    INSTALL_ABI_SUCCEEDED = 99,
+    INSTALL_MISMATCH_ABI2_SUCCEEDED = 100,
+    INSTALL_MISMATCH_UPGRADEABI_SUCCEEDED = 101,
+    INSTALL_UPGRADEABI_SUCCEEDED = 102,
+    INSTALL_IMPLICIT_ABI2_SUCCEEDED = 103,
+    INSTALL_IMPLICIT_UPGRADEABI_SUCCEEDED = 104,
 #endif
     INSTALL_FAILED_INVALID_APK = -2,
     INSTALL_FAILED_INSUFFICIENT_STORAGE = -4,
@@ -418,12 +428,295 @@ com_android_internal_content_NativeLibraryHelper_sumNativeBinaries(JNIEnv *env, 
 }
 
 #ifdef WITH_HOUDINI
+
+#define MAX_LIB_NAME_LEN    128
+#define ASSETS_LIB_LIST_FILE    "/system/lib/arm/.assets_lib_list"
+
+static std::vector<std::string> lib_list;
+static bool lib_list_inited = false;
+
+static void init_lib_list()
+{
+    char line[MAX_LIB_NAME_LEN];
+    int i = 0;
+
+    FILE* fp = fopen(ASSETS_LIB_LIST_FILE, "r");
+    if (NULL == fp) {
+        ALOGE("Couldn't open file %s: %s", ASSETS_LIB_LIST_FILE, strerror(errno));
+        return;
+    }
+
+    while (fgets(line, MAX_LIB_NAME_LEN, fp)) {
+        if ('#' == line[0])
+            continue;
+        line[strlen(line) - 1] = '\0';
+        lib_list.push_back(line);
+    }
+
+    // ALOGD("assets_lib_list:");
+    // for (i = 0; i < lib_list.size(); ++i) {
+    //     ALOGD("%s\n", lib_list[i].c_str());
+    // }
+
+    fclose(fp);
+    return;
+}
+
+static const char* intel_arch[] = {
+    "intel",
+    "Intel",
+    "INTEL",
+    "x86",
+    "X86",
+    NULL
+};
+
+static const char * sep_char = "-_.";
+
+static size_t passArchStr (std::string str)
+{
+    int j = 0;
+    size_t pos = ~0;
+
+    for (j=0; intel_arch[j] != NULL; j++) {
+        size_t i = str.find(intel_arch[j]);
+
+        if (i != std::string::npos && i < pos) {
+            // pass seperate char
+            while (i>0 && strchr(sep_char, str[i-1]))
+                i--;
+            pos = i;
+        }
+    }
+
+    return pos;
+}
+
+static bool checkLibName(std::vector<std::string> stdAbi, std::vector<std::string> primAbi)
+{
+    if (0 == primAbi.size()
+            || 0 == stdAbi.size())
+        return false;
+
+    for (size_t i=0; i<primAbi.size(); i++) {
+        size_t m = ~0;
+        std::string primStr(primAbi[i]);
+
+        m = passArchStr(primStr);
+        // Not find arch string
+        if (~0 == m || 0 == m)
+            return false;
+
+        std::string primSubStr = primStr.substr(0, m);
+
+        size_t j = 0;
+        for (j=0; j<stdAbi.size(); j++) {
+            size_t n = ~0;
+            std::string stdStr(stdAbi[j]);
+
+            n = stdStr.find(primSubStr);
+            if (0 == n)
+                break;
+        }
+
+        // Find one mismatch lib
+        if (j >= stdAbi.size())
+            return false;
+    }
+
+    return true;
+}
+
+/*
+ * Scan apk to figure out which abi libs should be used on intel platform
+ * Return values:
+ *  INSTALL_MISMATCH_ABI2_SUCCEEDED - lib mismatch and should use abi2 libs
+ *  INSTALL_MISMATCH_UPGRADEABI_SUCCEEDED - lib mismatch and should use upgradeabi libs
+ *  INSTALL_ABI_SUCCEEDED - should install abi lib
+ *  INSTALL_ABI2_SUCCEEDED - should install abi2 libs
+ *  INSTALL_UPGRADEABI_SUCCEEDED - should install upgrade abi libs
+ *  INSTALL_SUCCEEDED - install java app
+ *
+ */
 static jint
 com_android_internal_content_NativeLibraryHelper_listNativeBinaries(JNIEnv *env, jclass clazz,
-        jstring javaFilePath, jstring javaCpuAbi, jstring javaCpuAbi2)
+        jstring javaFilePath, jstring javaCpuAbi, jstring javaCpuAbi2, jstring javaUpgradeAbi)
 {
-    return (jint) iterateOverNativeFiles(env, javaFilePath, javaCpuAbi, javaCpuAbi2,
-            listFiles, NULL);
+
+    ScopedUtfChars filePath(env, javaFilePath);
+    ScopedUtfChars cpuAbi(env, javaCpuAbi);
+    ScopedUtfChars cpuAbi2(env, javaCpuAbi2);
+    ScopedUtfChars upgradeAbi(env, javaUpgradeAbi);
+
+    std::vector<std::string> cpuAbi_lib;
+    std::vector<std::string> cpuAbi2_lib;
+    std::vector<std::string> upgradeAbi_lib;
+
+    ZipFileRO zipFile;
+
+    if (filePath.c_str() == NULL) {
+        ALOGE("APK file patch is NULLI\n");
+        return INSTALL_FAILED_INVALID_APK;
+    }
+
+    if (zipFile.open(filePath.c_str()) != NO_ERROR) {
+        ALOGI("Couldn't open APK %s\n", filePath.c_str());
+        return INSTALL_FAILED_INVALID_APK;
+    }
+
+    const int N = zipFile.getNumEntries();
+
+    char fileName[PATH_MAX];
+    bool hasPrimaryAbi = false;
+    bool hasSecondaryAbi = false;
+    bool hasUpgradeAbi = false;
+    bool hasX86Assert = false;
+    bool noMatchAbi = false;
+    int priAbiLib = 0;
+    int secAbiLib = 0;
+    int upgradeAbiLib = 0;
+
+    for (int i = 0; i < N; i++) {
+        const ZipEntryRO entry = zipFile.findEntryByIndex(i);
+        if (entry == NULL) {
+            continue;
+        }
+
+        // Make sure this entry has a filename.
+        if (zipFile.getEntryFileName(entry, fileName, sizeof(fileName))) {
+            continue;
+        }
+
+        // Make sure we're in the assets directory of the ZIP.
+        if (!strncmp(fileName, APK_ASSETS, APK_ASSETS_LEN)) {
+            // Make sure the filename is at least to the minimum library name size.
+            const size_t fileNameLen = strlen(fileName);
+            static const size_t minLength = APK_ASSETS_LEN + 2 + LIB_PREFIX_LEN + 1 + LIB_SUFFIX_LEN;
+            if (fileNameLen < minLength) {
+                continue;
+            }
+
+            const char* lastSlash = strrchr(fileName, '/');
+            ALOG_ASSERT(lastSlash != NULL, "last slash was null somehow for %s\n", fileName);
+            if (lastSlash == NULL) {
+                ALOGE("last slash was null\n");
+                continue;
+            }
+
+            // Make sure it's in the root of assets folder.
+            if ((lastSlash - fileName) != (APK_ASSETS_LEN - 1))
+                continue;
+
+            if (strncmp(fileName + fileNameLen - LIB_SUFFIX_LEN, LIB_SUFFIX, LIB_SUFFIX_LEN)
+                    || strncmp(lastSlash, LIB_PREFIX, LIB_PREFIX_LEN)
+                    || !isFilenameSafe(lastSlash + 1))
+                continue;
+
+            if (false == lib_list_inited) {
+                init_lib_list();
+                lib_list_inited = true;
+            }
+
+            for (size_t j = 0; j < lib_list.size(); ++j) {
+                if (!strncmp(lastSlash + LIB_PREFIX_LEN, lib_list[j].c_str(), lib_list[j].length())) {
+                    //find x86 assert lib
+                    hasX86Assert = true;
+                    continue;
+                }
+            }
+        }
+
+         // Make sure we're in the lib directory of the ZIP.
+        if (strncmp(fileName, APK_LIB, APK_LIB_LEN)) {
+            continue;
+        }
+
+        // Make sure the filename is at least to the minimum library name size.
+        const size_t fileNameLen = strlen(fileName);
+        static const size_t minLength = APK_LIB_LEN + 2 + LIB_PREFIX_LEN + 1 + LIB_SUFFIX_LEN;
+        if (fileNameLen < minLength) {
+            continue;
+        }
+
+        const char* lastSlash = strrchr(fileName, '/');
+        ALOG_ASSERT(lastSlash != NULL, "last slash was null somehow for %s\n", fileName);
+
+        // Check to make sure the CPU ABI of this file is one we support.
+        const char* cpuAbiOffset = fileName + APK_LIB_LEN;
+        const size_t cpuAbiRegionSize = lastSlash - cpuAbiOffset;
+        const char* libName = lastSlash + 1;
+
+        ALOGV("Comparing ABIs %s and %s versus %s\n", cpuAbi.c_str(), cpuAbi2.c_str(), cpuAbiOffset);
+        if (cpuAbi.size() == cpuAbiRegionSize
+                && *(cpuAbiOffset + cpuAbi.size()) == '/'
+                && !strncmp(cpuAbiOffset, cpuAbi.c_str(), cpuAbiRegionSize)) {
+            ALOGV("Finding primary ABI %s\n", cpuAbi.c_str());
+            hasPrimaryAbi = true;
+            priAbiLib++;
+            for (int j=0; intel_arch[j] != NULL; j++) {
+                if ((libName != NULL) && (strstr(libName, intel_arch[j]) != NULL)) {
+                    cpuAbi_lib.push_back(libName);
+                    break;
+                }
+            }
+        } else if (cpuAbi2.size() == cpuAbiRegionSize
+                && *(cpuAbiOffset + cpuAbi2.size()) == '/'
+                && !strncmp(cpuAbiOffset, cpuAbi2.c_str(), cpuAbiRegionSize)) {
+                    ALOGV("Finding secondary ABI %s\n", cpuAbi2.c_str());
+                    hasSecondaryAbi = true;
+                    secAbiLib++;
+                    cpuAbi2_lib.push_back(libName);
+        } else if (upgradeAbi.size() == cpuAbiRegionSize
+                && *(cpuAbiOffset + upgradeAbi.size()) == '/'
+                && !strncmp(cpuAbiOffset, upgradeAbi.c_str(), cpuAbiRegionSize)) {
+                    ALOGV("Finding upgrade ABI %s\n", upgradeAbi.c_str());
+                    hasUpgradeAbi = true;
+                    upgradeAbiLib++;
+                    upgradeAbi_lib.push_back(libName);
+        } else {
+                ALOGV("abi didn't match anything: %s (end at %zd)\n", cpuAbiOffset, cpuAbiRegionSize);
+                noMatchAbi = true;
+        }
+    }
+
+    if ((hasPrimaryAbi == false && hasSecondaryAbi == true && hasX86Assert == true)) {
+        return INSTALL_IMPLICIT_ABI2_SUCCEEDED;
+    }
+
+    if ((hasPrimaryAbi == false && hasUpgradeAbi == true && hasX86Assert == true)) {
+        return INSTALL_IMPLICIT_UPGRADEABI_SUCCEEDED;
+    }
+
+    if (hasPrimaryAbi == true && hasSecondaryAbi == true && priAbiLib != secAbiLib) {
+        if (checkLibName(cpuAbi2_lib, cpuAbi_lib)) {
+            return INSTALL_SUCCEEDED;
+        }
+        return INSTALL_MISMATCH_ABI2_SUCCEEDED;
+    }
+
+    if (hasPrimaryAbi == true && hasSecondaryAbi == false && hasUpgradeAbi == true && priAbiLib != upgradeAbiLib) {
+        if (checkLibName(upgradeAbi_lib, cpuAbi_lib)) {
+            return INSTALL_SUCCEEDED;
+        }
+        return INSTALL_MISMATCH_UPGRADEABI_SUCCEEDED;
+    }
+
+    if ((hasPrimaryAbi == true && hasSecondaryAbi == true && priAbiLib == secAbiLib) ||
+            (hasPrimaryAbi == true && hasSecondaryAbi == false && hasUpgradeAbi == true &&
+                    priAbiLib == upgradeAbiLib) || (hasPrimaryAbi == true &&
+                            hasSecondaryAbi == false && hasUpgradeAbi == false)) {
+        return INSTALL_ABI_SUCCEEDED;
+    }
+
+    if (hasPrimaryAbi == false && hasSecondaryAbi == false && hasUpgradeAbi == true) {
+        return INSTALL_UPGRADEABI_SUCCEEDED;
+    }
+
+    if (hasPrimaryAbi == false && hasSecondaryAbi == true) {
+        return INSTALL_ABI2_SUCCEEDED;
+    }
+
+    return INSTALL_SUCCEEDED;
 }
 #endif
 
@@ -436,7 +729,7 @@ static JNINativeMethod gMethods[] = {
             (void *)com_android_internal_content_NativeLibraryHelper_sumNativeBinaries},
 #ifdef WITH_HOUDINI
     {"nativeListNativeBinaries",
-            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I",
+            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I",
             (void *)com_android_internal_content_NativeLibraryHelper_listNativeBinaries},
 #endif
 };
