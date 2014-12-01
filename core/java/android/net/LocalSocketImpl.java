@@ -25,7 +25,7 @@ import java.net.SocketOptions;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.system.OsConstants;
-import android.util.Log;
+
 /**
  * Socket implementation used for android.net.LocalSocket and
  * android.net.LocalServerSocket. Supports only AF_LOCAL sockets.
@@ -75,7 +75,7 @@ class LocalSocketImpl
             synchronized (readMonitor) {
                 FileDescriptor myFd = fd;
                 if (myFd == null) throw new IOException("socket closed");
-                Log.d("LocalSocketImpl", "read_native()");
+
                 ret = read_native(myFd);
                 return ret;
             }
@@ -97,7 +97,7 @@ class LocalSocketImpl
                 if (off < 0 || len < 0 || (off + len) > b.length ) {
                     throw new ArrayIndexOutOfBoundsException();
                 }
-                Log.d("LocalSocketImpl", "readba_native() len = " + len);
+
                 int ret = readba_native(b, off, len, myFd);
 
                 return ret;
@@ -132,7 +132,6 @@ class LocalSocketImpl
                 if (off < 0 || len < 0 || (off + len) > b.length ) {
                     throw new ArrayIndexOutOfBoundsException();
                 }
-                Log.d("LocalSocketImpl", "writeba_native() len = " + len);
                 writeba_native(b, off, len, myFd);
             }
         }
@@ -143,7 +142,6 @@ class LocalSocketImpl
             synchronized (writeMonitor) {
                 FileDescriptor myFd = fd;
                 if (myFd == null) throw new IOException("socket closed");
-                Log.d("LocalSocketImpl", "write_native() b = " + b);
                 write_native(b, myFd);
             }
         }
@@ -158,12 +156,8 @@ class LocalSocketImpl
         public void flush() throws IOException {
             FileDescriptor myFd = fd;
             if (myFd == null) throw new IOException("socket closed");
-            int i = 0;
-            Log.d("LocalSocketImpl", "flush() i = " + i);
             while(pending_native(myFd) > 0) {
                 try {
-                    i ++;
-                    Log.d("LocalSocketImpl", "flush() i = " + i);
                     Thread.sleep(10);
                 } catch (InterruptedException ie) {
                     return;
