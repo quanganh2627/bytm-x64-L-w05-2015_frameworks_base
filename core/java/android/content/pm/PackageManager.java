@@ -376,8 +376,14 @@ public abstract class PackageManager {
      * It indicates that the native library being copied matches 2nd ABI.
      * @hide
      */
-
     public static final int INSTALL_ABI2_SUCCEEDED = 2;
+
+    /**
+     * Native Library Copy return code: this is passed to {@link PackageManagerService} by
+     * {@link NativeLibararyHelper} on package with x86 lib in the assets folder.
+     * @hide
+     */
+    public static final int INSTALL_IMPLICIT_ABI_SUCCEEDED = 4;
 
     /**
      * Installation return code: this is passed to the {@link IPackageInstallObserver} by

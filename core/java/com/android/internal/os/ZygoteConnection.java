@@ -30,6 +30,7 @@ import android.os.Build;
 import android.os.Process;
 import android.os.SELinux;
 import android.os.SystemProperties;
+import android.os.UserHandle;
 import android.util.Log;
 
 import dalvik.system.PathClassLoader;
@@ -86,7 +87,10 @@ class ZygoteConnection {
     private final Credentials peer;
     private final String peerSecurityContext;
 
-    private native boolean isABI2App(int uid);
+    private static final int APP_ABI2_FLAG = 1;
+    private static final int APP_IMPLICIT_ABI_FLAG = 2;
+
+    private native int isABI2App(int uid);
     private native void settingHoudiniABI();
     private native void unloadHoudini();
 
@@ -255,11 +259,17 @@ class ZygoteConnection {
                 IoUtils.closeQuietly(serverPipeFd);
                 serverPipeFd = null;
                 if (ENABLE_HOUDINI) {
-                    if (isABI2App(parsedArgs.uid)) {
-                        ICheckExt check = new CheckExt();
-                        if (!check.doCheck(parsedArgs.niceName, new String("arch"))) {
-                            System.setProperty("os.arch", "armv7");
-                            settingHoudiniABI();
+                        int ret = isABI2App(UserHandle.getAppId(parsedArgs.uid));
+                        // Log.d(TAG, "isABI2App return " + ret);
+                        if ((ret & APP_ABI2_FLAG) == APP_ABI2_FLAG) {
+                            ICheckExt check = new CheckExt();
+                            if (!check.doCheck(parsedArgs.niceName, new String("arch"))
+                                    && ((ret & APP_IMPLICIT_ABI_FLAG) == 0)) {
+                                System.setProperty("os.arch", "armv7l");
+                                Log.d(TAG, "Setting os.arch");
+                                settingHoudiniABI();
+                        } else {
+                            Log.d(TAG, "Keeping os.arch: " + parsedArgs.niceName);
                         }
                     } else {
                         unloadHoudini();
