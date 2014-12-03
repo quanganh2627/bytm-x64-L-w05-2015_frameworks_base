@@ -91,9 +91,7 @@ void CanvasContext::setSurface(ANativeWindow* window) {
 }
 
 void CanvasContext::swapBuffers() {
-    if (CC_UNLIKELY(!mEglManager.swapBuffers(mEglSurface))) {
-        setSurface(NULL);
-    }
+    mEglManager.swapBuffers(mEglSurface);
     mHaveNewSurface = false;
 }
 
