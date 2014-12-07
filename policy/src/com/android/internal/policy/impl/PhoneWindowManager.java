@@ -3730,8 +3730,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             // that the music stops right before we call this.
             // Otherwise we might also be in a remote playback case.
             // TODO: Actually handle MUTE.
+            // SMS05638379 : Add support for STREAM_FM
             mBroadcastWakeLock.acquire();
-            if (stream == AudioSystem.STREAM_MUSIC) {
+            if (stream == AudioSystem.STREAM_MUSIC || stream == AudioSystem.STREAM_FM) {
                 audioService.adjustLocalOrRemoteStreamVolume(stream,
                         keycode == KeyEvent.KEYCODE_VOLUME_UP
                                 ? AudioManager.ADJUST_RAISE
