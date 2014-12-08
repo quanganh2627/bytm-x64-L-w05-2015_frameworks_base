@@ -897,25 +897,28 @@ public class AccountManagerService
 
         @Override
         public void onResult(Bundle result) {
-            IAccountManagerResponse response = getResponseAndClose();
-            if (response != null) {
-                try {
-                    if (result == null) {
-                        response.onError(AccountManager.ERROR_CODE_INVALID_RESPONSE, "null bundle");
-                        return;
-                    }
-                    if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                        Log.v(TAG, getClass().getSimpleName() + " calling onResult() on response "
-                                + response);
-                    }
-                    final Bundle newResult = new Bundle();
-                    newResult.putBoolean(AccountManager.KEY_BOOLEAN_RESULT,
-                            result.getBoolean(AccountManager.KEY_BOOLEAN_RESULT, false));
-                    response.onResult(newResult);
-                } catch (RemoteException e) {
+            synchronized(this) {
+                IAccountManagerResponse response = getResponseAndClose();
+                if (response != null) {
+                    try {
+                        if (result == null) {
+                            response.onError(AccountManager.ERROR_CODE_INVALID_RESPONSE,
+                                    "null bundle");
+                            return;
+                        }
+                        if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                            Log.v(TAG, getClass().getSimpleName()
+                                    + " calling onResult() on response " + response);
+                        }
+                        final Bundle newResult = new Bundle();
+                        newResult.putBoolean(AccountManager.KEY_BOOLEAN_RESULT,
+                                result.getBoolean(AccountManager.KEY_BOOLEAN_RESULT, false));
+                        response.onResult(newResult);
+                    } catch (RemoteException e) {
                     // if the caller is dead then there is no one to care about remote exceptions
-                    if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                        Log.v(TAG, "failure while notifying response", e);
+                        if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                            Log.v(TAG, "failure while notifying response", e);
+                        }
                     }
                 }
             }
@@ -1173,28 +1176,31 @@ public class AccountManagerService
 
         @Override
         public void onResult(Bundle result) {
-            if (result != null && result.containsKey(AccountManager.KEY_BOOLEAN_RESULT)
-                    && !result.containsKey(AccountManager.KEY_INTENT)) {
-                final boolean removalAllowed = result.getBoolean(AccountManager.KEY_BOOLEAN_RESULT);
-                if (removalAllowed) {
-                    removeAccountInternal(mAccounts, mAccount);
-                }
-                IAccountManagerResponse response = getResponseAndClose();
-                if (response != null) {
-                    if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                        Log.v(TAG, getClass().getSimpleName() + " calling onResult() on response "
-                                + response);
+            synchronized(this) {
+                if (result != null && result.containsKey(AccountManager.KEY_BOOLEAN_RESULT)
+                        && !result.containsKey(AccountManager.KEY_INTENT)) {
+                    final boolean removalAllowed = result.getBoolean(
+                            AccountManager.KEY_BOOLEAN_RESULT);
+                    if (removalAllowed) {
+                        removeAccountInternal(mAccounts, mAccount);
                     }
-                    Bundle result2 = new Bundle();
-                    result2.putBoolean(AccountManager.KEY_BOOLEAN_RESULT, removalAllowed);
-                    try {
-                        response.onResult(result2);
-                    } catch (RemoteException e) {
-                        // ignore
+                    IAccountManagerResponse response = getResponseAndClose();
+                    if (response != null) {
+                        if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                            Log.v(TAG, getClass().getSimpleName()
+                                    + " calling onResult() on response " + response);
+                        }
+                        Bundle result2 = new Bundle();
+                        result2.putBoolean(AccountManager.KEY_BOOLEAN_RESULT, removalAllowed);
+                        try {
+                            response.onResult(result2);
+                        } catch (RemoteException e) {
+                            // ignore
+                        }
                     }
                 }
+                super.onResult(result);
             }
-            super.onResult(result);
         }
     }
 
@@ -2085,16 +2091,18 @@ public class AccountManagerService
 
         @Override
         public void onResult(Bundle result) {
-            mNumResults++;
-            if (result == null) {
-                onError(AccountManager.ERROR_CODE_INVALID_RESPONSE, "null bundle");
-                return;
+            synchronized(this) {
+                mNumResults++;
+                if (result == null) {
+                    onError(AccountManager.ERROR_CODE_INVALID_RESPONSE, "null bundle");
+                    return;
+                }
+                if (result.getBoolean(AccountManager.KEY_BOOLEAN_RESULT, false)) {
+                    mAccountsWithFeatures.add(mAccountsOfType[mCurrentAccount]);
+                }
+                mCurrentAccount++;
+                checkAccount();
             }
-            if (result.getBoolean(AccountManager.KEY_BOOLEAN_RESULT, false)) {
-                mAccountsWithFeatures.add(mAccountsOfType[mCurrentAccount]);
-            }
-            mCurrentAccount++;
-            checkAccount();
         }
 
         public void sendResult() {
@@ -2470,8 +2478,10 @@ public class AccountManagerService
 
         @Override
         public void binderDied() {
-            mResponse = null;
-            close();
+            synchronized(this) {
+                mResponse = null;
+                close();
+            }
         }
 
         protected String toDebugString() {
@@ -2487,19 +2497,23 @@ public class AccountManagerService
         }
 
         void bind() {
-            if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                Log.v(TAG, "initiating bind to authenticator type " + mAccountType);
-            }
-            if (!bindToAuthenticator(mAccountType)) {
-                Log.d(TAG, "bind attempt failed for " + toDebugString());
-                onError(AccountManager.ERROR_CODE_REMOTE_EXCEPTION, "bind failure");
+            synchronized(this) {
+                if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                    Log.v(TAG, "initiating bind to authenticator type " + mAccountType);
+                }
+                if (!bindToAuthenticator(mAccountType)) {
+                    Log.d(TAG, "bind attempt failed for " + toDebugString());
+                    onError(AccountManager.ERROR_CODE_REMOTE_EXCEPTION, "bind failure");
+                }
             }
         }
 
         private void unbind() {
-            if (mAuthenticator != null) {
-                mAuthenticator = null;
-                mContext.unbindService(this);
+            synchronized(this) {
+                if (mAuthenticator != null) {
+                    mAuthenticator = null;
+                    mContext.unbindService(this);
+                }
             }
         }
 
@@ -2514,27 +2528,31 @@ public class AccountManagerService
 
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
-            mAuthenticator = IAccountAuthenticator.Stub.asInterface(service);
-            try {
-                run();
-            } catch (RemoteException e) {
-                onError(AccountManager.ERROR_CODE_REMOTE_EXCEPTION,
-                        "remote exception");
+            synchronized(this) {
+                mAuthenticator = IAccountAuthenticator.Stub.asInterface(service);
+                try {
+                    run();
+                } catch (RemoteException e) {
+                    onError(AccountManager.ERROR_CODE_REMOTE_EXCEPTION,
+                            "remote exception");
+                }
             }
         }
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
-            mAuthenticator = null;
-            IAccountManagerResponse response = getResponseAndClose();
-            if (response != null) {
-                try {
-                    response.onError(AccountManager.ERROR_CODE_REMOTE_EXCEPTION,
-                            "disconnected");
-                } catch (RemoteException e) {
-                    if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                        Log.v(TAG, "Session.onServiceDisconnected: "
-                                + "caught RemoteException while responding", e);
+            synchronized(this) {
+                mAuthenticator = null;
+                IAccountManagerResponse response = getResponseAndClose();
+                if (response != null) {
+                    try {
+                        response.onError(AccountManager.ERROR_CODE_REMOTE_EXCEPTION,
+                                "disconnected");
+                    } catch (RemoteException e) {
+                        if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                            Log.v(TAG, "Session.onServiceDisconnected: "
+                                    + "caught RemoteException while responding", e);
+                        }
                     }
                 }
             }
@@ -2543,15 +2561,17 @@ public class AccountManagerService
         public abstract void run() throws RemoteException;
 
         public void onTimedOut() {
-            IAccountManagerResponse response = getResponseAndClose();
-            if (response != null) {
-                try {
-                    response.onError(AccountManager.ERROR_CODE_REMOTE_EXCEPTION,
-                            "timeout");
-                } catch (RemoteException e) {
-                    if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                        Log.v(TAG, "Session.onTimedOut: caught RemoteException while responding",
-                                e);
+            synchronized(this) {
+                IAccountManagerResponse response = getResponseAndClose();
+                if (response != null) {
+                    try {
+                        response.onError(AccountManager.ERROR_CODE_REMOTE_EXCEPTION,
+                                "timeout");
+                    } catch (RemoteException e) {
+                        if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                            Log.v(TAG, "Session.onTimedOut: caught RemoteException"
+                                    + " while responding", e);
+                        }
                     }
                 }
             }
@@ -2559,79 +2579,82 @@ public class AccountManagerService
 
         @Override
         public void onResult(Bundle result) {
-            mNumResults++;
-            Intent intent = null;
-            if (result != null
-                    && (intent = result.getParcelable(AccountManager.KEY_INTENT)) != null) {
-                /*
-                 * The Authenticator API allows third party authenticators to
-                 * supply arbitrary intents to other apps that they can run,
-                 * this can be very bad when those apps are in the system like
-                 * the System Settings.
-                 */
-                int authenticatorUid = Binder.getCallingUid();
-                long bid = Binder.clearCallingIdentity();
-                try {
-                    PackageManager pm = mContext.getPackageManager();
-                    ResolveInfo resolveInfo = pm.resolveActivityAsUser(intent, 0, mAccounts.userId);
-                    int targetUid = resolveInfo.activityInfo.applicationInfo.uid;
-                    if (PackageManager.SIGNATURE_MATCH !=
-                            pm.checkSignatures(authenticatorUid, targetUid)) {
-                        throw new SecurityException(
-                                "Activity to be started with KEY_INTENT must " +
-                               "share Authenticator's signatures");
+            synchronized(this) {
+                mNumResults++;
+                Intent intent = null;
+                if (result != null
+                        && (intent = result.getParcelable(AccountManager.KEY_INTENT)) != null) {
+                    /*
+                     * The Authenticator API allows third party authenticators to
+                     * supply arbitrary intents to other apps that they can run,
+                     * this can be very bad when those apps are in the system like
+                     * the System Settings.
+                     */
+                    int authenticatorUid = Binder.getCallingUid();
+                    long bid = Binder.clearCallingIdentity();
+                    try {
+                        PackageManager pm = mContext.getPackageManager();
+                        ResolveInfo resolveInfo = pm.resolveActivityAsUser(intent,
+                                0, mAccounts.userId);
+                        int targetUid = resolveInfo.activityInfo.applicationInfo.uid;
+                        if (PackageManager.SIGNATURE_MATCH !=
+                                pm.checkSignatures(authenticatorUid, targetUid)) {
+                            throw new SecurityException(
+                                    "Activity to be started with KEY_INTENT must " +
+                                   "share Authenticator's signatures");
+                        }
+                    } finally {
+                        Binder.restoreCallingIdentity(bid);
                     }
-                } finally {
-                    Binder.restoreCallingIdentity(bid);
                 }
-            }
-            if (result != null
-                    && !TextUtils.isEmpty(result.getString(AccountManager.KEY_AUTHTOKEN))) {
-                String accountName = result.getString(AccountManager.KEY_ACCOUNT_NAME);
-                String accountType = result.getString(AccountManager.KEY_ACCOUNT_TYPE);
-                if (!TextUtils.isEmpty(accountName) && !TextUtils.isEmpty(accountType)) {
-                    Account account = new Account(accountName, accountType);
-                    cancelNotification(getSigninRequiredNotificationId(mAccounts, account),
-                            new UserHandle(mAccounts.userId));
+                if (result != null
+                        && !TextUtils.isEmpty(result.getString(AccountManager.KEY_AUTHTOKEN))) {
+                    String accountName = result.getString(AccountManager.KEY_ACCOUNT_NAME);
+                    String accountType = result.getString(AccountManager.KEY_ACCOUNT_TYPE);
+                    if (!TextUtils.isEmpty(accountName) && !TextUtils.isEmpty(accountType)) {
+                        Account account = new Account(accountName, accountType);
+                        cancelNotification(getSigninRequiredNotificationId(mAccounts, account),
+                                new UserHandle(mAccounts.userId));
+                    }
                 }
-            }
-            IAccountManagerResponse response;
-            if (mExpectActivityLaunch && result != null
-                    && result.containsKey(AccountManager.KEY_INTENT)) {
-                response = mResponse;
-            } else {
-                response = getResponseAndClose();
-            }
-            if (response != null) {
-                try {
-                    if (result == null) {
-                        if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                            Log.v(TAG, getClass().getSimpleName()
-                                    + " calling onError() on response " + response);
-                        }
-                        response.onError(AccountManager.ERROR_CODE_INVALID_RESPONSE,
-                                "null bundle returned");
-                    } else {
-                        if (mStripAuthTokenFromResult) {
-                            result.remove(AccountManager.KEY_AUTHTOKEN);
-                        }
-                        if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                            Log.v(TAG, getClass().getSimpleName()
-                                    + " calling onResult() on response " + response);
-                        }
-                        if ((result.getInt(AccountManager.KEY_ERROR_CODE, -1) > 0) &&
-                                (intent == null)) {
-                            // All AccountManager error codes are greater than 0
-                            response.onError(result.getInt(AccountManager.KEY_ERROR_CODE),
-                                    result.getString(AccountManager.KEY_ERROR_MESSAGE));
+                IAccountManagerResponse response;
+                if (mExpectActivityLaunch && result != null
+                        && result.containsKey(AccountManager.KEY_INTENT)) {
+                    response = mResponse;
+                } else {
+                    response = getResponseAndClose();
+                }
+                if (response != null) {
+                    try {
+                        if (result == null) {
+                            if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                                Log.v(TAG, getClass().getSimpleName()
+                                        + " calling onError() on response " + response);
+                            }
+                            response.onError(AccountManager.ERROR_CODE_INVALID_RESPONSE,
+                                    "null bundle returned");
                         } else {
-                            response.onResult(result);
+                            if (mStripAuthTokenFromResult) {
+                                result.remove(AccountManager.KEY_AUTHTOKEN);
+                            }
+                            if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                                Log.v(TAG, getClass().getSimpleName()
+                                        + " calling onResult() on response " + response);
+                            }
+                            if ((result.getInt(AccountManager.KEY_ERROR_CODE, -1) > 0) &&
+                                    (intent == null)) {
+                                // All AccountManager error codes are greater than 0
+                                response.onError(result.getInt(AccountManager.KEY_ERROR_CODE),
+                                        result.getString(AccountManager.KEY_ERROR_MESSAGE));
+                            } else {
+                                response.onResult(result);
+                            }
                         }
-                    }
-                } catch (RemoteException e) {
+                    } catch (RemoteException e) {
                     // if the caller is dead then there is no one to care about remote exceptions
-                    if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                        Log.v(TAG, "failure while notifying response", e);
+                        if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                            Log.v(TAG, "failure while notifying response", e);
+                        }
                     }
                 }
             }
@@ -2644,23 +2667,26 @@ public class AccountManagerService
 
         @Override
         public void onError(int errorCode, String errorMessage) {
-            mNumErrors++;
-            IAccountManagerResponse response = getResponseAndClose();
-            if (response != null) {
-                if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                    Log.v(TAG, getClass().getSimpleName()
-                            + " calling onError() on response " + response);
-                }
-                try {
-                    response.onError(errorCode, errorMessage);
-                } catch (RemoteException e) {
+            synchronized(this) {
+                mNumErrors++;
+                IAccountManagerResponse response = getResponseAndClose();
+                if (response != null) {
                     if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                        Log.v(TAG, "Session.onError: caught RemoteException while responding", e);
+                        Log.v(TAG, getClass().getSimpleName()
+                                + " calling onError() on response " + response);
                     }
-                }
-            } else {
-                if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                    Log.v(TAG, "Session.onError: already closed");
+                    try {
+                        response.onError(errorCode, errorMessage);
+                    } catch (RemoteException e) {
+                        if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                            Log.v(TAG, "Session.onError: caught RemoteException"
+                                    + " while responding", e);
+                        }
+                    }
+                } else {
+                    if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                        Log.v(TAG, "Session.onError: already closed");
+                    }
                 }
             }
         }

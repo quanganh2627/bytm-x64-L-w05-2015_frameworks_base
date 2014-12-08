@@ -4247,6 +4247,14 @@ public class PackageParser {
         // For use by package manager to keep track of when a package was last used.
         public long mLastPackageUsageTimeInMills;
 
+        // BEGIN Intel Changes for Selective Compilation.
+        // For use by package manager to store dexOpt flag.
+        public String mDexOptFlag;
+
+        // For use by package manager to store time from Unix epoch time for aging.
+        public long mDexOptTime;
+        // END Intel Changes for Selective Compilation.
+
         // // User set enabled state.
         // public int mSetEnabled = PackageManager.COMPONENT_ENABLED_STATE_DEFAULT;
         //
@@ -4403,6 +4411,17 @@ public class PackageParser {
                 + " " + packageName + "}";
         }
     }
+
+    // BEGIN Intel Changes for Selective Compilation.
+    // Helper to sort array according to lrt for descending order.
+    public static class LRTComparator implements Comparator<PackageParser.Package> {
+        @Override
+        public int compare(PackageParser.Package pkg1, PackageParser.Package pkg2) {
+            return (pkg1.mLastPackageUsageTimeInMills < pkg2.mLastPackageUsageTimeInMills) ? -1:
+              (pkg1.mLastPackageUsageTimeInMills > pkg2.mLastPackageUsageTimeInMills) ? 1:0 ;
+        }
+    }
+    // END Intel Changes for Selective Compilation.
 
     public static class Component<II extends IntentInfo> {
         public final Package owner;

@@ -22,9 +22,13 @@ import android.app.job.JobScheduler;
 import android.app.job.JobService;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.pm.PackageParser;
 import android.os.ServiceManager;
+import android.os.SystemProperties;
 import android.util.Log;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -59,9 +63,20 @@ public class BackgroundDexOptService extends JobService {
         if (pm.isStorageLow()) {
             return false;
         }
-        final HashSet<String> pkgs = pm.getPackagesThatNeedDexOpt();
-        if (pkgs == null) {
-            return false;
+        final ArrayList<String> pkgs;
+        boolean SELECTIVE_ENABLED = SystemProperties.getBoolean("persist.selective.enabled", true);
+        if (SELECTIVE_ENABLED) {
+            pkgs = pm.getLRTSortedPackagesStringsThatNeedDexOpt();
+            if (pkgs == null) {
+                return false;
+            }
+        } else {
+            final HashSet<String> pkgsSet = pm.getPackagesThatNeedDexOpt();
+            if (pkgsSet == null) {
+                return false;
+            }
+            // Convert set to list.
+            pkgs = new ArrayList<String>(pkgsSet);
         }
 
         final JobParameters jobParams = params;

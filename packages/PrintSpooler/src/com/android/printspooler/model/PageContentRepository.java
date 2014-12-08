@@ -450,6 +450,7 @@ public final class PageContentRepository {
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
+            mBoundToService = false;
             synchronized (mLock) {
                 mRenderer = null;
             }
@@ -465,9 +466,11 @@ public final class PageContentRepository {
             new AsyncTask<Void, Void, Integer>() {
                 @Override
                 protected void onPreExecute() {
-                    Intent intent = new Intent(PdfManipulationService.ACTION_GET_RENDERER);
-                    intent.setClass(mContext, PdfManipulationService.class);
-                    mContext.bindService(intent, AsyncRenderer.this, Context.BIND_AUTO_CREATE);
+                    if (mBoundToService == false) {
+                        Intent intent = new Intent(PdfManipulationService.ACTION_GET_RENDERER);
+                        intent.setClass(mContext, PdfManipulationService.class);
+                        mContext.bindService(intent, AsyncRenderer.this, Context.BIND_AUTO_CREATE);
+                    }
                 }
 
                 @Override
