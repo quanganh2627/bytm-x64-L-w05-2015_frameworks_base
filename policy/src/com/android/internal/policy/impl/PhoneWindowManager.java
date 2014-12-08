@@ -4539,7 +4539,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         || orientation == ActivityInfo.SCREEN_ORIENTATION_FULL_USER) {
                     preferredRotation = sensorRotation;
                 } else {
-                    preferredRotation = lastRotation;
+                    // check ro.sf.lockrotation property
+                    if (SystemProperties.getBoolean("ro.sf.180rotation", false) == true ) {
+					    preferredRotation = sensorRotation;
+                    } else {
+                        preferredRotation = lastRotation;
+                    }
                 }
             } else if (mUserRotationMode == WindowManagerPolicy.USER_ROTATION_LOCKED
                     && orientation != ActivityInfo.SCREEN_ORIENTATION_NOSENSOR) {
@@ -4551,7 +4556,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             } else {
                 // No overriding preference.
                 // We will do exactly what the application asked us to do.
-                preferredRotation = -1;
+
+                // check ro.sf.lockrotation property
+                if (SystemProperties.getBoolean("ro.sf.lockrotation", false) == true ) {
+				    preferredRotation = sensorRotation;
+                } else {
+                    preferredRotation = -1;
+                }
             }
 
             switch (orientation) {

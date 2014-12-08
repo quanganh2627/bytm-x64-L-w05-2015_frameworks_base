@@ -49,7 +49,7 @@
 #include <GLES/gl.h>
 #include <GLES/glext.h>
 #include <EGL/eglext.h>
-
+#include <private/gui/LayerState.h>
 #include "BootAnimation.h"
 
 #define USER_BOOTANIMATION_FILE "/data/local/bootanimation.zip"
@@ -223,6 +223,17 @@ status_t BootAnimation::readyToRun() {
     status_t status = SurfaceComposerClient::getDisplayInfo(dtoken, &dinfo);
     if (status)
         return -1;
+
+    // get ro.sf.hwrotation property and swap W, H if the angle is 90 or 270
+    int rotation = 0, varswap = 0;
+    char value[PROPERTY_VALUE_MAX];
+    property_get("ro.sf.hwrotation", value, "0");
+    rotation = atoi(value);
+    if(rotation == DisplayState::eOrientation90 || rotation == DisplayState::eOrientation270) {
+        varswap = dinfo.w;
+        dinfo.w = dinfo.h;
+        dinfo.h = varswap;
+    }
 
     // create the native surface
     sp<SurfaceControl> control = session()->createSurface(String8("BootAnimation"),

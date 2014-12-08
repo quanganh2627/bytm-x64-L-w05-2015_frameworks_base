@@ -767,6 +767,18 @@ public class WindowManagerService extends IWindowManager.Stub
 
         mActivityManager = ActivityManagerNative.getDefault();
         mBatteryStats = BatteryStatsService.getService();
+
+        // get ro.sf.hwrotation property and mRotation
+        if(SystemProperties.getInt("ro.sf.hwrotation",0) == Surface.ROTATION_90){
+            mRotation = Surface.ROTATION_90;
+        } else if (SystemProperties.getInt("ro.sf.hwrotation",0) == Surface.ROTATION_270) {
+            mRotation = Surface.ROTATION_270;
+        } else if (SystemProperties.getInt("ro.sf.hwrotation",0) == Surface.ROTATION_180) {
+            mRotation = Surface.ROTATION_180;
+        } else {
+            mRotation = Surface.ROTATION_0;
+        }
+
         mAppOps = (AppOpsManager)context.getSystemService(Context.APP_OPS_SERVICE);
         mAppOps.startWatchingMode(AppOpsManager.OP_SYSTEM_ALERT_WINDOW, null,
                 new AppOpsManager.OnOpChangedInternalListener() {
