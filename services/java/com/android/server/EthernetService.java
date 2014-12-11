@@ -329,8 +329,9 @@ public class EthernetService extends IEthernetManager.Stub {
     private void saveConfig() {
         if(DBG) Slog.d(TAG, "Storing Ethernet interface configs to disk.");
         JsonWriter writer = null;
+        FileOutputStream fos = null;
         try {
-            FileOutputStream fos = new FileOutputStream(PERSIST_FILE);
+            fos = new FileOutputStream(PERSIST_FILE);
             writer = new JsonWriter(new OutputStreamWriter(fos, "UTF-8"));
             writer.setIndent("  ");
             writer.beginArray();
@@ -341,10 +342,14 @@ public class EthernetService extends IEthernetManager.Stub {
                 info.write(writer);
             }
             writer.endArray();
+            fos.close();
         } catch (Exception e) {
             Slog.e(TAG, "Failed to store ethernet config: " + e);
         } finally {
-            try { writer.close(); } catch(Exception e) {}
+            if(fos != null)
+                try {fos.close();} catch(Exception e) {}
+            if(writer != null)
+                try { writer.close(); } catch(Exception e) {}
         }
     }
 
@@ -370,9 +375,11 @@ public class EthernetService extends IEthernetManager.Stub {
         ethernetThread.start();
         mAsyncServiceHandler = new AsyncServiceHandler(ethernetThread.getLooper());
 
+        FileInputStream fis = null;
+
         try {
+            fis = new FileInputStream(PERSIST_FILE);
             if(DBG) Slog.d(TAG, "Reading " + PERSIST_FILE);
-            FileInputStream fis = new FileInputStream(PERSIST_FILE);
             JsonReader reader = new JsonReader(new InputStreamReader(fis, "UTF-8"));
             reader.beginArray();
             while (reader.hasNext()) {
@@ -382,12 +389,16 @@ public class EthernetService extends IEthernetManager.Stub {
             }
             reader.endArray();
             reader.close();
+            fis.close();
         } catch (IOException e) {
             Slog.i(TAG, "While reading interface config: " + e.toString());
         } catch (IllegalStateException e) {
             Slog.e(TAG, "Invalid JSON in " + PERSIST_FILE + ": " + e);
             File f = new File(PERSIST_FILE);
             try { f.delete(); } catch (Exception ex) {}
+        } finally {
+            if(fis != null)
+                try { fis.close(); } catch(Exception e) {}
         }
 
         for (String iface : getInterfaceNames()) {
