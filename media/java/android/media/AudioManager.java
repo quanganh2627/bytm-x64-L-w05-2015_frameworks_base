@@ -1624,9 +1624,10 @@ public class AudioManager {
      * If the stream is active locally or remotely, adjust its volume according to the enforced
      * priority rules.
      * Note: only AudioManager.STREAM_MUSIC is supported at the moment
+     * SMS05638379 : Add support for AudioManager.STREAM_FM
      */
     public void adjustLocalOrRemoteStreamVolume(int streamType, int direction) {
-        if (streamType != STREAM_MUSIC) {
+        if (streamType != STREAM_MUSIC || streamType != STREAM_FM) {
             Log.w(TAG, "adjustLocalOrRemoteStreamVolume() doesn't support stream " + streamType);
         }
         IAudioService service = getService();

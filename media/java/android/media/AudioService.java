@@ -774,24 +774,31 @@ public class AudioService extends IAudioService.Stub {
     ///////////////////////////////////////////////////////////////////////////
     // IPC methods
     ///////////////////////////////////////////////////////////////////////////
-    /** @see AudioManager#isLocalOrRemoteMusicActive() */
+    /** @see AudioManager#isLocalOrRemoteMusicActive()
+      * SMS05638379 : Add support for AudioSystem.STREAM_FM
+    */
     public boolean isLocalOrRemoteMusicActive() {
         if (AudioSystem.isStreamActive(AudioSystem.STREAM_MUSIC, 0)) {
             // local / wired / BT playback active
             if (DEBUG_VOL) Log.d(TAG, "isLocalOrRemoteMusicActive(): local");
             return true;
         }
-        if (mMediaFocusControl.checkUpdateRemoteStateIfActive(AudioSystem.STREAM_MUSIC)) {
+       if (AudioSystem.isStreamActive(AudioSystem.STREAM_FM, 0)) {
+            // local / wired / BT playback active
+            if (DEBUG_VOL) Log.d(TAG, "isLocalOrRemoteFMActive(): local");
+            return true;
+        }
+       if (mMediaFocusControl.checkUpdateRemoteStateIfActive(AudioSystem.STREAM_MUSIC)) {
             // remote "cast-like" playback active
             if (DEBUG_VOL) Log.d(TAG, "isLocalOrRemoteMusicActive(): has PLAYBACK_TYPE_REMOTE");
             return true;
         }
-        if (AudioSystem.isStreamActiveRemotely(AudioSystem.STREAM_MUSIC, 0)) {
+       if (AudioSystem.isStreamActiveRemotely(AudioSystem.STREAM_MUSIC, 0)) {
             // remote submix playback active
             if (DEBUG_VOL) Log.d(TAG, "isLocalOrRemoteMusicActive(): remote submix");
             return true;
         }
-        if (DEBUG_VOL) Log.d(TAG, "isLocalOrRemoteMusicActive(): no");
+       if (DEBUG_VOL) Log.d(TAG, "isLocalOrRemoteMusicOrFMActive(): no");
         return false;
     }
 
@@ -808,6 +815,8 @@ public class AudioService extends IAudioService.Stub {
         if (DEBUG_VOL) Log.d(TAG, "adjustLocalOrRemoteStreamVolume(dir="+direction+")");
         if (AudioSystem.isStreamActive(AudioSystem.STREAM_MUSIC, 0)) {
             adjustStreamVolume(AudioSystem.STREAM_MUSIC, direction, 0, callingPackage);
+        } else if (AudioSystem.isStreamActive(AudioSystem.STREAM_FM, 0)) {
+            adjustStreamVolume(AudioSystem.STREAM_FM, direction, 0, callingPackage);
         } else if (mMediaFocusControl.checkUpdateRemoteStateIfActive(AudioSystem.STREAM_MUSIC)) {
             mMediaFocusControl.adjustRemoteVolume(AudioSystem.STREAM_MUSIC, direction, 0);
         }
