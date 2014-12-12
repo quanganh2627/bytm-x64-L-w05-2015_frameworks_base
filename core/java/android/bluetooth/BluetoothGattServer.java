@@ -709,4 +709,30 @@ public final class BluetoothGattServer implements BluetoothProfile {
         throw new UnsupportedOperationException
             ("Use BluetoothManager#getDevicesMatchingConnectionStates instead.");
     }
+
+    /**
+     * Get the handle number assigned to a service
+     *
+     * <p>The GATT profile assignes a 16-bit handle to each service registered
+     * on the server. This function returns this value for a given service.
+     *
+     * <p>Requires {@link android.Manifest.permission#BLUETOOTH} permission.
+     *
+     * @param service The service for which the handle number is requested
+     * @return the handle number or 0 in case of error
+     * @hide
+     */
+    public int getServiceHandle(BluetoothGattService service) {
+        if (mService == null || mServerIf == 0) return 0;
+
+        if (service == null) return 0;
+
+        try {
+            return mService.getServiceHandle(service.getType(), service.getInstanceId(),
+                    new ParcelUuid(service.getUuid()));
+        } catch (RemoteException e) {
+            Log.e(TAG,"",e);
+            return 0;
+        }
+    }
 }

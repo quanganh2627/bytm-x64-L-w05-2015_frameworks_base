@@ -101,4 +101,5 @@ interface IBluetoothGatt {
                             in int srvcInstanceId, in ParcelUuid srvcId,
                             in int charInstanceId, in ParcelUuid charId,
                             in boolean confirm, in byte[] value);
+    int getServiceHandle(in int srvcType, in int srvcInstanceId, in ParcelUuid srvcId);
 }
