@@ -8818,7 +8818,7 @@ if (MORE_DEBUG) Slog.v(TAG, "   + got " + nRead + "; now wanting " + (size - soF
         }
 
         // The completion callback, if any, is invoked on the handler
-        if (op != null && op.callback != null) {
+        if (op != null && op.callback != null && mBackupHandler.hasMessages(MSG_TIMEOUT)) {
             Message msg = mBackupHandler.obtainMessage(MSG_OP_COMPLETE, op.callback);
             mBackupHandler.sendMessage(msg);
         }
