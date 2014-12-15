@@ -509,4 +509,7 @@
          linebreak to position it correctly.  [CHAR LIMIT=45] -->
     <string name="ssl_ca_cert_warning">Network may\nbe monitored</string>
 
+    <!-- Network connection string for Dongle network-->
+    <string name="dongle_network">Dongle network</string>
+    <string name="accessibility_dongle_network">Dongle network</string>
 </resources>

@@ -31,6 +31,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Messenger;
+import android.os.SystemProperties;
 import android.provider.Settings;
 import android.telephony.PhoneStateListener;
 import android.telephony.ServiceState;
@@ -52,6 +53,17 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.io.BufferedInputStream;  //signal
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.Reader;
 
 public class NetworkController extends BroadcastReceiver implements DemoMode {
     // debug
@@ -110,6 +122,9 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
     private int mBluetoothTetherIconId =
         com.android.internal.R.drawable.stat_sys_tether_bluetooth;
 
+    private boolean mDongleNetworkConnected = false;
+	
+	private static String mDongleAtPort = null;  //dongle signal port
     //wimax
     private boolean mWimaxSupported = false;
     private boolean mIsWimaxEnabled = false;
@@ -155,6 +170,8 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
 
     boolean mDataAndWifiStacked = false;
 
+    SignalStrengthHandler mSignalStrengthHandler;  //dongle signal
+    SignalStrengthThread mSignalStrengthThread;
     public interface SignalCluster {
         void setWifiIndicators(boolean visible, int strengthIcon,
                 String contentDescription);
@@ -181,10 +198,14 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
         mContext = context;
         final Resources res = context.getResources();
 
-        ConnectivityManager cm = (ConnectivityManager)mContext.getSystemService(
-                Context.CONNECTIVITY_SERVICE);
-        mHasMobileDataFeature = cm.isNetworkSupported(ConnectivityManager.TYPE_MOBILE);
-
+    if(SystemProperties.getBoolean("persist.nomodem_ui", false)) {
+			mHasMobileDataFeature = false;
+		}
+		else {
+		    ConnectivityManager cm = (ConnectivityManager)mContext.getSystemService(
+		            Context.CONNECTIVITY_SERVICE);
+		    mHasMobileDataFeature = cm.isNetworkSupported(ConnectivityManager.TYPE_MOBILE);
+		}
         mShowPhoneRSSIForData = res.getBoolean(R.bool.config_showPhoneRSSIForData);
         mShowAtLeastThreeGees = res.getBoolean(R.bool.config_showMin3G);
         mAlwaysShowCdmaRssi = res.getBoolean(
@@ -242,6 +263,12 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
         updateAirplaneMode();
 
         mLastLocale = mContext.getResources().getConfiguration().locale;
+	Log.d(TAG, "NetworkController");
+	if(SystemProperties.getBoolean("persist.nomodem_ui", false)) {
+            mSignalStrengthHandler = new SignalStrengthHandler();
+            mSignalStrengthThread = new SignalStrengthThread();
+            new Thread(mSignalStrengthThread).start();
+        }
     }
 
     public boolean hasMobileDataFeature() {
@@ -297,6 +324,14 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
                     mAlwaysShowCdmaRssi ? mPhoneSignalIconId : mWimaxIconId,
                     mDataTypeIconId,
                     mContentDescriptionWimax,
+                    mContentDescriptionDataType);
+        } else if(mDongleNetworkConnected) {  //dongle signal
+            cluster.setMobileDataIndicators(
+                    mDongleNetworkConnected,
+                    mShowPhoneRSSIForData ? mPhoneSignalIconId : mDataSignalIconId,
+                    //mMobileActivityIconId,
+                    mDataTypeIconId,
+                    mContentDescriptionPhoneSignal,
                     mContentDescriptionDataType);
         } else {
             // normal mobile data
@@ -561,6 +596,32 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
         }
     }
 
+    private final void updateTelephonySignalStrengthSelf() { //Dongle signal
+
+        int iconLevel;
+        int[] iconList;
+
+        if (mSignalStrength == null) {
+            if (CHATTY) Log.d(TAG, "updateTelephonySignalStrengthSelf: mSignalStrength == null");
+            mPhoneSignalIconId = R.drawable.stat_sys_signal_null;
+            mQSPhoneSignalIconId = R.drawable.ic_qs_signal_no_signal;
+            mDataSignalIconId = R.drawable.stat_sys_signal_null;
+            mContentDescriptionPhoneSignal = mContext.getString(
+            AccessibilityContentDescriptions.PHONE_SIGNAL_STRENGTH[0]);
+        } else {
+        
+            mLastSignalLevel = iconLevel = mSignalStrength.getLevel();
+
+            iconList = TelephonyIcons.TELEPHONY_SIGNAL_STRENGTH[mInetCondition];
+            mPhoneSignalIconId = iconList[iconLevel];
+			Log.d(TAG, "updateTelephonySignalStrengthSelf: iconLevel = " + iconLevel + ", mPhoneSignalIconId = " + mPhoneSignalIconId);
+            mQSPhoneSignalIconId =
+                TelephonyIcons.QS_TELEPHONY_SIGNAL_STRENGTH[mInetCondition][iconLevel];
+            mContentDescriptionPhoneSignal = mContext.getString(
+                AccessibilityContentDescriptions.PHONE_SIGNAL_STRENGTH[iconLevel]);
+            mDataSignalIconId = TelephonyIcons.DATA_SIGNAL_STRENGTH[mInetCondition][iconLevel];
+        }
+    }
     private final void updateDataNetType() {
         if (mIsWimaxEnabled && mWimaxConnected) {
             // wimax is a special 4g network not handled by telephony
@@ -824,6 +885,51 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
         }
     }
 
+    class SignalStrengthHandler extends Handler {  //dongle signal
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+            Bundle b = msg.getData();
+            boolean update = b.getBoolean("Signal");
+
+            if(update) {
+                updateTelephonySignalStrengthSelf();
+                refreshViews();
+            }
+            Log.d(TAG, "SignalStrengthHandler: update = " + update);
+        }
+    }
+
+    class SignalStrengthThread implements Runnable {
+        Message msg;
+        Bundle bundle;
+        int i = 0;
+        String signalStr = null;
+
+        @Override
+        public void run() {
+            while(true) {
+                if(mDongleNetworkConnected) { //should consider at port correctness
+                    signalStr = QueryCSQ(NetworkController.mDongleAtPort);
+//                    Log.d(TAG, "QueryCSQ {" + signalStr + "}");
+                    makeSingalStrengthP(signalStr);
+                } else 
+                    mSignalStrength = null;
+                bundle=new Bundle();
+                bundle.putBoolean("Signal", true);
+                msg=new Message();
+                msg.setData(bundle);
+                mSignalStrengthHandler.sendMessage(msg);
+                try {
+
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+	
     private void updateWifiState(Intent intent) {
         final String action = intent.getAction();
         if (action.equals(WifiManager.WIFI_STATE_CHANGED_ACTION)) {
@@ -992,8 +1098,9 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
         String mobileLabel = "";
         int N;
         final boolean emergencyOnly = isEmergencyOnly();
-
-        if (!mHasMobileDataFeature) {
+        
+        Log.d(TAG,"refreshViews, mHasMobileDataFeature:"+mHasMobileDataFeature+" mDongleNetworkConnected:"+mDongleNetworkConnected+" mDataConnected:"+mDataConnected+" emergencyOnly:"+emergencyOnly);
+        if (!mHasMobileDataFeature && !mDongleNetworkConnected) {  //signal
             mDataSignalIconId = mPhoneSignalIconId = 0;
             mQSPhoneSignalIconId = 0;
             mobileLabel = "";
@@ -1095,7 +1202,8 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
                 combinedSignalIconId = mDataSignalIconId;
             }
         }
-        else if (!mDataConnected && !mWifiConnected && !mBluetoothTethered && !mWimaxConnected && !ethernetConnected) {
+        else if (!mDataConnected && !mWifiConnected && !mBluetoothTethered && !mWimaxConnected 
+                 && !ethernetConnected && !mDongleNetworkConnected) {
             // pretty much totally disconnected
 
             combinedLabel = context.getString(R.string.status_bar_settings_signal_meter_disconnected);
@@ -1118,6 +1226,14 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
             }
         }
 
+        if (mDongleNetworkConnected) {
+            combinedLabel = mContext.getString(R.string.dongle_network);
+            mobileLabel = mContext.getString(R.string.dongle_network);
+            wifiLabel = "";
+            combinedSignalIconId = 0;
+            mContentDescriptionCombinedSignal = mContext.getString(
+                    R.string.accessibility_dongle_network);
+        }
         if (DEBUG) {
             Log.d(TAG, "refreshViews connected={"
                     + (mWifiConnected?" wifi":"")
@@ -1469,4 +1585,177 @@ public class NetworkController extends BroadcastReceiver implements DemoMode {
             }
         }
     }
+	
+	
+	public static final String QueryCSQ(String port) {
+        String ret = null;
+        for (int i = 0; i < 2; i++) {
+            ret = runAtCommand(port, String.format("AT+CSQ"), "+CSQ:");
+            if (ret != null && ret.contains("OK")) {
+                   return ret;
+            } else if(ret != null && ret.contains("ERROR")) {
+   
+            }
+        }
+        return ret;
+    }
+
+    public static final String runAtCommand(String port, String command, String prefix) {
+        final File tty = new File("/dev/", port);
+        if (!tty.exists()) {
+            return "noport";
+        }
+
+        byte[] buffer = new byte[2048];
+
+        BufferedInputStream bis = null; 
+        OutputStreamWriter osw = null;
+        try {
+            bis = new BufferedInputStream(new FileInputStream(tty));
+            osw = new OutputStreamWriter(new FileOutputStream(tty));
+
+            if (DEBUG) {
+                Log.d(TAG, "Read out " + port + " all old data.");
+            }
+            
+            long time_begin = System.currentTimeMillis(); 
+            if (DEBUG) {
+                Log.d(TAG, "now, time is: " + time_begin);
+            } 
+            
+            while((bis.available() > 0) && ((time_begin + 1000) > System.currentTimeMillis())) {
+                bis.read(buffer);
+            }
+
+            if (DEBUG) {
+                Log.d(TAG, "Write into port: " + command);
+            }
+            osw.write(command);
+            osw.write("\r\n");
+            osw.flush();
+
+            int count = 0;
+            while (count < 500) {
+                try {
+                    Thread.sleep(60);
+                } catch (InterruptedException e) {
+                }
+
+                if (bis.available() > prefix.length()) {
+
+
+                    break;
+                }
+                count++;
+            }
+            
+           
+                        
+            if (bis.available() < 1) {
+                return "noanswer";
+            }
+
+
+
+            StringBuilder sb = new StringBuilder();
+            int length = bis.available();
+
+
+//            while ((length = bis.read(buffer, 0, bis.available())) > 0) {
+//                sb.append(new String(buffer, 0, length));
+//                String ret = sb.toString();
+//
+//                if (DEBUG) {
+//                    Log.d(TAG, "Try to read out result, ret=" + ret+",length = "+length);
+//                }
+//
+//                if (ret.contains("OK") || ret.contains("ERROR") || ret.contains("NOT SUPPORT")) {
+//                    return ret;
+//                }
+//            }
+            while((length = bis.available()) > 0){
+                if(length >= buffer.length)
+                    buffer = new byte[length + 0x200];
+                    
+                length = bis.read(buffer, 0, bis.available());
+                sb.append(new String(buffer, 0, length));
+                String ret = sb.toString();   
+                ret = ret.replaceAll("\0xd\0xa","");
+//                if (DEBUG) {
+//                    Log.d(TAG, "after replace. read out result, ret=" + ret+",length 2 = "+length);
+//                }
+
+                if (ret.contains("OK") || ret.contains("ERROR") || ret.contains("NOT SUPPORT")) {
+                    return ret;
+                }                             
+            }
+        } catch (FileNotFoundException e) {
+            return "noport";
+        } catch (IOException e) {
+            return "ioerror";
+        } finally {
+            if (osw != null) {
+                try {
+                    osw.close();
+                } catch (IOException e) {
+                }
+            }
+
+            if (bis != null) {
+                try {
+                    bis.close();
+                } catch (IOException e) {
+                }
+            }
+        }
+
+        return "unknown";
+    }
+
+    public void makeSingalStrengthP(String str){
+
+    char C[];
+    int uiRSSI = 0, uiBER = 0;
+    boolean findnext = false;
+    SignalStrength signalStrength;
+
+    if (str == null || !str.contains("OK")) {
+        mSignalStrength = null;
+        return;
+    }
+
+    //
+	
+	String newStr = str.replaceAll("(\r\n|\n\r|\r|\n)", "");
+	newStr = newStr.replaceAll(" ", "");
+	
+    int is = newStr.indexOf("CSQ:");
+	int ie = newStr.indexOf("OK");
+	
+	Log.d(TAG, newStr + " is = " + is + " ie = " + ie);
+	
+	if((is < 0) || (is > ie))
+	{
+	    Log.d(TAG, "not valid CSQ.");
+	    return;
+    }	    
+	String tmp = newStr.substring((is+4), ie);
+	
+	Log.d(TAG, "length " + tmp.length() + " " + tmp);
+	
+
+	
+	String [] value = tmp.split(",");
+	
+	uiRSSI =  Integer.parseInt(value[0]); 
+	uiBER =   Integer.parseInt(value[1]); 
+	
+	
+
+    signalStrength = new SignalStrength(uiRSSI, uiBER, -1, -1, -1, -1, -1,
+                         99, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, true);
+    mSignalStrength = signalStrength;
+    Log.d(TAG, "uiRSSI = " + uiRSSI + ", uiBER =" + uiBER);
+   }
+
 }
