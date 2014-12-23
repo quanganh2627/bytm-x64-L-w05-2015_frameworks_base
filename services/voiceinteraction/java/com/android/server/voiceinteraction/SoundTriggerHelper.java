@@ -429,7 +429,9 @@ public class SoundTriggerHelper implements SoundTrigger.StatusListener {
         // TODO: Handle more than one keyphrase extras.
         if (mKeyphraseId != keyphraseExtras[0].id) {
             Slog.w(TAG, "received onRecognition event for a different keyphrase");
-            return;
+
+            // Wov: WORKAROUND, don't check the phraseId.
+            // return;
         }
 
         try {

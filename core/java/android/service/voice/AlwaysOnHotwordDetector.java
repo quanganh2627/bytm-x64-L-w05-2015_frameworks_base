@@ -183,6 +183,20 @@ public class AlwaysOnHotwordDetector {
 
     private final String mText;
     private final Locale mLocale;
+
+    // Wov: WORKAROUND FOR WoV
+    /** @hide */
+    public static int mScore = 0;
+    /** @hide */
+    public static int mModes = RECOGNITION_MODE_VOICE_TRIGGER;
+    /** @hide */
+    public static int mSecurityLevel = 2;
+    /** @hide */
+    public static int mPhraseId = 0;
+    /** @hide */
+    public static boolean mWovRecogFlag = false;
+    // End
+
     /**
      * The metadata of the Keyphrase, derived from the enrollment application.
      * This may be null if this keyphrase isn't supported by the enrollment application.
@@ -564,9 +578,18 @@ public class AlwaysOnHotwordDetector {
 
     private int startRecognitionLocked(int recognitionFlags) {
         KeyphraseRecognitionExtra[] recognitionExtra = new KeyphraseRecognitionExtra[1];
-        // TODO: Do we need to do something about the confidence level here?
-        recognitionExtra[0] = new KeyphraseRecognitionExtra(mKeyphraseMetadata.id,
+
+        // Wov: WORKAROUND FOR WoV
+        if (mWovRecogFlag) {
+            recognitionExtra[0] = new KeyphraseRecognitionExtra(mKeyphraseMetadata.id,
+                mModes, mSecurityLevel, new ConfidenceLevel[0]);
+        } else {
+            // TODO: Do we need to do something about the confidence level here?
+            recognitionExtra[0] = new KeyphraseRecognitionExtra(mKeyphraseMetadata.id,
                 mKeyphraseMetadata.recognitionModeFlags, 0, new ConfidenceLevel[0]);
+        }
+        // End
+
         boolean captureTriggerAudio =
                 (recognitionFlags&RECOGNITION_FLAG_CAPTURE_TRIGGER_AUDIO) != 0;
         boolean allowMultipleTriggers =
@@ -622,6 +645,15 @@ public class AlwaysOnHotwordDetector {
             } else {
                 Slog.i(TAG, "onDetected");
             }
+
+            // Wov: WORKAROUND FOR WoV
+            KeyphraseRecognitionExtra[] keyphraseExtras =
+                    ((KeyphraseRecognitionEvent) event).keyphraseExtras;
+
+            mScore = keyphraseExtras[0].coarseConfidenceLevel;
+            mPhraseId = keyphraseExtras[0].id;
+            // End
+
             Message.obtain(mHandler, MSG_HOTWORD_DETECTED,
                     new EventPayload(event.triggerInData, event.captureAvailable,
                             event.captureFormat, event.captureSession, event.data))

@@ -136,7 +136,7 @@ public class VoiceInteractionManagerService extends SystemService {
                     Settings.Secure.VOICE_INTERACTION_SERVICE, userHandle);
             ComponentName curRecognizer = getCurRecognizer(userHandle);
             VoiceInteractionServiceInfo curInteractorInfo = null;
-            if (curInteractorStr == null && curRecognizer != null) {
+            if ((curInteractorStr == null || curInteractorStr.isEmpty()) && curRecognizer != null) {
                 // If there is no interactor setting, that means we are upgrading
                 // from an older platform version.  If the current recognizer is not
                 // set or matches the preferred recognizer, then we want to upgrade
@@ -540,8 +540,11 @@ public class VoiceInteractionManagerService extends SystemService {
             synchronized (this) {
                 if (mImpl == null || mImpl.mService == null
                         || service.asBinder() != mImpl.mService.asBinder()) {
-                    throw new SecurityException(
-                            "Caller is not the current voice interaction service");
+
+                    // WoV: WORKAROUND before mulit-client support
+                    //throw new SecurityException(
+                    //       "Caller is not the current voice interaction service");
+                    Slog.w(TAG, "Caller is not the current voice interaction service");
                 }
             }
 
@@ -566,8 +569,12 @@ public class VoiceInteractionManagerService extends SystemService {
             synchronized (this) {
                 if (mImpl == null || mImpl.mService == null
                         || service == null || service.asBinder() != mImpl.mService.asBinder()) {
-                    throw new SecurityException(
-                            "Caller is not the current voice interaction service");
+
+                    // WoV: WORKAROUND before mulit-client support
+                    //throw new SecurityException(
+                    //       "Caller is not the current voice interaction service");
+                    Slog.w(TAG, "Caller is not the current voice interaction service");
+
                 }
 
                 final long caller = Binder.clearCallingIdentity();
@@ -587,8 +594,12 @@ public class VoiceInteractionManagerService extends SystemService {
             synchronized (this) {
                 if (mImpl == null || mImpl.mService == null
                         || service == null || service.asBinder() != mImpl.mService.asBinder()) {
-                    throw new SecurityException(
-                            "Caller is not the current voice interaction service");
+
+                    // WoV: WORKAROUND before mulit-client support
+                    //throw new SecurityException(
+                    //       "Caller is not the current voice interaction service");
+                    Slog.w(TAG, "Caller is not the current voice interaction service");
+
                 }
 
                 if (callback == null || recognitionConfig == null || bcp47Locale == null) {
@@ -622,8 +633,12 @@ public class VoiceInteractionManagerService extends SystemService {
             synchronized (this) {
                 if (mImpl == null || mImpl.mService == null
                         || service == null || service.asBinder() != mImpl.mService.asBinder()) {
-                    throw new SecurityException(
-                            "Caller is not the current voice interaction service");
+
+                    // WoV: WORKAROUND before mulit-client support
+                    //throw new SecurityException(
+                    //       "Caller is not the current voice interaction service");
+                    Slog.w(TAG, "Caller is not the current voice interaction service");
+
                 }
             }
 
