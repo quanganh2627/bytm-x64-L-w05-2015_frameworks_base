@@ -20,6 +20,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.ConnectivityManager;
 import android.net.BaseNetworkStateTracker;
 import android.net.LinkCapabilities;
 import android.net.LinkQualityInfo;
@@ -28,6 +29,7 @@ import android.net.NetworkInfo;
 import android.net.NetworkInfo.DetailedState;
 import android.net.SamplingDataTracker;
 import android.net.WifiLinkQualityInfo;
+import android.net.wifi.p2p.WifiP2pManager;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Messenger;
@@ -61,8 +63,10 @@ public class WifiStateTracker extends BaseNetworkStateTracker {
     private WifiManager mWifiManager;
 
     private SamplingDataTracker mSamplingDataTracker = new SamplingDataTracker();
+    private int mTrackedNetwork; // To make the difference between wifi and wifip2p
 
     public WifiStateTracker(int netType, String networkName) {
+	mTrackedNetwork = netType;
         mNetworkInfo = new NetworkInfo(netType, 0, networkName, "");
         mLinkProperties = new LinkProperties();
         mLinkCapabilities = new LinkCapabilities();
@@ -92,8 +96,15 @@ public class WifiStateTracker extends BaseNetworkStateTracker {
         filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         filter.addAction(WifiManager.LINK_CONFIGURATION_CHANGED_ACTION);
 
-        mWifiStateReceiver = new WifiStateReceiver();
-        mContext.registerReceiver(mWifiStateReceiver, filter);
+        if (mTrackedNetwork == ConnectivityManager.TYPE_WIFI) {
+            filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
+            filter.addAction(WifiManager.LINK_CONFIGURATION_CHANGED_ACTION);
+            mWifiStateReceiver = new WifiStateReceiver();
+        } else if (mTrackedNetwork == ConnectivityManager.TYPE_WIFI_P2P) {
+            filter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
+            mWifiStateReceiver = new WifiP2pStateReceiver();
+        } 
+	mContext.registerReceiver(mWifiStateReceiver, filter);
     }
 
     /**
@@ -302,6 +313,40 @@ public class WifiStateTracker extends BaseNetworkStateTracker {
         }
     }
 
+    private class WifiP2pStateReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+
+            if (intent.getAction().equals(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)) {
+                NetworkInfo networkinfo = (NetworkInfo) intent.getParcelableExtra(
+                        WifiP2pManager.EXTRA_NETWORK_INFO);
+
+                if (networkinfo == null) {
+                    return;
+                }
+                mNetworkInfo = networkinfo;
+
+                if (mLinkProperties == null) {
+                    mLinkProperties = new LinkProperties();
+                }
+                if (mLinkCapabilities == null) {
+                    mLinkCapabilities = new LinkCapabilities();
+                }
+                // don't want to send redundent state messages
+                // but send portal check detailed state notice
+                NetworkInfo.State state = mNetworkInfo.getState();
+                if (mLastState == state &&
+                        mNetworkInfo.getDetailedState() != DetailedState.CAPTIVE_PORTAL_CHECK) {
+                    return;
+                } else {
+                    mLastState = state;
+                }
+                Message msg = mCsHandler.obtainMessage(EVENT_STATE_CHANGED,
+                        new NetworkInfo(mNetworkInfo));
+                msg.sendToTarget();
+            }
+        }
+    }
     public void setDependencyMet(boolean met) {
         // not supported on this network
     }
