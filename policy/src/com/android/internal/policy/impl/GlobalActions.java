@@ -411,7 +411,8 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
         }
         // FOR DSDS's SIM OFF, Service state changed may not be triggered when SIM is
         // OFF, we always update it from settings.
-        final boolean inAirplaneMode = isAirplaneModeOn(null);
+        ServiceState mServiceState = new ServiceState();
+        final boolean inAirplaneMode = isAirplaneModeOn(mServiceState);
         mAirplaneState = inAirplaneMode ?
             ToggleAction.State.On : ToggleAction.State.Off;
     }
@@ -928,7 +929,8 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
                 handleShow();
                 break;
             case MESSAGE_REFRESH_FLIGHT_MODE:
-                final boolean inAirplaneMode = isAirplaneModeOn(null);
+                ServiceState mServiceState = new ServiceState();
+                final boolean inAirplaneMode = isAirplaneModeOn(mServiceState);
                 mAirplaneState = inAirplaneMode ? ToggleAction.State.On : ToggleAction.State.Off;
                 mAirplaneModeOn.updateState(mAirplaneState);
                 mAdapter.notifyDataSetChanged();

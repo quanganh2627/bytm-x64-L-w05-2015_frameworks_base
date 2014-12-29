@@ -541,8 +541,10 @@ public class ThermalManager {
     }
 
     private static void startNewProfile(String profName) {
-        sThermalZonesList = sProfileZoneMap.get(profName);
-        sZoneCoolerBindMap = sProfileBindMap.get(profName);
+        if (isProfileExists(profName)){
+    	    sThermalZonesList = sProfileZoneMap.get(profName);
+            sZoneCoolerBindMap = sProfileBindMap.get(profName);
+        }
         initializeZoneCriticalPendingMap();
         setCurProfileName(profName);
         int activeZones = startMonitoringZones();
