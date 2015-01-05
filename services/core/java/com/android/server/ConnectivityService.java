@@ -3358,6 +3358,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         final int mUid;
         final Messenger messenger;
         final boolean isRequest;
+        boolean mBound = false;
 
         NetworkRequestInfo(Messenger m, NetworkRequest r, IBinder binder, boolean isRequest) {
             super();
@@ -3370,13 +3371,17 @@ public class ConnectivityService extends IConnectivityManager.Stub {
 
             try {
                 mBinder.linkToDeath(this, 0);
+                mBound = true;
             } catch (RemoteException e) {
                 binderDied();
             }
         }
 
         void unlinkDeathRecipient() {
-            mBinder.unlinkToDeath(this, 0);
+            if (mBound == true) {
+                mBinder.unlinkToDeath(this, 0);
+                mBound = false;
+            }
         }
 
         public void binderDied() {
