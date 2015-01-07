@@ -171,6 +171,16 @@ public class LockPatternUtils {
     // The current user is set by KeyguardViewMediator and shared by all LockPatternUtils.
     private static volatile int sCurrentUserId = UserHandle.USER_NULL;
 
+    // INTEL_LPAL: add for biomtetric weak voice
+    public final static String INTEL_LPAL_TAG = "INTEL_LPAL_LockPatternUtils";
+
+    public final static String LOCKSCREEN_BIOMETRIC_VOICE_WEAK_FALLBACK
+            = "lockscreen.voice_weak_fallback";
+
+    public final static String BIOMETRIC_VOICE_WEAK_EVER_CHOSEN_KEY
+            = "lockscreen.biometricweakvoiceeverchosen";
+    // INTEL_LPAL end
+
     public DevicePolicyManager getDevicePolicyManager() {
         if (mDevicePolicyManager == null) {
             mDevicePolicyManager =
@@ -469,6 +479,15 @@ public class LockPatternUtils {
                     activePasswordQuality = DevicePolicyManager.PASSWORD_QUALITY_COMPLEX;
                 }
                 break;
+            // INTEL_LPAL start
+            case DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK:
+                Log.d(INTEL_LPAL_TAG, "quality is PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK");
+                if (isBiometricVoiceWeakInstalled()) {
+                    activePasswordQuality =
+                            DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK;
+                }
+                break;
+            // INTEL_LPAL end
         }
 
         return activePasswordQuality;
@@ -553,6 +572,20 @@ public class LockPatternUtils {
      * @param isFallback Specifies if this is a fallback to biometric weak
      */
     public void saveLockPattern(List<LockPatternView.Cell> pattern, boolean isFallback) {
+        saveLockPattern(pattern, DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_WEAK, isFallback);
+    }
+
+
+    /**
+     * INTEL_LPAL: Added for voice unlock
+     * Save a lock pattern.
+     * @param pattern The new pattern to save.
+     * @policy used for distinguish voice unlock
+     * @param isFallback Specifies if this is a fallback to biometric weak/biometric voice weak
+     * @hide
+     */
+    public void saveLockPattern(List<LockPatternView.Cell> pattern, int policy, boolean isFallback) {
+        Log.d(INTEL_LPAL_TAG, "INTEL_LPAL: saveLockPattern");
         try {
             int userId = getCurrentOrCallingUserId();
             getLockSettings().setLockPattern(patternToString(pattern), userId);
@@ -577,10 +610,21 @@ public class LockPatternUtils {
                     dpm.setActivePasswordState(DevicePolicyManager.PASSWORD_QUALITY_SOMETHING,
                             pattern.size(), 0, 0, 0, 0, 0, 0, userId);
                 } else {
-                    setLong(PASSWORD_TYPE_KEY, DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_WEAK);
-                    setLong(PASSWORD_TYPE_ALTERNATE_KEY,
-                            DevicePolicyManager.PASSWORD_QUALITY_SOMETHING);
-                    finishBiometricWeak();
+
+                    // INTEL_LPAL
+                    if (policy == DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK) {
+                        setLong(PASSWORD_TYPE_KEY, policy);
+                        setLong(PASSWORD_TYPE_ALTERNATE_KEY,
+                                DevicePolicyManager.PASSWORD_QUALITY_SOMETHING);
+                        finishBiometricVoiceWeak();
+                    } else {
+                        setLong(PASSWORD_TYPE_KEY,
+                                DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_WEAK);
+                        setLong(PASSWORD_TYPE_ALTERNATE_KEY,
+                                DevicePolicyManager.PASSWORD_QUALITY_SOMETHING);
+                        finishBiometricWeak();
+                    }
+
                     dpm.setActivePasswordState(DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_WEAK,
                             0, 0, 0, 0, 0, 0, 0, userId);
                 }
@@ -783,6 +827,25 @@ public class LockPatternUtils {
      * @param userHandle The userId of the user to change the password for
      */
     public void saveLockPassword(String password, int quality, boolean isFallback, int userHandle) {
+        saveLockPassword(password, quality, isFallback, userHandle,
+                DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_WEAK);
+    }
+
+    /**
+     * INTEL_LPAL: Save a lock password.  Does not ensure that the password is as good
+     * as the requested mode, but will adjust the mode to be as good as the
+     * pattern.
+     * @param password The password to save
+     * @param quality {@see DevicePolicyManager#getPasswordQuality(android.content.ComponentName)}
+     * @param isFallback Specifies if this is a fallback to biometric weak
+     * @param userHandle The userId of the user to change the password for
+     * @param policy help to distinguish voice unlock
+     * @hide
+     */
+    public void saveLockPassword(String password, int quality, boolean isFallback,
+            int userHandle, int policy) {
+        Log.d(INTEL_LPAL_TAG, "INTEL_LPAL: saveLockPassword");
+        Log.d(INTEL_LPAL_TAG, "INTEL_LPAL: isFallback.." + isFallback);
         try {
             DevicePolicyManager dpm = getDevicePolicyManager();
             if (!TextUtils.isEmpty(password)) {
@@ -841,12 +904,23 @@ public class LockPatternUtils {
                                 0, 0, 0, 0, 0, 0, 0, userHandle);
                     }
                 } else {
-                    // Case where it's a fallback for biometric weak
-                    setLong(PASSWORD_TYPE_KEY, DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_WEAK,
-                            userHandle);
-                    setLong(PASSWORD_TYPE_ALTERNATE_KEY, Math.max(quality, computedQuality),
-                            userHandle);
-                    finishBiometricWeak();
+
+                    // LPAL
+                    if (policy == DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK) {
+                        setLong(PASSWORD_TYPE_KEY,
+                                DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK,
+                                userHandle);
+                        setLong(PASSWORD_TYPE_ALTERNATE_KEY, Math.max(quality, computedQuality),
+                                userHandle);
+                        finishBiometricVoiceWeak();
+                    } else {
+                        // Case where it's a fallback for biometric weak
+                        setLong(PASSWORD_TYPE_KEY,
+                                DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_WEAK, userHandle);
+                        setLong(PASSWORD_TYPE_ALTERNATE_KEY, Math.max(quality, computedQuality),
+                                userHandle);
+                        finishBiometricWeak();
+                    }
                     dpm.setActivePasswordState(DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_WEAK,
                             0, 0, 0, 0, 0, 0, 0, userHandle);
                 }
@@ -887,6 +961,21 @@ public class LockPatternUtils {
             Log.e(TAG, "Unable to save lock password " + re);
         }
     }
+
+    /**
+     * INTEL_LPAL: Save a lock password.  Does not ensure that the password is as good
+     * as the requested mode, but will adjust the mode to be as good as the
+     * pattern.
+     * @param password The password to save
+     * @param quality {@see DevicePolicyManager#getPasswordQuality(android.content.ComponentName)}
+     * @param policy help to distinguish voice unlock
+     * @param isFallback Specifies if this is a fallback to biometric weak
+     * @hide
+     */
+    public void saveLockPassword(String password, int quality, int policy, boolean isFallback) {
+        saveLockPassword(password, quality, isFallback, getCurrentOrCallingUserId(), policy );
+    }
+
 
     /**
      * Gets whether the device is encrypted.
@@ -948,6 +1037,15 @@ public class LockPatternUtils {
             quality = (int) getLong(PASSWORD_TYPE_ALTERNATE_KEY,
                         DevicePolicyManager.PASSWORD_QUALITY_UNSPECIFIED, userHandle);
         }
+
+        // INTEL_LPAL start
+        if (quality == DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK) {
+            Log.d(INTEL_LPAL_TAG, "INTEL_LPAL: getKeyguardStoredPasswordQuality");
+            quality = (int) getLong(PASSWORD_TYPE_ALTERNATE_KEY,
+                    DevicePolicyManager.PASSWORD_QUALITY_UNSPECIFIED, userHandle);
+        }
+        // INTEL_LPAL end
+
         return quality;
     }
 
@@ -1088,6 +1186,13 @@ public class LockPatternUtils {
                 || backupMode == DevicePolicyManager.PASSWORD_QUALITY_ALPHANUMERIC
                 || backupMode == DevicePolicyManager.PASSWORD_QUALITY_COMPLEX;
 
+        // INTEL_LPAL start
+        if (usingBiometricVoiceWeak()) {
+            Log.d(INTEL_LPAL_TAG, "INTEL_LPAL: isLockPasswordEnabled");
+            return savedPasswordExists() && (passwordEnabled || backupEnabled);
+        }
+        // INTEL_LPAL end
+
         return savedPasswordExists() && (passwordEnabled ||
                 (usingBiometricWeak() && backupEnabled));
     }
@@ -1100,6 +1205,14 @@ public class LockPatternUtils {
                 getLong(PASSWORD_TYPE_ALTERNATE_KEY,
                         DevicePolicyManager.PASSWORD_QUALITY_UNSPECIFIED)
                                 == DevicePolicyManager.PASSWORD_QUALITY_SOMETHING;
+        // INTEL_LPAL start
+        if (usingBiometricVoiceWeak()) {
+            Log.d(INTEL_LPAL_TAG, "INTEL_LPAL: isLockPatternEnabled");
+            return (getLong(PASSWORD_TYPE_KEY, DevicePolicyManager.PASSWORD_QUALITY_UNSPECIFIED)
+                    == DevicePolicyManager.PASSWORD_QUALITY_SOMETHING || backupEnabled)
+                            && getBoolean(Settings.Secure.LOCK_PATTERN_ENABLED, false);
+        }
+        // INTEL_LPAL end
 
         return getBoolean(Settings.Secure.LOCK_PATTERN_ENABLED, false)
                 && (getLong(PASSWORD_TYPE_KEY, DevicePolicyManager.PASSWORD_QUALITY_UNSPECIFIED)
@@ -1737,5 +1850,54 @@ public class LockPatternUtils {
             // What can we do?
             Log.e(TAG, "aa update " + re);
         }
+    }
+
+    // INTEL_LPAL: Biometric Weak Voice related functions
+
+    /**
+     * INTEL_LPAL: Return true if the user has ever chosen biometric weak voice (voice unlock).
+     * This is true even if biometric weak voice is not current set.
+     *
+     * @return True if the user has ever chosen biometric weak voice.
+     * @hide
+     */
+    public boolean isBiometricVoiceWeakEverChosen() {
+        Log.d(INTEL_LPAL_TAG, "isBiometricWeakVoiceEverChosen");
+        return getBoolean(BIOMETRIC_VOICE_WEAK_EVER_CHOSEN_KEY, false);
+    }
+
+
+    /**
+     * INTEL_LPAL: check if vtsv service(voice unlock) has been enabled.
+     * Left this API here for compatability and future use purpose.
+     * @return Whether biometric weak voice lock is installed
+     * @hide
+     */
+    public boolean isBiometricVoiceWeakInstalled() {
+        return true;
+    }
+
+    /**
+     * INTEL_LPAL
+     * @return true if the lockscreen method is set to biometric weak voice (voice unlock)
+     * @hide
+     */
+    public boolean usingBiometricVoiceWeak() {
+        int quality =
+                (int) getLong(PASSWORD_TYPE_KEY, DevicePolicyManager.PASSWORD_QUALITY_SOMETHING);
+        return quality == DevicePolicyManager.PASSWORD_QUALITY_BIOMETRIC_VOICE_WEAK;
+    }
+
+    /**
+     * INTEL_LPAL: show final screen when voice unlock finished
+     */
+    private void finishBiometricVoiceWeak() {
+        setBoolean(BIOMETRIC_WEAK_EVER_CHOSEN_KEY, true);
+
+        // Launch intent to show final screen
+        Intent intent = new Intent();
+        intent.setClassName("com.intel.voiceenrollment",
+                "com.intel.voiceenrollment.ui.SetupEndScreen");
+        mContext.startActivity(intent);
     }
 }

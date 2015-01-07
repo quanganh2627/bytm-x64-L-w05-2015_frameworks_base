@@ -558,12 +558,20 @@ public class KeyguardViewMediator extends SystemUI {
             // Note that the biometric unlock will still not show if it is not the selected method.
             // Calling setAlternateUnlockEnabled(true) simply says don't suppress it if it is the
             // selected method.
-            if (mLockPatternUtils.usingBiometricWeak()
-                    && mLockPatternUtils.isBiometricWeakInstalled()) {
-                if (DEBUG) Log.d(TAG, "suppressing biometric unlock during boot");
+
+           // INTEL_LPAL
+            if (mLockPatternUtils.usingBiometricVoiceWeak()
+                    && mLockPatternUtils.isBiometricVoiceWeakInstalled()) {
+                Log.d("INTEL_LPAL_KeyguardViewMediator", "suppressing voice unlock during boot");
                 mUpdateMonitor.setAlternateUnlockEnabled(false);
             } else {
-                mUpdateMonitor.setAlternateUnlockEnabled(true);
+                if (mLockPatternUtils.usingBiometricWeak()
+                        && mLockPatternUtils.isBiometricWeakInstalled()) {
+                    if (DEBUG) Log.d(TAG, "suppressing biometric unlock during boot");
+                    mUpdateMonitor.setAlternateUnlockEnabled(false);
+                } else {
+                    mUpdateMonitor.setAlternateUnlockEnabled(true);
+                }
             }
 
             doKeyguardLocked(null);

@@ -22,6 +22,13 @@ LOCAL_MODULE := Keyguard
 
 LOCAL_JAVA_LIBRARIES := com.intel.config
 
+# LPAL
+ifeq ($(strip $(INTEL_FEATURE_LPAL)),true)
+LOCAL_SRC_FILES += $(call all-java-files-under, ../../../../vendor/intel/lpal/soundtrigger/frameworks/enabled/base/packages/Keyguard/src)
+else
+LOCAL_SRC_FILES += $(call all-java-files-under, ../../../../vendor/intel/lpal/soundtrigger/frameworks/disabled/base/packages/Keyguard/src)
+endif
+
 LOCAL_CERTIFICATE := platform
 
 LOCAL_PRIVILEGED_MODULE := true

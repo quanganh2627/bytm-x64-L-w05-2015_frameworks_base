@@ -471,6 +471,15 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
         @Override
         public void onScreenTurnedOn() {
             updateLockIcon();
+
+            // LPAL start
+            if (mLockPatternUtils.usingBiometricVoiceWeak()) {
+                Log.d("INTEL_LPAL_KeyguardBottomAreaView", "show voice keyguard");
+                // onClick(mLockIcon);
+                mPhoneStatusBar.animateCollapsePanels(
+                        CommandQueue.FLAG_EXCLUDE_NONE, true /* force */);
+            }
+           // LPAL end
         }
 
         @Override

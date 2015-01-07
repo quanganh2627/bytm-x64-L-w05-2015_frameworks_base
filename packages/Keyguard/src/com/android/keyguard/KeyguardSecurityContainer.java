@@ -46,6 +46,11 @@ public class KeyguardSecurityContainer extends FrameLayout implements KeyguardSe
 
     private final KeyguardUpdateMonitor mUpdateMonitor;
 
+    /**
+     * INTEL_LPAL: low power always listening
+     */
+    private static final String INTEL_LPAL_TAG = "INTEL_LPAL_KeyguardSecurityContainer";
+
     // Used to notify the container when something interesting happens.
     public interface SecurityCallback {
         public boolean dismiss(boolean authenticated);
@@ -299,7 +304,16 @@ public class KeyguardSecurityContainer extends FrameLayout implements KeyguardSe
     void showPrimarySecurityScreen(boolean turningOff) {
         SecurityMode securityMode = mSecurityModel.getSecurityMode();
         if (DEBUG) Log.v(TAG, "showPrimarySecurityScreen(turningOff=" + turningOff + ")");
-        if (!turningOff &&
+
+        // LPAL start
+        // Biometric voice should always be first boot, even the screen is turning off.
+        if (mLockPatternUtils.usingBiometricVoiceWeak()
+                && KeyguardUpdateMonitor.getInstance(mContext).isAlternateUnlockEnabled()) {
+            Log.d(INTEL_LPAL_TAG, "getAlternateFor(securityMode)");
+            securityMode = mSecurityModel.getAlternateFor(securityMode);
+        }
+        // LPAL end
+        else if (!turningOff &&
                 KeyguardUpdateMonitor.getInstance(mContext).isAlternateUnlockEnabled()) {
             // If we're not turning off, then allow biometric alternate.
             // We'll reload it when the device comes back on.
@@ -315,7 +329,17 @@ public class KeyguardSecurityContainer extends FrameLayout implements KeyguardSe
      */
     private void showBackupSecurityScreen() {
         if (DEBUG) Log.d(TAG, "showBackupSecurity()");
-        SecurityMode backup = mSecurityModel.getBackupSecurityMode(mCurrentSecuritySelection);
+
+        // INTEL_LPAL: for BiometricVoice
+        SecurityMode backup = mCurrentSecuritySelection;
+        if (FeatureConfig.INTEL_FEATURE_LPAL
+                && mCurrentSecuritySelection == SecurityMode.BiometricVoice) {
+            Log.d(INTEL_LPAL_TAG, "get backup security mode for BiometricVoice");
+            backup = mSecurityModel.getBackupSecurityModeForVoiceUnlock();
+        } else {
+            backup = mSecurityModel.getBackupSecurityMode(mCurrentSecuritySelection);
+        }
+
         showSecurityScreen(backup);
     }
 
@@ -359,6 +383,12 @@ public class KeyguardSecurityContainer extends FrameLayout implements KeyguardSe
                         finish = true;
                     }
                     break;
+                // INTEL_LPAL start
+                case BiometricVoice:
+                    if (DEBUG) Log.d(INTEL_LPAL_TAG, "showNextScreenOrFinish(BiometricVoice)");
+                    finish = true;
+                    break;
+                // INTEL_LPAL end
 
                 default:
                     Log.v(TAG, "Bad security screen " + mCurrentSecuritySelection + ", fail safe");
@@ -500,6 +530,11 @@ public class KeyguardSecurityContainer extends FrameLayout implements KeyguardSe
             case Account: return R.id.keyguard_account_view;
             case SimPin: return R.id.keyguard_sim_pin_view;
             case SimPuk: return R.id.keyguard_sim_puk_view;
+            // INTEL_LPAL start
+            case BiometricVoice:
+                Log.d(INTEL_LPAL_TAG, "get security view for BiometricVoice");
+                return R.id.keyguard_voice_unlock_view;
+            // INTEL_LPAL end
         }
         return 0;
     }
@@ -513,6 +548,11 @@ public class KeyguardSecurityContainer extends FrameLayout implements KeyguardSe
             case Account: return R.layout.keyguard_account_view;
             case SimPin: return R.layout.keyguard_sim_pin_view;
             case SimPuk: return R.layout.keyguard_sim_puk_view;
+            // INTEL_LPAL start
+            case BiometricVoice:
+                Log.d(INTEL_LPAL_TAG, "get layout id for BiometricVoice");
+                return R.layout.keyguard_voice_unlock_view;
+            // INTEL_LPAL end
             default:
                 return 0;
         }
