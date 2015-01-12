@@ -324,15 +324,6 @@ public class ZygoteInit {
                             Log.v(TAG, "Preloading " + line + "...");
                         }
                         Class.forName(line);
-                        if (Debug.getGlobalAllocSize() > PRELOAD_GC_THRESHOLD) {
-                            if (false) {
-                                Log.v(TAG,
-                                    " GC at " + Debug.getGlobalAllocSize());
-                            }
-                            System.gc();
-                            runtime.runFinalizationSync();
-                            Debug.resetGlobalAllocSize();
-                        }
                         count++;
                     } catch (ClassNotFoundException e) {
                         Log.w(TAG, "Class not found for preloading: " + line);
@@ -417,14 +408,6 @@ public class ZygoteInit {
     private static int preloadColorStateLists(VMRuntime runtime, TypedArray ar) {
         int N = ar.length();
         for (int i=0; i<N; i++) {
-            if (Debug.getGlobalAllocSize() > PRELOAD_GC_THRESHOLD) {
-                if (false) {
-                    Log.v(TAG, " GC at " + Debug.getGlobalAllocSize());
-                }
-                System.gc();
-                runtime.runFinalizationSync();
-                Debug.resetGlobalAllocSize();
-            }
             int id = ar.getResourceId(i, 0);
             if (false) {
                 Log.v(TAG, "Preloading resource #" + Integer.toHexString(id));
@@ -445,14 +428,6 @@ public class ZygoteInit {
     private static int preloadDrawables(VMRuntime runtime, TypedArray ar) {
         int N = ar.length();
         for (int i=0; i<N; i++) {
-            if (Debug.getGlobalAllocSize() > PRELOAD_GC_THRESHOLD) {
-                if (false) {
-                    Log.v(TAG, " GC at " + Debug.getGlobalAllocSize());
-                }
-                System.gc();
-                runtime.runFinalizationSync();
-                Debug.resetGlobalAllocSize();
-            }
             int id = ar.getResourceId(i, 0);
             if (false) {
                 Log.v(TAG, "Preloading resource #" + Integer.toHexString(id));
