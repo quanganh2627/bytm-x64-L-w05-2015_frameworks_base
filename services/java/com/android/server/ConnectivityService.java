@@ -199,7 +199,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     // Set network sampling interval at 12 minutes, this way, even if the timers get
     // aggregated, it will fire at around 15 minutes, which should allow us to
     // aggregate this timer with other timers (specially the socket keep alive timers)
-    private static final int DEFAULT_SAMPLING_INTERVAL_IN_SECONDS = (VDBG ? 30 : 12 * 60);
+    private static final int DEFAULT_SAMPLING_INTERVAL_IN_SECONDS = (VDBG ? 30 : 60 * 60);
 
     // start network sampling a minute after booting ...
     private static final int DEFAULT_START_SAMPLING_INTERVAL_IN_SECONDS = (VDBG ? 30 : 60);
@@ -5103,12 +5103,17 @@ public class ConnectivityService extends IConnectivityManager.Stub {
 
         if (DBG) log("Setting timer for " + String.valueOf(samplingIntervalInSeconds) + "seconds");
 
-        setAlarm(samplingIntervalInSeconds * 1000, mSampleIntervalElapsedIntent);
+        setAlarm(DEFAULT_SAMPLING_INTERVAL_IN_SECONDS * 1000, mSampleIntervalElapsedIntent);
     }
 
     void setAlarm(int timeoutInMilliseconds, PendingIntent intent) {
         long wakeupTime = SystemClock.elapsedRealtime() + timeoutInMilliseconds;
-        mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, wakeupTime, intent);
+        boolean airplanMode = Settings.Global.getInt(mContext.getContentResolver(),
+                                                     Settings.Global.AIRPLANE_MODE_ON, 0) == 1;
+        boolean wifiOn = Settings.Global.getInt(mContext.getContentResolver(),
+                                                     Settings.Global.WIFI_ON, 0) == 1;
+        if (!airplanMode || wifiOn)
+            mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, wakeupTime, intent);
     }
     /*
      * We handle this request directly.
