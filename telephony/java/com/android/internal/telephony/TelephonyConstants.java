@@ -327,4 +327,9 @@ public class TelephonyConstants {
      * Intent for notify the result of ON/OFF a SIM
      */
     public static final String INTENT_SIM_ONOFF_RESULT = "com.imc.intent.onoff_result";
+
+    /**
+     * set the sys prop in case of sim turn on/off and airplane on/off
+     */
+    public static final String PROPERTY_USER_CHANGE_RADIO_STATE = "gsm.dsds.radio_state";
 }

@@ -1435,17 +1435,16 @@ public class TelephonyManager {
      *               LISTEN_ flags.
      */
     public void listen(PhoneStateListener listener, int events) {
-        if (isDefaultManager() == false) {
-            if (sRegistry2 == null) {
-                sRegistry2 = ITelephonyRegistry2.Stub.asInterface(ServiceManager.getService("telephony.registry2"));
-            }
-        }
+
         String pkgForDebug = mContext != null ? mContext.getPackageName() : "<unknown>";
         try {
             Boolean notifyNow = true;
             if (isDefaultManager()) {
                 sRegistry.listen(pkgForDebug, listener.callback, events, notifyNow);
             } else {
+                if (sRegistry2 == null) {
+                   sRegistry2 = ITelephonyRegistry2.Stub.asInterface(ServiceManager.getService("telephony.registry2"));
+                }
                 sRegistry2.listen(pkgForDebug, listener.callback, events, notifyNow);
             }
         } catch (RemoteException ex) {
@@ -1613,7 +1612,13 @@ public class TelephonyManager {
      */
     public int getDynamicDataSimPolicy() {
          try {
-             return getITelephony().getDynamicDataSimPolicy();
+            ITelephony telephony = getITelephony();
+            if (telephony != null) {
+                return telephony.getDynamicDataSimPolicy();
+            } else {
+                log("telephony is NULL");
+                return DYNAMIC_DATA_SIM_DISABLED;
+            }
          } catch (RemoteException ex) {
              return DYNAMIC_DATA_SIM_DISABLED;
          } catch (NullPointerException ex) {
@@ -1630,7 +1635,14 @@ public class TelephonyManager {
      */
     public boolean isDynamicDataSimSupported() {
         try {
-            int policy = getITelephony().getDynamicDataSimPolicy();
+            int policy = DYNAMIC_DATA_SIM_DISABLED;
+            ITelephony telephony = getITelephony();
+            if (telephony != null) {
+                policy = telephony.getDynamicDataSimPolicy();
+            } else {
+                log("telephony is NULL");
+                return false;
+            }
             if (policy == DYNAMIC_DATA_SIM_DISABLED) {
                 return false;
             }
@@ -1692,7 +1704,13 @@ public class TelephonyManager {
      */
     public boolean isSimBusy() {
          try {
-             return getITelephony().isSimBusy();
+            ITelephony telephony = getITelephony();
+            if (telephony != null) {
+                return telephony.isSimBusy();
+            } else {
+                log("telephony is NULL");
+                return false;
+            }
          } catch (RemoteException ex) {
              log("isSimBusy,exception:" + ex);
              return false;
@@ -1709,7 +1727,13 @@ public class TelephonyManager {
      */
     public int getSimActivity() {
         try {
-            return getITelephony().getSimActivity();
+            ITelephony telephony = getITelephony();
+            if (telephony != null) {
+                return telephony.getSimActivity();
+            } else {
+                log("telephony is NULL");
+                return 0;
+            }
         } catch (RemoteException ex) {
             log("getSimActivity,exception:" + ex);
             return 0;
@@ -1730,8 +1754,14 @@ public class TelephonyManager {
      * @hide
      */
     public int requestSimActivity(int activity) {
-         try {
-             return getITelephony().requestSimActivity(activity, new Binder());
+        try {
+            ITelephony telephony = getITelephony();
+            if (telephony != null) {
+                return telephony.requestSimActivity(activity, new Binder());
+            } else {
+                log("telephony is NULL");
+                return -1;
+            }
          } catch (RemoteException ex) {
              log("isSimBusy,exception:" + ex);
          } catch (NullPointerException ex) {
@@ -1747,7 +1777,13 @@ public class TelephonyManager {
      */
     public int stopSimActivity(int activity) {
         try {
-            return getITelephony().stopSimActivity(activity);
+            ITelephony telephony = getITelephony();
+            if (telephony != null) {
+                return telephony.stopSimActivity(activity);
+            } else {
+                log("telephony is NULL");
+                return -1;
+            }
         } catch (RemoteException ex) {
             log("stopSimActivity,exception:" + ex);
         } catch (NullPointerException ex) {
