@@ -1573,7 +1573,7 @@ public class PhoneNumberUtils
     //
     // However, in order to loose match 650-555-1212 and 555-1212, we need to set the min match
     // to 7.
-    static final int MIN_MATCH = 7;
+    static final int MIN_MATCH = 11;  // changed from 7 to 11 for CTA
 
     /**
      * Checks a given number against the list of
