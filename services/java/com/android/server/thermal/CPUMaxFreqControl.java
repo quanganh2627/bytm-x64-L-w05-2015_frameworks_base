@@ -33,7 +33,7 @@ public class CPUMaxFreqControl {
     // Sysfs path to control CPU frequency
     private static final String sCPUDeviceSysfsPath = "/sys/devices/system/cpu/";
 
-    private static final String sCPUThrottleSysfsPath = "/cpufreq/scaling_max_freq";
+    private static final String sCPUThrottleSysfsPath = "/cpufreq/thermal_scaling_max_freq";
 
     private static final String sCPUAvailFreqsPath =
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies";
