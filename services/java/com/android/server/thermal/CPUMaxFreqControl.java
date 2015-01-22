@@ -54,24 +54,33 @@ public class CPUMaxFreqControl {
 
     private static int sMaxThrottleValues;
     private static void getDefaultScalingFreqs() {
+        int i;
+
         // We need a minimum of four frequencies to perform throttling
-        if (sAvailFreqCount < sMaxThrottleValues - 1) {
-            Log.i(TAG, "Number of frequencies available for throttling is"
+        if (sAvailFreqCount < sMaxThrottleValues) {
+            Log.i(TAG, "Number of frequencies needed for throttling is"
                     + ThermalManager.DEFAULT_NUM_THROTTLE_VALUES);
-            return;
+            Log.i(TAG, "Number of frequencies available for throttling is"
+                    + sAvailFreqCount);
         }
 
         // Frequencies are in Descending order. Populate as it is.
         if (sAvailFreq[0] > sAvailFreq[1]) {
-            for (int i = 0; i < sMaxThrottleValues; i++) {
+            for (i = 0; i < sAvailFreqCount; i++) {
                 sMaxScalingFreq[i] = sAvailFreq[i];
             }
         } else {
             // Frequencies are in Ascending order. Pick last four values.
-            for (int i = 0; i < sMaxThrottleValues; i++) {
+            for (i = 0; i < sAvailFreqCount; i++) {
                 sMaxScalingFreq[i] = sAvailFreq[sAvailFreqCount - i - 1];
             }
         }
+
+	for (; i < sMaxThrottleValues; i++) {
+	    Log.i(TAG, "expand sMaxScalingFreq: " + sMaxScalingFreq[i - 1]);
+	    sMaxScalingFreq[i] = sMaxScalingFreq[i - 1];
+	}
+
         sIsThrottlingPossible = true;
     }
 
@@ -121,6 +130,7 @@ public class CPUMaxFreqControl {
             Log.i(TAG, "CPU plugin cannot handle state:" + tstate);
             return;
         }
+
         if (!sIsThrottlingPossible || sProcessorCount == 0) {
             Log.i(TAG,"Scaling frequencies are not available.CPU Max freq throttle not possible");
             return;
