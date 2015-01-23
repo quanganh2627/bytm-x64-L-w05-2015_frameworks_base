@@ -68,6 +68,10 @@ import android.util.Slog;
 import android.util.SparseArray;
 import android.util.Xml;
 
+// INTEL_FEATURE_PERM_LIC_START
+import com.intel.config.FeatureConfig;
+// INTEL_FEATURE_PERM_LIC_END
+
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -166,6 +170,14 @@ final class Settings {
     private final File mPackageListFilename;
     private final File mStoppedPackagesFilename;
     private final File mBackupStoppedPackagesFilename;
+
+    // INTEL_FEATURE_PERM_LIC_START
+    private final File mLicenseFile;
+    private final File mBackupLicenseFile;
+    // Mapping from permission names to license info about them.
+    final HashMap<String, LicPermission> mLicPermissions =
+            new HashMap<String, LicPermission>();
+    // INTEL_FEATURE_PERM_LIC_END
 
     final HashMap<String, PackageSetting> mPackages =
             new HashMap<String, PackageSetting>();
@@ -272,6 +284,11 @@ final class Settings {
         mBackupSettingsFilename = new File(mSystemDir, "packages-backup.xml");
         mPackageListFilename = new File(mSystemDir, "packages.list");
         FileUtils.setPermissions(mPackageListFilename, 0660, SYSTEM_UID, PACKAGE_INFO_GID);
+
+        // INTEL_FEATURE_PERM_LIC_START
+        mLicenseFile = new File(mSystemDir, "packages_perms.xml");
+        mBackupLicenseFile = new File(mSystemDir, "packages_perms-backup.xml");
+        // INTEL_FEATURE_PERM_LIC_END
 
         // Deprecated: Needed for migration
         mStoppedPackagesFilename = new File(mSystemDir, "packages-stopped.xml");
@@ -1508,6 +1525,110 @@ final class Settings {
         }
     }
 
+    // INTEL_FEATURE_PERM_LIC_START
+    void writeLicPermissionLPr(XmlSerializer serializer, LicPermission licperm)
+        throws XmlPullParserException, IOException {
+        serializer.startTag(null, "lic-permission");
+        serializer.attribute(null, ATTR_NAME, licperm.getName());
+        serializer.attribute(null, "require", licperm.getRequireString());
+        for (CertInfo info : licperm.certsInfo) {
+            serializer.startTag(null, "cert");
+            serializer.attribute(null, "key", info.key);
+            if (info.licenseHint != null) {
+                serializer.attribute(null, "licenseHint", info.licenseHint);
+            }
+            serializer.startTag(null, "revlist");
+            for (String name : info.revokePackagesList) {
+                serializer.startTag(null, "package");
+                serializer.attribute(null, ATTR_NAME, name);
+                serializer.endTag(null, "package");
+            }
+            serializer.endTag(null, "revlist");
+            serializer.endTag(null, "cert");
+        }
+        serializer.endTag(null, "lic-permission");
+    }
+
+    private void writeLicensedLPr() {
+        // Keep the old licensed around until we know the new ones have
+        // been successfully written.
+        if (mLicenseFile.exists()) {
+            // Presence of backup licensed file indicates that we failed
+            // to persist licensed earlier. So preserve the older
+            // backup for future reference since the current licensed
+            // might have been corrupted.
+            if (!mBackupLicenseFile.exists()) {
+                if (!mLicenseFile.renameTo(mBackupLicenseFile)) {
+                    Log.wtf(PackageManagerService.TAG, "Unable to backup package manager licensed, "
+                            + " current changes will be lost at reboot");
+                    return;
+                }
+            } else {
+                mLicenseFile.delete();
+                Slog.w(PackageManagerService.TAG, "Preserving older licensed backup");
+            }
+        }
+        FileOutputStream fstr = null;
+        BufferedOutputStream str = null;
+        try {
+            fstr = new FileOutputStream(mLicenseFile);
+            str = new BufferedOutputStream(fstr);
+
+            XmlSerializer serializer = new FastXmlSerializer();
+            serializer.setOutput(str, "utf-8");
+            serializer.startDocument(null, true);
+            serializer.setFeature("http://xmlpull.org/v1/doc/features.html#indent-output", true);
+
+            serializer.startTag(null, "permissions");
+            for (LicPermission licperm : mLicPermissions.values()) {
+                writeLicPermissionLPr(serializer, licperm);
+            }
+
+            serializer.endTag(null, "permissions");
+
+            serializer.endDocument();
+
+            str.flush();
+            FileUtils.sync(fstr);
+            // New licnese successfully written, old ones are no longer
+            // needed.
+            mBackupLicenseFile.delete();
+            FileUtils.setPermissions(mLicenseFile.toString(),
+                    FileUtils.S_IRUSR | FileUtils.S_IWUSR
+                    | FileUtils.S_IRGRP | FileUtils.S_IWGRP,
+                    -1, -1);
+            return;
+
+        } catch (XmlPullParserException e) {
+            Log.wtf(PackageManagerService.TAG, "Unable to write package manager license, "
+                    + "current changes will be lost at reboot", e);
+        } catch (IOException e) {
+            Log.wtf(PackageManagerService.TAG, "Unable to write package manager license, "
+                    + "current changes will be lost at reboot", e);
+        } finally {
+            if (str != null) {
+                try {
+                    str.close();
+                } catch (IOException e) {
+                    Log.wtf(PackageManagerService.TAG, "str not found", e);
+                }
+            }
+            if (fstr != null) {
+                try {
+                    fstr.close();
+                } catch (IOException e) {
+                    Log.wtf(PackageManagerService.TAG, "fstr not found", e);
+                }
+            }
+        }
+        // Clean up partially written files
+        if (mLicenseFile.exists() && !mLicenseFile.delete()) {
+            Log.wtf(PackageManagerService.TAG, "Failed to clean up mangled file: "
+                    + mLicenseFile);
+        }
+    }
+    // INTEL_FEATURE_PERM_LIC_END
+
     void writeLPr() {
         //Debug.startMethodTracing("/data/system/packageprof", 8 * 1024 * 1024);
 
@@ -1642,6 +1763,11 @@ final class Settings {
                     FileUtils.S_IRUSR|FileUtils.S_IWUSR
                     |FileUtils.S_IRGRP|FileUtils.S_IWGRP,
                     -1, -1);
+
+            // Write licensed permission
+            if (FeatureConfig.INTEL_FEATURE_PERM_LIC) {
+                writeLicensedLPr();
+            }
 
             // Write package list file now, use a JournaledFile.
             File tempFile = new File(mPackageListFilename.getAbsolutePath() + ".tmp");
@@ -1948,6 +2074,215 @@ final class Settings {
         }
     }
 
+    // INTEL_FEATURE_PERM_LIC_START
+    private void readRevokePackagesLPw(XmlPullParser parser, HashSet<String> outPerms)
+        throws IOException, XmlPullParserException {
+        int outerDepth = parser.getDepth();
+        int type;
+        while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
+                && (type != XmlPullParser.END_TAG || parser.getDepth() > outerDepth)) {
+            if (type == XmlPullParser.END_TAG || type == XmlPullParser.TEXT) {
+                continue;
+            }
+
+            String tagName = parser.getName();
+            if (tagName.equals("package")) {
+                String name = parser.getAttributeValue(null, ATTR_NAME);
+                if (name != null) {
+                    outPerms.add(name.intern());
+                } else {
+                    PackageManagerService.reportSettingsProblem(Log.WARN,
+                            "Error in package manager licensed: <revlist> package has"
+                                    + " no name at " + parser.getPositionDescription());
+                }
+            } else {
+                PackageManagerService.reportSettingsProblem(Log.WARN,
+                        "Unknown element under <revlist>: " + parser.getName());
+            }
+            XmlUtils.skipCurrentTag(parser);
+        }
+    }
+
+
+    private LicPermission addLicPermissionLPw(String name, String require) {
+        LicPermission licPerm = mLicPermissions.get(name);
+        if (licPerm != null) {
+            if (licPerm.getRequire() == licPerm.getRequireInteger(require)) {
+                return licPerm;
+            }
+            PackageManagerService.reportSettingsProblem(Log.ERROR,
+                    "Adding duplicate licensed permission, keeping first: " + name);
+            return null;
+        }
+        licPerm = new LicPermission(name, require);
+
+        return licPerm;
+    }
+
+    private void readLicPermissionLPw(XmlPullParser parser)
+        throws XmlPullParserException, IOException {
+        String name = parser.getAttributeValue(null, ATTR_NAME);
+        String require = parser.getAttributeValue(null, "require");
+        LicPermission licPerm = null;
+
+        if (name == null) {
+            PackageManagerService.reportSettingsProblem(Log.WARN,
+                    "Error in package manager licensed: <lic-permission> has no name at "
+                    + parser.getPositionDescription());
+        } else if (!LicPermission.REQUIRE_ANY_STR.equals(require)
+                && !LicPermission.REQUIRE_ALL_STR.equals(require)) {
+            PackageManagerService.reportSettingsProblem(Log.WARN,
+                    "Error in package manager licensed: lic-permission" + name
+                    + " has bad require" + require + " at "
+                    + parser.getPositionDescription());
+        } else {
+            licPerm = addLicPermissionLPw(name.intern(), require.intern());
+            if (licPerm == null) {
+                PackageManagerService.reportSettingsProblem(Log.ERROR,
+                        "Occurred while parsing lic-permission at "
+                        + parser.getPositionDescription());
+            }
+        }
+
+        if (licPerm != null) {
+            int outerDepth = parser.getDepth();
+            int type = parser.next();
+            while (type != XmlPullParser.END_DOCUMENT
+                    && (type != XmlPullParser.END_TAG || parser.getDepth() > outerDepth)) {
+                if (type == XmlPullParser.END_TAG || type == XmlPullParser.TEXT) {
+                    type = parser.next();
+                    continue;
+                }
+
+                String tagName = parser.getName();
+                if ("cert".equals(tagName)) {
+                    CertInfo certInfo = new CertInfo();
+                    certInfo.key = parser.getAttributeValue(null, "key");
+                    certInfo.licenseHint = parser.getAttributeValue(null, "licenseHint");
+                    final int innerrevlistDepth = parser.getDepth();
+                    type = parser.next();
+                    while (type != XmlPullParser.END_DOCUMENT
+                            && (type != XmlPullParser.END_TAG
+                            || parser.getDepth() > innerrevlistDepth)) {
+                        if (type == XmlPullParser.END_TAG || type == XmlPullParser.TEXT) {
+                            type = parser.next();
+                            continue;
+                        }
+                        tagName = parser.getName();
+                        if ("revlist".equals(tagName)) {
+                            readRevokePackagesLPw(parser, certInfo.revokePackagesList);
+                        }
+                        type = parser.next();
+                    }
+                    licPerm.certsInfo.add(certInfo);
+                } else {
+                    PackageManagerService.reportSettingsProblem(Log.WARN,
+                            "Unknown element under <lic-permission>: " + parser.getName());
+                    XmlUtils.skipCurrentTag(parser);
+                }
+                type = parser.next();
+            }
+
+        } else {
+            XmlUtils.skipCurrentTag(parser);
+        }
+    }
+
+    private boolean readLicensedLPw(List<UserInfo> users, int sdkVersion) {
+        FileInputStream str = null;
+        if (mBackupLicenseFile.exists()) {
+            try {
+                str = new FileInputStream(mBackupLicenseFile);
+                mReadMessages.append("Reading from backup licensed file\n");
+                PackageManagerService.reportSettingsProblem(Log.INFO,
+                        "Need to read from backup licensed file");
+                if (mLicenseFile.exists()) {
+                    // If both the backup and licensed file exist, we
+                    // ignore the licensed since it might have been
+                    // corrupted.
+                    Slog.w(PackageManagerService.TAG, "Cleaning up licensed file "
+                            + mLicenseFile);
+                    mLicenseFile.delete();
+                }
+            } catch (IOException e) {
+                // We'll try for the normal licensed file.
+            }
+        }
+
+        try {
+            if (str == null) {
+                if (!mLicenseFile.exists()) {
+                    mReadMessages.append("No licensed file found\n");
+                    PackageManagerService.reportSettingsProblem(Log.INFO,
+                            "No licensed file; creating initial state");
+                    mInternalSdkPlatform = mExternalSdkPlatform = sdkVersion;
+                    return false;
+                }
+                str = new FileInputStream(mLicenseFile);
+            }
+            XmlPullParser parser = Xml.newPullParser();
+            parser.setInput(str, null);
+
+            int type = parser.next();
+            while (type != XmlPullParser.START_TAG
+                    && type != XmlPullParser.END_DOCUMENT) {
+                type = parser.next();
+            }
+
+            if (type != XmlPullParser.START_TAG) {
+                mReadMessages.append("No start tag found in licensed file\n");
+                PackageManagerService.reportSettingsProblem(Log.WARN,
+                        "No start tag found in package manager licensed");
+                Log.wtf(PackageManagerService.TAG,
+                        "No start tag found in package manager licensed");
+                return false;
+            }
+
+            int outerDepth = parser.getDepth();
+            type = parser.next();
+            while (type != XmlPullParser.END_DOCUMENT
+                    && (type != XmlPullParser.END_TAG || parser.getDepth() > outerDepth)) {
+                if (type == XmlPullParser.END_TAG || type == XmlPullParser.TEXT) {
+                    type = parser.next();
+                    continue;
+                }
+
+                String tagName = parser.getName();
+                if ("lic-permission".equals(tagName)) {
+                    readLicPermissionLPw(parser);
+                } else {
+                    Slog.w(PackageManagerService.TAG, "Unknown element under <permissions>: "
+                            + parser.getName());
+                    XmlUtils.skipCurrentTag(parser);
+                }
+                type = parser.next();
+            }
+        } catch (XmlPullParserException e) {
+            mReadMessages.append("Error reading: ").append(e.toString());
+            PackageManagerService.reportSettingsProblem(Log.ERROR, "Error reading licensed: " + e);
+            Log.wtf(PackageManagerService.TAG, "Error reading package manager licensed", e);
+
+        } catch (IOException e) {
+            mReadMessages.append("Error reading: ").append(e.toString());
+            PackageManagerService.reportSettingsProblem(Log.ERROR, "Error reading licensed" + e);
+            Log.wtf(PackageManagerService.TAG, "Error reading package manager licensed", e);
+        } finally {
+            if (str != null) {
+                try {
+                    str.close();
+                } catch (IOException e) {
+                    Log.wtf(PackageManagerService.TAG, "str not found", e);
+                }
+            }
+        }
+
+        mReadMessages.append("Read completed successfully: " + mLicPermissions.size()
+                + " licensedPermissions\n");
+
+        return true;
+    }
+    // INTEL_FEATURE_PERM_LIC_END
+
     boolean readLPw(PackageManagerService service, List<UserInfo> users, int sdkVersion,
             boolean onlyCore) {
         FileInputStream str = null;
@@ -2182,6 +2517,11 @@ final class Settings {
 
         mReadMessages.append("Read completed successfully: " + mPackages.size() + " packages, "
                 + mSharedUsers.size() + " shared uids\n");
+
+        // Read licensed permission
+        if (FeatureConfig.INTEL_FEATURE_PERM_LIC) {
+            return readLicensedLPw(users, sdkVersion);
+        }
 
         return true;
     }

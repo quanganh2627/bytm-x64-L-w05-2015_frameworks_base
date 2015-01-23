@@ -174,9 +174,16 @@ import android.util.SparseArray;
 import android.util.SparseBooleanArray;
 import android.view.Display;
 
+// INTEL_FEATURE_ASF
+import com.intel.asf.AsfAosp;
+import com.intel.config.FeatureConfig;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
+// INTEL_FEATURE_PERM_LIC
+import java.io.ByteArrayInputStream;
+// INTEL_FEATURE_PERM_LIC_END
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
@@ -188,10 +195,22 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+// INTEL_FEATURE_PERM_LIC_END
 import java.security.NoSuchAlgorithmException;
+// INTEL_FEATURE_PERM_LIC
+import java.security.NoSuchProviderException;
+// INTEL_FEATURE_PERM_LIC_END
 import java.security.PublicKey;
+// INTEL_FEATURE_PERM_LIC
+import java.security.SignatureException;
+import java.security.cert.Certificate;
+// INTEL_FEATURE_PERM_LIC_END
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
+// INTEL_FEATURE_PERM_LIC
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -307,6 +326,9 @@ public class PackageManagerService extends IPackageManager.Stub {
     private static final String PACKAGE_MIME_TYPE = "application/vnd.android.package-archive";
 
     private static final String VENDOR_OVERLAY_DIR = "/vendor/overlay";
+    // INTEL_FEATURE_PERM_LIC_START
+    private List mMatchedLicenses;
+    // INTEL_FEATURE_PERM_LIC_END
 
     private static String sPreferredInstructionSet;
 
@@ -5176,6 +5198,364 @@ public class PackageManagerService extends IPackageManager.Stub {
         return res;
     }
 
+// INTEL_FEATURE_PERM_LIC
+    public void revokeLicPermission(String packageName, String permissionName) {
+        int changedAppId = -1;
+
+        synchronized (mPackages) {
+            final PackageParser.Package pkg = mPackages.get(packageName);
+            if (pkg == null) {
+                Slog.v(TAG, "Unknown package: " + packageName);
+                return;
+            }
+
+            final BasePermission baseperm = mSettings.mPermissions.get(permissionName);
+            final LicPermission licperm = mSettings.mLicPermissions.get(permissionName);
+            if (baseperm == null || licperm == null) {
+                Slog.v(TAG, "Unknown permission: " + permissionName);
+                return;
+            }
+
+            final PackageSetting packageSettings = (PackageSetting) pkg.mExtras;
+            if (packageSettings == null) {
+                return;
+            }
+
+            final GrantedPermissions grantedPerm = (packageSettings.sharedUser != null)
+                    ? packageSettings.sharedUser : packageSettings;
+            if (grantedPerm.grantedPermissions.remove(permissionName)) {
+                grantedPerm.grantedPermissions.remove(permissionName);
+                if (packageSettings.haveGids) {
+                    grantedPerm.gids = removeInts(grantedPerm.gids, baseperm.gids);
+                }
+                mSettings.writeLPr();
+                changedAppId = packageSettings.appId;
+            } else {
+                Slog.v(TAG, "Cannot revoke the licPermission " + permissionName
+                        + " since not granted in " + packageName);
+            }
+        }
+
+        if (changedAppId >= 0) {
+            // We changed the perm on someone, kill its processes.
+            IActivityManager activityManager = ActivityManagerNative.getDefault();
+            if (activityManager != null) {
+                // final int callingUserId = UserHandle.getCallingUserId();
+                final long ident = Binder.clearCallingIdentity();
+                try {
+                    // XXX we should only revoke for the calling user's app permissions,
+                    // but for now we impact all users.
+                    /* am.killUid(UserHandle.getUid(callingUserId, changedAppId),
+                            "revoke " + permissionName); */
+                    int[] users = sUserManager.getUserIds();
+                    for (int user : users) {
+                        activityManager.killUid(UserHandle.getUid(user, changedAppId),
+                                "revoke " + permissionName);
+                    }
+                } catch (RemoteException e) {
+                    Log.e(TAG, "Cannot revoke the licpermission " + permissionName, e);
+                } finally {
+                    Binder.restoreCallingIdentity(ident);
+                }
+            }
+        }
+    }
+
+    private void scanPackageLicLI(PackageParser.Package pkg, int parseFlags) {
+        StringBuilder r = null;
+
+        for (PackageParser.LicPermission lp : pkg.licPermissions) {
+            LicPermission licperm = mSettings.mLicPermissions.get(lp.info.name);
+            BasePermission baseperm = mSettings.mPermissions.get(lp.info.name);
+
+            if (baseperm == null) {
+                Slog.e(TAG, "no such licensed permission in normal permissions");
+                return;
+            }
+
+            if (licperm == null) {
+                licperm = new LicPermission(lp.info.name, lp.info.require);
+                mSettings.mLicPermissions.put(lp.info.name, licperm);
+            }
+            if (licperm.licPerm == null) {
+                if (baseperm.sourcePackage.equals(lp.info.packageName)) {
+                    licperm.licPerm = lp;
+                    for (CertInfo info : lp.info.certsInfoList) {
+                        CertInfo cert = new CertInfo();
+                        cert.key = info.getKey();
+                        cert.licenseHint = info.licenseHint;
+                        HashSet<String> revokeList = new HashSet<String>();
+                        for (String pkgName : info.revokePackagesList) {
+                            revokeList.add(pkgName);
+                            revokeLicPermission(pkgName, lp.info.name);
+                        }
+                        cert.revokePackagesList = revokeList;
+                        licperm.certsInfo.add(cert);
+                    }
+
+                    if ((parseFlags & PackageParser.PARSE_CHATTY) != 0) {
+                        if (r == null) {
+                            r = new StringBuilder(256);
+                        } else {
+                            r.append(' ');
+                        }
+                        r.append(lp.info.name);
+                    }
+                } else if ((parseFlags & PackageParser.PARSE_CHATTY) != 0) {
+                    if (r == null) {
+                        r = new StringBuilder(256);
+                    } else {
+                        r.append(' ');
+                    }
+                    r.append("DUP:");
+                    r.append(lp.info.name);
+                }
+            }
+            if (r != null) {
+                if (DEBUG_PACKAGE_SCANNING) Log.d(TAG, "  Licensed Permissions: " + r);
+            }
+        }
+    }
+
+    private boolean verifyCertificate(Certificate provider, Certificate requester) {
+        if (provider != null && requester != null) {
+            PublicKey pk = provider.getPublicKey();
+            try {
+                requester.verify(pk);
+            } catch (CertificateException e) {
+                Log.e(TAG, "cert verification failed from CertificateException", e);
+                return false;
+            } catch (NoSuchAlgorithmException e) {
+                Log.e(TAG, "cert verification failed from NoSuchAlgorithmException", e);
+                return false;
+            } catch (InvalidKeyException e) {
+                Log.e(TAG, "cert verification failed from InvalidKeyException", e);
+                return false;
+            } catch (NoSuchProviderException e) {
+                Log.e(TAG, "cert verification failed from NoSuchProviderException", e);
+                return false;
+            } catch (SignatureException e) {
+                Log.e(TAG, "cert verification failed from SignatureException", e);
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private boolean verifyLicPermissionCert(PackageParser.Package pkg, CertInfo certInfo,
+            PackageParser.RequestedLicPermission rlp) {
+        boolean validated = false;
+
+        try {
+            CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+            Certificate certRequester = null;
+            String providerKey = certInfo.getKey();
+            String licenseHint = certInfo.licenseHint;
+            certRequester = null;
+            if (licenseHint != null) {
+                for (String licenseName : rlp.usesLicenses) {
+                    PackageParser.License lic = pkg.licenses.get(licenseName);
+                    if (lic != null && licenseHint.equals(lic.licenseHint)) {
+                        ByteArrayInputStream baisRequester =
+                                new ByteArrayInputStream(lic.key.getBytes());
+                        certRequester = certFactory.generateCertificate(baisRequester);
+                        break;
+                    }
+                }
+            }
+            ByteArrayInputStream baisProvider =
+                    new ByteArrayInputStream(certInfo.revertCert(providerKey).getBytes());
+            Certificate certProvider = certFactory.generateCertificate(baisProvider);
+            // Below code will check for the requester certificate validity, if it
+            // it has a valid certificate in LicensedPermissions file ,
+            // then only it will grant the permission to requester otherwise it will
+            // revoke the permission
+            if (certProvider != null) {
+                try {
+                    ((X509Certificate) certProvider).checkValidity();
+                } catch (CertificateException e) {
+                    Log.e(TAG, "Provider Cert expired on :: "
+                            + ((X509Certificate) certProvider).getNotAfter());
+                    return false;
+                }
+            }
+
+            if (certRequester != null) {
+                // LicenseHint matching
+                // Below code will check for the requester certificate validity, if it
+                // it has a valid certificate in LicensedPermissions file , then only it will
+                // grant the permission to requester otherwise it will revoke the permission
+                try {
+                    ((X509Certificate) certRequester).checkValidity();
+                } catch (CertificateException e) {
+                    Log.e(TAG, "Requester Cert expired on :: "
+                            + ((X509Certificate) certRequester).getNotAfter());
+                    return false;
+                }
+                validated = verifyCertificate(certProvider, certRequester);
+            } else {
+                for (String licenseName : rlp.usesLicenses) {
+                    PackageParser.License lic = pkg.licenses.get(licenseName);
+                    if (lic != null && !mMatchedLicenses.contains(licenseName)) {
+                        ByteArrayInputStream baisRequester =
+                                new ByteArrayInputStream(lic.key.getBytes());
+                        certRequester = certFactory.generateCertificate(baisRequester);
+                        // Below code will check for the requester certificate validity, if it
+                        // it has a valid certificate in LicensedPermissions file ,
+                        // then only it will grant the permission to requester otherwise it will
+                        // revoke the permission
+                        if (certRequester != null) {
+                            try {
+                                ((X509Certificate) certRequester).checkValidity();
+                            } catch (CertificateException e) {
+                                Log.e(TAG, "Requestor Cert expired on :: "
+                                        + ((X509Certificate) certRequester).getNotAfter());
+                                return false;
+                            }
+                        }
+                        validated = verifyCertificate(certProvider, certRequester);
+                        if (validated) {
+                            mMatchedLicenses.add(licenseName);
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (CertificateException e) {
+            Log.e(TAG, "cert generate failed from CertificateException", e);
+            return false;
+        }
+        return validated;
+    }
+
+    private boolean grantLicPermissionLPw(PackageParser.Package pkg, GrantedPermissions gp,
+            boolean replace) {
+        final PackageSetting ps = (PackageSetting) pkg.mExtras;
+        mMatchedLicenses = new ArrayList();
+        if (ps == null) {
+            return false;
+        }
+
+        boolean changedPermission = false;
+
+        // If Permission Licensing is enabled and the requestor
+        // application is missing the LicensedPermissions.xml file,
+        // then un-grant any licensed permission(s) for the package.
+        if (pkg.requestedLicPermissions.isEmpty() && !pkg.requestedPermissions.isEmpty()) {
+            for (String requestedPermName : pkg.requestedPermissions) {
+                if (mSettings.mLicPermissions.containsKey(requestedPermName)) {
+                    final BasePermission basePerm = mSettings.mPermissions.get(requestedPermName);
+                    if (gp.grantedPermissions.remove(requestedPermName)) {
+                        changedPermission = true;
+                        gp.gids = removeInts(gp.gids, basePerm.gids);
+                        Slog.i(TAG, "Un-granting (No License) lic permission " + requestedPermName
+                               + " from package " + pkg.packageName);
+                    }
+                }
+            }
+        }
+
+        for (PackageParser.RequestedLicPermission rlp : pkg.requestedLicPermissions) {
+            final LicPermission lp = mSettings.mLicPermissions.get(rlp.name);
+            final BasePermission bp = mSettings.mPermissions.get(rlp.name);
+            if (DEBUG_INSTALL) {
+                if (!gp.equals(ps)) {
+                    Log.i(TAG, "Package " + pkg.packageName + " checking " + rlp.name + ": " + bp);
+                }
+            }
+
+            if (lp == null || bp == null) {
+                Slog.w(TAG, "Unknown licensed permission " + rlp.name
+                        + " in package " + pkg.packageName);
+                continue;
+            }
+
+            // This checks if permission tag in provider contains require all
+            // and no of certs in provider are equal to no of licenses in reqestor
+            // LicensedPermissions.xml file or not,
+            // if not then it will un-grant the licensed permission(s) for that packages.
+            if (lp.getRequire() == lp.REQUIRE_ALL
+                    && rlp.usesLicenses.size() != lp.certsInfo.size()) {
+                if (mSettings.mLicPermissions.containsKey(rlp.name)) {
+                    if (gp.grantedPermissions.remove(rlp.name)) {
+                        changedPermission = true;
+                        gp.gids = removeInts(gp.gids, bp.gids);
+                        Slog.i(TAG, "Un-granting (No License) lic permission " + rlp.name
+                                + " from package " + pkg.packageName);
+                    }
+                }
+                continue;
+            }
+            // Check the providor certificates for a valid (requestor)
+            // license for the requested licensed permission.
+            final String perm = rlp.name;
+            for (CertInfo certsInfo : lp.certsInfo) {
+                boolean revoked = false;
+                boolean allowed = true;
+                for (String pkgName : certsInfo.revokePackagesList) {
+                    if (pkgName.equals(pkg.packageName)) {
+                        Slog.w(TAG, "requested permission " + perm
+                                + " in revoke list, so the permisison is revoked for package "
+                                + pkg.packageName);
+                        allowed = false;
+                        revoked = true;
+                    }
+                }
+                if (!revoked) {
+                    allowed = verifyLicPermissionCert(pkg, certsInfo, rlp);
+                }
+                if (DEBUG_INSTALL) {
+                    if (!gp.equals(ps)) {
+                        Log.i(TAG, "Package " + pkg.packageName + " granting " + perm);
+                    }
+                }
+                // This certificate matches a license. Add the
+                // permission to the granted permission list if
+                // not already present.
+                if (allowed) {
+                    if (!gp.grantedPermissions.contains(perm)) {
+                        changedPermission = true;
+                        gp.grantedPermissions.add(perm);
+                        gp.gids = appendInts(gp.gids, bp.gids);
+                    }
+                    // if required is ANY then exit the loop, since
+                    // the licenese has been verified.
+                    if (lp.getRequire() == lp.REQUIRE_ANY) {
+                        break;
+                    }
+                } else {
+                    // This certificate does not match a license or
+                    // was revoked. Remove the permission from the
+                    // granted permission list.
+                    if (gp.grantedPermissions.remove(perm)) {
+                        changedPermission = true;
+                        gp.gids = removeInts(gp.gids, bp.gids);
+                        Slog.i(TAG, "Un-granting lic permission " + perm
+                                + " from package " + pkg.packageName
+                                + " (protectionLevel=" + bp.protectionLevel
+                                + " flags=0x" + Integer.toHexString(pkg.applicationInfo.flags)
+                                + ")");
+                    } else {
+                        Slog.v(TAG, "Not granting lic permission " + perm
+                                + " to package " + pkg.packageName
+                                + " (protectionLevel=" + bp.protectionLevel
+                                + " flags=0x" + Integer.toHexString(pkg.applicationInfo.flags)
+                                + ")");
+                    }
+                    // If required is ALL, then exit the loop. Since
+                    // one of the licenses was not valid no need to
+                    // check any more.
+                    if (lp.getRequire() == lp.REQUIRE_ALL) {
+                        break;
+                    }
+                }
+            }
+        }
+        return changedPermission;
+    }
+// INTEL_FEATURE_PERM_LIC_END
+
     /**
      * Derive the value of the {@code cpuAbiOverride} based on the provided
      * value and an optional stored value from the package settings.
@@ -5407,6 +5787,12 @@ public class PackageManagerService extends IPackageManager.Stub {
             
             if (mSettings.isDisabledSystemPackageLPr(pkg.packageName)) {
                 pkg.applicationInfo.flags |= ApplicationInfo.FLAG_UPDATED_SYSTEM_APP;
+                // ASF HOOK: system package update event
+                if (FeatureConfig.INTEL_FEATURE_ASF) {
+                    int userId = (user != null) ? user.getIdentifier() : 0;
+                    AsfAosp.sendSystemAppUpdateEvent(pkg,
+                            sUserManager.getUserInfo(userId));
+                }
             }
 
             if ((parseFlags&PackageParser.PARSE_IS_SYSTEM_DIR) == 0) {
@@ -5513,7 +5899,27 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
 
         final String pkgName = pkg.packageName;
-        
+
+        // ASF HOOK: package installation event
+        if (FeatureConfig.INTEL_FEATURE_ASF) {
+            if ((scanFlags & SCAN_NEW_INSTALL) != 0) {
+                int userId = (user != null) ? user.getIdentifier() : 0;
+                if (!AsfAosp.sendPackageInstallEvent(
+                        pkg,
+                        generatePackageInfo(
+                                pkg,
+                                AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
+                                userId >= 0 ? userId : 0),
+                        (scanFlags & SCAN_UPDATE_TIME) != 0,
+                        sUserManager.getUserInfo(userId)) ) {
+                    throw new PackageManagerException(
+                           PackageManager.INSTALL_FAILED_VERIFICATION_FAILURE,
+                           "Can't install because Verification Failure "
+                           + " (in package " + pkg.applicationInfo.packageName);
+                }
+            }
+        }
+
         final long scanFileTime = scanFile.lastModified();
         final boolean forceDex = (scanFlags & SCAN_FORCE_DEX) != 0;
         pkg.applicationInfo.processName = fixProcessName(
@@ -6266,6 +6672,10 @@ public class PackageManagerService extends IPackageManager.Stub {
                 if (DEBUG_PACKAGE_SCANNING) Log.d(TAG, "  Permissions: " + r);
             }
 
+            if (FeatureConfig.INTEL_FEATURE_PERM_LIC) {
+                scanPackageLicLI(pkg, parseFlags);
+            }
+
             N = pkg.instrumentation.size();
             r = null;
             for (i=0; i<N; i++) {
@@ -6953,12 +7363,18 @@ public class PackageManagerService extends IPackageManager.Stub {
                 Slog.w(TAG, "Removing dangling permission: " + bp.name
                         + " from package " + bp.sourcePackage);
                 it.remove();
+                if (FeatureConfig.INTEL_FEATURE_PERM_LIC) {
+                    mSettings.mLicPermissions.remove(bp.name);
+                }
             } else if (changingPkg != null && changingPkg.equals(bp.sourcePackage)) {
                 if (pkgInfo == null || !hasPermission(pkgInfo, bp.name)) {
                     Slog.i(TAG, "Removing old permission: " + bp.name
                             + " from package " + bp.sourcePackage);
                     flags |= UPDATE_PERMISSIONS_ALL;
                     it.remove();
+                    if (FeatureConfig.INTEL_FEATURE_PERM_LIC) {
+                        mSettings.mLicPermissions.remove(bp.name);
+                    }
                 }
             }
         }
@@ -7111,6 +7527,9 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
         }
 
+        if (FeatureConfig.INTEL_FEATURE_PERM_LIC) {
+            changedPermission |= grantLicPermissionLPw(pkg, gp, replace);
+        }
         if ((changedPermission || replace) && !ps.permissionsFixed &&
                 !isSystemApp(ps) || isUpdatedSystemApp(ps)){
             // This is the first that we have heard about this package, so the
@@ -10943,7 +11362,7 @@ public class PackageManagerService extends IPackageManager.Stub {
      */
     private boolean deleteSystemPackageLI(PackageSetting newPs,
             int[] allUserHandles, boolean[] perUserInstalled,
-            int flags, PackageRemovedInfo outInfo, boolean writeSettings) {
+            int flags, PackageRemovedInfo outInfo, boolean writeSettings, UserHandle user) {
         final boolean applyUserRestrictions
                 = (allUserHandles != null) && (perUserInstalled != null);
         PackageSetting disabledPs = null;
@@ -10968,6 +11387,16 @@ public class PackageManagerService extends IPackageManager.Stub {
                 for (int i = 0; i < allUserHandles.length; i++) {
                     Slog.d(TAG, "   u=" + allUserHandles[i] + " inst=" + perUserInstalled[i]);
                 }
+            }
+        }
+        // ASF HOOK: System package delete event
+        if (FeatureConfig.INTEL_FEATURE_ASF) {
+            PackageInfo packageInfo = getPackageInfo(
+                    newPs.name, AsfAosp.SECURITY_PACKAGEINFO_FLAGS, 0);
+            int userId = (user != null) ? user.getIdentifier() : 0;
+            if (!AsfAosp.sendSystemAppDeleteEvent(packageInfo, newPs.pkg.codePath,
+                    sUserManager.getUserInfo(userId))) {
+                return false;
             }
         }
         // Delete the updated package
@@ -11105,6 +11534,31 @@ public class PackageManagerService extends IPackageManager.Stub {
         boolean dataOnly = false;
         int removeUser = -1;
         int appId = -1;
+
+        // ASF HOOK: package deletion event
+        if (FeatureConfig.INTEL_FEATURE_ASF) {
+            PackageParser.Package pkg;
+            synchronized (mPackages) {
+                PackageSetting packageSetting = mSettings.mPackages.get(packageName);
+                if (packageSetting != null) {
+                    pkg = packageSetting.pkg;
+                } else {
+                    pkg = null;
+                }
+            }
+            int userId = (user != null) ? user.getIdentifier() : 0;
+            if (!AsfAosp.sendPackageDeleteEvent(
+                    packageName,
+                    pkg,
+                    getPackageInfo(
+                            packageName,
+                            AsfAosp.SECURITY_PACKAGEINFO_FLAGS,
+                            userId >= 0 ? userId : 0),
+                    sUserManager.getUserInfo(userId) )) {
+                return false;
+            }
+        }
+
         synchronized (mPackages) {
             ps = mSettings.mPackages.get(packageName);
             if (ps == null) {
@@ -11184,7 +11638,7 @@ public class PackageManagerService extends IPackageManager.Stub {
             // When an updated system application is deleted we delete the existing resources as well and
             // fall back to existing code in system partition
             ret = deleteSystemPackageLI(ps, allUserHandles, perUserInstalled,
-                    flags, outInfo, writeSettings);
+                    flags, outInfo, writeSettings, user);
         } else {
             if (DEBUG_REMOVE) Slog.d(TAG, "Removing non-system package:" + ps.name);
             // Kill application pre-emptively especially for apps on sd.

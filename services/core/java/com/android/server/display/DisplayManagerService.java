@@ -59,6 +59,10 @@ import com.android.server.LocalServices;
 import com.android.server.SystemService;
 import com.android.server.UiThread;
 
+// INTEL_FEATURE_ASF
+import com.intel.asf.AsfAosp;
+import com.intel.config.FeatureConfig;
+
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -532,6 +536,24 @@ public final class DisplayManagerService extends SystemService {
             handleDisplayDeviceAddedLocked(device);
             LogicalDisplay display = findLogicalDisplayForDeviceLocked(device);
             if (display != null) {
+                if (FeatureConfig.INTEL_FEATURE_ASF
+                        && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+
+                    boolean allow = AsfAosp.sendScreenCaptureEvent(packageName, callingUid,
+                                            Binder.getCallingPid());
+
+                    /*
+                     *  If response is false, deny screen capture to requested
+                     *  application. If response is true, either ASF allowed
+                     *  screen capture or ASF itself is not running.
+                     */
+                    if (!allow) {
+                        Log.d(TAG, "ASF client denied screen capture: " + packageName);
+                        mVirtualDisplayAdapter.releaseVirtualDisplayLocked(callback.asBinder());
+                        handleDisplayDeviceRemovedLocked(device);
+                        return -1;
+                    }
+                }
                 return display.getDisplayIdLocked();
             }
 

@@ -60,6 +60,7 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.content.pm.UserInfo;
 import android.content.res.Configuration;
 import android.graphics.Point;
 import android.hardware.display.DisplayManager;
@@ -104,6 +105,9 @@ import com.android.server.LocalServices;
 import com.android.server.am.ActivityStack.ActivityState;
 import com.android.server.wm.WindowManagerService;
 
+// INTEL_FEATURE_ASF
+import com.intel.asf.AsfAosp;
+import com.intel.config.FeatureConfig;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
@@ -1471,6 +1475,42 @@ public final class ActivityStackSupervisor implements DisplayListener {
                 mPendingActivityLaunches.add(pal);
                 ActivityOptions.abort(options);
                 return ActivityManager.START_SWITCHES_CANCELED;
+            }
+        }
+
+        // ASF HOOK: Start Activity event.
+        if (FeatureConfig.INTEL_FEATURE_ASF) {
+            // Start Activity event
+            if (AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+                UserInfo userInfo = null;
+                try {
+                    userInfo = mService.getUserManagerLocked().getUserInfo(r.userId);
+                } catch (SecurityException e) {
+                    // When there is an exception, null userInfo is sent to ASF client.
+                }
+                if (!AsfAosp.sendStartActivityEvent(
+                        r.info,
+                        callingPackage,
+                        r.packageName,
+                        r.intent,
+                        r.userId,
+                        userInfo) ) {
+                    // Start Activity is denied by ASF client
+                    /* NOTE: This block of code is same as that used
+                     * above to abort the IntentFirewall
+                     * checkStartActivity(). If that code is changed
+                     * this block will also need to be changed.
+                     * Resolved KW issue in this copy.
+                     */
+                    if (resultStack != null && resultRecord != null) {
+                        resultStack.sendActivityResultLocked(-1, resultRecord, resultWho,
+                                requestCode, Activity.RESULT_CANCELED, null);
+                    }
+                    // We pretend to the caller that it was really started, but
+                    // they will just get a cancel result.
+                    ActivityOptions.abort(options);
+                    return ActivityManager.START_SUCCESS;
+                }
             }
         }
 

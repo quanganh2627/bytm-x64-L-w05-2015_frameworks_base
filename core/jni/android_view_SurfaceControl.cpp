@@ -42,6 +42,15 @@
 
 #include <ScopedUtfChars.h>
 
+#ifdef INTEL_FEATURE_ASF
+#include "AsfVersionAosp.h"
+#if PLATFORM_ASF_VERSION >= ASF_VERSION_2
+// The interface file for inserting hooks to communicate with native service securitydevice
+#include "AsfDeviceAosp.h"
+#include <private/android_filesystem_config.h>
+#endif
+#endif
+
 #include "SkTemplates.h"
 
 // ----------------------------------------------------------------------------
@@ -119,6 +128,21 @@ static jobject nativeScreenshotBitmap(JNIEnv* env, jclass clazz,
         jobject displayTokenObj, jobject sourceCropObj, jint width, jint height,
         jint minLayer, jint maxLayer, bool allLayers, bool useIdentityTransform,
         int rotation) {
+
+#if defined(INTEL_FEATURE_ASF) && (PLATFORM_ASF_VERSION >= ASF_VERSION_2)
+        // Place call to function that acts as a hook point for camera events
+        bool response =
+                AsfDeviceAosp::sendScreencaptureEvent(IPCThreadState::self()->getCallingUid(),
+                  IPCThreadState::self()->getCallingPid());
+        // If response is false, deny access to requested application and return NULL.
+        // If response is true, then either ASF allowed access to take screen capture or
+        // ASF Client is not running
+        if (!response) {
+            ALOGE("ASF client denied permission, returning NULL");
+            return NULL;
+        }
+#endif
+
     sp<IBinder> displayToken = ibinderForJavaObject(env, displayTokenObj);
     if (displayToken == NULL) {
         return NULL;

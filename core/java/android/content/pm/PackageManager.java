@@ -969,6 +969,16 @@ public abstract class PackageManager {
     @SdkConstant(SdkConstantType.FEATURE)
     public static final String FEATURE_AUDIO_LOW_LATENCY = "android.hardware.audio.low_latency";
 
+// INTEL_FEATURE_PERM_LIC_START
+    /**
+     * Feature for {@link #getSystemAvailableFeatures} and {@link #hasSystemFeature}:
+     * The device is capable of using Permissions for Licening the application.
+     * @hide
+     */
+
+    public static final String FEATURE_PERMISSION_LICENSING = "com.intel.feat.permlic";
+// INTEL_FEATURE_PERM_LIC_END
+
     /**
      * Feature for {@link #getSystemAvailableFeatures} and
      * {@link #hasSystemFeature}: The device includes at least one form of audio

@@ -9,7 +9,7 @@ LOCAL_SRC_FILES += \
     java/com/android/server/EventLogTags.logtags \
     java/com/android/server/am/EventLogTags.logtags
 
-LOCAL_JAVA_LIBRARIES += android.policy telephony-common com.intel.config
+LOCAL_JAVA_LIBRARIES += android.policy telephony-common com.intel.config com.intel.asf
 
 LOCAL_STATIC_JAVA_LIBRARIES += CwsServiceMgr CsmClient com.intel.aa \
     CwsCellularCoexMgrService

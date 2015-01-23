@@ -19,6 +19,7 @@ package com.android.server.am;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.List;
 
 import android.app.ActivityManager;
 import android.app.AppGlobals;
@@ -30,6 +31,8 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.content.pm.UserInfo;
+import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -42,6 +45,9 @@ import android.os.UserHandle;
 import android.util.EventLog;
 import android.util.Log;
 import android.util.Slog;
+// INTEL_FEATURE_ASF
+import com.intel.asf.AsfAosp;
+import com.intel.config.FeatureConfig;
 
 /**
  * BROADCASTS
@@ -320,6 +326,59 @@ public final class BroadcastQueue {
         }
     }
 
+    /**
+     * Sends the list of receiver package names to ASF to generate
+     * BROADCAST_INTENT event
+     *
+     * @param broadcastRecord BroadcastRecord to get the list of receivers
+    */
+    private void sendBroadcastIntentEvent(BroadcastRecord broadcastRecord) {
+        if (FeatureConfig.INTEL_FEATURE_ASF
+                && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+            UserInfo userInfo = null;
+            try {
+                // Get user in a clear binder context then restore ID
+                long id = Binder.clearCallingIdentity();
+                userInfo = mService.getUserManagerLocked().getUserInfo(
+                               ActivityManager.getCurrentUser());
+                Binder.restoreCallingIdentity(id);
+            } catch (SecurityException e) {
+                Log.w(TAG, "SecurityException while retrieving userInfo: " + e);
+            }
+
+            List<String> receiversPackageNameList = new ArrayList<String>();
+
+            // If there are no receivers, there will be no receivers
+            // to remove and the event is not needed.
+            if (broadcastRecord.receivers == null) {
+                return;
+            }
+            for (Object receiver : broadcastRecord.receivers) {
+                if (receiver instanceof ResolveInfo) {
+                    receiversPackageNameList.add(((ResolveInfo) receiver).
+                            activityInfo.applicationInfo.packageName);
+                } else if (receiver instanceof BroadcastFilter) {
+                    receiversPackageNameList.add(((BroadcastFilter) receiver).packageName);
+                }
+            }
+
+            List<String> removeIntentRecipients =
+                    AsfAosp.sendBroadcastIntentEvent(broadcastRecord.callerPackage,
+                    receiversPackageNameList, broadcastRecord.intent, userInfo);
+            if (removeIntentRecipients != null && !removeIntentRecipients.isEmpty()) {
+                // Filter the Final list of receivers based on ASF client response
+                for (String removeRecipient : removeIntentRecipients) {
+                    int index = receiversPackageNameList.indexOf(removeRecipient);
+                    while (index != -1) {
+                        receiversPackageNameList.remove(index);
+                        broadcastRecord.receivers.remove(index);
+                        index = receiversPackageNameList.indexOf(removeRecipient);
+                    }
+                }
+            }
+        }
+    }
+
     public void scheduleBroadcastsLocked() {
         if (DEBUG_BROADCAST) Slog.v(TAG, "Schedule broadcasts ["
                 + mQueueName + "]: current="
@@ -327,6 +386,16 @@ public final class BroadcastQueue {
 
         if (mBroadcastsScheduled) {
             return;
+        }
+        if (FeatureConfig.INTEL_FEATURE_ASF
+                && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+            // ASF HOOK: intent broadcast event generation
+            for (BroadcastRecord parallelBroadcast : mParallelBroadcasts) {
+                sendBroadcastIntentEvent(parallelBroadcast);
+            }
+            for (BroadcastRecord orderedBroadcast : mOrderedBroadcasts) {
+                sendBroadcastIntentEvent(orderedBroadcast);
+            }
         }
         mHandler.sendMessage(mHandler.obtainMessage(BROADCAST_INTENT_MSG, this));
         mBroadcastsScheduled = true;

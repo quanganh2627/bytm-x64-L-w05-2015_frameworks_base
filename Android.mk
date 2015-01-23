@@ -383,6 +383,13 @@ LOCAL_SRC_FILES += \
 	packages/services/Proxy/com/android/net/IProxyCallback.aidl \
 	packages/services/Proxy/com/android/net/IProxyPortListener.aidl \
 
+# Permission Licensing
+LOCAL_PERMISSION_LICENSING_PATH := vendor/intel/asf_ext/aosp
+LOCAL_SRC_FILES += \
+	$(call find-other-java-files,../../$(LOCAL_PERMISSION_LICENSING_PATH)/frameworks/java,) \
+	$(call find-other-java-files,../../$(LOCAL_PERMISSION_LICENSING_PATH)/frameworks/utils/java,)
+LOCAL_AIDL_INCLUDES += ../../$(LOCAL_PERMISSION_LICENSING_PATH)/frameworks/enabled/base/core/java/android/content/pm/LicPermissionInfo.aidl
+
 # FRAMEWORKS_BASE_JAVA_SRC_DIRS comes from build/core/pathmap.mk
 LOCAL_AIDL_INCLUDES += $(FRAMEWORKS_BASE_JAVA_SRC_DIRS)
 
@@ -393,6 +400,8 @@ LOCAL_INTERMEDIATE_SOURCES := \
 
 LOCAL_NO_STANDARD_LIBRARIES := true
 LOCAL_JAVA_LIBRARIES := core-libart conscrypt okhttp core-junit bouncycastle ext
+
+LOCAL_JAVA_LIBRARIES += com.intel.config
 
 LOCAL_MODULE := framework
 

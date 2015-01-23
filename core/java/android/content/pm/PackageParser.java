@@ -48,25 +48,51 @@ import android.util.Log;
 import android.util.Pair;
 import android.util.Slog;
 import android.util.TypedValue;
+// INTEL_FEATURE_PERM_LIC_START
+import android.util.Xml;
+// INTEL_FEATURE_PERM_LIC_END
 
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.XmlUtils;
+// INTEL_FEATURE_PERM_LIC_START
+import com.android.server.pm.CertInfo;
+// INTEL_FEATURE_PERM_LIC_END
+import com.intel.config.FeatureConfig;
 
 import libcore.io.IoUtils;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
+// INTEL_FEATURE_PERM_LIC_START
+import java.io.ByteArrayInputStream;
+// INTEL_FEATURE_PERM_LIC_END
 import java.io.File;
+// INTEL_FEATURE_PERM_LIC_START
+import java.io.FileNotFoundException;
+// INTEL_FEATURE_PERM_LIC_END
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.security.GeneralSecurityException;
+// INTEL_FEATURE_PERM_LIC_START
+import java.security.InvalidKeyException;
+// INTEL_FEATURE_PERM_LIC_END
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
+// INTEL_FEATURE_PERM_LIC_START
+import java.security.NoSuchProviderException;
+// INTEL_FEATURE_PERM_LIC_END
 import java.security.PublicKey;
+// INTEL_FEATURE_PERM_LIC_START
+import java.security.SignatureException;
+// INTEL_FEATURE_PERM_LIC_END
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
+// INTEL_FEATURE_PERM_LIC_START
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+// INTEL_FEATURE_PERM_LIC_END
 import java.security.spec.EncodedKeySpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
@@ -74,6 +100,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+// INTEL_FEATURE_PERM_LIC_START
+import java.util.HashMap;
+// INTEL_FEATURE_PERM_LIC_END
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -110,6 +139,14 @@ public class PackageParser {
 
     /** File name in an APK for the Android manifest. */
     private static final String ANDROID_MANIFEST_FILENAME = "AndroidManifest.xml";
+
+    // INTEL_FEATURE_PERM_LIC_START
+    private static final String LICENSED_PERMISSIONS_FILENAME = "LicensedPermissions.xml";
+    private static final String ATTR_NAME = "name";
+    private static final int CERT_INVALID = -1;
+    private static final int CERT_WITH_SIGNED_KEY = 0;
+    private static final int CERT_BY_SIGNED_KEY = 1;
+    // INTEL_FEATURE_PERM_LIC_END
 
     /** @hide */
     public static class NewPermissionInfo {
@@ -863,7 +900,20 @@ public class PackageParser {
             assets.setConfiguration(0, 0, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                     Build.VERSION.RESOURCES_SDK_INT);
             parser = assets.openXmlResourceParser(cookie, ANDROID_MANIFEST_FILENAME);
-
+// INTEL_FEATURE_PERM_LIC_START
+            InputStream licStr = null;
+            if (FeatureConfig.INTEL_FEATURE_PERM_LIC) {
+                try {
+                    licStr = assets.open(LICENSED_PERMISSIONS_FILENAME);
+                } catch (FileNotFoundException e) {
+                    // This indicates that this package is not using
+                    // Licensed Permissions
+                } catch (IOException e) {
+                    Slog.e(TAG, "Unable to read LicensedPermissions.xml of "
+                         + mArchiveSourcePath, e);
+                }
+            }
+// INTEL_FEATURE_PERM_LIC_END
             final String[] outError = new String[1];
             final Package pkg = parseBaseApk(res, parser, flags, outError);
             if (pkg == null) {
@@ -873,7 +923,21 @@ public class PackageParser {
 
             pkg.baseCodePath = apkPath;
             pkg.mSignatures = null;
-
+// INTEL_FEATURE_PERM_LIC_START
+            if (FeatureConfig.INTEL_FEATURE_PERM_LIC && licStr != null) {
+                try {
+                    final XmlPullParser licParser = Xml.newPullParser();
+                    licParser.setInput(licStr, null);
+                    parsePackageLicensed(res, licParser, pkg);
+                } catch (XmlPullParserException e) {
+                    throw new PackageParserException(INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION,
+                            "Failed to read manifest from " + apkPath, e);
+                } catch (IOException ioe) {
+                    throw new PackageParserException(INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION,
+                            "Failed to read manifest from " + apkPath, ioe);
+                }
+            }
+// INTEL_FEATURE_PERM_LIC_END
             return pkg;
 
         } catch (PackageParserException e) {
@@ -905,13 +969,42 @@ public class PackageParser {
             assets.setConfiguration(0, 0, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                     Build.VERSION.RESOURCES_SDK_INT);
             parser = assets.openXmlResourceParser(cookie, ANDROID_MANIFEST_FILENAME);
-
+// INTEL_FEATURE_PERM_LIC_START
+            InputStream licStr = null;
+            if (FeatureConfig.INTEL_FEATURE_PERM_LIC) {
+                try {
+                    licStr = assets.open(LICENSED_PERMISSIONS_FILENAME);
+                } catch (FileNotFoundException e) {
+                    // This indicates that this package is not using
+                    // Licensed Permissions
+                } catch (IOException e) {
+                    Slog.e(TAG, "Unable to read LicensedPermissions.xml of "
+                         + mArchiveSourcePath, e);
+                }
+            }
+// INTEL_FEATURE_PERM_LIC_END
             final String[] outError = new String[1];
             pkg = parseSplitApk(pkg, res, parser, flags, splitIndex, outError);
             if (pkg == null) {
                 throw new PackageParserException(mParseError,
                         apkPath + " (at " + parser.getPositionDescription() + "): " + outError[0]);
             }
+
+// INTEL_FEATURE_PERM_LIC_START
+            if (FeatureConfig.INTEL_FEATURE_PERM_LIC && licStr != null) {
+                try {
+                    final XmlPullParser licParser = Xml.newPullParser();
+                    licParser.setInput(licStr, null);
+                    parsePackageLicensed(res, licParser, pkg);
+                } catch (XmlPullParserException e) {
+                    throw new PackageParserException(INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION,
+                            "Failed to read manifest from " + apkPath, e);
+                } catch (IOException ioe) {
+                    throw new PackageParserException(INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION,
+                            "Failed to read manifest from " + apkPath, ioe);
+                }
+            }
+// INTEL_FEATURE_PERM_LIC_END
 
         } catch (PackageParserException e) {
             throw e;
@@ -1109,7 +1202,48 @@ public class PackageParser {
         } finally {
             closeQuietly(jarFile);
         }
+// INTEL_FEATURE_PERM_LIC_START
+        if (FeatureConfig.INTEL_FEATURE_PERM_LIC) {
+            if (!verifyCertPackage(pkg)) {
+                Slog.w(TAG, "Invalid certification in licensed permissions in the package "
+                        + pkg.packageName);
+                throw new PackageParserException(INSTALL_PARSE_FAILED_CERTIFICATE_ENCODING,
+                        "Invalid certification in licensed permissions in the package "
+                        + pkg.packageName);
+            }
+        }
     }
+
+    /**
+     * This method check if the package signed by the signing public key or not.
+     *
+     * @param key String.
+     * @param pkg Package.
+     * @return The integer value ,weather package signed cerificate is valid or not.
+     */
+    private static boolean verifyCertPackage(Package pkg) {
+        final Iterator<License> item = pkg.licenses.values().iterator();
+        if (item.hasNext()) {
+            for (LicPermission perm : pkg.licPermissions) {
+                for (CertInfo certInfo : perm.info.certsInfoList) {
+                    if (verifyCertValid(certInfo.getKey(), pkg) == CERT_INVALID) {
+                        return false;
+                    }
+                }
+            }
+
+            while (item.hasNext()) {
+                License lic = item.next();
+                int verifyCertValid = verifyCertValid(lic.key, pkg);
+                if (verifyCertValid != CERT_WITH_SIGNED_KEY
+                        && verifyCertValid != CERT_BY_SIGNED_KEY) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+// INTEL_FEATURE_PERM_LIC_END
 
     private static Signature[] convertToSignatures(Certificate[][] certs)
             throws CertificateEncodingException {
@@ -2749,6 +2883,425 @@ public class PackageParser {
         return true;
     }
 
+// INTEL_FEATURE_PERM_LIC_START
+    /**
+     * Checkes weather licensed permission available in manifest file or not.
+     *
+     * @param pkg Package.
+     * @param name String.
+     * @return The boolean true if file exist in assets folder,
+     * false if does not exist.
+     */
+    private boolean checkLicPermission(Package pkg, String name) {
+        for (Permission perm : pkg.permissions) {
+            if (perm.info.name.equals(name))
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * This method checks Manifest file for licensed permissions and
+     * gathers its details.
+     *
+     * @param owner Package.
+     * @param res Resources.
+     * @param outInfo LicPermissionInfo.
+     * @param outError String[].
+     * @param parser XmlPullParser.
+     * @return The boolean true if it contains any license permissions,
+     * false if does not.
+     */
+    private boolean parseLicPermissionInfo(Package owner, Resources res,
+            LicPermissionInfo outInfo, String[] outError, XmlPullParser parser) {
+        String tag = "lic-permission";
+        String name = parser.getAttributeValue(null, ATTR_NAME);
+        if (name == null) {
+            outError[0] = tag + " does not specify android:name";
+            return false;
+        } else if (!checkLicPermission(owner, name)) {
+            outError[0] = tag + " licensed permission [" + name + "] not exists "
+                    + "in AndroidManifest.xml";
+            return false;
+        }
+        outInfo.name = buildClassName(owner.applicationInfo.packageName, name, outError);
+        if (outInfo.name == null) {
+            outError[0] = tag + " buildClassName for" + name + "failed.";
+            return false;
+        }
+
+        String require = parser.getAttributeValue(null, "require");
+        if (require == null) {
+            outError[0] = tag + " does not specify android:require";
+            return false;
+        } else if (!"any".equals(require) && !"all".equals(require)) {
+            outError[0] = tag + " wrong value in specify android:require, only allowed any|all";
+            return false;
+        }
+        outInfo.require = require;
+
+        outInfo.packageName = owner.packageName;
+        return true;
+    }
+
+    /**
+     * This method gathers information of permission license revoked packages details.
+     *
+     * @param owner Package.
+     * @param res Resources.
+     * @param parser XmlPullParser.
+     * @param outError String[].
+     * @param outInfo LicPermissionInfo.
+     * @return The boolean true if it contains any revoke packages,
+     * false if does not exist.
+     */
+    private boolean parseRevokePackages(Package owner, Resources res,
+            XmlPullParser parser, String[] outError, CertInfo outInfo)
+        throws XmlPullParserException, IOException {
+        int type;
+        final int innerDepth = parser.getDepth();
+        while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
+                && (type != XmlPullParser.END_TAG || parser.getDepth() > innerDepth)) {
+            if (type == XmlPullParser.END_TAG || type == XmlPullParser.TEXT) {
+                continue;
+            }
+
+            String tagName = parser.getName();
+            if ("package".equals(tagName)) {
+                String name = parser.getAttributeValue(null, ATTR_NAME);
+                if (name == null) {
+                    outError[0] = "Empty name of package under <revlist>: " + tagName;
+                    return false;
+                }
+                outInfo.revokePackagesList.add(name);
+            } else {
+                if (!RIGID_PARSER) {
+                    Slog.w(TAG, "Unknown element under <revlist>: " + tagName
+                            + " at " + mArchiveSourcePath + " "
+                            + parser.getPositionDescription());
+                    XmlUtils.skipCurrentTag(parser);
+                    continue;
+                } else {
+                    outError[0] = "Bad element under <revlist>: " + tagName;
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * This method gathers information of permission license certificate info
+     * and revoked packages details.
+     *
+     * @param owner Package.
+     * @param res Resources.
+     * @param parser XmlPullParser.
+     * @param outError String[].
+     * @return The boolean true if it contains any revoke packages,
+     * false if does not exist.
+     */
+    private boolean parseLicPermission(Package owner, Resources res,
+            XmlPullParser parser, String[] outError)
+        throws XmlPullParserException, IOException {
+        if (parser == null) return false;
+
+        LicPermission perm = new LicPermission(owner);
+
+        parseLicPermissionInfo(owner, res, perm.info, outError, parser);
+        if (outError[0] != null) {
+            return false;
+        }
+
+        int type;
+        final int innerDepth = parser.getDepth();
+        while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
+                && (type != XmlPullParser.END_TAG || parser.getDepth() > innerDepth)) {
+            if (type == XmlPullParser.END_TAG || type == XmlPullParser.TEXT) {
+                continue;
+            }
+
+            String tagName = parser.getName();
+            if ("cert".equals(tagName)) {
+                CertInfo certInfo = new CertInfo();
+                String key = parser.getAttributeValue(null, "key");
+                if (key == null || key.isEmpty()) {
+                    outError[0] = "Empty key under <cert> of <lic-permission>: " + tagName;
+                    return false;
+                }
+                certInfo.key = key;
+
+                String licenseHint = parser.getAttributeValue(null, "licenseHint");
+                if (licenseHint != null && !licenseHint.isEmpty()) {
+                    certInfo.licenseHint = licenseHint;
+                }
+                final int innerRevListDepth = parser.getDepth();
+                while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
+                        && (type != XmlPullParser.END_TAG
+                        || parser.getDepth() > innerRevListDepth)) {
+                    if (type == XmlPullParser.END_TAG || type == XmlPullParser.TEXT) {
+                        continue;
+                    }
+                    tagName = parser.getName();
+                    if ("revlist".equals(tagName)
+                        && !parseRevokePackages(owner, res, parser, outError, certInfo)) {
+                        return false;
+                    }
+                }
+                perm.info.certsInfoList.add(certInfo);
+            } else {
+                if (RIGID_PARSER) {
+                    outError[0] = "Bad element under <lic-permission>: " + tagName;
+                    return false;
+                } else {
+                    Slog.w(TAG, "Unknown element under <lic-permission>: " + tagName
+                            + " at " + mArchiveSourcePath + " "
+                            + parser.getPositionDescription());
+                    XmlUtils.skipCurrentTag(parser);
+                    continue;
+                }
+            }
+        }
+        owner.licPermissions.add(perm);
+        return true;
+    }
+
+    /**
+     * This method gathers information of uses-lic-permission list from
+     * Licensed Permissions file and validates against manifest files stores
+     * the list of permission in RequestedLicPermission[] object.
+     *
+     * @param pkg Package.
+     * @param res Resources.
+     * @param parser XmlPullParser.
+     * @param outError String[].
+     * @return true if it contains any uses-lic-permission tags in manifest file,
+     * false if does not contains.
+     */
+    private boolean parseUsesLicPermission(Package pkg, Resources res,
+            XmlPullParser parser, String[] outError)
+        throws XmlPullParserException, IOException {
+        String name = parser.getAttributeValue(null, ATTR_NAME);
+
+        if (name == null) {
+            outError[0] = "no name in <uses-lic-permission> entries";
+            return false;
+        }
+
+        int index = pkg.requestedPermissions.indexOf(name);
+        if (index == -1) {
+            outError[0] = "uses licensed permission [" + name + "] not exists "
+                    + "in AndroidManifest.xml";
+            return false;
+        }
+
+        RequestedLicPermission rlp = new RequestedLicPermission();
+        rlp.name = name;
+
+        int type;
+        final int innerDepth = parser.getDepth();
+        while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
+                && (type != XmlPullParser.END_TAG || parser.getDepth() > innerDepth)) {
+            if (type == XmlPullParser.END_TAG || type == XmlPullParser.TEXT) {
+                continue;
+            }
+
+            String tagName = parser.getName();
+            if ("uses-license".equals(tagName)) {
+                name = parser.getAttributeValue(null, ATTR_NAME);
+                if (name == null) {
+                    outError[0] = "Empty name in uses-licensed of <uses-lic-permission>";
+                    return false;
+                }
+                rlp.usesLicenses.add(name);
+            }
+        }
+        pkg.requestedLicPermissions.add(rlp);
+        return true;
+    }
+
+    /**
+     * This method verifies the given certificate against the publickey
+     *
+     * @param cert Certificate.
+     * @param pk PublicKey.
+     * @return true if verification was sucessfull else false.
+     */
+    private static boolean verifyCertIssuer(Certificate cert, PublicKey publicKey) {
+        try {
+            cert.verify(publicKey);
+        } catch (CertificateException e) {
+            Log.e(TAG, "cert verification failed from CertificateException", e);
+            return false;
+        } catch (NoSuchAlgorithmException e) {
+            Log.e(TAG, "cert verification failed from NoSuchAlgorithmException", e);
+            return false;
+        } catch (InvalidKeyException e) {
+            Log.e(TAG, "cert verification failed from InvalidKeyException", e);
+            return false;
+        } catch (NoSuchProviderException e) {
+            Log.e(TAG, "cert verification failed from NoSuchProviderException", e);
+            return false;
+        } catch (SignatureException e) {
+            Log.e(TAG, "cert verification failed from SignatureException", e);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * This method check if the cert signed by the signing public key or not.
+     *
+     * @param key String.
+     * @param pkg Package.
+     * @return The integer value ,weather signed cerificate is valid or not.
+     */
+    private static int verifyCertValid(String key, Package pkg) {
+        try {
+            CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+            ByteArrayInputStream bais = new ByteArrayInputStream(key.getBytes());
+            Certificate cert = certFactory.generateCertificate(bais);
+
+            PublicKey publicKey = cert.getPublicKey();
+
+            if (pkg.mSigningKeys.contains(publicKey)) return CERT_WITH_SIGNED_KEY;
+
+            // check if the cert signed by the signing public key
+            for (PublicKey signKey : pkg.mSigningKeys) {
+                if (verifyCertIssuer(cert, signKey)) {
+                    return CERT_BY_SIGNED_KEY;
+                }
+            }
+        } catch (CertificateException e) {
+            Log.e(TAG, "cert generate failed from CertificateException", e);
+            return CERT_INVALID;
+        }
+        return CERT_INVALID;
+    }
+
+    /**
+     * This method will parse the license tag from the LicensedPermissions.
+     *
+     * @param owner Package.
+     * @param res Resources.
+     * @param parser XmlPullParser.
+     * @param outError String[].
+     * @return The boolean true if it contains any license tags in manifest file,
+     * false if does not contains.
+     */
+    private boolean parseLicense(Package owner, Resources res,
+            XmlPullParser parser, String[] outError)
+        throws XmlPullParserException, IOException {
+        String name = parser.getAttributeValue(null, ATTR_NAME);
+        CertInfo certInfo = new CertInfo();
+        if (name == null) {
+            outError[0] = "no name in <license> entries";
+            return false;
+        }
+
+        String licenseHint = parser.getAttributeValue(null, "licenseHint");
+        if (licenseHint == null) {
+            outError[0] = "no licenseHint in <license> entries";
+            return false;
+        }
+
+        String allowChain = parser.getAttributeValue(null, "allowChain");
+        if (allowChain == null) {
+            outError[0] = "no allowChain in <license> entries";
+            return false;
+        } else if (!"true".equals(allowChain) && !"false".equals(allowChain)) {
+            outError[0] = "only true/false allowed for allowChain attribute in <license> entries";
+            return false;
+        }
+
+        String key = parser.getAttributeValue(null, "key");
+        if (key == null || key.isEmpty()) {
+            outError[0] = "no key in <license> entries";
+            return false;
+        }
+
+        if (owner.licenses.get(name) != null) {
+            outError[0] = "duplicated license name in other <license> entries";
+            return false;
+        }
+
+        License lic = new License();
+        lic.name = name;
+        lic.licenseHint = licenseHint;
+        lic.allowChain = "true".equals(allowChain) ? true : false;
+        lic.key = certInfo.revertCert(key);
+        owner.licenses.put(name, lic);
+        return true;
+    }
+
+    /**
+     * This method will parse the entire package for license tag from the
+     * LicensedPermissions .
+     *
+     * @param res Resources.
+     * @param parser XmlPullParser.
+     * @param pkg Package.
+     * @return The Package with License details, if it does not find any
+     * it will throw PackageParserException with appropriate error message.
+     */
+    private Package parsePackageLicensed(
+            Resources res, XmlPullParser parser, Package pkg)
+        throws XmlPullParserException, PackageParserException, IOException {
+
+        String[] errorText = new String[1];
+
+        if (parser == null) {
+            throw new PackageParserException(INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION,
+                    "parser is null");
+        }
+
+        int type;
+        while ((type = parser.next()) != XmlPullParser.START_TAG
+                && type != XmlPullParser.END_DOCUMENT) {
+            ;
+        }
+
+        if (type != XmlPullParser.START_TAG) {
+            Slog.w(TAG, "No start tag found in LicensedPermissions.xml");
+            throw new PackageParserException(INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION,
+                    "No start tag found in LicensedPermissions.xml");
+        }
+
+        int outerDepth = parser.getDepth();
+        while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
+                && (type != XmlPullParser.END_TAG || parser.getDepth() > outerDepth)) {
+            if (type == XmlPullParser.END_TAG || type == XmlPullParser.TEXT) {
+                continue;
+            }
+
+            String tagName = parser.getName();
+            if ("lic-permission".equals(tagName)) {
+                if (!parseLicPermission(pkg, res, parser, errorText)) {
+                    throw new PackageParserException(INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION,
+                            "Failed to parse tag lic-permission " + errorText);
+                }
+            } else if ("uses-lic-permission".equals(tagName)) {
+                if (!parseUsesLicPermission(pkg, res, parser, errorText)) {
+                    throw new PackageParserException(INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION,
+                            "Failed to parse uses-lic-permission " + errorText);
+                }
+            } else if ("license".equals(tagName)) {
+                if (!parseLicense(pkg, res, parser, errorText)) {
+                    throw new PackageParserException(INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION,
+                            "Failed to parse license " + errorText);
+                }
+            } else {
+                Slog.w(TAG, "Unknown element under <lic-manifest>: " + parser.getName()
+                        + " at " + mArchiveSourcePath + " "
+                        + parser.getPositionDescription());
+                XmlUtils.skipCurrentTag(parser);
+                continue;
+            }
+        }
+        return pkg;
+    }
+// INTEL_FEATURE_PERM_LIC_END
+
     /**
      * Parse the {@code application} XML tree at the current parse location in a
      * <em>split APK</em> manifest.
@@ -4205,6 +4758,13 @@ public class PackageParser {
         public final ArrayList<String> requestedPermissions = new ArrayList<String>();
         public final ArrayList<Boolean> requestedPermissionsRequired = new ArrayList<Boolean>();
 
+// INTEL_FEATURE_PERM_LIC_START
+        public final ArrayList<LicPermission> licPermissions = new ArrayList<LicPermission>(0);
+        public final ArrayList<RequestedLicPermission> requestedLicPermissions =
+                new ArrayList<RequestedLicPermission>();
+        public final HashMap<String, License> licenses = new HashMap<String, License>();
+// INTEL_FEATURE_PERM_LIC_END
+
         public ArrayList<String> protectedBroadcasts;
 
         public ArrayList<String> libraryNames = null;
@@ -4348,6 +4908,13 @@ public class PackageParser {
             for (int i=permissions.size()-1; i>=0; i--) {
                 permissions.get(i).setPackageName(newName);
             }
+// INTEL_FEATURE_PERM_LIC_START
+            if (FeatureConfig.INTEL_FEATURE_PERM_LIC) {
+                for (int i = licPermissions.size() - 1; i >= 0; i--) {
+                    licPermissions.get(i).setPackageName(newName);
+                }
+            }
+// INTEL_FEATURE_PERM_LIC_END
             for (int i=permissionGroups.size()-1; i>=0; i--) {
                 permissionGroups.get(i).setPackageName(newName);
             }
@@ -4524,7 +5091,51 @@ public class PackageParser {
             componentShortName = null;
         }
     }
-    
+
+// INTEL_FEATURE_PERM_LIC_START
+    public final static class LicPermission extends Component<IntentInfo> {
+
+        public final LicPermissionInfo info;
+
+        public LicPermission(Package owner) {
+            super(owner);
+            info = new LicPermissionInfo();
+        }
+
+        public LicPermission(Package owner, LicPermissionInfo licInfo) {
+            super(owner);
+            info = licInfo;
+        }
+
+        public void setPackageName(String packageName) {
+            super.setPackageName(packageName);
+            info.packageName = packageName;
+        }
+
+        public String toString() {
+            return "LicPermission{"
+                    + Integer.toHexString(System.identityHashCode(this))
+                    + " " + info.name + "}";
+        }
+    }
+
+    public final static class RequestedLicPermission {
+        public String name;
+        public ArrayList<String> usesLicenses = new ArrayList<String>();
+
+        public void RequestedLicPermission() { }
+    }
+
+    public final static class License {
+        public String name;
+        public String licenseHint;
+        public boolean allowChain;
+        public String key;
+
+        public void License() { }
+    }
+// INTEL_FEATURE_PERM_LIC_END
+
     public final static class Permission extends Component<IntentInfo> {
         public final PermissionInfo info;
         public boolean tree;

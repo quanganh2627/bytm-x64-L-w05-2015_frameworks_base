@@ -88,6 +88,9 @@ import android.provider.Settings;
 import android.util.Log;
 import android.util.Slog;
 
+import com.intel.asf.AsfAosp;
+import com.intel.config.FeatureConfig;
+
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -1709,6 +1712,22 @@ public class LocationManagerService extends ILocationManager.Stub {
                         packageName);
                 return null;
             }
+            if (FeatureConfig.INTEL_FEATURE_ASF
+                    && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+
+                boolean allow = AsfAosp.sendLocationEvent(packageName, uid,
+                                                          Binder.getCallingPid());
+                /*
+                 *  If response is false, deny access to requested
+                 *  application continue to next receiver.  If
+                 *  response is true, either ASF allowed access for
+                 *  location to update or if ASF itself not running.
+                 */
+                if (!allow) {
+                    if (D) Log.d(TAG, "ASF client denied returning last loc app: " + packageName);
+                    return null;
+                }
+            }
 
             synchronized (mLock) {
                 // Figure out the provider. Either its explicitly request (deprecated API's),
@@ -2172,6 +2191,23 @@ public class LocationManagerService extends ILocationManager.Stub {
                 if (D) Log.d(TAG, "skipping loc update for no op app: " +
                         receiver.mPackageName);
                 continue;
+            }
+
+            if (FeatureConfig.INTEL_FEATURE_ASF
+                    && AsfAosp.PLATFORM_ASF_VERSION >= AsfAosp.ASF_VERSION_2) {
+
+                boolean allow = AsfAosp.sendLocationEvent(receiver.mPackageName, receiver.mUid,
+                                                          receiver.mPid);
+                /*
+                 *  If response is false, deny access to requested
+                 *  application continue to next receiver.  If
+                 *  response is true, either ASF allowed access for
+                 *  location to update or if ASF itself not running.
+                 */
+                if (!allow) {
+                    if (D) Log.d(TAG, "ASF client denied loc update app: " + receiver.mPackageName);
+                    continue;
+                }
             }
 
             Location notifyLocation = null;

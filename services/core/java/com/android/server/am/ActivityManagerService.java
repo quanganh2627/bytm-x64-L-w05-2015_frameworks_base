@@ -201,6 +201,10 @@ import android.view.View;
 import android.view.WindowManager;
 import dalvik.system.VMRuntime;
 
+// INTEL_FEATURE_ASF
+import com.intel.asf.AsfAosp;
+import com.intel.config.FeatureConfig;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
@@ -3173,7 +3177,18 @@ public final class ActivityManagerService extends ActivityManagerNative
             if ("1".equals(SystemProperties.get("debug.assert"))) {
                 debugFlags |= Zygote.DEBUG_ENABLE_ASSERT;
             }
-
+            // ASF HOOK: application start event
+            if (FeatureConfig.INTEL_FEATURE_ASF) {
+                UserInfo userInfo = null;
+                try {
+                    userInfo = getUserManagerLocked().getUserInfo(app.userId);
+                } catch (SecurityException e) {
+                    // When there is an exception, null userInfo is sent to ASF client.
+                }
+                if (!AsfAosp.sendAppStartEvent(app.info, app.userId, userInfo)) {
+                    throw new SecurityException("process start is disallowed by policy.");
+                }
+            }
             String requiredAbi = (abiOverride != null) ? abiOverride : app.info.primaryCpuAbi;
             if (requiredAbi == null) {
                 requiredAbi = Build.SUPPORTED_ABIS[0];
@@ -4748,6 +4763,16 @@ public final class ActivityManagerService extends ActivityManagerNative
             Bundle info = new Bundle();
             info.putString("shortMsg", "Process crashed.");
             finishInstrumentationLocked(app, Activity.RESULT_CANCELED, info);
+        }
+        // ASF HOOK: application stop event
+        if (FeatureConfig.INTEL_FEATURE_ASF) {
+            UserInfo userInfo = null;
+            try {
+                userInfo = getUserManagerLocked().getUserInfo(app.userId);
+            } catch (SecurityException e) {
+                // When there is an exception, null userInfo is sent to ASF client.
+            }
+            AsfAosp.sendAppStopEvent(app.info, app.userId, app.pid, userInfo);
         }
 
         if (!restarting) {
@@ -11118,6 +11143,141 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
     }
 
+    // ASF launch timeout.  The system will ungracefully timeout at 20 seconds.
+    // To avoid this ungraceful timeout, we impose our own 15 second timeout
+    // for ASF launch.  (The ASF security manager service will itself impose a
+    // timeout of 10 seconds for ASF client launch.)
+    private static final long ONE_SECOND_MS = 1000;
+    private static final long ASF_LAUNCH_TIMEOUT = 15 * ONE_SECOND_MS;
+
+    // ASF broadcast deferral.  Until ASF has launched, the sending of
+    // all non-ASF broadcasts will be deferred.  This is to avoid
+    // concurrency issues with pre-ASF broadcasts (a TIME_TICK, for
+    // instance) not being able to complete until ASF launches.  This
+    // also avoids allowing broadcasts to launch apps before an ASF
+    // client is ready to enforce its security policy.
+    private boolean mDeferBroadcasts = true;
+    private final List<BroadcastRecord> mDeferredBroadcasts = new ArrayList<BroadcastRecord>();
+
+    // Flag an ASF launch so we don't launch more than once (since
+    // systemReady() can be invoked more than once).
+    private boolean mAsfLaunched = false;
+
+    // While an ASF launch is in progress, we collect the destinations
+    // of ACTION_LAUNCH_SECURITY_CLIENT broadcast intents so we can
+    // allow early-launch clients to exist during boot and survive any
+    // update-receiver step in systemReady().
+    private boolean mAsfLaunchInProgress = false;
+    private final Set<String> mAsfEarlyLaunchClients = new HashSet<String>();
+
+    /**
+     * Launch ASF by using a broadcast intent to launch the security
+     * manager service, which will in turn launch any ASF clients.  This
+     * method will block until the ASF launch has completed.
+     */
+    private void launchAsf() {
+        if (FeatureConfig.INTEL_FEATURE_ASF) {
+            // Only launch ASF once.  (This is needed because
+            // systemReady() can be invoked more than once.)
+            if (mAsfLaunched) {
+                return;
+            }
+            mAsfLaunched = true;
+
+            // A class is needed to contain this variable, so that the
+            // object can be final (and accessible from the callback inner
+            // class) but the value be mutable.  We need a real
+            // java.lang.Object to use for locking, besides.
+            class CompletionCondition {
+                public boolean finished = false;
+            };
+            final CompletionCondition completionCondition =
+                new CompletionCondition();
+
+            // Launch the ASF security manager service.
+            Log.i(TAG, "Preparing to launch ASF security manager.");
+            Intent intent = AsfAosp.getLaunchIntent(new Runnable() {
+                public void run() {
+                    // When the security manager service signals readiness,
+                    // allow the activity manager to continue where we
+                    // block, below.
+                    synchronized (completionCondition) {
+                        completionCondition.finished = true;
+                        completionCondition.notify();
+                    }
+                }
+            });
+            if (intent == null) {
+                Log.e(TAG, "Unable to create 'ASF Launch' intent for launching "
+                        + "ASF security manager service.");
+                return;
+            }
+            // Send the broadcast intent.
+            synchronized (this) {
+                mAsfLaunchInProgress = true;
+                broadcastIntentLocked(
+                                      null, null, intent, null,
+                                      null, 0, null, null,
+                                      AsfAosp.LAUNCH_SECURITY_MANAGER_PERMISSION,
+                                      AppOpsManager.OP_NONE,
+                                      true, false,
+                                      MY_PID, Process.SYSTEM_UID, UserHandle.USER_ALL
+                                      );
+            }
+
+            // Flush the broadcast queue so our intent is delivered
+            // immediately.  (Otherwise, ASF launch will be delayed during
+            // first boot.)
+            mFgBroadcastQueue.processNextBroadcast(true);
+
+            // Block until the ASF security manager service signals
+            // readiness.
+            synchronized (completionCondition) {
+                if (!completionCondition.finished) {
+                    try {
+                        completionCondition.wait(ASF_LAUNCH_TIMEOUT);
+                    } catch (InterruptedException e) {
+                        Log.e(TAG,
+                                "Interruption while waiting for completion of ASF launch.",
+                                e );
+                    }
+                }
+                if (!completionCondition.finished) {
+                    Log.e(TAG, "Timeout while launching ASF security manager.");
+                } else {
+                    Log.i(TAG, "Finished launching ASF security manager.");
+                }
+            }
+
+            // Non-ASF broadcasts are deferred until the completion of
+            // the ASF launch.  The deferred broadcasts are re-enqueued here.
+            synchronized (this) {
+                mAsfLaunchInProgress = false;
+                // allow broadcasts to be transmitted as usual after
+                // this synchronization block.
+                mDeferBroadcasts = false;
+                // enqueue each previously deferred broadcast
+                if (! mDeferredBroadcasts.isEmpty()) {
+                    for (BroadcastRecord record : mDeferredBroadcasts) {
+                        if (record != null && record.intent != null) {
+                            BroadcastQueue queue = broadcastQueueForIntent(record.intent);
+                            if (queue != null) {
+                                Slog.i(TAG, "enqueue previously deferred broadcast: "
+                                        + record.intent.getAction());
+                                queue.enqueueOrderedBroadcastLocked(record);
+                                queue.scheduleBroadcastsLocked();
+                            } else {
+                                Slog.e(TAG, "no queue found for intent: "
+                                        + record.intent.getAction());
+                            }
+                        }
+                    }
+                    mDeferredBroadcasts.clear();
+                }
+            }
+        }
+    }
+
     private boolean deliverPreBootCompleted(final Runnable onFinishCallback,
             ArrayList<ComponentName> doneReceivers, int userId) {
         boolean waitingUpdate = false;
@@ -11196,6 +11356,19 @@ public final class ActivityManagerService extends ActivityManagerNative
     }
 
     public void systemReady(final Runnable goingCallback) {
+        // Launch the ASF security manager service and any client apps.
+        // This should happen before calling the goingCallback, so ASF
+        // can monitor the apps launched from the callback, and so the
+        // activity manager "storm" resulting from the callback will not
+        // adversely impact our synchronous launch scheme.  The launch
+        // must also happen before any update receivers are called,
+        // because our broadcast deferrals would otherwise prevent the
+        // update process from reaching completion.
+        // INTEL_FEATURE_ASF
+        if (FeatureConfig.INTEL_FEATURE_ASF) {
+            launchAsf();
+        }
+
         synchronized(this) {
             if (mSystemReady) {
                 // If we're done calling all the receivers, run the next "boot phase" passed in
@@ -15753,6 +15926,39 @@ public final class ActivityManagerService extends ActivityManagerNative
                     TAG, "Enqueueing parallel broadcast " + r);
             final boolean replaced = replacePending && queue.replaceParallelBroadcastLocked(r);
             if (!replaced) {
+                // ASF broadcast deferral:  Until ASF has launched,
+                // defer the sending of all non-ASF broadcasts.  This is
+                // to avoid concurrency issues with pre-ASF broadcasts
+                // (a TIME_TICK, for instance) not being able to
+                // complete until ASF launches.  This also avoids
+                // allowing broadcasts to launch apps before an ASF
+                // client is ready to enforce its security policy.
+                if (FeatureConfig.INTEL_FEATURE_ASF && mDeferBroadcasts
+                        && !AsfAosp.ACTION_LAUNCH_SECURITY_MANAGER.equals(intent.getAction())
+                        && !AsfAosp.ACTION_LAUNCH_SECURITY_CLIENT.equals(intent.getAction())) {
+                    Slog.i(TAG, "deferring broadcast: " + intent.getAction());
+                    mDeferredBroadcasts.add(r);
+                } else {
+                    // ASF: collect ACTION_LAUNCH_SECURITY_CLIENT
+                    // destinations while an ASF launch is in progress,
+                    // so we can allow these clients to exist during
+                    // boot.
+                    if (FeatureConfig.INTEL_FEATURE_ASF && mAsfLaunchInProgress
+                            && AsfAosp.ACTION_LAUNCH_SECURITY_CLIENT.equals(intent.getAction())
+                            && receivers != null) {
+                        for (Object receiver : receivers) {
+                            if (receiver instanceof ResolveInfo) {
+                                ResolveInfo resolveInfo = (ResolveInfo) receiver;
+                                if (resolveInfo.activityInfo != null
+                                        && resolveInfo.activityInfo.applicationInfo != null) {
+                                    mAsfEarlyLaunchClients.add(
+                                            resolveInfo.activityInfo.applicationInfo.packageName
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
                 queue.enqueueParallelBroadcastLocked(r);
                 queue.scheduleBroadcastsLocked();
             }
@@ -15863,6 +16069,13 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
 
         int flags = intent.getFlags();
+
+        // ASF: Allow ACTION_LAUNCH_SECURITY_CLIENT to launch ASF
+        // clients before other processes are allowed to start.
+        if (intent != null && FeatureConfig.INTEL_FEATURE_ASF
+                && AsfAosp.ACTION_LAUNCH_SECURITY_CLIENT.equals(intent.getAction())) {
+            return intent;
+        }
 
         if (!mProcessesReady) {
             // if the caller really truly claims to know what they're doing, go
