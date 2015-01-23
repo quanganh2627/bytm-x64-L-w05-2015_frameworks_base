@@ -3157,14 +3157,15 @@ public class AudioService extends IAudioService.Stub {
                     if (DEBUG_VOL)
                         Log.v(TAG, "getActiveStreamType: Forcing STREAM_MUSIC stream active");
                     return AudioSystem.STREAM_MUSIC;
-                } else
+                } else {
                     if (AudioSystem.isStreamActive(AudioSystem.STREAM_FM, 0)) {
                         if (DEBUG_VOL) Log.v(TAG, "getActiveStreamType: Forcing STREAM_FM...");
-                        return AudioSystem.STREAM_MUSIC;
+                        return AudioSystem.STREAM_FM;
                     } else {
                         if (DEBUG_VOL)
                             Log.v(TAG, "getActiveStreamType: Forcing STREAM_RING b/c default");
                         return AudioSystem.STREAM_RING;
+                    }
                 }
             } else if (isAfMusicActiveRecently(0)) {
                 if (DEBUG_VOL)
