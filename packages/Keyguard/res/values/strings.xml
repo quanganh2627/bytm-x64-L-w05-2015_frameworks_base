@@ -381,6 +381,10 @@
     <!-- On the keyguard screen, it shows the carrier the phone is connected to.
         This is displayed if the phone is not connected to a carrier.-->
     <string name="keyguard_carrier_default">No service.</string>
+    <string name="keyguard_carrier_unicom" msgid="8700650403054042154">"CHN-NUICOM"</string>
+    <string name="keyguard_carrier_mobile" msgid="8700650403054042155">"CHN-MOBILE"</string>
+    <string name="keyguard_carrier_edge" msgid="8700650403054042156">"2G"</string>
+    <string name="keyguard_carrier_hspa" msgid="8700650403054042157">"3G"</string>
 
     <!-- Dual SIM unlock scrren -->
     <string name="slot1">SIM 1</string>

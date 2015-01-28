@@ -275,7 +275,7 @@ public class KeyguardUpdateMonitor {
                 if (DEBUG) Log.d(TAG, "received SPN_STRINGS_UPDATED_ACTION on slot:" + slot);
                 mTelephonyPlmn[slot] = getTelephonyPlmnFrom(intent);
                 mTelephonySpn[slot] = getTelephonySpnFrom(intent);
-	            mHandler.sendMessage(mHandler.obtainMessage(MSG_CARRIER_INFO_UPDATE, slot, 0));
+	        mHandler.sendMessage(mHandler.obtainMessage(MSG_CARRIER_INFO_UPDATE, slot, 0));
             } else if (Intent.ACTION_BATTERY_CHANGED.equals(action)) {
                 final int status = intent.getIntExtra(EXTRA_STATUS, BATTERY_STATUS_UNKNOWN);
                 final int plugged = intent.getIntExtra(EXTRA_PLUGGED, 0);

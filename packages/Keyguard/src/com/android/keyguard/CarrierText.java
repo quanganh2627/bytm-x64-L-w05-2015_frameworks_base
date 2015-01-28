@@ -121,10 +121,43 @@ public class CarrierText extends TextView {
         Log.d("Keyguard-CarrierText", "carrier:" + text1 + ",carrier2:" + text2);
 
         if (KeyguardViewManager.USE_UPPER_CASE) {
-            setText(getCarrierTextInHtml(text1.toString().toUpperCase(), text2.toString().toUpperCase()));
+            CharSequence content = getCarrierTextInHtml(text1.toString().toUpperCase(), text2.toString().toUpperCase());
+            setText(updateSplmn(content));
+            //setText(getCarrierTextInHtml(text1.toString().toUpperCase(), text2.toString().toUpperCase()));
         } else {
-            setText(getCarrierTextInHtml(text1.toString(), text2.toString()));
+            CharSequence content = getCarrierTextInHtml(text1.toString(), text2.toString());
+            setText(updateSplmn(content));
+            //setText(getCarrierTextInHtml(text1.toString(), text2.toString()));
         }
+    }
+    
+    private CharSequence updateSplmn(CharSequence content){
+       if(content == null){
+         return null;
+       }
+
+       String  splmn = content.toString();
+       if(splmn.contains("CHN-UNICOM")){
+          splmn = getResources().getString(R.string.keyguard_carrier_unicom).toString();
+          return appendPlmnType(splmn, content.toString());
+       }else if(splmn.contains("CHN-MOBILE")){
+          splmn = getResources().getString(R.string.keyguard_carrier_mobile).toString();
+          return appendPlmnType(splmn, content.toString());
+       }
+
+       return splmn.toString();
+    }
+
+    private CharSequence appendPlmnType(String splmn, String content){
+       String str = splmn;
+       if(content.contains("2G")){
+          str = str+" - "+"2G";
+       }else if(content.contains("3G")){
+          str = str+" - "+"3G";
+       }else if(content.contains("4G")){
+          str = str+" - "+"4G";
+       }
+       return str.toString();
     }
 
     protected void updateCarrierText(State simState, CharSequence plmn, CharSequence spn) {
