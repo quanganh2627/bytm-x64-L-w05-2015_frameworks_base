@@ -164,6 +164,11 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLSession;
 
+//add by xlj 
+import android.app.AppOpsManager;
+import com.android.internal.app.IAppOpsService;
+//add by xlj end
+
 /**
  * @hide
  */
@@ -285,6 +290,7 @@ public class ConnectivityService extends IConnectivityManager.Stub {
 
     private static final boolean EXEMPT = true;
     private static final boolean UNEXEMPT = false;
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("intel.pem.control", false);
 
     /**
      * used internally as a delayed event to make us switch back to the
@@ -1929,9 +1935,33 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         enforceChangePermission();
         if (DBG) log("setMobileDataEnabled(" + enabled + ")");
 
+        //add by xlj 
+        if(PEM_CONTROL){
+           if(checkOps(AppOpsManager.OP_MOBILE_DATA) < 0){
+             return;
+           }
+        }
+        //add by xlj end
         mHandler.sendMessage(mHandler.obtainMessage(EVENT_SET_MOBILE_DATA,
                 (enabled ? ENABLED : DISABLED), 0));
     }
+     //add by xlj
+     private static int checkOps(int op){
+
+       try {
+            //Bundle data = new Bundle();
+            IAppOpsService mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(Context.APP_OPS_SERVICE));
+            int result = mAppOpsService.checkOperationWithData(op,  Binder.getCallingUid(), null);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                 return -1;
+            }
+       } catch (Exception e) {
+           return -1;
+       }
+
+       return 0;
+    }
+    // add by xlj
 
     private void handleSetMobileData(boolean enabled) {
         if (mNetTrackers[ConnectivityManager.TYPE_MOBILE] != null) {

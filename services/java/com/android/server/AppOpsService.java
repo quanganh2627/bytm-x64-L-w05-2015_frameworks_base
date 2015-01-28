@@ -58,6 +58,16 @@ import com.android.internal.util.XmlUtils;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlSerializer;
+//jw begin
+
+import com.android.internal.app.IAccessReqCallback;
+import android.os.Bundle;
+import android.os.Process;
+import android.content.pm.PackageInfo;
+import android.content.pm.ApplicationInfo;
+import android.app.ActivityManager.RunningTaskInfo;
+import android.app.ActivityManager;
+import android.content.ComponentName;
 
 public class AppOpsService extends IAppOpsService.Stub {
     static final String TAG = "AppOps";
@@ -69,6 +79,8 @@ public class AppOpsService extends IAppOpsService.Stub {
     Context mContext;
     final AtomicFile mFile;
     final Handler mHandler;
+	
+    IAccessReqCallback mAccReqCb;  //jw
 
     boolean mWriteScheduled;
     final Runnable mWriteRunner = new Runnable() {
@@ -88,6 +100,11 @@ public class AppOpsService extends IAppOpsService.Stub {
 
     final SparseArray<HashMap<String, Ops>> mUidOps
             = new SparseArray<HashMap<String, Ops>>();
+			
+	final SparseArray<ArrayList<LocalAccessStatus>> mUidMostRecentOpStatus
+            = new SparseArray<ArrayList<LocalAccessStatus>>();
+			
+	private Object mUserAccessLock = new Object();
 
     public final static class Ops extends SparseArray<Op> {
         public final String packageName;
@@ -187,6 +204,7 @@ public class AppOpsService extends IAppOpsService.Stub {
     }
 
     public AppOpsService(File storagePath) {
+        mAccReqCb = null;  //jw
         mFile = new AtomicFile(storagePath);
         mHandler = new Handler();
         readState();
@@ -382,7 +400,8 @@ public class AppOpsService extends IAppOpsService.Stub {
                     if (mode == AppOpsManager.opToDefaultMode(op.op)) {
                         // If going into the default mode, prune this op
                         // if there is nothing else interesting in it.
-                        pruneOp(op, uid, packageName);
+						if(checkSystemApp(packageName, uid) != 3)  //system app
+                            pruneOp(op, uid, packageName);
                     }
                     scheduleWriteNowLocked();
                 }
@@ -582,7 +601,7 @@ public class AppOpsService extends IAppOpsService.Stub {
             op.duration = 0;
             final int switchCode = AppOpsManager.opToSwitch(code);
             final Op switchOp = switchCode != code ? getOpLocked(ops, switchCode, true) : op;
-            if (switchOp.mode != AppOpsManager.MODE_ALLOWED) {
+            if (switchOp.mode != AppOpsManager.MODE_ALLOWED && switchOp.mode != AppOpsManager.MODE_CHECK) {
                 if (DEBUG) Log.d(TAG, "noteOperation: reject #" + op.mode + " for code "
                         + switchCode + " (" + code + ") uid " + uid + " package " + packageName);
                 op.rejectTime = System.currentTimeMillis();
@@ -766,6 +785,10 @@ public class AppOpsService extends IAppOpsService.Stub {
                 return null;
             }
             op = new Op(ops.uid, ops.packageName, code);
+			if(checkSystemApp(ops.packageName, ops.uid) == 3) { //user app
+				Slog.i(TAG, "set pkg " + ops.packageName + " op : " + code +" to MODE_CHECK");
+				op.mode = AppOpsManager.MODE_CHECK;
+			}			
             ops.put(code, op);
         }
         if (edit) {
@@ -981,6 +1004,261 @@ public class AppOpsService extends IAppOpsService.Stub {
             }
         }
     }
+	
+	@Override
+	public void registerAccessReqCallback(IAccessReqCallback accReqCb) {
+		Slog.d(TAG, "registerPermissionListener PID : " + Process.myPid());  
+		if(accReqCb == null) {
+			Slog.w(TAG, "in accReqCb is null");	
+			return;
+		}
+		//Slog.d(TAG, "register callback in service");
+		mAccReqCb = accReqCb;
+	}
+	
+	@Override
+	public void unRegisterAccessReqCallback() {
+		Slog.d(TAG, "unRegisterPermissionListener PID : " + Process.myPid());  
+		if(mAccReqCb != null) {
+			Slog.w(TAG, "mAaccReqCb set to null");
+			mAccReqCb = null;	
+			return;
+		}
+		Slog.d(TAG, "callback is null");
+		
+	}
+	
+	//private LocalAccessStatus syncObject = new LocalAccessStatus();
+	
+	@Override
+	public int checkOperationWithData(int op, int uid, Bundle data) {  //jw
+		int mode = AppOpsManager.MODE_ALLOWED;
+        
+        AppOpsManager.OpEntry entry = null; 
+		// Get calling app package name via UID from Binder call
+        PackageManager pm = mContext.getPackageManager();
+        String[] pkgNames = pm.getPackagesForUid(uid);
+
+		if(mAccReqCb == null) {
+			Slog.w(TAG, "no callback exisit");
+			return PackageManager.PERMISSION_GRANTED;
+		}
+			
+        if (pkgNames == null || pkgNames.length == 0) {
+            // Refuse to send SMS if we can't get the calling package name.
+            Slog.e(TAG, "Can't get calling app package name: refusing it");
+            return PackageManager.PERMISSION_DENIED;
+        }
+		
+		String pkgName = pkgNames[0];
+
+        if(2 == checkSystemApp(pkgName, uid)) {  //2 system app
+            Slog.d(TAG, "jw filter out the system app : " + pkgName);
+			if(pkgName.equals("com.android.camera2")) {
+			
+				String cpkgName = getRecentTask(mContext);
+				
+				if(!cpkgName.equals("com.android.camera2")) {
+					try {            
+						//PackageManager pm = getPackageManager();       
+						ApplicationInfo ai = pm.getApplicationInfo(cpkgName, PackageManager.GET_ACTIVITIES);            
+						Slog.d(TAG, "jw !!" + ai.uid + " start camera by IMG_CAPTURE");  
+						uid = ai.uid;
+						pkgNames = pm.getPackagesForUid(uid);
+						pkgName = pkgNames[0];
+					} catch (NameNotFoundException e) {            
+						e.printStackTrace();        
+					}
+
+				} else {
+					return PackageManager.PERMISSION_GRANTED;
+				}
+
+			} else {
+				return PackageManager.PERMISSION_GRANTED;
+			}
+            
+        }
+			
+		synchronized (mUserAccessLock) {
+			Op opItem = null;
+			HashMap<String, Ops> pkgOps = null;
+			boolean exist_in_mUidOps = false;
+			//Slog.i(TAG, "---------------------start  TID : " + Process.myTid() + "-----------------");
+			synchronized(this) {
+				pkgOps = mUidOps.get(uid);				
+			}
+			if (pkgOps == null) {
+					Slog.d(TAG, "pkgName : " + pkgName + " op : " + op + " is not recorded");
+			} else {
+				Ops ops = pkgOps.get(pkgName);
+				if (ops == null) {
+					Slog.w(TAG, "pkgName : " + pkgName + " ops is null");
+				} else {					
+					opItem = ops.get(AppOpsManager.opToSwitch(op));
+				}
+			}
+	
+			if(opItem != null) {
+				//Slog.d(TAG, "jw pkgName : " + pkgName + " op : " + op + " mode : " + opItem.mode);
+	            exist_in_mUidOps = true;
+				if(AppOpsManager.MODE_CHECK == opItem.mode) {
+					//Slog.d(TAG, "jw found pkg : " + pkgName + " op : " + op + " is need to check");
+				} else if(AppOpsManager.MODE_IGNORED == opItem.mode || AppOpsManager.MODE_ERRORED == opItem.mode) {
+					//Slog.d(TAG, "jw found pkg : " + pkgName + " op : " + op + " is not allowed");
+					return PackageManager.PERMISSION_DENIED;
+				} else
+					return PackageManager.PERMISSION_GRANTED;
+			} else {
+				//Slog.d(TAG, "jw not found the op : " + op + " in the pkg : " + pkgName);
+				exist_in_mUidOps = false;
+			}
+	
+			Slog.i(TAG, "package : " + pkgName + " with op : " + op + " is need to check");
+			
+			int secureLevel = 0x40;
+			boolean exist = false;
+			ArrayList<LocalAccessStatus> las_p = mUidMostRecentOpStatus.get(uid);
+			if(las_p == null) {
+				Slog.i(TAG, "uid : " + uid + " request op : " + op + " need to check");
+				las_p = new ArrayList<LocalAccessStatus>();
+				las_p.add(new LocalAccessStatus(uid, op, AppOpsManager.MODE_CHECK));
+				mUidMostRecentOpStatus.put(uid, las_p);
+			} else {
+				int curMode = AppOpsManager.MODE_CHECK;
+				int oldMode = AppOpsManager.MODE_CHECK;
+				Iterator<LocalAccessStatus> it = las_p.iterator();				
+				while(it.hasNext()) {
+					LocalAccessStatus las = it.next();
+					if(las.getOp() == op) {
+						exist = true;
+						
+						if(!exist_in_mUidOps)  //need more test....
+							exist_in_mUidOps = true;
+					
+						curMode = las.getCurMode();
+						oldMode = las.getOldMode();
+						secureLevel = las.getLevel();
+						
+						Slog.d(TAG, "jw pkgName " + pkgName + " op : " + op + " curMode : " +curMode + " oldMode : " + oldMode + " level : " + secureLevel);
+
+						switch(secureLevel) {
+						
+						case 0x80: //high
+						case 0x40: //mid
+							if(curMode == AppOpsManager.MODE_CHECK) {
+								int span = 15;
+								if(secureLevel == 0x80) {
+									span = 15;  //15 minutes for high level
+								} else if(secureLevel == 0x40){
+									span = 60; //60 minutes for mid level
+								} 
+									
+								if(las.getSpan(System.currentTimeMillis()) > span) {
+									las.setStartTime(System.currentTimeMillis()); //set new start time
+								} else {
+									if(oldMode != AppOpsManager.MODE_CHECK) {
+										if(oldMode == AppOpsManager.MODE_ALLOWED) {
+											return PackageManager.PERMISSION_GRANTED;
+										} else {
+											return PackageManager.PERMISSION_DENIED;
+										}
+									}
+									
+								}
+							} 
+							break;
+						case 0x20: //low
+							if(oldMode == AppOpsManager.MODE_ALLOWED) {
+								return PackageManager.PERMISSION_GRANTED;
+							} else {
+								return PackageManager.PERMISSION_DENIED;
+							}
+							
+						}	
+						
+						if(curMode != AppOpsManager.MODE_CHECK) {
+							if(curMode == AppOpsManager.MODE_ALLOWED) {
+								return PackageManager.PERMISSION_GRANTED;
+							} else {
+								return PackageManager.PERMISSION_DENIED;
+							}
+						}
+					}
+				}
+				
+				if(!exist) {
+					las_p.add(new LocalAccessStatus(uid, op, AppOpsManager.MODE_CHECK));
+				}
+			}
+
+			try {
+				mode = mAccReqCb.onAccessReqCb(pkgName, op, AppOpsManager.MODE_CHECK, secureLevel);
+			} catch (RemoteException e) {
+				e.printStackTrace();
+			}
+			
+			Slog.d(TAG, "onAccessReqCb pkgName : " + pkgName + " op : " + op + " return mode : " + mode);
+			
+			ArrayList<LocalAccessStatus> las_q = mUidMostRecentOpStatus.get(uid);
+			Iterator<LocalAccessStatus> ir = las_q.iterator();
+			int persist = 0x10 & mode;
+			while(ir.hasNext()) {
+					LocalAccessStatus las = ir.next();
+					if(las.getOp() == op) {
+						//Slog.i(TAG, "set pkgName : " + pkgName + " op : " + op + " to mode : " + mode);
+						int level = 0xE0 & mode;
+						
+						las.setLevel(level);
+						
+						switch(level) {
+						
+						case 0x80: //high
+						case 0x40:
+							if(las.getCurMode() == AppOpsManager.MODE_CHECK) {
+								if(persist > 0) {
+									las.setCurMode(mode & 0x03);
+									las.setOldMode(mode & 0x03);
+								} else {
+									las.setOldMode(mode & 0x03);
+								}
+							} 
+							break;
+						case 0x20: //low
+							if(las.getCurMode() == AppOpsManager.MODE_CHECK) {
+								las.setCurMode(mode & 0x03);
+								las.setOldMode(mode & 0x03);
+							} else {
+								las.setOldMode(mode & 0x03);
+							}
+							break;
+						}	
+
+						break;
+					}
+			}
+			
+			
+			Slog.i(TAG, "persist = " + persist + " exist_in_mUidOps = " + exist_in_mUidOps);
+			if(persist > 0) {  //need to remember for long
+				if(!exist_in_mUidOps)	
+					exist_in_mUidOps = true;
+				setMode(op, uid, pkgName, (mode & 0x03)); //record the user selection in file
+			} 
+			
+			if(!exist_in_mUidOps) {
+				setMode(op, uid, pkgName, AppOpsManager.MODE_CHECK); //record the user selection in file
+			} 
+				
+			mode = mode & 0x03;
+					
+			if(mode == AppOpsManager.MODE_ALLOWED) {
+				return PackageManager.PERMISSION_GRANTED;
+			} else {
+				return PackageManager.PERMISSION_DENIED;
+			}
+		}
+    }
 
     @Override
     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
@@ -1080,4 +1358,143 @@ public class AppOpsService extends IAppOpsService.Stub {
             }
         }
     }
+	
+	
+	private String getRecentTask(Context context) {
+		ActivityManager am = (ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);	
+		final List<ActivityManager.RecentTaskInfo> recentTasks =  
+			am.getRecentTasks(Integer.MAX_VALUE, ActivityManager.RECENT_IGNORE_UNAVAILABLE);  
+		
+		Slog.i(TAG, "jw " + recentTasks.get(0).baseIntent.toString());
+		
+		
+		String pkgName = recentTasks.get(0).baseIntent.toString(); //(recentTasks.get(0).origActivity).getPackageName();
+		
+		String[] tmpStr = pkgName.split("cmp=");
+		
+		String[] realPkgName = tmpStr[1].split("/");
+			
+		return realPkgName[0];
+		
+	}
+	
+
+    private boolean isSystemApp(PackageInfo pInfo) {
+        return ((pInfo.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0);
+    }
+        
+    private boolean isSystemUpdateApp(PackageInfo pInfo) {
+        return ((pInfo.applicationInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0);
+    }
+            
+    private  boolean isUserApp(PackageInfo pInfo) {
+        return (!isSystemApp(pInfo) && !isSystemUpdateApp(pInfo));
+    }
+
+    public int checkSystemApp(String pkgName, int uid) {
+        try {
+
+                if ("media".equals(pkgName) || (uid == 0) || (Process.SHELL_UID == uid))
+                    return 2;
+
+                PackageInfo pInfo = mContext.getPackageManager().getPackageInfo(pkgName, 0);
+                                    
+                if(isSystemApp(pInfo) || isSystemUpdateApp(pInfo)) {
+                             return 2; //SYSTEM_APP;
+                } else {
+                             return 3; //USER_APP;
+                }
+         } catch (NameNotFoundException e) {
+                e.printStackTrace();
+         }
+         return 0; //UNKNOWN_APP;
+
+    }
+	
+	class LocalAccessStatus {
+		int uid_;
+		int op_;
+		int mode_;
+		int old_mode_;
+		int level_; //0x80 high, 0x40 mid, 0x20 low
+		long start_time_;
+		int span_;		
+		
+		public LocalAccessStatus() {
+		}
+		
+		public LocalAccessStatus(int uid, int op, int mode) {
+			uid_ = uid;
+			op_ = op;
+			mode_ = mode;
+			old_mode_ = AppOpsManager.MODE_CHECK;
+			start_time_ = System.currentTimeMillis();;
+			level_ = 0x40;  //default level
+			span_ = 0;
+		}
+		
+		public int getOp() {
+			return op_;
+		}
+		
+		public int getCurMode() {
+			return mode_;
+		}
+		
+		public void setOp(int op) {
+			op_ = op;
+		}
+		
+		public void setCurMode(int mode) {
+			mode_ = mode;
+		}
+		
+		public void setOldMode(int mode) {
+			old_mode_ = mode;
+		}
+		
+		public int getOldMode() {
+			return old_mode_;
+		}
+		
+		public int getSpan(long time) {
+			span_ = (int)(time - start_time_)/(1000*60);	
+			return span_;
+		}
+			
+		public int getSpan() {
+			return span_;
+		}
+		
+		public int getLevel(int uid, int op) {
+			return level_;
+		}
+		
+		public void setLevel(int newLevel) {
+			level_ = newLevel;
+		}
+		
+		public long getStartTime() {
+			return start_time_;
+		}
+		
+		public void setStartTime(long time) {
+			start_time_ = time;
+		}
+		
+		public int getLevel() {
+			return level_;
+		}
+		
+		public void setUid(int uid){
+			uid_ = uid;
+		}
+		
+		public int getUid() {
+			return uid_;
+		}
+	}
+	
+	
+
 }

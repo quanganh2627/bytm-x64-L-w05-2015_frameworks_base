@@ -458,8 +458,8 @@ android_media_MediaRecorder_native_finalize(JNIEnv *env, jobject thiz)
 
 static JNINativeMethod gMethods[] = {
     {"setCamera",            "(Landroid/hardware/Camera;)V",    (void *)android_media_MediaRecorder_setCamera},
-    {"setVideoSource",       "(I)V",                            (void *)android_media_MediaRecorder_setVideoSource},
-    {"setAudioSource",       "(I)V",                            (void *)android_media_MediaRecorder_setAudioSource},
+    {"_setVideoSource",       "(I)V",                            (void *)android_media_MediaRecorder_setVideoSource},
+    {"_setAudioSource",       "(I)V",                            (void *)android_media_MediaRecorder_setAudioSource},
     {"setOutputFormat",      "(I)V",                            (void *)android_media_MediaRecorder_setOutputFormat},
     {"setVideoEncoder",      "(I)V",                            (void *)android_media_MediaRecorder_setVideoEncoder},
     {"setAudioEncoder",      "(I)V",                            (void *)android_media_MediaRecorder_setAudioEncoder},
@@ -471,8 +471,8 @@ static JNINativeMethod gMethods[] = {
     {"setMaxFileSize",       "(J)V",                            (void *)android_media_MediaRecorder_setMaxFileSize},
     {"_prepare",             "()V",                             (void *)android_media_MediaRecorder_prepare},
     {"getMaxAmplitude",      "()I",                             (void *)android_media_MediaRecorder_native_getMaxAmplitude},
-    {"start",                "()V",                             (void *)android_media_MediaRecorder_start},
-    {"stop",                 "()V",                             (void *)android_media_MediaRecorder_stop},
+    {"_start",                "()V",                             (void *)android_media_MediaRecorder_start},
+    {"_stop",                 "()V",                             (void *)android_media_MediaRecorder_stop},
     {"native_reset",         "()V",                             (void *)android_media_MediaRecorder_native_reset},
     {"release",              "()V",                             (void *)android_media_MediaRecorder_release},
     {"native_init",          "()V",                             (void *)android_media_MediaRecorder_native_init},

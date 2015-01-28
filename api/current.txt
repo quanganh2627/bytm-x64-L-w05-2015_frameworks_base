@@ -3185,6 +3185,7 @@ package android.app {
     method public void startWatchingMode(java.lang.String, java.lang.String, android.app.AppOpsManager.OnOpChangedListener);
     method public void stopWatchingMode(android.app.AppOpsManager.OnOpChangedListener);
     field public static final int MODE_ALLOWED = 0; // 0x0
+    field public static final int MODE_CHECK = 3; // 0x3
     field public static final int MODE_ERRORED = 2; // 0x2
     field public static final int MODE_IGNORED = 1; // 0x1
     field public static final java.lang.String OPSTR_COARSE_LOCATION = "android:coarse_location";
@@ -14615,6 +14616,7 @@ package android.net.wifi {
     method public int getRssi();
     method public java.lang.String getSSID();
     method public android.net.wifi.SupplicantState getSupplicantState();
+    method public static android.net.wifi.WifiInfo makeEmptyWifi();
     method public void writeToParcel(android.os.Parcel, int);
     field public static final java.lang.String LINK_SPEED_UNITS = "Mbps";
   }
@@ -21790,7 +21792,7 @@ package android.renderscript {
   }
 
   public class BaseObj {
-    method public synchronized void destroy();
+    method public void destroy();
     method public java.lang.String getName();
     method public void setName(java.lang.String);
   }

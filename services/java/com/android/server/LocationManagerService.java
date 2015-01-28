@@ -86,6 +86,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+//add by xlj
+import android.app.AppOpsManager;
+import com.android.internal.app.IAppOpsService;
+import android.os.ServiceManager; 
+import android.os.SystemProperties;
+//add by xlj end
+
 /**
  * The service class that manages LocationProviders and issues location
  * updates and alerts.
@@ -147,6 +154,7 @@ public class LocationManagerService extends ILocationManager.Stub {
     private LocationWorkerHandler mLocationHandler;
     private PassiveProvider mPassiveProvider;  // track passive provider for special cases
     private LocationBlacklist mBlacklist;
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("intel.pem.control", false);
 
     // --- fields below are protected by mLock ---
     // Set of providers that are explicitly enabled
@@ -1463,6 +1471,26 @@ public class LocationManagerService extends ILocationManager.Stub {
             Binder.restoreCallingIdentity(identity);
         }
     }
+    
+    //add by xlj
+    private static int checkOps(int op){
+       if(!PEM_CONTROL){
+         return 0;
+       }
+       try {
+            //Bundle data = new Bundle();
+            IAppOpsService mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(Context.APP_OPS_SERVICE));
+            int result = mAppOpsService.checkOperationWithData(op, Binder.getCallingUid(), null);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                 return -1;
+            }
+       } catch (Exception e) {
+           return -1;
+       }
+
+       return 0;
+    }
+    //add by xlj end
 
     private void requestLocationUpdatesLocked(LocationRequest request, Receiver receiver,
             int pid, int uid, String packageName) {
@@ -1578,6 +1606,12 @@ public class LocationManagerService extends ILocationManager.Stub {
         checkResolutionLevelIsSufficientForProviderUse(allowedResolutionLevel,
                 request.getProvider());
         // no need to sanitize this request, as only the provider name is used
+
+        if(PEM_CONTROL){
+           if(checkOps(AppOpsManager.OP_FINE_LOCATION) < 0){
+               return null;
+           }
+        }
 
         final int uid = Binder.getCallingUid();
         final long identity = Binder.clearCallingIdentity();
@@ -1991,6 +2025,12 @@ public class LocationManagerService extends ILocationManager.Stub {
                 if (D) Log.d(TAG, "skipping loc update for blacklisted app: " +
                         receiver.mPackageName);
                 continue;
+            }
+			
+            if(PEM_CONTROL){
+               if(checkOps(AppOpsManager.OP_FINE_LOCATION) < 0){
+                  continue;
+               } 
             }
 
             if (!reportLocationAccessNoThrow(receiver.mUid, receiver.mPackageName,

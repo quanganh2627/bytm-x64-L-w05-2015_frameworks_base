@@ -28,6 +28,16 @@ import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
+import android.os.Binder;
+import android.content.pm.PackageManager;
+import android.app.AppOpsManager;
+import com.android.internal.app.IAppOpsService;
+import android.os.SystemProperties;
+import android.os.ServiceManager;
+import android.content.Context;
+import android.telephony.TelephonyManager;
+import com.android.internal.telephony.ITelephony;
+//
 
 /**
  * Used to record audio and video. The recording control is based on a
@@ -91,7 +101,13 @@ public class MediaRecorder
     private EventHandler mEventHandler;
     private OnErrorListener mOnErrorListener;
     private OnInfoListener mOnInfoListener;
+    //add by xlj  
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("intel.pem.control", false);
 
+    private boolean AccessMonitorServerFlag = false;
+    private int mAudioSource;
+    private int mVideoSource;
+    //add by xlj end
     /**
      * Default constructor.
      */
@@ -106,6 +122,11 @@ public class MediaRecorder
             mEventHandler = null;
         }
 
+        if (PEM_CONTROL) {
+            mAudioSource = AudioSource.DEFAULT;
+            mVideoSource = VideoSource.DEFAULT;
+            AccessMonitorServerFlag = false;
+        }
         String packageName = ActivityThread.currentPackageName();
         /* Native setup requires a weak reference to our object.
          * It's easier to create it here than in C++.
@@ -137,7 +158,27 @@ public class MediaRecorder
      * @see android.hardware.Camera#setPreviewDisplay(android.view.SurfaceHolder)
      */
     public void setPreviewDisplay(Surface sv) {
+       if(PEM_CONTROL){
+         if( checkOps(AppOpsManager.OP_CAMERA) < 0 ){
+           return;
+         }
+       }
         mSurface = sv;
+    }
+    
+    private static int checkOps(int op){
+       try {
+            //Bundle data = new Bundle();
+            IAppOpsService mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(Context.APP_OPS_SERVICE));
+            int result = mAppOpsService.checkOperationWithData(op, Binder.getCallingUid(), null);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                 return -1;
+            }
+       } catch (Exception e) {
+           return -1;
+       }
+
+       return 0;
     }
 
     /**
@@ -325,7 +366,7 @@ public class MediaRecorder
      * @throws IllegalStateException if it is called after setOutputFormat()
      * @see android.media.MediaRecorder.AudioSource
      */
-    public native void setAudioSource(int audio_source)
+    private native void _setAudioSource(int audio_source)
             throws IllegalStateException;
 
     /**
@@ -347,7 +388,7 @@ public class MediaRecorder
      * @throws IllegalStateException if it is called after setOutputFormat()
      * @see android.media.MediaRecorder.VideoSource
      */
-    public native void setVideoSource(int video_source)
+    private native void _setVideoSource(int video_source)
             throws IllegalStateException;
 
     /**
@@ -722,7 +763,7 @@ public class MediaRecorder
      * @throws IllegalStateException if it is called before
      * prepare().
      */
-    public native void start() throws IllegalStateException;
+    private native void _start() throws IllegalStateException;
 
     /**
      * Stops recording. Call this after start(). Once recording is stopped,
@@ -736,7 +777,7 @@ public class MediaRecorder
      *
      * @throws IllegalStateException if it is called before start()
      */
-    public native void stop() throws IllegalStateException;
+    private native void _stop() throws IllegalStateException;
 
     /**
      * Restarts the MediaRecorder to its idle state. After calling
@@ -744,12 +785,87 @@ public class MediaRecorder
      * constructed.
      */
     public void reset() {
+      if (PEM_CONTROL) {
+         mAudioSource = AudioSource.DEFAULT;
+         mVideoSource = VideoSource.DEFAULT;
+      }
         native_reset();
 
         // make sure none of the listeners get called anymore
         mEventHandler.removeCallbacksAndMessages(null);
     }
+  
+    public void start() throws IllegalStateException{
+      if(PEM_CONTROL){
+         AccessMonitorServerFlag = false; 
+          if(checkOps(AppOpsManager.OP_RECORD_AUDIO) < 0){
+              AccessMonitorServerFlag = true; 
+	      return;
+          }
+      }
+      _start();
+    }
 
+    public void stop() throws IllegalStateException{
+      if(PEM_CONTROL && AccessMonitorServerFlag){
+         AccessMonitorServerFlag = false;
+         try{
+            reset();
+         }catch(Exception e){
+            Log.e(TAG, e.getMessage(), e);
+         }
+
+      }else{
+          _stop();
+      }
+    }
+
+    public void setVideoSource(int video_source)
+            throws IllegalStateException{
+
+        if (PEM_CONTROL) {
+            if (video_source == VideoSource.DEFAULT) {
+                mVideoSource = VideoSource.CAMERA;
+            } else {
+                mVideoSource = video_source;
+            }
+
+        }
+        _setVideoSource(video_source); 
+    }
+
+    public void setAudioSource(int audio_source)
+            throws IllegalStateException{
+     
+          if (PEM_CONTROL) {
+            if (audio_source == AudioSource.DEFAULT) {
+                mAudioSource = AudioSource.MIC;
+            } else {
+                mAudioSource = audio_source;
+            }
+
+
+            //============== for MIIT test BEGIN ==================//
+            // Their program use AudioSource.MIC to audio recording after a phone call happens,
+            // But the system do not support AudioSource.MIC while calling, or else start()
+            // will throw exception.
+            // We can not change MIIT's test program, so evade it.
+            int callState = TelephonyManager.CALL_STATE_IDLE;
+            try {
+                ITelephony  telephony = ITelephony.Stub.asInterface(ServiceManager.getService(Context.TELEPHONY_SERVICE));
+                callState = telephony.getCallState();
+            } catch (Exception e) {
+                Log.e(TAG, e.getMessage(), e);
+            }
+            if (callState == TelephonyManager.CALL_STATE_OFFHOOK && mAudioSource == AudioSource.MIC) {
+
+                audio_source = AudioSource.VOICE_CALL;
+            }
+            //============== for MIIT test END==================//
+        }   
+        _setAudioSource(audio_source);
+    }
+    
     private native void native_reset();
 
     /**

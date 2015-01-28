@@ -108,6 +108,18 @@ public class WifiInfo implements Parcelable {
         }
     }
 
+    //add by xlj
+    public static WifiInfo makeEmptyWifi(){
+       WifiInfo wf = new WifiInfo();
+       wf.setSupplicantState(android.net.wifi.SupplicantState.DISCONNECTED);
+       wf.setBSSID("00:00:00:00:00:00");
+       wf.setSSID(WifiSsid.createFromAsciiEncoded(""));
+       wf.setInetAddress(java.net.Inet4Address.ANY);
+       wf.setMacAddress("00:00:00:00:00:00");
+       return wf;
+    }
+    //add by xlj end
+
     void setSSID(WifiSsid wifiSsid) {
         mWifiSsid = wifiSsid;
         // network is considered not hidden by default

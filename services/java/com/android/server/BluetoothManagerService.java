@@ -32,7 +32,9 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.media.AudioManager;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -44,6 +46,13 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
+
+//add by xlj
+import android.app.AppOpsManager;
+import com.android.internal.app.IAppOpsService;
+import android.os.ServiceManager;
+import android.os.SystemProperties;
+//add by xlj end
 class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final String TAG = "BluetoothManagerService";
     private static final boolean DBG = false;
@@ -94,6 +103,8 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
 
     private static final int SERVICE_IBLUETOOTH = 1;
     private static final int SERVICE_IBLUETOOTHGATT = 2;
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("intel.pem.control", false);
+
 
     private final Context mContext;
 
@@ -387,6 +398,23 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         return true;
 
     }
+    
+    //add by xlj
+    private static int checkOps(int op){
+       try {
+            //Bundle data = new Bundle();
+            IAppOpsService mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(Context.APP_OPS_SERVICE));
+            int result = mAppOpsService.checkOperationWithData(op,  Binder.getCallingUid(), null);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                 return -1;
+            }
+       } catch (Exception e) {
+           return -1;
+       }
+
+       return 0;
+    }
+    //add by xlj end
     public boolean enable() {
         if ((Binder.getCallingUid() != Process.SYSTEM_UID) &&
             (!checkIfCallerIsForegroundUser())) {
@@ -400,7 +428,12 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
             Log.d(TAG,"enable():  mBluetooth =" + mBluetooth +
                     " mBinding = " + mBinding);
         }
-
+        
+       if(PEM_CONTROL){
+            if(checkOps(AppOpsManager.OP_AUDIO_BLUETOOTH_VOLUME) < 0){
+             return false;
+           }
+       }
         synchronized(mReceiver) {
             mQuietEnableExternal = false;
             mEnableExternal = true;

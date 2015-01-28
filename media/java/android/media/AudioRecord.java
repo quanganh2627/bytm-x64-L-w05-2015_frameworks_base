@@ -23,7 +23,14 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
-
+import android.os.Binder;
+import android.content.pm.PackageManager;
+import android.app.AppOpsManager;
+import com.android.internal.app.IAppOpsService;
+import android.os.ServiceManager;
+import android.os.SystemProperties;
+import android.content.Context;
+//
 /**
  * The AudioRecord class manages the audio resources for Java applications
  * to record audio from the audio input hardware of the platform. This is
@@ -180,6 +187,8 @@ public class AudioRecord
      * Audio session ID
      */
     private int mSessionId = 0;
+
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("intel.pem.control", false);
 
     //---------------------------------------------------------
     // Constructor, Finalize
@@ -506,6 +515,13 @@ public class AudioRecord
             throw new IllegalStateException("startRecording() called on an "
                     + "uninitialized AudioRecord.");
         }
+        //add by xlj
+       if(PEM_CONTROL){
+          if(checkOps(AppOpsManager.OP_RECORD_AUDIO) < 0){
+            return;
+          }
+       }
+        //add by xlj end
 
         // start recording
         synchronized(mRecordingStateLock) {
@@ -514,6 +530,24 @@ public class AudioRecord
             }
         }
     }
+     
+     // add by xlj 
+     private static int checkOps(int op){
+       try {
+
+            IAppOpsService mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(Context.APP_OPS_SERVICE));
+            
+            int result = mAppOpsService.checkOperationWithData(op,  Binder.getCallingUid(), null);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                 return -1;
+            }
+       } catch (Exception e) {
+           return -1;
+       }
+       return 0;
+    } 
+    // add by xlj end 
+
 
     /**
      * Starts recording from the AudioRecord instance when the specified synchronization event
@@ -528,6 +562,13 @@ public class AudioRecord
             throw new IllegalStateException("startRecording() called on an "
                     + "uninitialized AudioRecord.");
         }
+
+        //add by xlj
+       if(PEM_CONTROL){
+          if(checkOps(AppOpsManager.OP_RECORD_AUDIO) < 0){
+            return;
+          }
+       }
 
         // start recording
         synchronized(mRecordingStateLock) {

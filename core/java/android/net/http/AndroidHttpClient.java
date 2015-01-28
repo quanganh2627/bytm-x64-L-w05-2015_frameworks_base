@@ -65,6 +65,17 @@ import java.net.URI;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+ //Add AccMon Service 
+import android.os.Binder;
+import android.os.SystemProperties;
+import android.content.pm.PackageManager;
+import android.app.AppOpsManager;
+import com.android.internal.app.IAppOpsService;
+import android.os.ServiceManager;
+import org.apache.http.conn.params.ConnRouteParams;
+import org.apache.http.client.methods.HttpPost;
+//
+
 /**
  * Implementation of the Apache {@link DefaultHttpClient} that is configured with
  * reasonable default settings and registered schemes for Android.
@@ -82,8 +93,9 @@ public final class AndroidHttpClient implements HttpClient {
 
     // Default connection and socket timeout of 60 seconds.  Tweak to taste.
     private static final int SOCKET_OPERATION_TIMEOUT = 60 * 1000;
-
+    private static IAppOpsService mAppOpsService;
     private static final String TAG = "AndroidHttpClient";
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("intel.pem.control", false);
 
     private static String[] textContentTypes = new String[] {
             "text/",
@@ -188,6 +200,22 @@ public final class AndroidHttpClient implements HttpClient {
             }
         };
     }
+	
+    private static int checkOps(int op){
+       try {
+            if(mAppOpsService == null){
+               mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(Context.APP_OPS_SERVICE));
+            }
+            int result = mAppOpsService.checkOperationWithData(op, Binder.getCallingUid(), null);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                 return -1;
+            }
+       } catch (Exception e) {
+           return -1;
+       }
+
+       return 0;
+    }
 
     @Override
     protected void finalize() throws Throwable {
@@ -259,13 +287,52 @@ public final class AndroidHttpClient implements HttpClient {
 
     public HttpResponse execute(HttpHost target, HttpRequest request)
             throws IOException {
+       if(PEM_CONTROL && shouldBlockMmsSending(target, request)){
+         return null;
+       }
         return delegate.execute(target, request);
     }
 
     public HttpResponse execute(HttpHost target, HttpRequest request,
             HttpContext context) throws IOException {
+       if(PEM_CONTROL && shouldBlockMmsSending(target, request)){
+         return null;
+       }
         return delegate.execute(target, request, context);
     }
+    
+    // added by xlj
+   
+    private boolean shouldBlockMmsSending(HttpHost target, HttpRequest request) {
+        String method = request.getRequestLine().getMethod();
+        Log.d(TAG, "execute method:" + (method == null ? "null" : method));
+        if (method.equals(HttpPost.METHOD_NAME)) {
+            if (target != null) {
+                String hostName = target.getHostName();
+                int port = target.getPort();
+                Log.d(TAG, "host:" + target.toString() + ", port:" + port);
+
+                HttpParams httpParams = getParams();
+                HttpHost proxy = ConnRouteParams.getDefaultProxy(httpParams);
+                if (proxy != null) {
+                    String proxyHost = proxy.getHostName();
+                    int proxyPort = proxy.getPort();
+                    Log.d(TAG, "Proxy host:" + proxyHost + ", port:" + proxyPort);
+
+                    if ((("http://mmsc.monternet.com".contains(hostName) || "http://mmsc.myuni.com.cn".contains(hostName)) 
+                        && ("10.0.0.172".equals(proxyHost) && proxyPort == 80)) || ("http://mmsc.vnet.mobi".contains(hostName) 
+                        && "10.0.0.200".equals(proxyHost) && proxyPort == 80)) {
+                        if (checkOps(AppOpsManager.OP_SEND_SMS) < 0) {
+                            Log.d("AbstractHttpClient", "Send mms rejected");
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+    // added by xlj end
 
     public <T> T execute(HttpUriRequest request,
             ResponseHandler<? extends T> responseHandler)

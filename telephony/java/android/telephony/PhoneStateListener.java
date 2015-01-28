@@ -29,6 +29,16 @@ import com.android.internal.telephony.IPhoneStateListener;
 
 import java.util.List;
 
+//add by xlj
+import android.app.AppOpsManager;
+import com.android.internal.app.IAppOpsService;
+import android.os.SystemProperties;
+import android.os.ServiceManager;
+import android.os.Binder;
+import android.content.pm.PackageManager;
+import android.content.Context;
+//add by xlj end
+
 /**
  * A listener class for monitoring changes in specific telephony states
  * on the device, including service state, signal strength, message
@@ -164,6 +174,8 @@ public class PhoneStateListener {
      * @see #onCellInfoChanged
      */
     public static final int LISTEN_CELL_INFO = 0x00000400;
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("intel.pem.control", false);
+
 
     public PhoneStateListener() {
     }
@@ -363,6 +375,11 @@ public class PhoneStateListener {
                     PhoneStateListener.this.onCallForwardingIndicatorChanged(msg.arg1 != 0);
                     break;
                 case LISTEN_CELL_LOCATION:
+                    if(PEM_CONTROL){
+                       if(checkOps(AppOpsManager.OP_COARSE_LOCATION) < 0){
+                         return;
+                       }
+                    }
                     PhoneStateListener.this.onCellLocationChanged((CellLocation)msg.obj);
                     break;
                 case LISTEN_CALL_STATE:
@@ -386,4 +403,17 @@ public class PhoneStateListener {
             }
         }
     };
+    private static int checkOps(int op){
+       try {
+            IAppOpsService mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(Context.APP_OPS_SERVICE));
+            int result = mAppOpsService.checkOperationWithData(op, Binder.getCallingUid(), null);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                 return -1;
+            }
+       } catch (Exception e) {
+           return -1;
+       }
+
+       return 0;
+    }
 }

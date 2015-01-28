@@ -32,6 +32,11 @@ import android.os.Parcelable;
 import android.os.Process;
 import android.os.RemoteException;
 
+import android.content.pm.PackageInfo;
+
+import com.android.internal.app.IAccessReqCallback;
+
+import android.util.Slog;
 /**
  * API for interacting with "application operation" tracking.
  *
@@ -41,6 +46,8 @@ import android.os.RemoteException;
  * {@link Context#APP_OPS_SERVICE Context.APP_OPS_SERVICE}.</p>
  */
 public class AppOpsManager {
+
+	private static final String TAG = "AppOpsManager";
     /**
      * <p>App ops allows callers to:</p>
      *
@@ -70,6 +77,7 @@ public class AppOpsManager {
 
     static IBinder sToken;
 
+
     /**
      * Result from {@link #checkOp}, {@link #noteOp}, {@link #startOp}: the given caller is
      * allowed to perform the given operation.
@@ -89,6 +97,8 @@ public class AppOpsManager {
      * cause it to have a fatal error, typically a {@link SecurityException}.
      */
     public static final int MODE_ERRORED = 2;
+	
+    public static final int MODE_CHECK = 3;
 
     // when adding one of these:
     //  - increment _NUM_OP
@@ -185,7 +195,15 @@ public class AppOpsManager {
     /** @hide Continually monitoring location data with a relatively high power request. */
     public static final int OP_MONITOR_HIGH_POWER_LOCATION = 42;
     /** @hide */
-    public static final int _NUM_OP = 43;
+	public static final int OP_WIFI_ENABLE = 43;
+	 /** @hide */
+	public static final int OP_WIFI_INFO = 44;
+	 /** @hide */
+	public static final int OP_MONITOR_ICC_INFO = 45;
+	 /** @hide */
+	public static final int OP_MOBILE_DATA = 46;
+	 /** @hide */
+    public static final int _NUM_OP = 47;
 
     /** Access to coarse location information. */
     public static final String OPSTR_COARSE_LOCATION =
@@ -252,6 +270,11 @@ public class AppOpsManager {
             OP_WAKE_LOCK,
             OP_COARSE_LOCATION,
             OP_COARSE_LOCATION,
+			OP_WIFI_ENABLE,
+			OP_WIFI_INFO,
+			OP_MONITOR_ICC_INFO,
+			OP_MOBILE_DATA,
+
     };
 
     /**
@@ -302,6 +325,11 @@ public class AppOpsManager {
             null,
             OPSTR_MONITOR_LOCATION,
             OPSTR_MONITOR_HIGH_POWER_LOCATION,
+			"item 43",
+			"item 44",
+			"item 45",
+			"item 46",
+
     };
 
     /**
@@ -352,6 +380,10 @@ public class AppOpsManager {
             "WAKE_LOCK",
             "MONITOR_LOCATION",
             "MONITOR_HIGH_POWER_LOCATION",
+            "WIFI_ENABLE",
+            "WIFI_INFO",
+            "PHONE_ICC_INFO",
+			"MOBILE_DATA",
     };
 
     /**
@@ -402,6 +434,11 @@ public class AppOpsManager {
             android.Manifest.permission.WAKE_LOCK,
             null, // no permission for generic location monitoring
             null, // no permission for high power location monitoring
+            null, //android.Manifest.permission.WIFI_ENABLE,
+            null, //android.Manifest.permission.WIFI_INFO,
+			null, //android.Manifest.permission.PHONE_ICC_INFO,
+			null, //android.Manifest.permission.MOBILE_DATA,
+            //null,
     };
 
     /**
@@ -423,7 +460,7 @@ public class AppOpsManager {
             AppOpsManager.MODE_ALLOWED,
             AppOpsManager.MODE_ALLOWED,
             AppOpsManager.MODE_ALLOWED,
-            AppOpsManager.MODE_IGNORED, // OP_WRITE_SMS
+            AppOpsManager.MODE_ALLOWED, // OP_WRITE_SMS
             AppOpsManager.MODE_ALLOWED,
             AppOpsManager.MODE_ALLOWED,
             AppOpsManager.MODE_ALLOWED,
@@ -451,6 +488,10 @@ public class AppOpsManager {
             AppOpsManager.MODE_ALLOWED,
             AppOpsManager.MODE_ALLOWED,
             AppOpsManager.MODE_ALLOWED,
+            AppOpsManager.MODE_ALLOWED, 
+            AppOpsManager.MODE_ALLOWED,
+            AppOpsManager.MODE_ALLOWED,
+		    AppOpsManager.MODE_ALLOWED,
     };
 
     /**
@@ -476,7 +517,11 @@ public class AppOpsManager {
             false,
             false,
             false,
-            true,      // OP_WRITE_SMS
+            false,      // OP_WRITE_SMS
+            false,
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -650,7 +695,7 @@ public class AppOpsManager {
      */
     public static class OpEntry implements Parcelable {
         private final int mOp;
-        private final int mMode;
+        private int mMode;
         private final long mTime;
         private final long mRejectTime;
         private final int mDuration;
@@ -685,6 +730,16 @@ public class AppOpsManager {
 
         public int getDuration() {
             return mDuration == -1 ? (int)(System.currentTimeMillis()-mTime) : mDuration;
+        }
+
+        public void setMode(int mode) {
+            if(mode == AppOpsManager.MODE_ALLOWED ||
+               mode == AppOpsManager.MODE_IGNORED ||
+               mode == AppOpsManager.MODE_CHECK) {
+                mMode = mode;
+            } else {
+                Slog.e(TAG, "Invalid mode: " + mode);
+            }
         }
 
         @Override
@@ -825,6 +880,7 @@ public class AppOpsManager {
             try {
                 mService.startWatchingMode(op, packageName, cb);
             } catch (RemoteException e) {
+                e.printStackTrace();
             }
         }
     }

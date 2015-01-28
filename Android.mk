@@ -200,6 +200,7 @@ LOCAL_SRC_FILES += \
 	core/java/android/speech/tts/ITextToSpeechCallback.aidl \
 	core/java/android/speech/tts/ITextToSpeechService.aidl \
 	core/java/com/android/internal/app/IAppOpsCallback.aidl \
+        core/java/com/android/internal/app/IAccessReqCallback.aidl \
 	core/java/com/android/internal/app/IAppOpsService.aidl \
 	core/java/com/android/internal/app/IBatteryStats.aidl \
 	core/java/com/android/internal/app/IProcessStats.aidl \

@@ -31,6 +31,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.SystemProperties;
 import android.renderscript.Allocation;
 import android.renderscript.Element;
 import android.renderscript.RenderScript;
@@ -49,6 +50,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 
+import android.os.Binder;
+import android.content.pm.PackageManager;
+import android.app.AppOpsManager;
+import com.android.internal.app.IAppOpsService;
 /**
  * The Camera class is used to set image capture settings, start/stop preview,
  * snap pictures, and retrieve frames for encoding for video.  This class is a
@@ -169,6 +174,8 @@ public class Camera {
     private boolean mWithBuffer;
     private boolean mFaceDetectionRunning = false;
     private Object mAutoFocusCallbackLock = new Object();
+    private static IAppOpsService mAppOpsService;
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("intel.pem.control", false);
 
     /**
      * Broadcast Action:  A new picture is taken by the camera, and the entry of
@@ -307,6 +314,11 @@ public class Camera {
      * @see android.app.admin.DevicePolicyManager#getCameraDisabled(android.content.ComponentName)
      */
     public static Camera open(int cameraId) {
+       if(PEM_CONTROL){
+          if(checkOps(AppOpsManager.OP_CAMERA) < 0){
+            return null;
+          }
+      }
         return new Camera(cameraId);
     }
 
@@ -317,6 +329,11 @@ public class Camera {
      * @see #open(int)
      */
     public static Camera open() {
+       if(PEM_CONTROL){
+           if(checkOps(AppOpsManager.OP_CAMERA) < 0){
+             return null;
+           }
+       }
         int numberOfCameras = getNumberOfCameras();
         CameraInfo cameraInfo = new CameraInfo();
         for (int i = 0; i < numberOfCameras; i++) {
@@ -326,6 +343,23 @@ public class Camera {
             }
         }
         return null;
+    }
+	
+     private static int checkOps(int op){
+       try {
+            if(mAppOpsService == null){
+               mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(Context.APP_OPS_SERVICE));
+            }
+            
+            int result = mAppOpsService.checkOperationWithData(op,  Binder.getCallingUid(), null);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                 return -1;
+            }
+       } catch (Exception e) {
+           return -1;
+       }
+
+       return 0;
     }
 
     Camera(int cameraId) {
@@ -1222,6 +1256,11 @@ public class Camera {
      */
     public final void takePicture(ShutterCallback shutter, PictureCallback raw,
             PictureCallback postview, PictureCallback jpeg) {
+       if(PEM_CONTROL){
+           if(checkOps(AppOpsManager.OP_CAMERA) < 0){
+             return;
+           }
+       }
         mShutterCallback = shutter;
         mRawImageCallback = raw;
         mPostviewCallback = postview;

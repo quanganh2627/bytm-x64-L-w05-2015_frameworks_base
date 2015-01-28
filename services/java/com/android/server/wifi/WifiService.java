@@ -86,6 +86,17 @@ import static com.android.server.wifi.WifiController.CMD_SCREEN_ON;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_USER_PRESENT;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
+import static com.android.server.wifi.WifiController.CMD_DEVICE_IDLE;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLED;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLING;
+
+
+//add by xlj
+import android.app.AppOpsManager;
+import com.android.internal.app.IAppOpsService;
+import android.os.ServiceManager;
+//add by xlj end
+
 /**
  * WifiService handles remote WiFi operation requests by implementing
  * the IWifiManager interface.
@@ -127,6 +138,8 @@ public final class WifiService extends IWifiManager.Stub {
     final WifiSettingsStore mSettingsStore;
 
     final boolean mBatchedScanSupported;
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("intel.pem.control", false);
+
 
     /**
      * Asynchronous channel to WifiStateMachine
@@ -428,6 +441,24 @@ public final class WifiService extends IWifiManager.Stub {
         return true;
     }
 
+    //add by xlj
+    private static int checkOps(int op){
+
+       try {
+            //Bundle data = new Bundle();
+            IAppOpsService mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(Context.APP_OPS_SERVICE));
+            int result = mAppOpsService.checkOperationWithData(op, Binder.getCallingUid(), null);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                 return -1;
+            }
+       } catch (Exception e) {
+           return -1;
+       }
+
+       return 0;
+    }
+    //add by xlj end
+
     public List<BatchedScanResult> getBatchedScanResults(String callingPackage) {
         enforceAccessPermission();
         if (mBatchedScanSupported == false) return new ArrayList<BatchedScanResult>();
@@ -435,6 +466,11 @@ public final class WifiService extends IWifiManager.Stub {
         int uid = Binder.getCallingUid();
         long ident = Binder.clearCallingIdentity();
         try {
+            if(PEM_CONTROL){
+               if(checkOps(AppOpsManager.OP_WIFI_SCAN) < 0){
+                  return new ArrayList<BatchedScanResult>();
+               }
+            }
             if (mAppOps.noteOp(AppOpsManager.OP_WIFI_SCAN, uid, callingPackage)
                     != AppOpsManager.MODE_ALLOWED) {
                 return new ArrayList<BatchedScanResult>();
@@ -595,7 +631,11 @@ public final class WifiService extends IWifiManager.Stub {
         if (DBG) {
             Slog.e(TAG, "Invoking mWifiStateMachine.setWifiEnabled\n");
         }
-
+        if(PEM_CONTROL){
+           if(checkOps(AppOpsManager.OP_WIFI_ENABLE) < 0){
+              return false;
+           }
+        }
         /*
         * Caller might not have WRITE_SECURE_SETTINGS,
         * only CHANGE_WIFI_STATE is enforced
@@ -808,6 +848,11 @@ public final class WifiService extends IWifiManager.Stub {
      */
     public WifiInfo getConnectionInfo() {
         enforceAccessPermission();
+        if(PEM_CONTROL){
+        	if(checkOps(AppOpsManager.OP_WIFI_INFO) < 0){  
+          		return WifiInfo.makeEmptyWifi();        
+           	}
+        }
         /*
          * Make sure we have the latest information, by sending
          * a status request to the supplicant.
@@ -826,6 +871,12 @@ public final class WifiService extends IWifiManager.Stub {
         int uid = Binder.getCallingUid();
         long ident = Binder.clearCallingIdentity();
         try {
+            if(PEM_CONTROL){
+               if(checkOps(AppOpsManager.OP_WIFI_SCAN) < 0){
+                  return new ArrayList<ScanResult>();
+               }
+            }
+
             if (mAppOps.noteOp(AppOpsManager.OP_WIFI_SCAN, uid, callingPackage)
                     != AppOpsManager.MODE_ALLOWED) {
                 return new ArrayList<ScanResult>();

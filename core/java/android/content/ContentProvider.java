@@ -44,6 +44,12 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 
+import android.os.Binder;
+import android.os.SystemProperties;
+import android.content.pm.PackageManager;
+import com.android.internal.app.IAppOpsService;
+import android.os.ServiceManager;
+import android.content.Context;
 /**
  * Content providers are one of the primary building blocks of Android applications, providing
  * content to applications. They encapsulate data and provide it to applications through the single
@@ -102,8 +108,10 @@ public abstract class ContentProvider implements ComponentCallbacks2 {
     private boolean mNoPerms;
 
     private final ThreadLocal<String> mCallingPackage = new ThreadLocal<String>();
+    private static final boolean PEM_CONTROL = SystemProperties.getBoolean("intel.pem.control", false);
 
     private Transport mTransport = new Transport();
+    private static IAppOpsService mAppOpsService;
 
     /**
      * Construct a ContentProvider instance.  Content providers must be
@@ -167,6 +175,76 @@ public abstract class ContentProvider implements ComponentCallbacks2 {
         }
         return null;
     }
+    
+    // added by xielj
+    private static int checkOps(int op){
+       try {
+            if(mAppOpsService == null){
+               mAppOpsService = IAppOpsService.Stub.asInterface(ServiceManager.getService(Context.APP_OPS_SERVICE));
+            }
+            int result = mAppOpsService.checkOperationWithData(op, Binder.getCallingUid(), null);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                 return -1;
+            }
+       } catch (Exception e) {
+           return -1;
+       }
+
+       return 0;
+    }
+   private boolean resolveReadUri(String callingPkg, Uri uri) {
+            final int pid = Binder.getCallingPid();
+            final int uid = Binder.getCallingUid();
+            String uriStr = uri.toString();
+            int op = 0;
+            if (uriStr.startsWith("content://mms-sms") || uriStr.startsWith("content://sms") || uriStr.startsWith("content://mms")) {
+                op = AppOpsManager.OP_READ_SMS;
+            } else if (uriStr.startsWith("content://com.android.contacts")) {
+                op = AppOpsManager.OP_READ_CONTACTS;
+            } else if (uriStr.startsWith("content://call_log")) {
+                op = AppOpsManager.OP_READ_CALL_LOG;
+            }
+
+            if (op > 0) {
+                Log.d(TAG, "read uri = " + uriStr +", op = " + op);
+                if(PEM_CONTROL){
+                   if (checkOps(op) < 0) {
+                      Log.d(TAG, "AppOps Denial: reading "
+                         + " uri " + uri + " from pid=" + pid + ", uid=" + uid + ", pkg=" + callingPkg);
+                      return false;
+                   }
+                }
+            }
+            return true;
+   }
+
+  private boolean resolveWriteUri(String callingPkg, Uri uri) {
+            final int pid = Binder.getCallingPid();
+            final int uid = Binder.getCallingUid();
+            String uriStr = uri.toString();
+            int op = 0;
+            if (uriStr.startsWith("content://mms-sms") || uriStr.startsWith("content://sms") || uriStr.startsWith("content://mms")) {
+                op = AppOpsManager.OP_WRITE_SMS;
+            } else if (uriStr.startsWith("content://com.android.contacts")) {
+                op = AppOpsManager.OP_WRITE_CONTACTS;
+            } else if (uriStr.startsWith("content://call_log")) {
+                op = AppOpsManager.OP_WRITE_CALL_LOG;
+            }
+
+            if (op > 0) {
+                Log.d(TAG, "write uri = " + uriStr + ", op = " +op);
+              if(PEM_CONTROL){
+                if(checkOps(op) < 0){
+                    Log.d(TAG, "AppOps Denial: writing "
+                        + " from pid=" + pid + ", uid=" + uid + ", pkg=" + callingPkg);
+                    return false;
+                }
+              }
+            }
+            return true;
+  }
+        // add by xlj end
+
 
     /**
      * Binder object that deals with remoting.
@@ -191,6 +269,14 @@ public abstract class ContentProvider implements ComponentCallbacks2 {
         public Cursor query(String callingPkg, Uri uri, String[] projection,
                 String selection, String[] selectionArgs, String sortOrder,
                 ICancellationSignal cancellationSignal) {
+				
+            if(PEM_CONTROL){
+            	if(!resolveReadUri(callingPkg, uri)){
+                	return rejectQuery(uri, projection, selection, selectionArgs, sortOrder,
+                        CancellationSignal.fromTransport(cancellationSignal));
+            	}
+ 			}
+			
             if (enforceReadPermission(callingPkg, uri) != AppOpsManager.MODE_ALLOWED) {
                 return rejectQuery(uri, projection, selection, selectionArgs, sortOrder,
                         CancellationSignal.fromTransport(cancellationSignal));
@@ -212,6 +298,13 @@ public abstract class ContentProvider implements ComponentCallbacks2 {
 
         @Override
         public Uri insert(String callingPkg, Uri uri, ContentValues initialValues) {
+           
+		    if(PEM_CONTROL){
+            	if(!resolveWriteUri(callingPkg, uri)){
+                	return rejectInsert(uri, initialValues);
+            	}
+			}
+			
             if (enforceWritePermission(callingPkg, uri) != AppOpsManager.MODE_ALLOWED) {
                 return rejectInsert(uri, initialValues);
             }
@@ -225,6 +318,13 @@ public abstract class ContentProvider implements ComponentCallbacks2 {
 
         @Override
         public int bulkInsert(String callingPkg, Uri uri, ContentValues[] initialValues) {
+			
+			if(PEM_CONTROL){
+            	if(!resolveWriteUri(callingPkg, uri)){
+              		return 0;
+            	}
+			}
+			
             if (enforceWritePermission(callingPkg, uri) != AppOpsManager.MODE_ALLOWED) {
                 return 0;
             }
@@ -265,6 +365,13 @@ public abstract class ContentProvider implements ComponentCallbacks2 {
 
         @Override
         public int delete(String callingPkg, Uri uri, String selection, String[] selectionArgs) {
+
+             if(PEM_CONTROL){
+                  if(!resolveWriteUri(callingPkg, uri)){
+                     return 0;
+                  }
+             }
+
             if (enforceWritePermission(callingPkg, uri) != AppOpsManager.MODE_ALLOWED) {
                 return 0;
             }
@@ -279,6 +386,13 @@ public abstract class ContentProvider implements ComponentCallbacks2 {
         @Override
         public int update(String callingPkg, Uri uri, ContentValues values, String selection,
                 String[] selectionArgs) {
+				
+             if(PEM_CONTROL){
+                  if(!resolveWriteUri(callingPkg, uri)){
+               	     return 0;
+                  }
+             }
+
             if (enforceWritePermission(callingPkg, uri) != AppOpsManager.MODE_ALLOWED) {
                 return 0;
             }

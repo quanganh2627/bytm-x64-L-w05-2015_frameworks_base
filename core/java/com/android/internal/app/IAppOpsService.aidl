@@ -17,7 +17,9 @@
 package com.android.internal.app;
 
 import android.app.AppOpsManager;
+import android.os.Bundle;
 import com.android.internal.app.IAppOpsCallback;
+import com.android.internal.app.IAccessReqCallback;
 
 interface IAppOpsService {
     // These first methods are also called by native code, so must
@@ -36,4 +38,10 @@ interface IAppOpsService {
     List<AppOpsManager.PackageOps> getOpsForPackage(int uid, String packageName, in int[] ops);
     void setMode(int code, int uid, String packageName, int mode);
     void resetAllModes();
+	
+    // jw add for AccessMonitor
+    void registerAccessReqCallback(in IAccessReqCallback cb);
+    void unRegisterAccessReqCallback();
+    int checkOperationWithData(int op, int uid, in Bundle data);
+		
 }
